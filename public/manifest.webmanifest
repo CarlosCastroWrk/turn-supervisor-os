@@ -1,0 +1,19 @@
+{
+  "name": "Turn Supervisor OS",
+  "short_name": "Turn OS",
+  "description": "Private local-first field operations notebook for Turn supervision.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

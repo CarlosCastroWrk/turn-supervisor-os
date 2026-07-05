@@ -1,0 +1,29 @@
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Dependencies and builds
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+
+# Runtime files
+*.log
+.DS_Store
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
+# Generated artifacts
+artifacts/*
+!artifacts/README.md
+!artifacts/.gitkeep
+
+# Local data dumps
+data/*
+!data/README.md
+!data/.gitkeep

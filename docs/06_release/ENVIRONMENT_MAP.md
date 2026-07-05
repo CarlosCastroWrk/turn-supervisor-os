@@ -15,4 +15,5 @@ Document environments without exposing secret values.
 - Confirm deployment environment variables through the hosting provider UI or CLI without printing values.
 - The Supabase database password for `turn-supervisor-os` was generated locally and stored in macOS Keychain under `turn-supervisor-os supabase db password`.
 - Vercel production has `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_ENABLE_SYNC=true`.
+- Supabase Auth keeps global public signup disabled while email/password login is enabled for the existing Los user.
 - Do not commit Supabase service-role keys, provider API keys, or real `.env` files.

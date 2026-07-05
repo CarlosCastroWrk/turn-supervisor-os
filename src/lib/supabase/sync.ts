@@ -817,7 +817,11 @@ export const useSupabaseSync = (
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) {
         setStatus('error');
-        setMessage(error.message);
+        setMessage(
+          error.message.toLowerCase().includes('email logins')
+            ? 'Email/password login is disabled in Supabase. Re-enable the Email provider, then try again.'
+            : error.message,
+        );
         return;
       }
       setSession(authData.session);

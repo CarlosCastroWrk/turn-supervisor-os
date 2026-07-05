@@ -28,3 +28,7 @@
   - Enabled TOTP MFA support in Supabase config.
   - Remaining advisor warning: leaked-password protection is disabled and should be enabled from Supabase Auth security settings if available.
   - Remaining QA: sign in on Mac/iPhone/iPad, verify edit propagation, offline edits, and export after sync.
+- Fixed sign-in friction:
+  - Re-enabled the Supabase Email provider while keeping global public signup disabled.
+  - Confirmed a fake email/password smoke returns invalid credentials instead of "Email logins are disabled."
+  - Changed the sync sign-in UI from a header popover to a centered sheet so it does not fight the iPad side nav.

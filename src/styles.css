@@ -230,12 +230,15 @@ small {
 }
 
 .sync-panel__body {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 50;
+  position: fixed;
+  top: calc(86px + env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  left: max(12px, env(safe-area-inset-left));
+  z-index: 80;
   display: grid;
-  width: min(92vw, 430px);
+  width: auto;
+  max-width: 520px;
+  margin: 0 auto;
   gap: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -244,8 +247,37 @@ small {
   padding: 14px;
 }
 
-.sync-panel__body p {
+.sync-panel__top {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sync-panel__top strong {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.sync-panel__top p {
   font-size: 0.82rem;
+}
+
+.sync-panel__close {
+  display: grid;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--muted);
+}
+
+.sync-panel__form {
+  display: grid;
+  gap: 10px;
 }
 
 .secondary-nav {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Cloud, CloudOff, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Cloud, CloudOff, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import type { SyncController } from '../lib/supabase/sync';
 import { Button, Field } from './FormControls';
 
@@ -27,7 +27,8 @@ export function SyncPanel({ sync }: SyncPanelProps) {
     return null;
   }
 
-  const submit = async () => {
+  const submit = async (event?: React.FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
     setBusy(true);
     await sync.signIn(email, password);
     setBusy(false);
@@ -48,11 +49,19 @@ export function SyncPanel({ sync }: SyncPanelProps) {
 
       {open ? (
         <div className="sync-panel__body">
-          <p>{sync.message}</p>
+          <div className="sync-panel__top">
+            <div>
+              <strong>{sync.email ? 'Sync this device' : 'Sign in to sync'}</strong>
+              <p>{sync.message}</p>
+            </div>
+            <button className="sync-panel__close" type="button" onClick={() => setOpen(false)} aria-label="Close sync panel">
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
           {sync.lastSyncedAt ? <small>Last sync: {new Date(sync.lastSyncedAt).toLocaleTimeString()}</small> : null}
 
           {sync.status === 'signed_out' || sync.status === 'error' || sync.status === 'not_configured' ? (
-            <div className="grid two">
+            <form className="sync-panel__form" onSubmit={submit}>
               <Field label="Email">
                 <input
                   autoComplete="email"
@@ -72,11 +81,11 @@ export function SyncPanel({ sync }: SyncPanelProps) {
                   value={password}
                 />
               </Field>
-              <Button disabled={busy || !email || !password || !sync.configured} onClick={submit} variant="primary">
+              <Button disabled={busy || !email || !password || !sync.configured} type="submit" variant="primary">
                 <ShieldCheck size={16} aria-hidden="true" />
-                Sign in
+                {busy ? 'Signing in...' : 'Sign in and sync'}
               </Button>
-            </div>
+            </form>
           ) : (
             <div className="button-row">
               <Button disabled={busy} onClick={() => void sync.syncNow()} variant="primary">

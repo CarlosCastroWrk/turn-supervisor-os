@@ -17,7 +17,7 @@ Turn Supervisor OS v0.1 implemented as a mobile-first React + TypeScript + Vite 
 - PWA manifest and service worker
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
-- Supabase cloud project `jgplalexkmjzldczouih` with initial schema, RLS, private `photos`/`audio` buckets, and signup-disabled auth config
+- Supabase cloud project `jgplalexkmjzldczouih` with initial schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 
 ## What Does Not Exist Yet

@@ -389,6 +389,9 @@ end $$;
 -- these policies are what make that safe.
 -- ---------------------------------------------------------------------------
 
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+
 do $$
 declare t text;
 begin
@@ -401,15 +404,56 @@ begin
     execute format('alter table public.%I enable row level security', t);
     execute format(
       'create policy %I_owner on public.%I
-       for all using (user_id = auth.uid()) with check (user_id = auth.uid())', t, t);
+       for all to authenticated
+       using (user_id = (select auth.uid()))
+       with check (user_id = (select auth.uid()))', t, t);
   end loop;
 end $$;
 
--- Storage policies (run after creating the private "photos" and "audio" buckets):
---
--- create policy "own media read" on storage.objects for select
---   using (bucket_id in ('photos','audio') and (storage.foldername(name))[1] = auth.uid()::text);
--- create policy "own media write" on storage.objects for insert
---   with check (bucket_id in ('photos','audio') and (storage.foldername(name))[1] = auth.uid()::text);
--- create policy "own media delete" on storage.objects for delete
---   using (bucket_id in ('photos','audio') and (storage.foldername(name))[1] = auth.uid()::text);
+-- ---------------------------------------------------------------------------
+-- Storage buckets and policies.
+-- Objects are stored under {user_id}/{object_id.ext}; RLS limits each signed-in
+-- user to their own folder. Buckets are private.
+-- ---------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values
+  ('photos', 'photos', false, 5242880, array['image/jpeg', 'image/png', 'image/webp']),
+  ('audio', 'audio', false, 52428800, array['audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/wav', 'audio/webm', 'audio/ogg'])
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+create policy "turn media read own folder"
+on storage.objects for select to authenticated
+using (
+  bucket_id in ('photos', 'audio')
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "turn media insert own folder"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id in ('photos', 'audio')
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "turn media update own folder"
+on storage.objects for update to authenticated
+using (
+  bucket_id in ('photos', 'audio')
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+)
+with check (
+  bucket_id in ('photos', 'audio')
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
+create policy "turn media delete own folder"
+on storage.objects for delete to authenticated
+using (
+  bucket_id in ('photos', 'audio')
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);

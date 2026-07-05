@@ -27,3 +27,4 @@ artifacts/*
 data/*
 !data/README.md
 !data/.gitkeep
+.vercel

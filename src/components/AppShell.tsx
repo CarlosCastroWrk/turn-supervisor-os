@@ -15,6 +15,7 @@ import type { AppView } from '../types';
 interface AppShellProps {
   activeView: AppView;
   onNavigate: (view: AppView) => void;
+  syncSlot?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -35,17 +36,20 @@ const secondaryNav: { view: AppView; label: string; icon: React.ElementType }[] 
   { view: 'export', label: 'Export', icon: Menu },
 ];
 
-export function AppShell({ activeView, onNavigate, children }: AppShellProps) {
+export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <button className="brand-button" type="button" onClick={() => onNavigate('dashboard')}>
-          <span className="brand-mark">TS</span>
-          <span>
-            <strong>Turn Supervisor OS</strong>
-            <small>Private field notebook</small>
-          </span>
-        </button>
+        <div className="header-main">
+          <button className="brand-button" type="button" onClick={() => onNavigate('dashboard')}>
+            <span className="brand-mark">TS</span>
+            <span>
+              <strong>Turn Supervisor OS</strong>
+              <small>Private field notebook</small>
+            </span>
+          </button>
+          {syncSlot}
+        </div>
 
         <nav className="secondary-nav" aria-label="Secondary navigation">
           {secondaryNav.map((item) => {

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import { AppShell } from './components/AppShell';
+import { SyncPanel } from './components/SyncPanel';
 import { usePersistentAppData } from './lib/storage';
+import { useSupabaseSync } from './lib/supabase/sync';
 import type { AppView } from './types';
 import { AssignmentsView } from './views/AssignmentsView';
 import { CopilotView } from './views/CopilotView';
@@ -16,7 +18,8 @@ import { UnitDetailView } from './views/UnitDetailView';
 import { UnitsView } from './views/UnitsView';
 
 function App() {
-  const { data, setData } = usePersistentAppData();
+  const { data, setData, hasStoredData } = usePersistentAppData();
+  const sync = useSupabaseSync(data, setData, hasStoredData);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
   const [activeUnitId, setActiveUnitId] = useState<string | undefined>();
 
@@ -29,7 +32,7 @@ function App() {
   }, []);
 
   return (
-    <AppShell activeView={activeView} onNavigate={navigate}>
+    <AppShell activeView={activeView} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
       {activeView === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
       {activeView === 'copilot' ? <CopilotView data={data} setData={setData} /> : null}
       {activeView === 'setup' ? <SetupView data={data} setData={setData} /> : null}

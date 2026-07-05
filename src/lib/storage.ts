@@ -4,6 +4,8 @@ import type { AppData } from '../types';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
 
+export const hasStoredAppData = () => Boolean(window.localStorage.getItem(STORAGE_KEY));
+
 export const loadAppData = (): AppData => {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -40,12 +42,13 @@ export const clearAppData = () => {
 };
 
 export const usePersistentAppData = () => {
+  const [hasStoredData, setHasStoredData] = useState(() => hasStoredAppData());
   const [data, setData] = useState<AppData>(() => loadAppData());
 
   useEffect(() => {
     saveAppData(data);
+    setHasStoredData(true);
   }, [data]);
 
-  return useMemo(() => ({ data, setData }), [data]);
+  return useMemo(() => ({ data, setData, hasStoredData }), [data, hasStoredData]);
 };
-

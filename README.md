@@ -23,12 +23,13 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Local-only data persistence using browser localStorage
 - Rule-based no-API-key copilot parser that creates draft actions before changing data
 - Mobile-accessible secondary navigation for Setup, Assignments, Reports, Training Questions, and Export
+- Optional Supabase sync panel behind `VITE_ENABLE_SYNC` for signing in and syncing records across devices
 
 ## Intentionally Excluded
 
-- No login
-- No backend server
-- No cloud sync
+- No company/team login system
+- No backend server beyond Supabase/Vercel infrastructure
+- No unrestricted cloud sync; sync requires Los's Supabase account and remains feature-flagged
 - No external APIs
 - No AI agent
 - No autonomous actions
@@ -73,7 +74,24 @@ npm run lint
 3. Tap Share.
 4. Tap Add to Home Screen.
 
-The app stores data locally in that browser on that device. Export JSON backups regularly if using it for real field notes.
+The app stores data locally in that browser on that device. When Supabase sync is enabled and you are signed in, supported records also sync to your private Supabase project. Export JSON backups regularly if using it for real field notes.
+
+## Supabase Sync
+
+Production sync is controlled by:
+
+- `VITE_ENABLE_SYNC=true`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+The sync panel appears in the header when the flag is enabled. Sign in with the Supabase user created in the project Dashboard. The app keeps localStorage as the hot/offline cache, uploads local records after sign-in, pulls cloud records, and listens for Realtime changes from other signed-in devices.
+
+Safety notes:
+
+- A fresh browser with no local cache pulls cloud records before uploading sample seed data.
+- Important Copilot mutations are still draft-first.
+- Photo metadata syncs, but base64 photo files stay local until the Storage/photo-compression slice is implemented.
+- Deletes are not propagated yet; avoid deleting browser data unless you exported a backup.
 
 ## Copilot
 
@@ -181,7 +199,8 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - localStorage is simple and offline-friendly, but not ideal for many large photos.
 - Photo data is stored as base64 data URLs and can grow browser storage quickly.
 - PWA offline support caches the app shell, but full offline production hardening is not complete.
-- No cross-device sync between iPhone and iPad yet.
+- Cross-device sync is new and must be field-tested before Turn.
+- Delete propagation and conflict review UI are not implemented yet.
 - No CSV import yet.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.
 - No real OpenAI/API provider is enabled yet because there is no server-side route.

@@ -4,7 +4,7 @@ import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addAssignment, updateAssignment } from '../lib/actions';
-import { ASSIGNMENT_STATUSES, CREW_TRADES, createId, todayISO } from '../lib/constants';
+import { ASSIGNMENT_STATUSES, CREW_TRADES, createId, nowISO, todayISO } from '../lib/constants';
 import { getProjectAssignments, getProjectBuildings, getProjectCrewMembers, getProjectUnits } from '../lib/metrics';
 import type { AppData, AssignmentStatus, CrewTrade } from '../types';
 
@@ -36,6 +36,7 @@ export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
     }
 
     const linkedUnits = units.filter((unit) => unitIds.includes(unit.id));
+    const now = nowISO();
     setData((current) =>
       addAssignment(current, {
         id: createId('assignment'),
@@ -53,6 +54,8 @@ export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
         actualCompletion: '',
         status: 'Planned',
         notes,
+        createdAt: now,
+        updatedAt: now,
       }),
     );
     setTeamName('');

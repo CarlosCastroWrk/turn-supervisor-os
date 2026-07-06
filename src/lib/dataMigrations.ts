@@ -1,4 +1,4 @@
-import type { AppData, CrewMember, Project } from '../types';
+import type { AppData, Assignment, Building, CrewMember, Floor, PhotoNote, Project } from '../types';
 import { UNIT_WORKFLOW_STATUSES } from './constants';
 
 const DEMO_PROJECT_ID = 'project_west_campus_turn';
@@ -8,6 +8,31 @@ const arrayOrEmpty = <T>(value: T[] | undefined): T[] => (Array.isArray(value) ?
 const normalizeProject = (project: Project): Project => ({
   ...project,
   mode: project.mode === 'real' ? 'real' : 'demo',
+});
+
+const fallbackStamp = (createdAt?: string, updatedAt?: string) => updatedAt || createdAt || new Date(0).toISOString();
+
+const normalizeBuilding = (building: Building): Building => ({
+  ...building,
+  createdAt: building.createdAt || fallbackStamp(undefined, building.updatedAt),
+  updatedAt: fallbackStamp(building.createdAt, building.updatedAt),
+});
+
+const normalizeFloor = (floor: Floor): Floor => ({
+  ...floor,
+  createdAt: floor.createdAt || fallbackStamp(undefined, floor.updatedAt),
+  updatedAt: fallbackStamp(floor.createdAt, floor.updatedAt),
+});
+
+const normalizeAssignment = (assignment: Assignment): Assignment => ({
+  ...assignment,
+  createdAt: assignment.createdAt || fallbackStamp(undefined, assignment.updatedAt),
+  updatedAt: fallbackStamp(assignment.createdAt, assignment.updatedAt),
+});
+
+const normalizePhotoNote = (photo: PhotoNote): PhotoNote => ({
+  ...photo,
+  updatedAt: fallbackStamp(photo.createdAt, photo.updatedAt),
 });
 
 const pickActiveProjectId = (projects: Project[], currentActiveProjectId: string) => {
@@ -51,13 +76,13 @@ export const normalizeAppData = (data: AppData): AppData => {
     ...data,
     activeProjectId,
     projects,
-    buildings: arrayOrEmpty(data.buildings),
-    floors: arrayOrEmpty(data.floors),
+    buildings: arrayOrEmpty(data.buildings).map(normalizeBuilding),
+    floors: arrayOrEmpty(data.floors).map(normalizeFloor),
     units: arrayOrEmpty(data.units),
     crewMembers: arrayOrEmpty(data.crewMembers).map((crew) => normalizeCrew(crew, demoProject?.id, activeProjectId)),
-    assignments: arrayOrEmpty(data.assignments),
+    assignments: arrayOrEmpty(data.assignments).map(normalizeAssignment),
     issues: arrayOrEmpty(data.issues),
-    photoNotes: arrayOrEmpty(data.photoNotes),
+    photoNotes: arrayOrEmpty(data.photoNotes).map(normalizePhotoNote),
     dailyLogs: arrayOrEmpty(data.dailyLogs),
     trainingQuestions: arrayOrEmpty(data.trainingQuestions),
     activityLogs: arrayOrEmpty(data.activityLogs),

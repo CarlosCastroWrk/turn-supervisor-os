@@ -24,6 +24,7 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
 
     const reader = new FileReader();
     reader.onload = () => {
+      const now = nowISO();
       onAdd({
         id: createId('photo'),
         projectId,
@@ -32,7 +33,8 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
         imageData: typeof reader.result === 'string' ? reader.result : undefined,
         category: category ?? 'Other',
         caption,
-        createdAt: nowISO(),
+        createdAt: now,
+        updatedAt: now,
       });
       event.target.value = '';
     };
@@ -66,4 +68,3 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
     </form>
   );
 }
-

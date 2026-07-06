@@ -106,6 +106,8 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
       projectId: data.activeProjectId,
       name: quickBuilding,
       notes: 'Created from quick unit setup.',
+      createdAt: now,
+      updatedAt: now,
     };
     const existingUnitNumbers = new Set(
       data.units.filter((unit) => unit.buildingId === buildingId).map((unit) => unit.unitNumber),
@@ -117,7 +119,7 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
       const existingFloor = data.floors.find((floor) => floor.buildingId === buildingId && floor.name === `Floor ${floorNumber}`);
       const floorId = existingFloor?.id ?? createId(`floor_${floorNumber}`);
       if (!existingFloor) {
-        newFloors.push({ id: floorId, buildingId, name: `Floor ${floorNumber}`, notes: '' });
+        newFloors.push({ id: floorId, buildingId, name: `Floor ${floorNumber}`, notes: '', createdAt: now, updatedAt: now });
       }
 
       for (let index = 0; index < quickCount; index += 1) {

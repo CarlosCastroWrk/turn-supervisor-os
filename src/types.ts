@@ -136,6 +136,8 @@ export interface Building {
   projectId: EntityId;
   name: string;
   notes: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Floor {
@@ -143,6 +145,8 @@ export interface Floor {
   buildingId: EntityId;
   name: string;
   notes: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Unit {
@@ -198,6 +202,8 @@ export interface Assignment {
   actualCompletion: string;
   status: AssignmentStatus;
   notes: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Issue {
@@ -229,6 +235,7 @@ export interface PhotoNote {
   category: PhotoCategory;
   caption: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface DailyLog {

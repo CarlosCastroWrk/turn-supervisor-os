@@ -19,6 +19,7 @@ import type {
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { getSupabaseClient, isSupabaseConfigured, isSyncFeatureEnabled } from './client';
+import { mergePhotoNotes, mergeRows } from './syncCore';
 
 type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'offline' | 'error';
 type Row = Record<string, unknown>;
@@ -39,6 +40,7 @@ type SyncedKey =
   | 'memoryCandidates'
   | 'followUpTasks';
 type SyncRemoteData = Partial<Record<SyncedKey, { id: string }[]>>;
+type SyncBaseline = Partial<Record<SyncedKey, Map<string, string>>>;
 
 interface SyncTable<T extends { id: string }> {
   key: SyncedKey;
@@ -141,13 +143,22 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
     table: 'buildings',
     toRow: (item) => {
       const building = item as AppData['buildings'][number];
-      return { id: building.id, project_id: building.projectId, name: building.name, notes: building.notes };
+      return {
+        id: building.id,
+        project_id: building.projectId,
+        name: building.name,
+        notes: building.notes,
+        created_at: building.createdAt,
+        updated_at: building.updatedAt,
+      };
     },
     fromRow: (row) => ({
       id: stringValue(row, 'id'),
       projectId: stringValue(row, 'project_id'),
       name: stringValue(row, 'name'),
       notes: stringValue(row, 'notes'),
+      createdAt: stringValue(row, 'created_at', nowISO()),
+      updatedAt: stringValue(row, 'updated_at', nowISO()),
     }),
   },
   {
@@ -155,13 +166,22 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
     table: 'floors',
     toRow: (item) => {
       const floor = item as AppData['floors'][number];
-      return { id: floor.id, building_id: floor.buildingId, name: floor.name, notes: floor.notes };
+      return {
+        id: floor.id,
+        building_id: floor.buildingId,
+        name: floor.name,
+        notes: floor.notes,
+        created_at: floor.createdAt,
+        updated_at: floor.updatedAt,
+      };
     },
     fromRow: (row) => ({
       id: stringValue(row, 'id'),
       buildingId: stringValue(row, 'building_id'),
       name: stringValue(row, 'name'),
       notes: stringValue(row, 'notes'),
+      createdAt: stringValue(row, 'created_at', nowISO()),
+      updatedAt: stringValue(row, 'updated_at', nowISO()),
     }),
   },
   {
@@ -271,6 +291,8 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         actual_completion: assignment.actualCompletion,
         status: assignment.status,
         notes: assignment.notes,
+        created_at: assignment.createdAt,
+        updated_at: assignment.updatedAt,
       };
     },
     fromRow: (row) =>
@@ -290,6 +312,8 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         actualCompletion: stringValue(row, 'actual_completion'),
         status: stringValue(row, 'status') as Assignment['status'],
         notes: stringValue(row, 'notes'),
+        createdAt: stringValue(row, 'created_at', nowISO()),
+        updatedAt: stringValue(row, 'updated_at', nowISO()),
       }) satisfies Assignment,
   },
   {
@@ -350,6 +374,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         category: photo.category,
         caption: photo.caption,
         created_at: photo.createdAt,
+        updated_at: photo.updatedAt,
       };
     },
     fromRow: (row) =>
@@ -363,6 +388,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         category: stringValue(row, 'category') as PhotoNote['category'],
         caption: stringValue(row, 'caption'),
         createdAt: stringValue(row, 'created_at', nowISO()),
+        updatedAt: stringValue(row, 'updated_at', nowISO()),
       }) satisfies PhotoNote,
   },
   {
@@ -593,30 +619,6 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
 
 export const syncedTables = tableConfigs.map((config) => config.table);
 
-const comparableStamp = (item: { id: string; createdAt?: string; updatedAt?: string; completedAt?: string }) =>
-  item.updatedAt ?? item.completedAt ?? item.createdAt ?? '';
-
-const mergeRows = <T extends { id: string; createdAt?: string; updatedAt?: string; completedAt?: string }>(
-  localRows: T[],
-  remoteRows: T[],
-) => {
-  const byId = new Map(localRows.map((item) => [item.id, item]));
-
-  remoteRows.forEach((remote) => {
-    const local = byId.get(remote.id);
-    if (!local) {
-      byId.set(remote.id, remote);
-      return;
-    }
-
-    if (comparableStamp(remote) >= comparableStamp(local)) {
-      byId.set(remote.id, remote);
-    }
-  });
-
-  return Array.from(byId.values()).sort((a, b) => comparableStamp(b).localeCompare(comparableStamp(a)));
-};
-
 const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
   normalizeAppData({
     ...local,
@@ -627,7 +629,7 @@ const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
     crewMembers: mergeRows(local.crewMembers, (remote.crewMembers ?? []) as CrewMember[]),
     assignments: mergeRows(local.assignments, (remote.assignments ?? []) as Assignment[]),
     issues: mergeRows(local.issues, (remote.issues ?? []) as Issue[]),
-    photoNotes: mergeRows(local.photoNotes, (remote.photoNotes ?? []) as PhotoNote[]),
+    photoNotes: mergePhotoNotes(local.photoNotes, (remote.photoNotes ?? []) as PhotoNote[]),
     dailyLogs: mergeRows(local.dailyLogs, (remote.dailyLogs ?? []) as DailyLog[]),
     trainingQuestions: mergeRows(local.trainingQuestions, (remote.trainingQuestions ?? []) as TrainingQuestion[]),
     activityLogs: mergeRows(local.activityLogs, (remote.activityLogs ?? []) as ActivityLog[]),
@@ -637,13 +639,46 @@ const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
     followUpTasks: mergeRows(local.followUpTasks, (remote.followUpTasks ?? []) as FollowUpTask[]),
   });
 
-const syncedFingerprint = (data: AppData) =>
-  JSON.stringify(
-    tableConfigs.reduce<Record<string, unknown>>((fingerprint, config) => {
-      fingerprint[config.key] = data[config.key];
-      return fingerprint;
-    }, {}),
-  );
+const rowFingerprint = (config: SyncTable<{ id: string }>, item: { id: string }) => JSON.stringify(config.toRow(item));
+
+const cloneBaseline = (baseline: SyncBaseline = {}) => {
+  const next: SyncBaseline = {};
+  tableConfigs.forEach((config) => {
+    const tableBaseline = baseline[config.key];
+    if (tableBaseline) {
+      next[config.key] = new Map(tableBaseline);
+    }
+  });
+  return next;
+};
+
+const baselineFromRemoteData = (remote: SyncRemoteData): SyncBaseline => {
+  const baseline: SyncBaseline = {};
+  tableConfigs.forEach((config) => {
+    const rows = (remote[config.key] ?? []) as { id: string }[];
+    baseline[config.key] = new Map(rows.map((item) => [item.id, rowFingerprint(config, item)]));
+  });
+  return baseline;
+};
+
+const changedItemsForConfig = (data: AppData, baseline: SyncBaseline, config: SyncTable<{ id: string }>) => {
+  const tableBaseline = baseline[config.key];
+  const items = data[config.key] as { id: string }[];
+  return items.filter((item) => rowFingerprint(config, item) !== tableBaseline?.get(item.id));
+};
+
+const hasChangedRows = (data: AppData, baseline: SyncBaseline) =>
+  tableConfigs.some((config) => changedItemsForConfig(data, baseline, config).length > 0);
+
+interface UploadLocalDataResult {
+  baseline: SyncBaseline;
+  failures: string[];
+  uploadedRows: number;
+  uploadedTables: string[];
+}
+
+const uploadFailureMessage = (failures: string[]) =>
+  `Upload failed for ${failures.length} table(s): ${failures.join('; ')}`;
 
 const fetchRemoteData = async (client: SupabaseClient) => {
   const remote: SyncRemoteData = {};
@@ -660,12 +695,17 @@ const fetchRemoteData = async (client: SupabaseClient) => {
     remote[config.key] = rows.map(config.fromRow);
   }
 
-  return { remote, rowCount };
+  return { remote, rowCount, baseline: baselineFromRemoteData(remote) };
 };
 
-const uploadLocalData = async (client: SupabaseClient, data: AppData) => {
+const uploadLocalData = async (client: SupabaseClient, data: AppData, baseline: SyncBaseline): Promise<UploadLocalDataResult> => {
+  const nextBaseline = cloneBaseline(baseline);
+  const failures: string[] = [];
+  const uploadedTables: string[] = [];
+  let uploadedRows = 0;
+
   for (const config of tableConfigs) {
-    const items = data[config.key] as { id: string }[];
+    const items = changedItemsForConfig(data, baseline, config);
     if (items.length === 0) {
       continue;
     }
@@ -673,9 +713,18 @@ const uploadLocalData = async (client: SupabaseClient, data: AppData) => {
     const rows = items.map(config.toRow);
     const { error } = await client.from(config.table).upsert(rows, { onConflict: 'id' });
     if (error) {
-      throw error;
+      failures.push(`${config.table}: ${error.message}`);
+      continue;
     }
+
+    uploadedTables.push(config.table);
+    uploadedRows += rows.length;
+    const tableBaseline = nextBaseline[config.key] ?? new Map<string, string>();
+    items.forEach((item) => tableBaseline.set(item.id, rowFingerprint(config, item)));
+    nextBaseline[config.key] = tableBaseline;
   }
+
+  return { baseline: nextBaseline, failures, uploadedRows, uploadedTables };
 };
 
 const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
@@ -718,7 +767,7 @@ export const useSupabaseSync = (
   const initializedRef = useRef(false);
   const applyingRemoteRef = useRef(false);
   const hasStoredDataRef = useRef(hasStoredData);
-  const lastUploadedFingerprintRef = useRef('');
+  const syncBaselineRef = useRef<SyncBaseline>({});
   const channelRef = useRef<RealtimeChannel | null>(null);
   const dataRef = useRef(data);
 
@@ -738,25 +787,41 @@ export const useSupabaseSync = (
       return;
     }
 
-    setStatus('syncing');
-    setMessage('Pulling cloud updates...');
-    const { remote, rowCount } = await fetchRemoteData(client);
-    const nextData = rowCount > 0
-      ? hasStoredDataRef.current
-        ? mergeRemoteData(dataRef.current, remote)
-        : replaceRemoteData(dataRef.current, remote)
-      : dataRef.current;
-    applyingRemoteRef.current = true;
-    setData(nextData);
-    dataRef.current = nextData;
-    hasStoredDataRef.current = true;
-    lastUploadedFingerprintRef.current = syncedFingerprint(nextData);
-    window.setTimeout(() => {
-      applyingRemoteRef.current = false;
-    }, 0);
-    setStatus('synced');
-    setLastSyncedAt(nowISO());
-    setMessage(rowCount > 0 ? 'Cloud updates pulled into this device.' : 'No cloud records yet.');
+    try {
+      setStatus('syncing');
+      setMessage('Pulling cloud updates...');
+      const { remote, rowCount, baseline } = await fetchRemoteData(client);
+      const nextData = rowCount > 0
+        ? hasStoredDataRef.current
+          ? mergeRemoteData(dataRef.current, remote)
+          : replaceRemoteData(dataRef.current, remote)
+        : dataRef.current;
+      syncBaselineRef.current = baseline;
+      applyingRemoteRef.current = true;
+      setData(nextData);
+      dataRef.current = nextData;
+      hasStoredDataRef.current = true;
+      window.setTimeout(() => {
+        applyingRemoteRef.current = false;
+      }, 0);
+
+      const uploadResult = await uploadLocalData(client, nextData, syncBaselineRef.current);
+      syncBaselineRef.current = uploadResult.baseline;
+      if (uploadResult.failures.length > 0) {
+        throw new Error(uploadFailureMessage(uploadResult.failures));
+      }
+
+      setStatus('synced');
+      setLastSyncedAt(nowISO());
+      setMessage(
+        rowCount > 0
+          ? `Cloud updates pulled. Uploaded ${uploadResult.uploadedRows} local change(s).`
+          : `No cloud records yet. Uploaded ${uploadResult.uploadedRows} local record(s).`,
+      );
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Pull failed.');
+    }
   }, [client, session, setData]);
 
   const uploadNow = useCallback(async () => {
@@ -767,13 +832,25 @@ export const useSupabaseSync = (
       return;
     }
 
-    setStatus('syncing');
-    setMessage('Uploading this device...');
-    await uploadLocalData(client, dataRef.current);
-    lastUploadedFingerprintRef.current = syncedFingerprint(dataRef.current);
-    setStatus('synced');
-    setLastSyncedAt(nowISO());
-    setMessage('This device is synced to Supabase.');
+    try {
+      setStatus('syncing');
+      setMessage('Uploading this device...');
+      const uploadResult = await uploadLocalData(client, dataRef.current, syncBaselineRef.current);
+      syncBaselineRef.current = uploadResult.baseline;
+      if (uploadResult.failures.length > 0) {
+        throw new Error(uploadFailureMessage(uploadResult.failures));
+      }
+      setStatus('synced');
+      setLastSyncedAt(nowISO());
+      setMessage(
+        uploadResult.uploadedRows > 0
+          ? `Uploaded ${uploadResult.uploadedRows} local change(s) to Supabase.`
+          : 'No local changes to upload.',
+      );
+    } catch (error) {
+      setStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Upload failed.');
+    }
   }, [client, session]);
 
   const syncNow = useCallback(async () => {
@@ -787,8 +864,9 @@ export const useSupabaseSync = (
     try {
       setStatus('syncing');
       setMessage('Checking cloud records...');
-      const { remote, rowCount } = await fetchRemoteData(client);
+      const { remote, rowCount, baseline } = await fetchRemoteData(client);
       let nextData = dataRef.current;
+      syncBaselineRef.current = baseline;
 
       if (rowCount > 0) {
         nextData = hasStoredDataRef.current
@@ -798,18 +876,24 @@ export const useSupabaseSync = (
         setData(nextData);
         dataRef.current = nextData;
         hasStoredDataRef.current = true;
-        lastUploadedFingerprintRef.current = syncedFingerprint(nextData);
         window.setTimeout(() => {
           applyingRemoteRef.current = false;
         }, 0);
       }
 
-      await uploadLocalData(client, nextData);
-      lastUploadedFingerprintRef.current = syncedFingerprint(nextData);
+      const uploadResult = await uploadLocalData(client, nextData, syncBaselineRef.current);
+      syncBaselineRef.current = uploadResult.baseline;
+      if (uploadResult.failures.length > 0) {
+        throw new Error(uploadFailureMessage(uploadResult.failures));
+      }
       initializedRef.current = true;
       setStatus('synced');
       setLastSyncedAt(nowISO());
-      setMessage(rowCount > 0 ? 'Pulled cloud records and uploaded this device.' : 'Cloud was empty. Uploaded this device.');
+      setMessage(
+        rowCount > 0
+          ? `Pulled cloud records and uploaded ${uploadResult.uploadedRows} local change(s).`
+          : `Cloud was empty. Uploaded ${uploadResult.uploadedRows} local record(s).`,
+      );
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Sync failed.');
@@ -933,8 +1017,7 @@ export const useSupabaseSync = (
   useEffect(() => {
     if (!client || !session || !initializedRef.current || applyingRemoteRef.current) return;
 
-    const nextFingerprint = syncedFingerprint(data);
-    if (nextFingerprint === lastUploadedFingerprintRef.current) return;
+    if (!hasChangedRows(data, syncBaselineRef.current)) return;
 
     const uploadTimer = window.setTimeout(() => {
       void uploadNow();

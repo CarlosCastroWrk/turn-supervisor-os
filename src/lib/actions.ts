@@ -125,6 +125,8 @@ export const createRealTurnProject = (data: AppData, input: RealTurnSetupInput):
     projectId,
     name: requestedNames[index] || buildingNameForIndex(index),
     notes: '',
+    createdAt: now,
+    updatedAt: now,
   }));
 
   const floors: Floor[] = buildings.flatMap((building) =>
@@ -133,6 +135,8 @@ export const createRealTurnProject = (data: AppData, input: RealTurnSetupInput):
       buildingId: building.id,
       name: `Floor ${index + 1}`,
       notes: '',
+      createdAt: now,
+      updatedAt: now,
     })),
   );
 
@@ -238,7 +242,7 @@ export const updateCrewMember = (data: AppData, crewId: EntityId, patch: Partial
 
 export const addAssignment = (data: AppData, assignment: Assignment): AppData => ({
   ...data,
-  assignments: [assignment, ...data.assignments],
+  assignments: [{ ...assignment, createdAt: assignment.createdAt || nowISO(), updatedAt: assignment.updatedAt || nowISO() }, ...data.assignments],
   activityLogs: [activity(assignment.projectId, 'Assignment', assignment.id, 'Created assignment', assignment.scope), ...data.activityLogs],
 });
 
@@ -251,7 +255,7 @@ export const updateAssignment = (data: AppData, assignmentId: EntityId, patch: P
   return {
     ...data,
     assignments: data.assignments.map((assignment) =>
-      assignment.id === assignmentId ? { ...assignment, ...patch } : assignment,
+      assignment.id === assignmentId ? { ...assignment, ...patch, updatedAt: nowISO() } : assignment,
     ),
     activityLogs: [
       activity(existing.projectId, 'Assignment', assignmentId, 'Updated assignment', patch.status ?? existing.status),
@@ -284,7 +288,7 @@ export const updateTrainingQuestion = (data: AppData, questionId: EntityId, patc
 
 export const addPhotoNote = (data: AppData, photo: PhotoNote): AppData => ({
   ...data,
-  photoNotes: [photo, ...data.photoNotes],
+  photoNotes: [{ ...photo, createdAt: photo.createdAt || nowISO(), updatedAt: photo.updatedAt || photo.createdAt || nowISO() }, ...data.photoNotes],
   activityLogs: [
     activity(photo.projectId, 'PhotoNote', photo.id, 'Added photo/note', photo.caption || photo.category),
     ...data.activityLogs,
@@ -549,6 +553,8 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
       actualCompletion: payloadString(draft.payload, 'status') === 'Complete' ? new Date().toTimeString().slice(0, 5) : '',
       status: (payloadString(draft.payload, 'status') || 'In Progress') as Assignment['status'],
       notes: draft.sourceText,
+      createdAt: nowISO(),
+      updatedAt: nowISO(),
     };
     next = addAssignment(next, assignment);
     return markDraftApplied(next, draft);

@@ -31,12 +31,14 @@ const buildings: Building[] = [
     projectId: project.id,
     name: 'Building A',
     notes: 'Sample building for setup and walkthrough testing.',
+    createdAt: now,
+    updatedAt: now,
   },
 ];
 
 const floors: Floor[] = [
-  { id: 'floor_a_1', buildingId: 'building_a', name: 'Floor 1', notes: '' },
-  { id: 'floor_a_2', buildingId: 'building_a', name: 'Floor 2', notes: '' },
+  { id: 'floor_a_1', buildingId: 'building_a', name: 'Floor 1', notes: '', createdAt: now, updatedAt: now },
+  { id: 'floor_a_2', buildingId: 'building_a', name: 'Floor 2', notes: '', createdAt: now, updatedAt: now },
 ];
 
 const baseUnit = {
@@ -202,6 +204,8 @@ const assignments: Assignment[] = [
     actualCompletion: '',
     status: 'In Progress',
     notes: 'Needs touch-up paint confirmed.',
+    createdAt: now,
+    updatedAt: now,
   },
   {
     id: 'assignment_clean_201',
@@ -219,6 +223,8 @@ const assignments: Assignment[] = [
     actualCompletion: '',
     status: 'Checked In',
     notes: 'Started on Unit 201.',
+    createdAt: now,
+    updatedAt: now,
   },
 ];
 

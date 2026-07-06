@@ -22,6 +22,7 @@ export function SyncPanel({ sync }: SyncPanelProps) {
   const [password, setPassword] = useState('');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const syncBusy = busy || sync.status === 'syncing';
 
   if (!sync.enabled) {
     return null;
@@ -81,24 +82,24 @@ export function SyncPanel({ sync }: SyncPanelProps) {
                   value={password}
                 />
               </Field>
-              <Button disabled={busy || !email || !password || !sync.configured} type="submit" variant="primary">
+              <Button disabled={syncBusy || !email || !password || !sync.configured} type="submit" variant="primary">
                 <ShieldCheck size={16} aria-hidden="true" />
-                {busy ? 'Signing in...' : 'Sign in and sync'}
+                {syncBusy ? 'Signing in...' : 'Sign in and sync'}
               </Button>
             </form>
           ) : (
             <div className="button-row">
-              <Button disabled={busy} onClick={() => void sync.syncNow()} variant="primary">
+              <Button disabled={syncBusy} onClick={() => void sync.syncNow()} variant="primary">
                 <RefreshCw size={16} aria-hidden="true" />
                 Sync now
               </Button>
-              <Button disabled={busy} onClick={() => void sync.pullNow()}>
+              <Button disabled={syncBusy} onClick={() => void sync.pullNow()}>
                 Pull cloud
               </Button>
-              <Button disabled={busy} onClick={() => void sync.uploadNow()}>
+              <Button disabled={syncBusy} onClick={() => void sync.uploadNow()}>
                 Upload this device
               </Button>
-              <Button disabled={busy} onClick={() => void sync.signOut()} variant="ghost">
+              <Button disabled={syncBusy} onClick={() => void sync.signOut()} variant="ghost">
                 Sign out
               </Button>
             </div>

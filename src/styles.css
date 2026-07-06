@@ -280,6 +280,22 @@ small {
   gap: 10px;
 }
 
+@media (max-width: 520px) {
+  .header-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sync-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sync-panel__summary {
+    justify-content: flex-start;
+  }
+}
+
 .secondary-nav {
   display: flex;
   width: 100%;

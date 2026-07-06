@@ -768,6 +768,10 @@ export const useSupabaseSync = (
   const applyingRemoteRef = useRef(false);
   const hasStoredDataRef = useRef(hasStoredData);
   const syncBaselineRef = useRef<SyncBaseline>({});
+  const syncInFlightRef = useRef(false);
+  const pendingSyncRef = useRef(false);
+  const syncNowRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  const realtimePullTimerRef = useRef<number | undefined>(undefined);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const dataRef = useRef(data);
 
@@ -787,6 +791,14 @@ export const useSupabaseSync = (
       return;
     }
 
+    if (syncInFlightRef.current) {
+      pendingSyncRef.current = true;
+      setStatus('syncing');
+      setMessage('A sync is already running. One more pass is queued.');
+      return;
+    }
+
+    syncInFlightRef.current = true;
     try {
       setStatus('syncing');
       setMessage('Pulling cloud updates...');
@@ -821,6 +833,12 @@ export const useSupabaseSync = (
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Pull failed.');
+    } finally {
+      syncInFlightRef.current = false;
+      if (pendingSyncRef.current) {
+        pendingSyncRef.current = false;
+        window.setTimeout(() => void syncNowRef.current?.(), 250);
+      }
     }
   }, [client, session, setData]);
 
@@ -832,6 +850,14 @@ export const useSupabaseSync = (
       return;
     }
 
+    if (syncInFlightRef.current) {
+      pendingSyncRef.current = true;
+      setStatus('syncing');
+      setMessage('A sync is already running. One more pass is queued.');
+      return;
+    }
+
+    syncInFlightRef.current = true;
     try {
       setStatus('syncing');
       setMessage('Uploading this device...');
@@ -850,6 +876,12 @@ export const useSupabaseSync = (
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Upload failed.');
+    } finally {
+      syncInFlightRef.current = false;
+      if (pendingSyncRef.current) {
+        pendingSyncRef.current = false;
+        window.setTimeout(() => void syncNowRef.current?.(), 250);
+      }
     }
   }, [client, session]);
 
@@ -861,6 +893,14 @@ export const useSupabaseSync = (
       return;
     }
 
+    if (syncInFlightRef.current) {
+      pendingSyncRef.current = true;
+      setStatus('syncing');
+      setMessage('A sync is already running. One more pass is queued.');
+      return;
+    }
+
+    syncInFlightRef.current = true;
     try {
       setStatus('syncing');
       setMessage('Checking cloud records...');
@@ -897,8 +937,16 @@ export const useSupabaseSync = (
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Sync failed.');
+    } finally {
+      syncInFlightRef.current = false;
+      if (pendingSyncRef.current) {
+        pendingSyncRef.current = false;
+        window.setTimeout(() => void syncNow(), 250);
+      }
     }
   }, [client, session, setData]);
+
+  syncNowRef.current = syncNow;
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -989,6 +1037,17 @@ export const useSupabaseSync = (
       void client.removeChannel(channelRef.current);
     }
 
+    const scheduleRealtimeSync = () => {
+      if (realtimePullTimerRef.current) {
+        window.clearTimeout(realtimePullTimerRef.current);
+      }
+
+      realtimePullTimerRef.current = window.setTimeout(() => {
+        realtimePullTimerRef.current = undefined;
+        void syncNowRef.current?.();
+      }, 2500);
+    };
+
     const channel = client.channel('turn-supervisor-os-sync');
     tableConfigs.forEach((config) => {
       channel.on(
@@ -999,9 +1058,7 @@ export const useSupabaseSync = (
           table: config.table,
           filter: `user_id=eq.${session.user.id}`,
         },
-        () => {
-          void pullNow();
-        },
+        scheduleRealtimeSync,
       );
     });
 
@@ -1009,10 +1066,14 @@ export const useSupabaseSync = (
     channelRef.current = channel;
 
     return () => {
+      if (realtimePullTimerRef.current) {
+        window.clearTimeout(realtimePullTimerRef.current);
+        realtimePullTimerRef.current = undefined;
+      }
       void client.removeChannel(channel);
       channelRef.current = null;
     };
-  }, [client, pullNow, session]);
+  }, [client, session]);
 
   useEffect(() => {
     if (!client || !session || !initializedRef.current || applyingRemoteRef.current) return;

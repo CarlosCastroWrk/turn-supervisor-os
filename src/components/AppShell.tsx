@@ -1,10 +1,10 @@
 import {
   ClipboardCheck,
-  Bot,
   FileText,
   Home,
   ListChecks,
   Menu,
+  Mic,
   Settings,
   ShieldQuestion,
   Truck,
@@ -21,7 +21,7 @@ interface AppShellProps {
 
 const primaryNav: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'dashboard', label: 'Dashboard', icon: Home },
-  { view: 'copilot', label: 'Copilot', icon: Bot },
+  { view: 'copilot', label: 'Capture', icon: Mic },
   { view: 'units', label: 'Units', icon: ListChecks },
   { view: 'issues', label: 'Issues', icon: ClipboardCheck },
   { view: 'crews', label: 'Crews', icon: Users },

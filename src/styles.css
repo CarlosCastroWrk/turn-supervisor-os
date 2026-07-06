@@ -955,6 +955,11 @@ small {
   color: var(--muted);
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .button.is-selected {
   border-color: #0f172a;
   background: #0f172a;
@@ -1169,6 +1174,15 @@ small {
 .copilot-card {
   border-color: #bfdbfe;
   background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.capture-actions .button {
+  flex: 1 1 148px;
+  min-height: 50px;
+}
+
+.draft-card .button-row .button {
+  flex: 1 1 96px;
 }
 
 .draft-list,

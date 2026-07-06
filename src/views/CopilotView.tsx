@@ -1,5 +1,5 @@
-import { Bot, Check, ClipboardCopy, FileText, Lightbulb, RotateCcw, Save, Send, Sparkles, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Bot, Check, ClipboardCopy, FileText, Lightbulb, Mic, RotateCcw, Save, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
@@ -33,9 +33,9 @@ interface CopilotViewProps {
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
 
 const modeLabels: { mode: CopilotMode; label: string }[] = [
-  { mode: 'quick', label: 'Quick Capture' },
-  { mode: 'ask', label: 'Ask the OS' },
-  { mode: 'briefings', label: 'Briefings' },
+  { mode: 'quick', label: 'Capture' },
+  { mode: 'ask', label: 'Ask' },
+  { mode: 'briefings', label: 'Reports' },
   { mode: 'memory', label: 'Memory' },
 ];
 
@@ -113,7 +113,7 @@ function DraftActionCard({
         </Button>
         <Button variant="primary" onClick={onApply}>
           <Check size={16} aria-hidden="true" />
-          Approve / Apply
+          Approve
         </Button>
         <Button variant="ghost" onClick={onReject}>
           <X size={16} aria-hidden="true" />
@@ -165,6 +165,7 @@ function MemoryCandidateCard({
 export function CopilotView({ data, setData }: CopilotViewProps) {
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
+  const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [parseSummary, setParseSummary] = useState('');
   const [askInput, setAskInput] = useState('');
   const [askResult, setAskResult] = useState<AskOsResult | null>(null);
@@ -175,8 +176,21 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
   const pendingDrafts = data.draftActions.filter((draft) => draft.status === 'pending' || draft.status === 'failed');
   const recentDrafts = data.draftActions.slice(0, 10);
   const pendingMemory = data.memoryCandidates.filter((candidate) => candidate.status === 'pending');
+  const quickInputReady = quickInput.trim().length > 0;
+
+  useEffect(() => {
+    if (mode !== 'quick') {
+      return;
+    }
+
+    window.setTimeout(() => quickInputRef.current?.focus(), 0);
+  }, [mode]);
 
   const parseQuickCapture = async () => {
+    if (!quickInputReady) {
+      return;
+    }
+
     const result = await agentProvider.parseQuickCapture(quickInput, data);
     setParseSummary(result.summary);
     setData((current) => {
@@ -259,13 +273,13 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
     <div className="page">
       <div className="page-title">
         <div>
-          <span className="quiet-label">Draft-first local copilot</span>
-          <h1>Copilot</h1>
+          <span className="quiet-label">Draft-first field notes</span>
+          <h1>Capture</h1>
         </div>
-        <Bot size={28} aria-hidden="true" />
+        <Mic size={28} aria-hidden="true" />
       </div>
 
-      <div className="mode-tabs" role="tablist" aria-label="Copilot modes">
+      <div className="mode-tabs" role="tablist" aria-label="Capture modes">
         {modeLabels.map((item) => (
           <button
             key={item.mode}
@@ -280,27 +294,30 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
 
       {mode === 'quick' ? (
         <>
-          <Section title="Quick Capture" kicker="Use iPhone/iPad dictation">
+          <Section title="Field Capture" kicker="Draft-first">
             <div className="form-card copilot-card">
-              <Field label="Messy field note">
+              <Field label="Voice or messy note">
                 <textarea
+                  ref={quickInputRef}
+                  autoFocus
+                  enterKeyHint="done"
                   rows={7}
                   value={quickInput}
                   onChange={(event) => setQuickInput(event.target.value)}
-                  placeholder="Example: Building A unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has sink leak, ask Tony."
+                  placeholder="Unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has sink leak, ask Tony."
                 />
               </Field>
-              <p className="muted">Tip: tap the text box and use dictation. Copilot creates drafts only; you approve before anything changes.</p>
-              <div className="button-row">
-                <Button variant="primary" onClick={parseQuickCapture}>
+              <p className="muted">Drafts only. Nothing changes until approval.</p>
+              <div className="button-row capture-actions">
+                <Button disabled={!quickInputReady} variant="primary" onClick={parseQuickCapture}>
                   <Sparkles size={18} aria-hidden="true" />
-                  Parse Note
+                  Create Drafts
                 </Button>
-                <Button onClick={saveRawNoteOnly}>
+                <Button disabled={!quickInputReady} onClick={saveRawNoteOnly}>
                   <Save size={18} aria-hidden="true" />
                   Save Raw Note
                 </Button>
-                <Button variant="ghost" onClick={() => setQuickInput('')}>
+                <Button disabled={!quickInputReady} variant="ghost" onClick={() => setQuickInput('')}>
                   <RotateCcw size={18} aria-hidden="true" />
                   Clear
                 </Button>
@@ -492,4 +509,3 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
     </div>
   );
 }
-

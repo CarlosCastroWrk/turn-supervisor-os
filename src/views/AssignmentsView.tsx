@@ -5,7 +5,7 @@ import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addAssignment, updateAssignment } from '../lib/actions';
 import { ASSIGNMENT_STATUSES, CREW_TRADES, createId, todayISO } from '../lib/constants';
-import { getProjectAssignments, getProjectBuildings, getProjectUnits } from '../lib/metrics';
+import { getProjectAssignments, getProjectBuildings, getProjectCrewMembers, getProjectUnits } from '../lib/metrics';
 import type { AppData, AssignmentStatus, CrewTrade } from '../types';
 
 interface AssignmentsViewProps {
@@ -16,6 +16,7 @@ interface AssignmentsViewProps {
 export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
   const units = getProjectUnits(data);
   const buildings = getProjectBuildings(data);
+  const crewMembers = getProjectCrewMembers(data);
   const assignments = getProjectAssignments(data).sort((a, b) => `${b.date}${b.startTime}`.localeCompare(`${a.date}${a.startTime}`));
   const [date, setDate] = useState(todayISO());
   const [crewMemberId, setCrewMemberId] = useState('');
@@ -29,7 +30,7 @@ export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
   const [notes, setNotes] = useState('');
 
   const createAssignment = () => {
-    const crew = data.crewMembers.find((item) => item.id === crewMemberId);
+    const crew = crewMembers.find((item) => item.id === crewMemberId);
     if (!scope.trim() && !teamName.trim() && !crew) {
       return;
     }
@@ -78,7 +79,7 @@ export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
             <Field label="Crew contact">
               <select value={crewMemberId} onChange={(event) => setCrewMemberId(event.target.value)}>
                 <option value="">Team name only</option>
-                {data.crewMembers.map((crew) => (
+                {crewMembers.map((crew) => (
                   <option key={crew.id} value={crew.id}>
                     {crew.name} · {crew.trade}
                   </option>
@@ -185,4 +186,3 @@ export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
     </div>
   );
 }
-

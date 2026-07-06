@@ -11,6 +11,8 @@ export const getProjectBuildings = (data: AppData) =>
 export const getProjectIssues = (data: AppData) => data.issues.filter((issue) => issue.projectId === data.activeProjectId);
 export const getProjectAssignments = (data: AppData) =>
   data.assignments.filter((assignment) => assignment.projectId === data.activeProjectId);
+export const getProjectCrewMembers = (data: AppData) =>
+  data.crewMembers.filter((crew) => crew.projectId === data.activeProjectId);
 
 export const isBlockedUnit = (unit: Unit) =>
   unit.overallStatus.includes('Blocked') ||
@@ -66,4 +68,3 @@ export const getPriorityIssues = (issues: Issue[]) =>
       const weight = { Critical: 4, High: 3, Medium: 2, Low: 1 };
       return weight[b.priority] - weight[a.priority];
     });
-

@@ -2,10 +2,12 @@ import type {
   ActivityLog,
   AppData,
   Assignment,
+  Building,
   CrewMember,
   DailyLog,
   DraftAction,
   EntityId,
+  Floor,
   FollowUpTask,
   Issue,
   Memory,
@@ -18,6 +20,25 @@ import type {
   WorkStatus,
 } from '../types';
 import { createId, nowISO, todayISO } from './constants';
+
+export interface RealTurnSetupInput {
+  projectName: string;
+  propertyName: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  supervisorName: string;
+  projectManagerName: string;
+  buildingNames: string[];
+  buildingCount: number;
+  floorsPerBuilding: number;
+  unitsPerFloor: number;
+  firstUnitNumber: number;
+  bedCount: number;
+  bathroomCount: number;
+  hasCommonArea: boolean;
+  notes: string;
+}
 
 type ActivityEntity = ActivityLog['entityType'];
 
@@ -47,6 +68,120 @@ export const updateProject = (data: AppData, projectId: EntityId, patch: Partial
     ...data.activityLogs,
   ],
 });
+
+const buildingNameForIndex = (index: number) => `Building ${String.fromCharCode(65 + index)}`;
+
+const unitNumberFor = (firstUnitNumber: number, floorNumber: number, unitIndex: number) => {
+  const firstRoom = Number.isFinite(firstUnitNumber) && firstUnitNumber > 0 ? firstUnitNumber : 101;
+  const roomStart = firstRoom % 100 || 1;
+  return `${floorNumber}${String(roomStart + unitIndex).padStart(2, '0')}`;
+};
+
+export const switchActiveProject = (data: AppData, projectId: EntityId): AppData => {
+  const project = data.projects.find((item) => item.id === projectId);
+  if (!project) {
+    return data;
+  }
+
+  return {
+    ...data,
+    activeProjectId: projectId,
+    activityLogs: [
+      activity(projectId, 'Project', projectId, `Switched to ${project.mode === 'real' ? 'Real Turn' : 'Demo Mode'}`, project.name),
+      ...data.activityLogs,
+    ],
+  };
+};
+
+export const createRealTurnProject = (data: AppData, input: RealTurnSetupInput): AppData => {
+  const now = nowISO();
+  const projectId = createId('project_real');
+  const requestedNames = input.buildingNames.map((name) => name.trim()).filter(Boolean);
+  const buildingTotal = Math.max(requestedNames.length, input.buildingCount, requestedNames.length > 0 ? requestedNames.length : 1);
+  const floorTotal = Math.max(0, input.floorsPerBuilding);
+  const unitTotal = Math.max(0, input.unitsPerFloor);
+
+  const project: Project = {
+    id: projectId,
+    mode: 'real',
+    name: input.projectName.trim() || `${input.propertyName.trim() || 'Real Turn'} Field Copilot`,
+    propertyName: input.propertyName.trim(),
+    location: input.location.trim(),
+    startDate: input.startDate,
+    endDate: input.endDate,
+    supervisorName: input.supervisorName.trim() || 'Los',
+    projectManagerName: input.projectManagerName.trim(),
+    notes: input.notes.trim(),
+    estimatedBuildings: buildingTotal,
+    estimatedUnits: buildingTotal * floorTotal * unitTotal,
+    estimatedBeds: buildingTotal * floorTotal * unitTotal * Math.max(0, input.bedCount),
+    estimatedCommonAreas: input.hasCommonArea ? buildingTotal * floorTotal * unitTotal : 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const buildings: Building[] = Array.from({ length: buildingTotal }, (_, index) => ({
+    id: createId('building_real'),
+    projectId,
+    name: requestedNames[index] || buildingNameForIndex(index),
+    notes: '',
+  }));
+
+  const floors: Floor[] = buildings.flatMap((building) =>
+    Array.from({ length: floorTotal }, (_, index) => ({
+      id: createId('floor_real'),
+      buildingId: building.id,
+      name: `Floor ${index + 1}`,
+      notes: '',
+    })),
+  );
+
+  const units = buildings.flatMap((building) => {
+    const buildingFloors = floors.filter((floor) => floor.buildingId === building.id);
+    return buildingFloors.flatMap((floor, floorIndex) =>
+      Array.from({ length: unitTotal }, (_, unitIndex) => ({
+        id: createId('unit_real'),
+        projectId,
+        buildingId: building.id,
+        floorId: floor.id,
+        unitNumber: unitNumberFor(input.firstUnitNumber, floorIndex + 1, unitIndex),
+        bedCount: Math.max(0, input.bedCount),
+        bathroomCount: Math.max(0, input.bathroomCount),
+        hasCommonArea: input.hasCommonArea,
+        overallStatus: 'Not Started' as const,
+        paintStatus: 'Not Started' as const,
+        cleanStatus: 'Not Started' as const,
+        repairStatus: 'Not Started' as const,
+        flooringStatus: 'Not Applicable' as const,
+        trashStatus: 'Not Started' as const,
+        inspectionStatus: 'Not Started' as const,
+        assignedCrewIds: [],
+        notes: '',
+        createdAt: now,
+        updatedAt: now,
+      })),
+    );
+  });
+
+  return {
+    ...data,
+    activeProjectId: projectId,
+    projects: [project, ...data.projects],
+    buildings: [...buildings, ...data.buildings],
+    floors: [...floors, ...data.floors],
+    units: [...units, ...data.units],
+    activityLogs: [
+      activity(
+        projectId,
+        'Project',
+        projectId,
+        'Started Real Turn Mode',
+        `Created real project with ${buildings.length} building(s), ${floors.length} floor(s), and ${units.length} unit(s). Demo data was preserved separately.`,
+      ),
+      ...data.activityLogs,
+    ],
+  };
+};
 
 export const updateUnit = (data: AppData, unitId: EntityId, patch: Partial<Unit>, note: string): AppData => {
   const existing = data.units.find((unit) => unit.id === unitId);

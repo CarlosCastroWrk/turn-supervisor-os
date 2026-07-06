@@ -7,6 +7,7 @@ const today = todayISO();
 
 const project: Project = {
   id: 'project_west_campus_turn',
+  mode: 'demo',
   name: 'West Campus Turn',
   propertyName: 'West Campus Student Housing',
   location: 'Austin, TX',
@@ -142,6 +143,7 @@ const units: Unit[] = [
 const crewMembers: CrewMember[] = [
   {
     id: 'crew_painter',
+    projectId: project.id,
     name: 'Painter Team Lead',
     trade: 'Painter',
     phone: '',
@@ -155,6 +157,7 @@ const crewMembers: CrewMember[] = [
   },
   {
     id: 'crew_cleaner',
+    projectId: project.id,
     name: 'Cleaner Team Lead',
     trade: 'Cleaner',
     phone: '',
@@ -168,6 +171,7 @@ const crewMembers: CrewMember[] = [
   },
   {
     id: 'crew_maintenance',
+    projectId: project.id,
     name: 'Maintenance Contact',
     trade: 'Maintenance',
     phone: '',

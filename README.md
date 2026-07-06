@@ -9,6 +9,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Mobile-first dashboard with Turn day, project progress, blockers, crews, priorities, and quick actions
 - Copilot section with Quick Capture, Ask the OS, Briefings, Draft Actions, Memory Inbox, and smart suggestions
 - Editable project setup
+- Demo Mode vs Real Turn Mode with a Start Real Turn setup flow
 - Buildings, floors, units, unit filters, and quick unit creation
 - Unit detail view with fast status updates, notes, linked issues, photos, and activity history
 - Crew directory with factual professional notes
@@ -89,9 +90,20 @@ The sync panel appears in the header when the flag is enabled. Sign in with the 
 Safety notes:
 
 - A fresh browser with no local cache pulls cloud records before uploading sample seed data.
+- Demo and real Turn projects are separated by project mode. Start Real Turn Mode before entering real field records.
 - Important Copilot mutations are still draft-first.
 - Photo metadata syncs, but base64 photo files stay local until the Storage/photo-compression slice is implemented.
 - Deletes are not propagated yet; avoid deleting browser data unless you exported a backup.
+
+## Start A Real Turn Safely
+
+1. Open Setup.
+2. Tap Backup JSON.
+3. Fill the Start Real Turn fields: property, location, dates, supervisor, project manager, and the structure you know.
+4. Tap Start Real Turn.
+5. Confirm the Dashboard says Real Turn Mode before entering real field notes.
+
+Demo Mode stays available for practice. Use the mode switch in Setup to return to the sample project without mixing it into the real board.
 
 ## Copilot
 

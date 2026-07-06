@@ -7,6 +7,7 @@ explicit requirements.
 
 - [ ] Run field test on iPhone Safari.
 - [ ] Run field test on iPad Safari.
+- [ ] Stress test Start Real Turn with 200-300 generated units.
 - [ ] Add better photo compression/storage.
 - [ ] Add CSV unit import.
 - [ ] Add bulk unit update workflow.
@@ -28,3 +29,5 @@ explicit requirements.
 - [x] Add Memory Inbox and approved memory.
 - [x] Add Ask the OS local-data answers.
 - [x] Add Briefings/Reports and smart suggestions.
+- [x] Add Demo Mode vs Real Turn Mode and Start Real Turn setup flow.
+- [x] Apply Supabase migration for project mode and crew project scope.

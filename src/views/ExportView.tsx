@@ -1,4 +1,5 @@
 import { Download, FileArchive, FileJson, FileSpreadsheet, RotateCcw } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { clearAppData } from '../lib/storage';
@@ -11,7 +12,7 @@ import {
   buildUnitsCsv,
   downloadTextFile,
 } from '../lib/exporters';
-import { getProjectIssues, getProjectUnits } from '../lib/metrics';
+import { getActiveProject, getProjectIssues, getProjectUnits } from '../lib/metrics';
 import type { AppData } from '../types';
 
 interface ExportViewProps {
@@ -20,9 +21,26 @@ interface ExportViewProps {
 
 export function ExportView({ data }: ExportViewProps) {
   const date = new Date().toISOString().slice(0, 10);
+  const project = getActiveProject(data);
+  const [backupTaken, setBackupTaken] = useState(false);
+
+  const backup = () => {
+    downloadTextFile(`turn-supervisor-backup-${date}.json`, buildJsonBackup(data), 'application/json');
+    setBackupTaken(true);
+  };
 
   const resetLocalData = () => {
-    const confirmed = window.confirm('Reset local Turn Supervisor OS data on this device? Export a JSON backup first if needed.');
+    if (!backupTaken) {
+      const needsBackup = window.confirm('Download a JSON backup before resetting this device? Choose OK to backup first.');
+      if (needsBackup) {
+        backup();
+        return;
+      }
+    }
+
+    const confirmed = window.confirm(
+      'Reset this device back to the built-in Demo Mode sample data? This clears local browser data only. It does not delete Supabase cloud records.',
+    );
     if (!confirmed) {
       return;
     }
@@ -35,7 +53,7 @@ export function ExportView({ data }: ExportViewProps) {
     <div className="page">
       <div className="page-title">
         <div>
-          <span className="quiet-label">Your notes should not be trapped</span>
+          <span className="quiet-label">{project.mode === 'real' ? 'Real Turn backup' : 'Demo backup'}</span>
           <h1>Export / Backup</h1>
         </div>
       </div>
@@ -90,19 +108,23 @@ export function ExportView({ data }: ExportViewProps) {
       <Section title="Device Storage" kicker="Privacy guardrail">
         <div className="form-card">
           <p>
-            v0.1 stores data only in this browser on this device using localStorage. No backend, no cloud sync, no external APIs,
-            and no automatic messaging are included.
+            The app keeps a local browser cache first. If Supabase sync is enabled and you are signed in, supported records also
+            sync across your devices. No automatic messaging or server-side AI is included.
           </p>
           <div className="button-row">
-            <Button onClick={() => downloadTextFile(`turn-supervisor-backup-${date}.json`, buildJsonBackup(data), 'application/json')}>
+            <Button onClick={backup}>
               <Download size={18} aria-hidden="true" />
               Backup Before Reset
             </Button>
             <Button variant="danger" onClick={resetLocalData}>
               <RotateCcw size={18} aria-hidden="true" />
-              Reset Local Data
+              Reset This Device to Demo
             </Button>
           </div>
+          <p className="muted">
+            If Supabase sync is signed in, cloud records can pull back after reload. Start Real Turn Mode in Setup to keep sample data
+            separate from real field data.
+          </p>
         </div>
       </Section>
     </div>

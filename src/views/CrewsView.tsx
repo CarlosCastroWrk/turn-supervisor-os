@@ -4,8 +4,8 @@ import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addCrewMember, updateCrewMember } from '../lib/actions';
-import { createId, nowISO } from '../lib/constants';
-import { CREW_TRADES } from '../lib/constants';
+import { CREW_TRADES, createId, nowISO } from '../lib/constants';
+import { getActiveProject, getProjectCrewMembers } from '../lib/metrics';
 import type { AppData, CrewTrade } from '../types';
 
 interface CrewsViewProps {
@@ -14,6 +14,8 @@ interface CrewsViewProps {
 }
 
 export function CrewsView({ data, setData }: CrewsViewProps) {
+  const project = getActiveProject(data);
+  const crewMembers = getProjectCrewMembers(data);
   const [name, setName] = useState('');
   const [trade, setTrade] = useState<CrewTrade>('Painter');
   const [phone, setPhone] = useState('');
@@ -31,6 +33,7 @@ export function CrewsView({ data, setData }: CrewsViewProps) {
     setData((current) =>
       addCrewMember(current, {
         id: createId('crew'),
+        projectId: current.activeProjectId,
         name: name.trim(),
         trade,
         phone,
@@ -96,9 +99,9 @@ export function CrewsView({ data, setData }: CrewsViewProps) {
         </div>
       </Section>
 
-      <Section title="Directory" kicker={`${data.crewMembers.length} contacts`}>
+      <Section title="Directory" kicker={`${crewMembers.length} ${project.mode === 'real' ? 'real Turn' : 'demo'} contacts`}>
         <div className="crew-grid">
-          {data.crewMembers.map((crew) => (
+          {crewMembers.map((crew) => (
             <article className="crew-card" key={crew.id}>
               <div className="crew-card__header">
                 <div>
@@ -133,4 +136,3 @@ export function CrewsView({ data, setData }: CrewsViewProps) {
     </div>
   );
 }
-

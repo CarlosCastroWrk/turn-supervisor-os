@@ -68,6 +68,7 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
       <section className="hero-panel">
         <div>
           <span className="quiet-label">{formatDate(todayISO())}</span>
+          <span className={`mode-pill mode-pill--${project.mode}`}>{project.mode === 'real' ? 'Real Turn Mode' : 'Demo Mode'}</span>
           <h1>{project.name}</h1>
           <p>{project.propertyName}</p>
         </div>

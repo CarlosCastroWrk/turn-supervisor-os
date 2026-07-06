@@ -68,6 +68,7 @@ export type IssuePriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type IssueStatus = 'Open' | 'In Progress' | 'Waiting' | 'Resolved' | 'Closed';
 export type PhotoCategory = 'Before' | 'During' | 'After' | 'Problem' | 'Completed work' | 'Other';
 export type TrainingQuestionStatus = 'Not Asked' | 'Asked' | 'Answered' | 'Needs Follow-Up';
+export type ProjectMode = 'demo' | 'real';
 export type DraftActionStatus = 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
 export type DraftActionType =
   | 'UPDATE_UNIT_STATUS'
@@ -113,6 +114,7 @@ export type BriefingType = 'morning' | 'midday' | 'end_of_day';
 
 export interface Project {
   id: EntityId;
+  mode: ProjectMode;
   name: string;
   propertyName: string;
   location: string;
@@ -167,6 +169,7 @@ export interface Unit {
 
 export interface CrewMember {
   id: EntityId;
+  projectId?: EntityId;
   name: string;
   trade: CrewTrade;
   phone: string;

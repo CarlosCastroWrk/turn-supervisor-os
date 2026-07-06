@@ -16,6 +16,7 @@ import type {
   TrainingQuestion,
   Unit,
 } from '../../types';
+import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { getSupabaseClient, isSupabaseConfigured, isSyncFeatureEnabled } from './client';
 
@@ -98,6 +99,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
       const project = item as Project;
       return {
         id: project.id,
+        project_mode: project.mode,
         name: project.name,
         property_name: project.propertyName,
         location: project.location,
@@ -117,6 +119,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
     fromRow: (row) =>
       ({
         id: stringValue(row, 'id'),
+        mode: stringValue(row, 'project_mode', 'demo') as Project['mode'],
         name: stringValue(row, 'name'),
         propertyName: stringValue(row, 'property_name'),
         location: stringValue(row, 'location'),
@@ -218,6 +221,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
       const crew = item as CrewMember;
       return {
         id: crew.id,
+        project_id: crew.projectId || null,
         name: crew.name,
         trade: crew.trade,
         phone: crew.phone,
@@ -233,6 +237,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
     fromRow: (row) =>
       ({
         id: stringValue(row, 'id'),
+        projectId: optionalString(row, 'project_id'),
         name: stringValue(row, 'name'),
         trade: stringValue(row, 'trade') as CrewMember['trade'],
         phone: stringValue(row, 'phone'),
@@ -612,24 +617,25 @@ const mergeRows = <T extends { id: string; createdAt?: string; updatedAt?: strin
   return Array.from(byId.values()).sort((a, b) => comparableStamp(b).localeCompare(comparableStamp(a)));
 };
 
-const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData => ({
-  ...local,
-  projects: mergeRows(local.projects, (remote.projects ?? []) as Project[]),
-  buildings: mergeRows(local.buildings, (remote.buildings ?? []) as AppData['buildings']),
-  floors: mergeRows(local.floors, (remote.floors ?? []) as AppData['floors']),
-  units: mergeRows(local.units, (remote.units ?? []) as Unit[]),
-  crewMembers: mergeRows(local.crewMembers, (remote.crewMembers ?? []) as CrewMember[]),
-  assignments: mergeRows(local.assignments, (remote.assignments ?? []) as Assignment[]),
-  issues: mergeRows(local.issues, (remote.issues ?? []) as Issue[]),
-  photoNotes: mergeRows(local.photoNotes, (remote.photoNotes ?? []) as PhotoNote[]),
-  dailyLogs: mergeRows(local.dailyLogs, (remote.dailyLogs ?? []) as DailyLog[]),
-  trainingQuestions: mergeRows(local.trainingQuestions, (remote.trainingQuestions ?? []) as TrainingQuestion[]),
-  activityLogs: mergeRows(local.activityLogs, (remote.activityLogs ?? []) as ActivityLog[]),
-  draftActions: mergeRows(local.draftActions, (remote.draftActions ?? []) as DraftAction[]),
-  memories: mergeRows(local.memories, (remote.memories ?? []) as Memory[]),
-  memoryCandidates: mergeRows(local.memoryCandidates, (remote.memoryCandidates ?? []) as MemoryCandidate[]),
-  followUpTasks: mergeRows(local.followUpTasks, (remote.followUpTasks ?? []) as FollowUpTask[]),
-});
+const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
+  normalizeAppData({
+    ...local,
+    projects: mergeRows(local.projects, (remote.projects ?? []) as Project[]),
+    buildings: mergeRows(local.buildings, (remote.buildings ?? []) as AppData['buildings']),
+    floors: mergeRows(local.floors, (remote.floors ?? []) as AppData['floors']),
+    units: mergeRows(local.units, (remote.units ?? []) as Unit[]),
+    crewMembers: mergeRows(local.crewMembers, (remote.crewMembers ?? []) as CrewMember[]),
+    assignments: mergeRows(local.assignments, (remote.assignments ?? []) as Assignment[]),
+    issues: mergeRows(local.issues, (remote.issues ?? []) as Issue[]),
+    photoNotes: mergeRows(local.photoNotes, (remote.photoNotes ?? []) as PhotoNote[]),
+    dailyLogs: mergeRows(local.dailyLogs, (remote.dailyLogs ?? []) as DailyLog[]),
+    trainingQuestions: mergeRows(local.trainingQuestions, (remote.trainingQuestions ?? []) as TrainingQuestion[]),
+    activityLogs: mergeRows(local.activityLogs, (remote.activityLogs ?? []) as ActivityLog[]),
+    draftActions: mergeRows(local.draftActions, (remote.draftActions ?? []) as DraftAction[]),
+    memories: mergeRows(local.memories, (remote.memories ?? []) as Memory[]),
+    memoryCandidates: mergeRows(local.memoryCandidates, (remote.memoryCandidates ?? []) as MemoryCandidate[]),
+    followUpTasks: mergeRows(local.followUpTasks, (remote.followUpTasks ?? []) as FollowUpTask[]),
+  });
 
 const syncedFingerprint = (data: AppData) =>
   JSON.stringify(
@@ -672,24 +678,25 @@ const uploadLocalData = async (client: SupabaseClient, data: AppData) => {
   }
 };
 
-const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => ({
-  ...local,
-  projects: (remote.projects ?? local.projects) as Project[],
-  buildings: (remote.buildings ?? local.buildings) as AppData['buildings'],
-  floors: (remote.floors ?? local.floors) as AppData['floors'],
-  units: (remote.units ?? local.units) as Unit[],
-  crewMembers: (remote.crewMembers ?? local.crewMembers) as CrewMember[],
-  assignments: (remote.assignments ?? local.assignments) as Assignment[],
-  issues: (remote.issues ?? local.issues) as Issue[],
-  photoNotes: (remote.photoNotes ?? local.photoNotes) as PhotoNote[],
-  dailyLogs: (remote.dailyLogs ?? local.dailyLogs) as DailyLog[],
-  trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
-  activityLogs: (remote.activityLogs ?? local.activityLogs) as ActivityLog[],
-  draftActions: (remote.draftActions ?? local.draftActions) as DraftAction[],
-  memories: (remote.memories ?? local.memories) as Memory[],
-  memoryCandidates: (remote.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
-  followUpTasks: (remote.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
-});
+const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
+  normalizeAppData({
+    ...local,
+    projects: (remote.projects ?? local.projects) as Project[],
+    buildings: (remote.buildings ?? local.buildings) as AppData['buildings'],
+    floors: (remote.floors ?? local.floors) as AppData['floors'],
+    units: (remote.units ?? local.units) as Unit[],
+    crewMembers: (remote.crewMembers ?? local.crewMembers) as CrewMember[],
+    assignments: (remote.assignments ?? local.assignments) as Assignment[],
+    issues: (remote.issues ?? local.issues) as Issue[],
+    photoNotes: (remote.photoNotes ?? local.photoNotes) as PhotoNote[],
+    dailyLogs: (remote.dailyLogs ?? local.dailyLogs) as DailyLog[],
+    trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
+    activityLogs: (remote.activityLogs ?? local.activityLogs) as ActivityLog[],
+    draftActions: (remote.draftActions ?? local.draftActions) as DraftAction[],
+    memories: (remote.memories ?? local.memories) as Memory[],
+    memoryCandidates: (remote.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
+    followUpTasks: (remote.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
+  });
 
 export const useSupabaseSync = (
   data: AppData,

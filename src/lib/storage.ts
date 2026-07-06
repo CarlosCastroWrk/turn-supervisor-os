@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
+import { normalizeAppData } from './dataMigrations';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
 
@@ -10,13 +11,13 @@ export const loadAppData = (): AppData => {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (!stored) {
-      return seedData;
+      return normalizeAppData(seedData);
     }
 
-    return { ...seedData, ...JSON.parse(stored) } as AppData;
+    return normalizeAppData({ ...seedData, ...JSON.parse(stored) } as AppData);
   } catch (error) {
     console.warn('Failed to load local Turn Supervisor OS data. Falling back to seed data.', error);
-    return seedData;
+    return normalizeAppData(seedData);
   }
 };
 

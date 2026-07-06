@@ -19,6 +19,7 @@ Turn Supervisor OS v0.1 implemented as a mobile-first React + TypeScript + Vite 
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Supabase cloud project `jgplalexkmjzldczouih` with initial schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
+- Demo Mode vs Real Turn Mode, with a Start Real Turn flow that creates a separate active project after backup
 
 ## What Does Not Exist Yet
 
@@ -34,6 +35,7 @@ Turn Supervisor OS v0.1 implemented as a mobile-first React + TypeScript + Vite 
 - This is a personal local-first notebook for Los.
 - It should not claim official Property Doctor Services ownership or workflow authority.
 - Seed data is sample-only and should be replaced with field reality during training.
+- Real field records should live in Real Turn Mode; demo records should remain for practice only.
 - localStorage is still the hot/offline cache even when Supabase sync is enabled.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
 - Base64 photo payloads remain local-only until the Storage/photo-compression slice.
@@ -42,4 +44,4 @@ Turn Supervisor OS v0.1 implemented as a mobile-first React + TypeScript + Vite 
 
 ## Next Action
 
-Commit/deploy Slice 2, then test sign-in and cross-device sync on iPhone, iPad, and MacBook before relying on it in the field.
+Test Demo Mode and Real Turn Mode sync on Mac/iPhone/iPad before entering real field data.

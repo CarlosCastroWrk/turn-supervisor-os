@@ -46,7 +46,7 @@ function App() {
       {activeView === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
       {activeView === 'reports' ? <ReportsView data={data} /> : null}
       {activeView === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
-      {activeView === 'export' ? <ExportView data={data} /> : null}
+      {activeView === 'export' ? <ExportView data={data} setData={setData} /> : null}
     </AppShell>
   );
 }

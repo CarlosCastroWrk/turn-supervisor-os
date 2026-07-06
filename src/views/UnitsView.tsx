@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Filter, Plus, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
@@ -38,12 +38,14 @@ const matchesStatusFilter = (unit: Unit, filter: StatusFilter) => {
 
 const floorSort = (a: Floor, b: Floor) => a.name.localeCompare(b.name, undefined, { numeric: true });
 const unitSort = (a: Unit, b: Unit) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true });
+const UNIT_RENDER_STEP = 100;
 
 export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
   const [buildingFilter, setBuildingFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [query, setQuery] = useState('');
+  const [visibleUnitLimit, setVisibleUnitLimit] = useState(UNIT_RENDER_STEP);
   const [quickBuilding, setQuickBuilding] = useState('Building B');
   const [quickFloors, setQuickFloors] = useState('1-2');
   const [quickStart, setQuickStart] = useState('101');
@@ -70,6 +72,12 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
     .filter((unit) => matchesStatusFilter(unit, statusFilter))
     .filter((unit) => unit.unitNumber.toLowerCase().includes(query.toLowerCase()))
     .sort(unitSort);
+  const visibleUnits = filteredUnits.slice(0, visibleUnitLimit);
+  const hiddenUnitCount = Math.max(filteredUnits.length - visibleUnits.length, 0);
+
+  useEffect(() => {
+    setVisibleUnitLimit(UNIT_RENDER_STEP);
+  }, [buildingFilter, floorFilter, statusFilter, query]);
 
   const quickCreate = () => {
     const now = nowISO();
@@ -231,9 +239,18 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
         </div>
       </Section>
 
-      <Section title="Units" kicker={`${filteredUnits.length} shown`}>
+      <Section title="Units" kicker={`${visibleUnits.length} of ${filteredUnits.length} shown`}>
+        {hiddenUnitCount > 0 ? (
+          <div className="unit-list-limit">
+            <div>
+              <strong>{hiddenUnitCount} more matched units are hidden for speed.</strong>
+              <p>Use building, floor, status, or search filters to narrow the list before field updates.</p>
+            </div>
+            <Button onClick={() => setVisibleUnitLimit((current) => current + UNIT_RENDER_STEP)}>Show 100 more</Button>
+          </div>
+        ) : null}
         <div className="unit-grid">
-          {filteredUnits.map((unit) => {
+          {visibleUnits.map((unit) => {
             const unitIssues = issues.filter((issue) => issue.unitId === unit.id && !['Closed', 'Resolved'].includes(issue.status));
             return (
               <article className="unit-card" key={unit.id}>
@@ -346,4 +363,3 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
     </div>
   );
 }
-

@@ -1,7 +1,8 @@
-import { Download, FileArchive, FileJson, FileSpreadsheet, RotateCcw } from 'lucide-react';
-import { useState } from 'react';
+import { Download, FileArchive, FileJson, FileSpreadsheet, RotateCcw, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { Button } from '../components/FormControls';
 import { Section } from '../components/Section';
+import { normalizeAppData } from '../lib/dataMigrations';
 import { clearAppData } from '../lib/storage';
 import {
   buildCopilotMarkdown,
@@ -17,12 +18,29 @@ import type { AppData } from '../types';
 
 interface ExportViewProps {
   data: AppData;
+  setData: React.Dispatch<React.SetStateAction<AppData>>;
 }
 
-export function ExportView({ data }: ExportViewProps) {
+const parseBackup = (text: string): AppData => {
+  const parsed = JSON.parse(text) as unknown;
+  const candidate =
+    parsed && typeof parsed === 'object' && 'data' in parsed && parsed.data && typeof parsed.data === 'object'
+      ? parsed.data
+      : parsed;
+
+  if (!candidate || typeof candidate !== 'object' || !('projects' in candidate) || !Array.isArray(candidate.projects)) {
+    throw new Error('That file does not look like a Turn Field Copilot JSON backup.');
+  }
+
+  return normalizeAppData(candidate as AppData);
+};
+
+export function ExportView({ data, setData }: ExportViewProps) {
   const date = new Date().toISOString().slice(0, 10);
   const project = getActiveProject(data);
   const [backupTaken, setBackupTaken] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState('');
+  const restoreInputRef = useRef<HTMLInputElement>(null);
 
   const backup = () => {
     downloadTextFile(`turn-supervisor-backup-${date}.json`, buildJsonBackup(data), 'application/json');
@@ -47,6 +65,44 @@ export function ExportView({ data }: ExportViewProps) {
 
     clearAppData();
     window.location.reload();
+  };
+
+  const restoreBackup = async (file: File) => {
+    if (!backupTaken) {
+      const needsBackup = window.confirm('Download a JSON backup of this device before restoring another backup? Choose OK to backup first.');
+      if (needsBackup) {
+        backup();
+        return;
+      }
+    }
+
+    try {
+      const restored = parseBackup(await file.text());
+      const confirmed = window.confirm(
+        `Restore "${file.name}" now? This replaces local browser data on this device with ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s). It does not delete Supabase cloud records.`,
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      setData(restored);
+      setRestoreMessage(`Restored ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s).`);
+      setBackupTaken(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not restore that backup file.';
+      setRestoreMessage(message);
+      window.alert(message);
+    }
+  };
+
+  const onRestoreSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    restoreBackup(file);
   };
 
   return (
@@ -116,11 +172,24 @@ export function ExportView({ data }: ExportViewProps) {
               <Download size={18} aria-hidden="true" />
               Backup Before Reset
             </Button>
+            <Button onClick={() => restoreInputRef.current?.click()}>
+              <Upload size={18} aria-hidden="true" />
+              Restore JSON Backup
+            </Button>
             <Button variant="danger" onClick={resetLocalData}>
               <RotateCcw size={18} aria-hidden="true" />
               Reset This Device to Demo
             </Button>
           </div>
+          <input
+            ref={restoreInputRef}
+            aria-label="Restore JSON backup file"
+            className="visually-hidden"
+            type="file"
+            accept="application/json,.json"
+            onChange={onRestoreSelected}
+          />
+          {restoreMessage ? <p className="muted">{restoreMessage}</p> : null}
           <p className="muted">
             If Supabase sync is signed in, cloud records can pull back after reload. Start Real Turn Mode in Setup to keep sample data
             separate from real field data.

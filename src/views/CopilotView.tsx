@@ -1,4 +1,4 @@
-import { Bot, Check, ClipboardCopy, FileText, Lightbulb, Mic, RotateCcw, Save, Send, Sparkles, Trash2, X } from 'lucide-react';
+import { Bot, Check, ClipboardCopy, FileText, Lightbulb, Mic, RotateCcw, Save, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
@@ -23,7 +23,7 @@ import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, nowISO, todayISO } from '../lib/constants';
-import type { AppData, BriefingType, DailyLog, DraftAction, MemoryCandidate } from '../types';
+import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
 
 interface CopilotViewProps {
   data: AppData;
@@ -31,6 +31,50 @@ interface CopilotViewProps {
 }
 
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
+type DraftFilter = 'pending' | 'applied' | 'rejected' | 'failed' | 'all';
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: SpeechRecognitionResultLike;
+  };
+}
+
+interface SpeechRecognitionErrorEventLike {
+  error?: string;
+  message?: string;
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onend: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  abort: () => void;
+  start: () => void;
+  stop: () => void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
 
 const modeLabels: { mode: CopilotMode; label: string }[] = [
   { mode: 'quick', label: 'Capture' },
@@ -72,6 +116,7 @@ function DraftActionCard({
 }) {
   const [payloadText, setPayloadText] = useState(() => JSON.stringify(draft.payload, null, 2));
   const [payloadError, setPayloadError] = useState('');
+  const isActionable = draft.status === 'pending' || draft.status === 'failed';
 
   const savePayload = () => {
     try {
@@ -106,20 +151,24 @@ function DraftActionCard({
       </Field>
       {payloadError ? <p className="error-text">{payloadError}</p> : null}
       {draft.error ? <p className="error-text">{draft.error}</p> : null}
-      <div className="button-row">
-        <Button onClick={savePayload}>
-          <Save size={16} aria-hidden="true" />
-          Save Edit
-        </Button>
-        <Button variant="primary" onClick={onApply}>
-          <Check size={16} aria-hidden="true" />
-          Approve
-        </Button>
-        <Button variant="ghost" onClick={onReject}>
-          <X size={16} aria-hidden="true" />
-          Reject
-        </Button>
-      </div>
+      {draft.status === 'applied' ? <p className="success-text">Applied. The linked board record was updated.</p> : null}
+      {draft.status === 'rejected' ? <p className="muted">Rejected. No board record was changed.</p> : null}
+      {isActionable ? (
+        <div className="button-row">
+          <Button onClick={savePayload}>
+            <Save size={16} aria-hidden="true" />
+            Save Edit
+          </Button>
+          <Button variant="primary" onClick={onApply}>
+            <Check size={16} aria-hidden="true" />
+            Approve
+          </Button>
+          <Button variant="ghost" onClick={onReject}>
+            <X size={16} aria-hidden="true" />
+            Reject
+          </Button>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -166,25 +215,106 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [voiceStatus, setVoiceStatus] = useState('');
   const [parseSummary, setParseSummary] = useState('');
+  const [draftFilter, setDraftFilter] = useState<DraftFilter>('pending');
+  const [draftNotice, setDraftNotice] = useState('');
   const [askInput, setAskInput] = useState('');
   const [askResult, setAskResult] = useState<AskOsResult | null>(null);
   const [briefing, setBriefing] = useState<BriefingResult | null>(null);
   const [briefingText, setBriefingText] = useState('');
   const [copied, setCopied] = useState(false);
   const smartSuggestions = useMemo(() => generateSmartSuggestions(data), [data]);
-  const pendingDrafts = data.draftActions.filter((draft) => draft.status === 'pending' || draft.status === 'failed');
-  const recentDrafts = data.draftActions.slice(0, 10);
+  const draftCounts = useMemo(
+    () => ({
+      pending: data.draftActions.filter((draft) => draft.status === 'pending').length,
+      applied: data.draftActions.filter((draft) => draft.status === 'applied').length,
+      rejected: data.draftActions.filter((draft) => draft.status === 'rejected').length,
+      failed: data.draftActions.filter((draft) => draft.status === 'failed').length,
+      all: data.draftActions.length,
+    }),
+    [data.draftActions],
+  );
+  const visibleDrafts = useMemo(() => {
+    if (draftFilter === 'all') {
+      return data.draftActions.slice(0, 20);
+    }
+    return data.draftActions.filter((draft) => draft.status === draftFilter).slice(0, 20);
+  }, [data.draftActions, draftFilter]);
   const pendingMemory = data.memoryCandidates.filter((candidate) => candidate.status === 'pending');
   const quickInputReady = quickInput.trim().length > 0;
+  const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
 
   useEffect(() => {
     if (mode !== 'quick') {
       return;
     }
 
-    window.setTimeout(() => quickInputRef.current?.focus(), 0);
+    const id = window.setTimeout(() => quickInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(id);
   }, [mode]);
+
+  useEffect(
+    () => () => {
+      recognitionRef.current?.abort();
+    },
+    [],
+  );
+
+  const stopVoiceCapture = () => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+    setInterimTranscript('');
+  };
+
+  const startVoiceCapture = () => {
+    const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    if (!Recognition) {
+      setVoiceStatus('Voice transcription is not available in this browser. Use the iPad/iPhone keyboard dictation mic in the note box.');
+      quickInputRef.current?.focus();
+      return;
+    }
+
+    recognitionRef.current?.abort();
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.onresult = (event) => {
+      let finalTranscript = '';
+      let interim = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const transcript = result[0]?.transcript ?? '';
+        if (result.isFinal) {
+          finalTranscript = [finalTranscript, transcript.trim()].filter(Boolean).join(' ');
+        } else {
+          interim = [interim, transcript.trim()].filter(Boolean).join(' ');
+        }
+      }
+
+      if (finalTranscript) {
+        setQuickInput((current) => [current.trim(), finalTranscript].filter(Boolean).join(current.trim() ? ' ' : ''));
+      }
+      setInterimTranscript(interim);
+    };
+    recognition.onerror = (event) => {
+      setVoiceStatus(`Voice capture stopped: ${event.error ?? event.message ?? 'browser error'}.`);
+      setIsRecording(false);
+    };
+    recognition.onend = () => {
+      setIsRecording(false);
+      setInterimTranscript('');
+    };
+    recognitionRef.current = recognition;
+    setVoiceStatus('Listening. Speak naturally, then stop when the note is done.');
+    setIsRecording(true);
+    recognition.start();
+  };
 
   const parseQuickCapture = async () => {
     if (!quickInputReady) {
@@ -193,11 +323,64 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
 
     const result = await agentProvider.parseQuickCapture(quickInput, data);
     setParseSummary(result.summary);
+    setDraftNotice('');
+    setDraftFilter('pending');
     setData((current) => {
       let next = addDraftActions(current, result.draftActions, quickInput);
       next = addMemoryCandidates(next, result.memoryCandidates);
       return addAgentRun(next, 'quick_capture', quickInput, result);
     });
+  };
+
+  const afterDraftChange = (draft: DraftAction, status: DraftActionStatus) => {
+    if (status === 'applied') {
+      setDraftNotice(`Approved "${draft.title}". It moved to Applied.`);
+      setDraftFilter('applied');
+      return;
+    }
+    if (status === 'rejected') {
+      setDraftNotice(`Rejected "${draft.title}". It moved to Rejected.`);
+      setDraftFilter('rejected');
+      return;
+    }
+    if (status === 'failed') {
+      setDraftNotice(`"${draft.title}" needs review. It moved to Failed.`);
+      setDraftFilter('failed');
+    }
+  };
+
+  const applyOneDraft = (draft: DraftAction) => {
+    setData((current) => {
+      const next = applyDraftAction(current, draft.id);
+      const updated = next.draftActions.find((item) => item.id === draft.id);
+      if (updated) {
+        window.queueMicrotask(() => afterDraftChange(draft, updated.status));
+      }
+      return next;
+    });
+  };
+
+  const rejectOneDraft = (draft: DraftAction) => {
+    setData((current) => {
+      const next = rejectDraftAction(current, draft.id);
+      const updated = next.draftActions.find((item) => item.id === draft.id);
+      if (updated) {
+        window.queueMicrotask(() => afterDraftChange(draft, updated.status));
+      }
+      return next;
+    });
+  };
+
+  const applyPendingDrafts = () => {
+    setData((current) => applyAllPendingDraftActions(current));
+    setDraftNotice('Approved pending drafts. Applied items moved to Applied; anything blocked moved to Failed.');
+    setDraftFilter('applied');
+  };
+
+  const rejectPendingDrafts = () => {
+    setData((current) => rejectAllPendingDraftActions(current));
+    setDraftNotice('Rejected pending drafts. They moved to Rejected and no board records changed.');
+    setDraftFilter('rejected');
   };
 
   const saveRawNoteOnly = () => {
@@ -296,6 +479,35 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
         <>
           <Section title="Field Capture" kicker="Draft-first">
             <div className="form-card copilot-card">
+              <div className={`voice-memo ${isRecording ? 'is-recording' : ''}`}>
+                <button
+                  className="voice-record-button"
+                  type="button"
+                  onClick={isRecording ? stopVoiceCapture : startVoiceCapture}
+                  aria-pressed={isRecording}
+                >
+                  {isRecording ? <Square size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
+                  <span>{isRecording ? 'Stop' : 'Record'}</span>
+                </button>
+                <div className="voice-meter" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div>
+                  <strong>{isRecording ? 'Recording voice note' : 'Voice note'}</strong>
+                  <p>
+                    {speechSupported
+                      ? 'Tap Record to transcribe, or tap the note box and use keyboard dictation.'
+                      : 'Use the iPad/iPhone keyboard dictation mic in the note box.'}
+                  </p>
+                </div>
+              </div>
+              {interimTranscript ? <p className="voice-interim">{interimTranscript}</p> : null}
+              {voiceStatus ? <p className={isRecording ? 'success-text' : 'muted'}>{voiceStatus}</p> : null}
+
               <Field label="Voice or messy note">
                 <textarea
                   ref={quickInputRef}
@@ -328,27 +540,42 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
 
           <Section
             title="Draft Actions Inbox"
-            kicker={`${pendingDrafts.length} pending`}
+            kicker={`${draftCounts.pending} pending`}
             action={
               <div className="button-row">
-                <Button onClick={() => setData((current) => applyAllPendingDraftActions(current))}>Approve All</Button>
-                <Button variant="ghost" onClick={() => setData((current) => rejectAllPendingDraftActions(current))}>
+                <Button disabled={draftCounts.pending === 0} onClick={applyPendingDrafts}>Approve All</Button>
+                <Button disabled={draftCounts.pending === 0} variant="ghost" onClick={rejectPendingDrafts}>
                   Reject All
                 </Button>
               </div>
             }
           >
+            <div className="draft-filter-row" role="tablist" aria-label="Draft action status">
+              {(['pending', 'applied', 'rejected', 'failed', 'all'] as DraftFilter[]).map((filter) => (
+                <button
+                  key={filter}
+                  className={draftFilter === filter ? 'is-active' : ''}
+                  type="button"
+                  onClick={() => setDraftFilter(filter)}
+                >
+                  <span>{filter === 'all' ? 'All' : `${filter[0].toUpperCase()}${filter.slice(1)}`}</span>
+                  <strong>{draftCounts[filter]}</strong>
+                </button>
+              ))}
+            </div>
+            <p className="muted">Approved drafts update the board. Rejected drafts stay in Rejected and do not change records.</p>
+            {draftNotice ? <p className="success-text">{draftNotice}</p> : null}
             <div className="draft-list">
-              {(pendingDrafts.length ? pendingDrafts : recentDrafts).map((draft) => (
+              {visibleDrafts.map((draft) => (
                 <DraftActionCard
                   key={draft.id}
                   draft={draft}
-                  onApply={() => setData((current) => applyDraftAction(current, draft.id))}
-                  onReject={() => setData((current) => rejectDraftAction(current, draft.id))}
+                  onApply={() => applyOneDraft(draft)}
+                  onReject={() => rejectOneDraft(draft)}
                   onSavePayload={(payload) => setData((current) => updateDraftAction(current, draft.id, { payload }))}
                 />
               ))}
-              {recentDrafts.length === 0 ? <p className="muted">No draft actions yet. Parse a field note to create drafts.</p> : null}
+              {visibleDrafts.length === 0 ? <p className="muted">No {draftFilter === 'all' ? '' : `${draftFilter} `}draft actions yet.</p> : null}
             </div>
           </Section>
         </>

@@ -25,6 +25,7 @@ import { agentParseResultSchema, type AgentProvider, type AgentParseResult, type
 
 const sentenceSplit = (input: string) =>
   input
+    .replace(/\s*,?\s+(?:and\s+then|then)\s+(?=(?:unit\s+)?\d{3,4}\b|[a-z]+(?:'s)?\s+crew\b)/gi, '\n')
     .split(/(?<=[.!?])\s+|\n+/)
     .map((part) => part.trim())
     .filter(Boolean);
@@ -37,8 +38,15 @@ const findUnitByNumber = (data: AppData, unitNumber: string) =>
 const extractUnitNumbers = (text: string, data: AppData) => {
   const prefixed = Array.from(text.matchAll(/\bunit\s*#?\s*(\d{3,4})\b/gi)).map((match) => match[1]);
   const bare = Array.from(text.matchAll(/\b(\d{3,4})\b/g))
-    .map((match) => match[1])
-    .filter((unitNumber) => Boolean(findUnitByNumber(data, unitNumber)));
+    .map((match) => {
+      const context = text.slice(Math.max(0, match.index - 42), match.index + match[0].length + 42).toLowerCase();
+      return { context, unitNumber: match[1] };
+    })
+    .filter(
+      ({ context, unitNumber }) =>
+        Boolean(findUnitByNumber(data, unitNumber)) || /paint|clean|blocked|keys?|sink|leak|crew|moved|repair|unit/.test(context),
+    )
+    .map(({ unitNumber }) => unitNumber);
   return unique([...prefixed, ...bare]);
 };
 const extractBuildings = (text: string) => unique(Array.from(text.matchAll(/\bbuilding\s+([a-z0-9]+)/gi)).map((match) => `Building ${match[1].toUpperCase()}`));

@@ -624,6 +624,25 @@ small {
   font-size: 0.9rem;
 }
 
+.field-capture-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.capture-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 12px;
+}
+
+.capture-panel .button {
+  align-self: start;
+  justify-self: start;
+}
+
 .dashboard-columns {
   display: grid;
   gap: 16px;
@@ -1255,6 +1274,10 @@ small {
   }
 
   .grid.two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field-capture-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

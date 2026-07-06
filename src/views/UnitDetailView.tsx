@@ -1,12 +1,13 @@
-import { ArrowLeft, ClipboardPlus, PenLine, ShieldCheck, Wrench } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, ClipboardPlus, PenLine, Plus, ShieldCheck, Wrench } from 'lucide-react';
 import { Button, Field } from '../components/FormControls';
 import { PhotoCapture } from '../components/PhotoCapture';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
-import { addPhotoNote, unitTradesComplete, updateUnit } from '../lib/actions';
-import { formatTime } from '../lib/constants';
-import { WORK_STATUSES } from '../lib/constants';
-import type { AppData, AppView, UnitWorkflowStatus, WorkStatus } from '../types';
+import { addIssue, addPhotoNote, unitTradesComplete, updateUnit } from '../lib/actions';
+import { createId, formatTime, nowISO } from '../lib/constants';
+import { ISSUE_CATEGORIES, ISSUE_PRIORITIES, WORK_STATUSES } from '../lib/constants';
+import type { AppData, AppView, IssueCategory, IssuePriority, UnitWorkflowStatus, WorkStatus } from '../types';
 
 interface UnitDetailViewProps {
   data: AppData;
@@ -17,6 +18,11 @@ interface UnitDetailViewProps {
 
 export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetailViewProps) {
   const unit = data.units.find((item) => item.id === unitId) ?? data.units[0];
+  const [quickNote, setQuickNote] = useState('');
+  const [issueTitle, setIssueTitle] = useState('');
+  const [issueCategory, setIssueCategory] = useState<IssueCategory>('Maintenance');
+  const [issuePriority, setIssuePriority] = useState<IssuePriority>('High');
+  const [issueNotes, setIssueNotes] = useState('');
 
   if (!unit) {
     return (
@@ -69,6 +75,59 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
         : { cleanStatus: 'Complete' },
       'Marked clean complete.',
     );
+  };
+
+  const saveQuickNote = () => {
+    const note = quickNote.trim();
+    if (!note) {
+      return;
+    }
+
+    const timestamp = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date());
+    const nextNote = [unit.notes.trim(), `${timestamp} - ${note}`].filter(Boolean).join('\n');
+    updateStatus({ notes: nextNote }, 'Added unit note.');
+    setQuickNote('');
+  };
+
+  const logQuickIssue = () => {
+    const title = issueTitle.trim();
+    if (!title) {
+      return;
+    }
+
+    const now = nowISO();
+    setData((current) => {
+      const withIssue = addIssue(current, {
+        id: createId('issue'),
+        projectId: unit.projectId,
+        buildingId: unit.buildingId,
+        floorId: unit.floorId,
+        unitId: unit.id,
+        title,
+        category: issueCategory,
+        priority: issuePriority,
+        owner: '',
+        status: 'Open',
+        dueAt: '',
+        notes: issueNotes.trim() || title,
+        resolutionNotes: '',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      return updateUnit(
+        withIssue,
+        unit.id,
+        {
+          overallStatus:
+            issueCategory === 'Access' ? 'Access Blocked' : issueCategory === 'Maintenance' ? 'Maintenance Needed' : 'Hold / Blocked',
+        },
+        `Issue created: ${title}`,
+      );
+    });
+
+    setIssueTitle('');
+    setIssueNotes('');
   };
 
   return (
@@ -138,6 +197,59 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
               <small>Final-ready locally</small>
             </span>
           </button>
+        </div>
+      </Section>
+
+      <Section title="Field Capture" kicker="Note or issue">
+        <div className="field-capture-grid">
+          <div className="capture-panel">
+            <Field label="Quick note">
+              <textarea
+                value={quickNote}
+                rows={4}
+                onChange={(event) => setQuickNote(event.target.value)}
+                placeholder="Keys missing, paint touched up, cleaner in progress..."
+              />
+            </Field>
+            <Button disabled={!quickNote.trim()} variant="primary" onClick={saveQuickNote}>
+              <PenLine size={18} aria-hidden="true" />
+              Save Note
+            </Button>
+          </div>
+
+          <div className="capture-panel">
+            <Field label="Issue">
+              <input value={issueTitle} onChange={(event) => setIssueTitle(event.target.value)} placeholder="Sink leak, no key, re-clean needed..." />
+            </Field>
+            <div className="grid two">
+              <Field label="Category">
+                <select value={issueCategory} onChange={(event) => setIssueCategory(event.target.value as IssueCategory)}>
+                  {ISSUE_CATEGORIES.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Priority">
+                <select value={issuePriority} onChange={(event) => setIssuePriority(event.target.value as IssuePriority)}>
+                  {ISSUE_PRIORITIES.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="Issue note">
+              <textarea
+                value={issueNotes}
+                rows={3}
+                onChange={(event) => setIssueNotes(event.target.value)}
+                placeholder="What is blocked and who needs to know?"
+              />
+            </Field>
+            <Button disabled={!issueTitle.trim()} variant="primary" onClick={logQuickIssue}>
+              <Plus size={18} aria-hidden="true" />
+              Log Issue
+            </Button>
+          </div>
         </div>
       </Section>
 

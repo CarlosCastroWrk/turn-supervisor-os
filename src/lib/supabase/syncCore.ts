@@ -1,5 +1,16 @@
 import type { PhotoNote } from '../../types';
 
+const TIMESTAMP_FIELDS = new Set([
+  'applied_at',
+  'completed_at',
+  'created_at',
+  'last_used_at',
+  'read_at',
+  'scheduled_for',
+  'sent_at',
+  'updated_at',
+]);
+
 export interface SyncStampedRow {
   id: string;
   createdAt?: string;
@@ -16,6 +27,29 @@ export const stampToTime = (stamp: string) => {
 
 export const compareSyncStamps = (a: SyncStampedRow, b: SyncStampedRow) =>
   stampToTime(comparableStamp(a)) - stampToTime(comparableStamp(b));
+
+const canonicalValue = (value: unknown, key?: string): unknown => {
+  if (typeof value === 'string' && key && TIMESTAMP_FIELDS.has(key)) {
+    const time = Date.parse(value);
+    return Number.isFinite(time) ? new Date(time).toISOString() : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalValue(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([entryKey, entryValue]) => [entryKey, canonicalValue(entryValue, entryKey)]),
+    );
+  }
+
+  return value;
+};
+
+export const syncRowFingerprint = (row: Record<string, unknown>) => JSON.stringify(canonicalValue(row));
 
 export const mergeRows = <T extends SyncStampedRow>(
   localRows: T[],

@@ -19,7 +19,7 @@ import type {
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { getSupabaseClient, isSupabaseConfigured, isSyncFeatureEnabled } from './client';
-import { mergePhotoNotes, mergeRows } from './syncCore';
+import { mergePhotoNotes, mergeRows, syncRowFingerprint } from './syncCore';
 
 type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'offline' | 'error';
 type Row = Record<string, unknown>;
@@ -639,7 +639,7 @@ const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
     followUpTasks: mergeRows(local.followUpTasks, (remote.followUpTasks ?? []) as FollowUpTask[]),
   });
 
-const rowFingerprint = (config: SyncTable<{ id: string }>, item: { id: string }) => JSON.stringify(config.toRow(item));
+const rowFingerprint = (config: SyncTable<{ id: string }>, item: { id: string }) => syncRowFingerprint(config.toRow(item));
 
 const cloneBaseline = (baseline: SyncBaseline = {}) => {
   const next: SyncBaseline = {};

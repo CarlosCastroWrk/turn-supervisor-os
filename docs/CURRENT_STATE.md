@@ -48,6 +48,7 @@ Every near-term change should serve that loop.
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
+- A pending sync diagnostics slice that quiets background Realtime checks and exposes last trigger, table, event, row counts, queued state, and last error in the sync panel
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
@@ -110,14 +111,15 @@ Current immediate field check:
 3. Wait 60-90 seconds.
 4. Confirm whether each device settles on `Synced` or keeps cycling.
 
-If sync still cycles, the next non-emergency PR should be `sync status diagnostics`.
+If sync still cycles after the diagnostics slice is deployed, open `Sync details` and record:
 
-That PR should expose:
-
-- Last sync reason
-- Last synced table or table group
-- Whether sync was triggered by manual tap, Realtime, reconnect, or local edit
-- Upload row count
+- Last trigger
+- Last table
+- Last event
+- Pulled row count
+- Uploaded row count
+- Uploaded tables
+- Queued state
 - Last error detail
 
 ## GitHub Workflow

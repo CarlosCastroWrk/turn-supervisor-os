@@ -17,6 +17,18 @@ const statusLabel = {
   error: 'Check sync',
 };
 
+const triggerLabel = {
+  local_edit: 'Local edit',
+  manual: 'Manual sync',
+  pull: 'Pull cloud',
+  realtime: 'Realtime',
+  reconnect: 'Reconnect',
+  startup: 'Startup',
+  upload: 'Upload',
+};
+
+const formatTime = (value?: string) => (value ? new Date(value).toLocaleTimeString() : 'Never');
+
 export function SyncPanel({ sync }: SyncPanelProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,6 +49,8 @@ export function SyncPanel({ sync }: SyncPanelProps) {
   };
 
   const Icon = sync.status === 'offline' || sync.status === 'error' || sync.status === 'not_configured' ? CloudOff : Cloud;
+  const diagnostics = sync.diagnostics;
+  const lastUploadedTables = diagnostics.lastUploadedTables?.length ? diagnostics.lastUploadedTables.join(', ') : 'None';
 
   return (
     <section className={`sync-panel sync-panel--${sync.status}`} aria-label="Supabase sync">
@@ -60,6 +74,58 @@ export function SyncPanel({ sync }: SyncPanelProps) {
             </button>
           </div>
           {sync.lastSyncedAt ? <small>Last sync: {new Date(sync.lastSyncedAt).toLocaleTimeString()}</small> : null}
+
+          {sync.email ? (
+            <details className="sync-diagnostics">
+              <summary>Sync details</summary>
+              <dl>
+                <div>
+                  <dt>Last trigger</dt>
+                  <dd>{diagnostics.lastTrigger ? triggerLabel[diagnostics.lastTrigger] : 'None yet'}</dd>
+                </div>
+                <div>
+                  <dt>Last table</dt>
+                  <dd>{diagnostics.lastTable ?? 'None'}</dd>
+                </div>
+                <div>
+                  <dt>Last event</dt>
+                  <dd>{diagnostics.lastEvent ?? 'None'}</dd>
+                </div>
+                <div>
+                  <dt>Pulled rows</dt>
+                  <dd>{diagnostics.lastPulledRows ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Uploaded rows</dt>
+                  <dd>{diagnostics.lastUploadedRows ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Uploaded tables</dt>
+                  <dd>{lastUploadedTables}</dd>
+                </div>
+                <div>
+                  <dt>Background checks</dt>
+                  <dd>{diagnostics.backgroundCheckCount}</dd>
+                </div>
+                <div>
+                  <dt>Queued</dt>
+                  <dd>{diagnostics.queued ? 'Yes' : 'No'}</dd>
+                </div>
+                <div>
+                  <dt>Started</dt>
+                  <dd>{formatTime(diagnostics.lastStartedAt)}</dd>
+                </div>
+                <div>
+                  <dt>Finished</dt>
+                  <dd>{formatTime(diagnostics.lastFinishedAt)}</dd>
+                </div>
+                <div className={diagnostics.lastError ? 'sync-diagnostics__error' : ''}>
+                  <dt>Last error</dt>
+                  <dd>{diagnostics.lastError ?? 'None'}</dd>
+                </div>
+              </dl>
+            </details>
+          ) : null}
 
           {sync.status === 'signed_out' || sync.status === 'error' || sync.status === 'not_configured' ? (
             <form className="sync-panel__form" onSubmit={submit}>

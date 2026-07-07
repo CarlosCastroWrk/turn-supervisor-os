@@ -280,6 +280,50 @@ small {
   gap: 10px;
 }
 
+.sync-diagnostics {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.sync-diagnostics summary {
+  color: #334155;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.sync-diagnostics dl {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+
+.sync-diagnostics div {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.45fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.sync-diagnostics dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.sync-diagnostics dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.sync-diagnostics__error dd {
+  color: #b91c1c;
+}
+
 @media (max-width: 520px) {
   .header-main {
     display: grid;

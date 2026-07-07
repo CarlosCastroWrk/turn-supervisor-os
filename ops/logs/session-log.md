@@ -32,3 +32,12 @@
   - Re-enabled the Supabase Email provider while keeping global public signup disabled.
   - Confirmed a fake email/password smoke returns invalid credentials instead of "Email logins are disabled."
   - Changed the sync sign-in UI from a header popover to a centered sheet so it does not fight the iPad side nav.
+
+## 2026-07-07
+
+- Latest production app commit: `822aa8e Fix sync change fingerprinting`.
+- Production remains `https://turn-supervisor-os.vercel.app`.
+- Current gate: verify Mac/iPhone/iPad sync settles on `Synced` after one manual sync.
+- Next PR if sync still cycles: `sync status diagnostics`.
+- Local Vercel CLI upgraded to `54.21.1` after Los approved.
+- PR workflow adopted for normal non-emergency slices.

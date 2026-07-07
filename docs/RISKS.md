@@ -1,0 +1,38 @@
+# Risks
+
+## Active Phase 1 Risks
+
+| Risk | Severity | Status | Mitigation |
+| --- | --- | --- | --- |
+| Real-device sync may fail or require manual pull | High | Open | Run Mac/iPhone/iPad QA before real field data. The sync fingerprinting fix is deployed, but must be confirmed on real devices. If cycling continues, build sync status diagnostics next. |
+| Offline edits may not merge as expected | High | Open | Test airplane mode edits before Turn. Keep JSON backups before serious use. |
+| Demo data could contaminate Real Turn reports or Copilot answers | High | Open | Test Real Turn views, exports, reports, and Copilot answers with obvious demo vs real labels. |
+| Delete/reset behavior can be misunderstood | High | Open | Keep reset warnings explicit. Do not reset real data without backup. Document that cloud records can pull back after local reset. |
+| Photo image data is local-only | Medium | Open | Avoid relying on cross-device photos until Supabase Storage upload is implemented. Export backups if photos matter. |
+| `localStorage` can fill up with large base64 photos | Medium | Open | Keep photo use light until compression/storage work is built. |
+| Reports may be treated as official company records | Medium | Open | Keep copy personal and factual. Do not use company branding or invented numbers. |
+| No restore-from-JSON flow in-app | Medium | Open | Backups are still useful for recovery evidence, but restore requires manual/developer help today. |
+| Parser has no formal eval suite | Medium | Open | Add realistic field-note parser tests after device sync is no longer blocking. |
+| Sync status lacks enough field diagnostics | Medium | Open | If the panel keeps cycling, add visible diagnostics for sync trigger, table, uploaded row count, and last error. |
+| Vercel CLI was outdated locally | Low | Closed | Upgraded to `54.21.1` on 2026-07-07 after Los approved. |
+
+## Product Scope Risks
+
+| Risk | Severity | Status | Mitigation |
+| --- | --- | --- | --- |
+| Overbuilding before training clarifies real workflow | High | Open | Do not build Phase 2+ features until Phase 1 is stable and Los has field feedback. |
+| Turning the app into unofficial company software too early | High | Open | Keep this as Los's private field copilot until after Turn and explicit leadership approval. |
+| AI mutating records without confirmation | High | Guarded | Keep Draft Actions as the approval boundary. |
+| Provider secrets leaking into browser code | High | Guarded | No OpenAI/Anthropic keys in Vite client code. Server-side API only if/when added. |
+| Tenant or private information entering notes/photos | High | Policy | Do not capture tenant PII, faces, or private documents. |
+
+## Review Triggers
+
+Review this file when:
+
+- A real-device sync test fails.
+- New data model fields are added.
+- AI/provider routes are introduced.
+- Photos move from local-only to Supabase Storage.
+- Any reset/delete/import feature changes.
+- Los starts entering real field data.

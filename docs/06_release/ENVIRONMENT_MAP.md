@@ -7,6 +7,7 @@ Document environments without exposing secret values.
 | Local | Development | `http://localhost:5173` | Browser localStorage | Los | Vite dev server; no cloud sync until Slice 2 |
 | Production app | Hosted PWA | `https://turn-supervisor-os.vercel.app` | Browser localStorage + optional Supabase sync | Los | Static Vercel deploy from private GitHub repo |
 | Supabase | Sync/Auth/Storage foundation | `https://jgplalexkmjzldczouih.supabase.co` | Postgres + private Storage | Los | Schema/RLS/buckets applied; app sync enabled behind `VITE_ENABLE_SYNC` |
+| Local Vercel CLI | Deployment tooling | `vercel` | No app data | Los | Version `54.21.1` verified on 2026-07-07 |
 
 ## Secret Handling
 

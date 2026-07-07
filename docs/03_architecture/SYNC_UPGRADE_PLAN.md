@@ -1,11 +1,29 @@
 # Turn Supervisor OS — Sync + Voice + AI Upgrade Plan
 
-Status: proposed (2026-07-04). This is the working architecture plan for turning the
-local-only v0.1 app into a multi-device, voice-capable, AI-assisted field system
-while keeping it private, human-confirmed, and offline-tolerant.
+Status: historical architecture plan, partially implemented as of 2026-07-07.
+
+This document remains useful for planned sync, voice, photo, and AI direction, but the current source of truth is `docs/CURRENT_STATE.md`, `docs/ROADMAP.md`, `docs/TESTING.md`, and `docs/RISKS.md`.
+
+Implemented since this was drafted:
+
+- Vercel production deploy
+- Supabase Auth and sync behind `VITE_ENABLE_SYNC`
+- Realtime subscriptions
+- Demo Mode vs Real Turn Mode
+- Global Capture entry point
+- Sync change fingerprinting fix
+
+Still not implemented:
+
+- Photo binary sync through Supabase Storage
+- Durable recorded-audio upload/transcription
+- Server-side AI provider routes
+- Web Push reminders
+
+The remaining plan is to keep the app private, human-confirmed, and offline-tolerant.
 
 Companion files:
-- `supabase/migrations/0001_init.sql` — full schema + RLS (ready to apply)
+- `supabase/migrations/0001_init.sql` — full schema + RLS
 - `.env.example` — environment variable contract
 - `tests/sync-upgrade-qa-checklist.md` — manual QA before/after each slice
 

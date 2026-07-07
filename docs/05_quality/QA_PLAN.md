@@ -1,23 +1,38 @@
 # QA Plan
 
+## Current Gate
+
+Phase 1 is not stable until production sync, offline behavior, mobile usability, and export/backup are verified on Los's Mac, iPhone, and iPad.
+
 ## Verification Levels
 
 - Static review: docs and source inspection.
-- Automated checks: typecheck, lint, tests, build when commands exist.
-- Targeted smoke checks: verify the core workflow manually or with a browser/API script.
-- Regression review: inspect diff before completion.
+- Automated checks: `npm run test:sync`, `npm run lint`, `npm run build`, and `npm run check:os`.
+- Production smoke: public URL returns 200 and the PWA boots without console errors.
+- Real-device QA: Mac/iPhone/iPad sync and offline checklist in `docs/TESTING.md`.
+- Regression review: inspect staged diff before commit or PR.
 
-## Current State
+## Required Commands For Code Slices
 
-Runtime exists. Relevant checks are:
+```bash
+npm run test:sync
+npm run lint
+npm run build
+npm run check:os
+git diff --check
+```
 
-- `npm run build`
-- `npm run lint`
-- `npm run check:os`
-- Browser smoke checks for dashboard, unit update, issue creation, crew check-in, daily log save, report copy/download, and export.
-- Copilot smoke checks for Quick Capture parsing, draft action apply, memory approval, Ask the OS, briefing generation, and mobile layout.
-- Ready-gate smoke check: incomplete inspection must appear in the confirmation dialog, and dismissing the dialog must leave the unit unchanged.
-- Mobile secondary-navigation smoke check: Export must be reachable on iPhone width.
+Run Supabase CLI checks only when a slice touches migrations or remote schema.
+
+## Current Manual Tests
+
+- Sync settling: one `Sync now`, wait 60-90 seconds, confirm `Synced`.
+- Cross-device update: unit, issue, daily log, and follow-up across Mac/iPhone/iPad.
+- Offline edit: airplane mode changes survive reconnect.
+- Demo vs Real separation: real reports and Copilot answers do not use demo records.
+- Capture flow: bottom-right Capture, Create Drafts, approve/reject/applied/failed states.
+- Mobile layout: no horizontal overflow on iPhone width; sidebar collapses on iPad width.
+- Export/backup: JSON, units CSV, issues CSV, daily report, Copilot/Memory Markdown, Follow-Ups CSV.
 
 ## Release Gate
 
@@ -26,4 +41,5 @@ Do not mark a slice complete unless:
 - Requirements are linked to acceptance criteria.
 - Relevant checks were run and recorded.
 - Known risks are documented.
-- Los has approved any irreversible action.
+- Los has approved irreversible action.
+- PR or hotfix workflow was followed.

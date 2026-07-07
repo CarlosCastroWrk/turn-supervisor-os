@@ -14,3 +14,16 @@
 - Accepted the product direction shift from a small operations system toward a personal Turn Field Copilot.
 - Added Phase 1 stabilization: Demo Mode vs Real Turn Mode, Start Real Turn setup, backup-before-reset copy, dashboard mode labeling, and project-scoped crew contacts.
 - Added and applied a Supabase migration for project mode and crew project scope before deploying the stabilization slice.
+
+## 2026-07-06
+
+- Aligned operating docs around the Turn Field Copilot framing and Phase 1 Stabilize gate.
+- Added roadmap, testing checklist, risk register, decision log, and Fable 5 review prompt for real-device QA and external review.
+
+## 2026-07-07
+
+- Shipped global bottom-right Capture, organized/collapsible sidebar, and Draft Action status clarity.
+- Shipped sync change fingerprinting fix so equivalent Supabase timestamp and JSON shapes do not trigger repeated false uploads.
+- Upgraded local Vercel CLI to `54.21.1` after Los explicitly approved.
+- Adopted pull requests for normal non-emergency slices; direct `main` commits are reserved for urgent approved hotfixes.
+- Current gate remains real-device Mac/iPhone/iPad sync confirmation before entering real field data.

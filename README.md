@@ -1,6 +1,6 @@
-# Turn Supervisor OS
+# Turn Supervisor OS / Turn Field Copilot
 
-Turn Supervisor OS is a private, local-first field operations companion for Los during a two-week student housing Turn operation.
+Turn Supervisor OS is the current app name for PDS / Turn Field Copilot: a private, local-first field operations companion for Los during a two-week student housing Turn operation.
 
 It is not official Property Doctor Services software. It is a personal supervisor notebook for staying organized, tracking field status, communicating clearly, and learning the operation from the inside before proposing any software ideas.
 
@@ -10,6 +10,8 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Copilot section with Quick Capture, Ask the OS, Briefings, Draft Actions, Memory Inbox, and smart suggestions
 - Editable project setup
 - Demo Mode vs Real Turn Mode with a Start Real Turn setup flow
+- Global bottom-right Capture button available across tabs
+- Organized/collapsible sidebar on iPad and desktop widths
 - Buildings, floors, units, unit filters, and quick unit creation
 - Unit detail view with fast status updates, notes, linked issues, photos, and activity history
 - Crew directory with factual professional notes
@@ -23,6 +25,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - PWA manifest and service worker for add-to-home-screen and basic app shell caching
 - Local-only data persistence using browser localStorage
 - Rule-based no-API-key copilot parser that creates draft actions before changing data
+- Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
 - Mobile-accessible secondary navigation for Setup, Assignments, Reports, Training Questions, and Export
 - Optional Supabase sync panel behind `VITE_ENABLE_SYNC` for signing in and syncing records across devices
 
@@ -90,6 +93,7 @@ The sync panel appears in the header when the flag is enabled. Sign in with the 
 Safety notes:
 
 - A fresh browser with no local cache pulls cloud records before uploading sample seed data.
+- Sync comparison normalizes equivalent timestamp formats and JSON object key order to reduce false local-change upload loops.
 - Demo and real Turn projects are separated by project mode. Start Real Turn Mode before entering real field records.
 - Important Copilot mutations are still draft-first.
 - Photo metadata syncs, but base64 photo files stay local until the Storage/photo-compression slice is implemented.
@@ -111,10 +115,10 @@ The Copilot is a local-first assistant layer. It helps capture, organize, summar
 
 ### Quick Capture
 
-1. Open Copilot.
-2. Tap the messy field note box.
-3. Use iPhone/iPad dictation or type a field note.
-4. Tap Parse Note.
+1. Tap the bottom-right Capture button.
+2. Tap Record if browser speech recognition is available, or tap the messy note box and use iPhone/iPad keyboard dictation.
+3. Speak or type a field note.
+4. Tap Create Drafts.
 5. Review Draft Actions.
 6. Edit payloads if needed.
 7. Approve/apply or reject each action.
@@ -212,6 +216,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - Photo data is stored as base64 data URLs and can grow browser storage quickly.
 - PWA offline support caches the app shell, but full offline production hardening is not complete.
 - Cross-device sync is new and must be field-tested before Turn.
+- If sync still cycles after the latest deployed fingerprinting fix, the next slice should add visible sync diagnostics.
 - Delete propagation and conflict review UI are not implemented yet.
 - No CSV import yet.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.
@@ -223,7 +228,7 @@ The plan for multi-device sync (Supabase), Vercel hosting, voice capture, server
 AI, and notifications lives in
 [docs/03_architecture/SYNC_UPGRADE_PLAN.md](docs/03_architecture/SYNC_UPGRADE_PLAN.md).
 
-Supporting files (no runtime behavior changes yet — the app is still local-only):
+Supporting files:
 
 - `supabase/migrations/0001_init.sql` — full Postgres schema with Row Level Security
 - `.env.example` — environment variable contract (public `VITE_*` vs server-only keys)
@@ -233,6 +238,8 @@ Rules that carry over: no secrets in browser code, draft-first AI with human app
 graceful offline behavior, and JSON export stays forever.
 
 ## Roadmap
+
+The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal non-emergency work should use the PR workflow in [docs/06_release/GITHUB_PR_WORKFLOW.md](docs/06_release/GITHUB_PR_WORKFLOW.md).
 
 ### Version 0.2
 

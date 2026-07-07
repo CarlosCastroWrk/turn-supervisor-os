@@ -2,46 +2,130 @@
 
 ## Status
 
-Turn Supervisor OS v0.1 implemented as a mobile-first React + TypeScript + Vite app.
+PDS / Turn Field Copilot is in Phase 1 Stabilize.
+
+The app exists as a private, local-first React + TypeScript + Vite PWA for Los to use during a two-week student housing Turn operation. It is a personal field copilot/notebook, not official Property Doctor Services software, not company software, not a CRM, and not a multi-user portal.
+
+Latest shipped app commit:
+
+```text
+822aa8e Fix sync change fingerprinting
+```
+
+Production:
+
+```text
+https://turn-supervisor-os.vercel.app
+```
+
+## Current Goal
+
+Make Real Turn Mode safe to trust on Mac, iPhone, and iPad before Los enters real field data.
+
+The core product loop is:
+
+1. Capture
+2. Confirm
+3. Update Board
+4. Follow Up
+5. Report
+6. Learn
+
+Every near-term change should serve that loop.
 
 ## What Exists
 
-- Project operating-system layout
 - React + TypeScript + Vite runtime
-- Mobile-first app shell with bottom navigation
-- Local persistence via browser localStorage
-- Seed data for West Campus Turn
+- Mobile-first PWA shell with bottom navigation
+- Local persistence via browser `localStorage` under `turn-supervisor-os:v0.1`
+- Vercel production deployment at `https://turn-supervisor-os.vercel.app`
+- Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
 - Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and deterministic smart suggestions
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
 - PWA manifest and service worker
-- Vercel production deployment at `https://turn-supervisor-os.vercel.app`
-- Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
-- Supabase cloud project `jgplalexkmjzldczouih` with initial schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
+- Supabase cloud project `jgplalexkmjzldczouih`
+- Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
-- Demo Mode vs Real Turn Mode, with a Start Real Turn flow that creates a separate active project after backup
+- Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
+- Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
+- Project-scoped crew contacts so demo crews do not pollute real Turn mode
+- Global bottom-right Capture button with organized/collapsible sidebar on larger screens
+- Voice-memo style Capture UI with browser speech-recognition support where available and iPhone/iPad keyboard dictation fallback
+- Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
+- Export/backup tools for JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
+
+## What Real Turn Mode Currently Does
+
+- Shows whether the active project is Demo Mode or Real Turn Mode
+- Lets Los export a JSON backup before creating a real project
+- Creates a separate real project with property, location, dates, supervisor, project manager, buildings, floors, units, beds, common areas, and notes
+- Switches the active board to the new real project
+- Keeps demo data available separately for practice
+- Filters active project views so Real Turn records and Demo records are separated in normal use
+- Scopes crew contacts to the active project
 
 ## What Does Not Exist Yet
 
-- Full two-device sync QA on real iPhone/iPad
+- Full hands-on sync QA across Los's Mac, iPhone, and iPad
 - Delete propagation / tombstones for synced rows
 - Photo binary sync through Supabase Storage
+- Restore-from-JSON import flow in the app
 - Multi-user mode
-- Automated browser test suite
+- Automated browser regression suite
+- Formal parser/eval test suite with realistic field notes
 - Server-side AI provider route
+- Durable recorded-audio transcription pipeline
+- Company product features
 
 ## Active Assumptions
 
-- This is a personal local-first notebook for Los.
-- It should not claim official Property Doctor Services ownership or workflow authority.
-- Seed data is sample-only and should be replaced with field reality during training.
-- Real field records should live in Real Turn Mode; demo records should remain for practice only.
-- localStorage is still the hot/offline cache even when Supabase sync is enabled.
+- This remains Los's personal field copilot until real field validation and explicit leadership approval.
+- Seed data is sample-only and should not appear in Real Turn reports, Copilot answers, or testing conclusions.
+- Real field records should live in Real Turn Mode.
+- `localStorage` is still the hot/offline cache even when Supabase sync is enabled.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
 - Base64 photo payloads remain local-only until the Storage/photo-compression slice.
 - Copilot output must remain draft-first; important mutations require explicit approval.
-- Static Vite browser code must not contain provider secrets. Any real OpenAI path requires a server-side API layer.
+- Memory candidates must be approved before use.
+- Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
+
+## Current Testing Priority
+
+Real-device Phase 1 QA:
+
+1. Mac signs in and confirms synced.
+2. iPhone signs in and confirms synced.
+3. iPad signs in and confirms synced.
+4. Real Turn project created/updated on one device appears on the others.
+5. Unit, issue, daily log, follow-up, and setup updates sync without duplicates or stale overwrites.
+6. Offline updates survive airplane mode and sync after reconnect.
+7. Demo data stays separate from Real Turn data.
+8. Export/backup works before any destructive reset.
+
+Current immediate field check:
+
+1. Open or hard-refresh the production PWA on Mac, iPhone, and iPad.
+2. Tap `Sync now` once.
+3. Wait 60-90 seconds.
+4. Confirm whether each device settles on `Synced` or keeps cycling.
+
+If sync still cycles, the next non-emergency PR should be `sync status diagnostics`.
+
+That PR should expose:
+
+- Last sync reason
+- Last synced table or table group
+- Whether sync was triggered by manual tap, Realtime, reconnect, or local edit
+- Upload row count
+- Last error detail
+
+## GitHub Workflow
+
+Normal non-emergency work now uses pull requests. See [docs/06_release/GITHUB_PR_WORKFLOW.md](06_release/GITHUB_PR_WORKFLOW.md).
+
+Direct commits to `main` are reserved for urgent field hotfixes with explicit approval.
 
 ## Next Action
 
-Test Demo Mode and Real Turn Mode sync on Mac/iPhone/iPad before entering real field data.
+Run the Mac/iPhone/iPad Phase 1 sync checklist in [TESTING.md](TESTING.md) before entering real field data.

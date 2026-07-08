@@ -30,6 +30,22 @@ const sentenceSplit = (input: string) =>
     .map((part) => part.trim())
     .filter(Boolean);
 
+const unitScopedSegments = (input: string, data: AppData) => {
+  const matches = Array.from(input.matchAll(/\b(?:unit\s*#?\s*)?(\d{3,4})\b/gi)).filter((match) => {
+    const unitNumber = match[1];
+    const context = input.slice(Math.max(0, match.index - 42), match.index + match[0].length + 42).toLowerCase();
+    return Boolean(findUnitByNumber(data, unitNumber)) || /paint|clean|done|progress|blocked|keys?|sink|leak|repair|unit/.test(context);
+  });
+
+  if (matches.length <= 1) {
+    return [input];
+  }
+
+  return matches
+    .map((match, index) => input.slice(match.index, matches[index + 1]?.index ?? input.length).trim())
+    .filter(Boolean);
+};
+
 const unique = <T,>(items: T[]) => Array.from(new Set(items));
 
 const findUnitByNumber = (data: AppData, unitNumber: string) =>
@@ -53,14 +69,14 @@ const extractBuildings = (text: string) => unique(Array.from(text.matchAll(/\bbu
 const extractFloors = (text: string) => unique(Array.from(text.matchAll(/\bfloor\s+(\d+)/gi)).map((match) => `Floor ${match[1]}`));
 const CREW_NAME_STOPWORDS = new Set(['the', 'a', 'an', 'my', 'our', 'his', 'her', 'their', 'this', 'that', 'whole', 'entire', 'other', 'new', 'one']);
 const matchCrewName = (text: string) => {
-  const match = Array.from(text.matchAll(/\b([a-z]+)(?:'s)?\s+crew\b/gi)).find(
+  const match = Array.from(text.matchAll(/\b([a-z]+)(?:'s)?\s+(?:crew\b|moved\b|started\b|finished\b|waiting\b)/gi)).find(
     (item) => !CREW_NAME_STOPWORDS.has(item[1].toLowerCase()),
   );
   return match ? `${match[1][0].toUpperCase()}${match[1].slice(1).toLowerCase()}` : undefined;
 };
 const extractCrewNames = (text: string) =>
   unique(
-    Array.from(text.matchAll(/\b([a-z]+)(?:'s)?\s+crew\b/gi))
+    Array.from(text.matchAll(/\b([a-z]+)(?:'s)?\s+(?:crew\b|moved\b|started\b|finished\b|waiting\b)/gi))
       .filter((item) => !CREW_NAME_STOPWORDS.has(item[1].toLowerCase()))
       .map((item) => `${item[1][0].toUpperCase()}${item[1].slice(1).toLowerCase()} crew`),
   );
@@ -119,7 +135,7 @@ const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, so
   const drafts: DraftAction[] = [];
   const confidence = confidenceForUnit(unit);
 
-  const addStatusDraft = (title: string, payload: Record<string, WorkStatus | string>, why: string, summary = title) => {
+  const addStatusDraft = (title: string, payload: Record<string, WorkStatus | string | boolean>, why: string, summary = title) => {
     drafts.push(
       makeDraft({
         type: 'UPDATE_UNIT_STATUS',
@@ -134,6 +150,36 @@ const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, so
       }),
     );
   };
+
+  if (
+    /\b(?:done|complete|completed|finished)\b/.test(lower) &&
+    !/\bpaint(?:ing|er)?\b|\bclean(?:ing|er)?\b|\bmaintenance\b|\brepair\b|\bfloor(?:ing)?\b|\btrash\b|\binspection\b/.test(lower)
+  ) {
+    addStatusDraft(
+      `Mark Unit ${unitNumber} ready`,
+      {
+        paintStatus: 'Complete',
+        cleanStatus: 'Complete',
+        repairStatus: 'Complete',
+        inspectionStatus: 'Complete',
+        overallStatus: 'Ready',
+        explicitReadyConfirmation: true,
+      },
+      'The note says the unit is done, so this creates a reviewable ready draft.',
+    );
+  }
+
+  if (
+    /\bin progress\b|\bstarted\b|\bmoving\b|\bmoved\b/.test(lower) &&
+    !/\bclean(?:ing|er)?\b|\bmaintenance\b|\brepair\b|\bfloor(?:ing)?\b|\btrash\b|\binspection\b/.test(lower)
+  ) {
+    const nextOverallStatus = unit?.paintStatus === 'Complete' ? 'Cleaning' : 'Painting';
+    addStatusDraft(
+      `Mark Unit ${unitNumber} in progress`,
+      { overallStatus: nextOverallStatus },
+      'The note says work is in progress without naming a trade, so this uses the next active Turn step.',
+    );
+  }
 
   if (/paint(?:ing)?\s+(?:done|complete|finished)|paint\s+complete/.test(lower)) {
     addStatusDraft(
@@ -159,7 +205,7 @@ const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, so
     );
   }
 
-  if (/maintenance|sink|leak|repair/.test(lower)) {
+  if (/\bmaintenance\b|needs?\s+repair|repair\s+(?:needed|required|in progress)|maintenance\s+(?:needed|required|in progress)/.test(lower)) {
     addStatusDraft(
       `Mark Unit ${unitNumber} maintenance needed`,
       { repairStatus: 'Needed', overallStatus: 'Maintenance Needed' },
@@ -422,16 +468,18 @@ const parseQuickCapture = async (input: string, data: AppData): Promise<AgentPar
   const warnings: string[] = [];
 
   sentenceSplit(rawInput).forEach((sentence) => {
-    const sentenceUnits = extractUnitNumbers(sentence, data);
-    sentenceUnits.forEach((unitNumber) => {
-      draftActions.push(...statusDraftsForUnit(data, unitNumber, sentence, rawInput));
-      const issueDraft = issueDraftForTarget(data, unitNumber, sentence, rawInput);
-      if (issueDraft) {
-        draftActions.push(issueDraft);
-      }
+    unitScopedSegments(sentence, data).forEach((segment) => {
+      const segmentUnits = extractUnitNumbers(segment, data);
+      segmentUnits.forEach((unitNumber) => {
+        draftActions.push(...statusDraftsForUnit(data, unitNumber, segment, rawInput));
+        const issueDraft = issueDraftForTarget(data, unitNumber, segment, rawInput);
+        if (issueDraft) {
+          draftActions.push(issueDraft);
+        }
+      });
     });
 
-    if (sentenceUnits.length === 0 && (extractBuildings(sentence).length > 0 || extractFloors(sentence).length > 0)) {
+    if (extractUnitNumbers(sentence, data).length === 0 && (extractBuildings(sentence).length > 0 || extractFloors(sentence).length > 0)) {
       const issueDraft = issueDraftForTarget(data, undefined, sentence, rawInput);
       if (issueDraft) {
         draftActions.push(issueDraft);

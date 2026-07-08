@@ -63,3 +63,6 @@
 - Added a sync boundary helper that skips demo-scoped projects, units, buildings, floors, crews, assignments, issues, photo notes, daily logs, activity logs, and linked draft/follow-up/memory rows during upload.
 - Preserved local Demo Mode practice records when a fresh device pulls real cloud records.
 - Added regression tests for demo upload filtering and fresh-device demo preservation.
+- Started C1 Dictation Parser Eval Suite on `codex/dictation-parser-evals` while B3 Offline/Reconnect Trust remains a physical-device gate.
+- Added parser regression tests for Los's punctuation-free field notes: `104 done 105 in progress 312 sink leak`, `204 paint done but cleaning blocked keys missing`, and `Jose moved from 203 to 205`.
+- Added unit phrase segmentation, generic done/in-progress unit drafts, sink/leak issue scoping, and named crew movement assignment parsing.

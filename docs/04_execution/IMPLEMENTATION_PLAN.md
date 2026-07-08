@@ -17,9 +17,11 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - A5 Issue Status Safety is shipped in `9f5169e`.
 - B1 Project Archive is implemented with a soft archive field, setup archive/restore UI, Supabase sync mapping, and regression tests.
 - B2 Demo Sync Boundary is implemented with upload filtering for demo-scoped rows and fresh-device demo preservation.
-- The next ordered slice is B3 Offline/Reconnect Trust.
+- C1 Dictation Parser Eval Suite is implemented with regression coverage for Los's punctuation-free field notes.
+- B3 Offline/Reconnect Trust remains the next physical-device gate.
+- The current code slice is the remaining C2 Unit-Boundary Parser conflict-detection work.
 
-## Current Slice
+## Current Field Gate
 
 ### B3. Offline/Reconnect Trust
 
@@ -50,6 +52,27 @@ Acceptance:
 Risk:
 
 - Whole-row last-write-wins remains the current conflict behavior. If multiple devices edit the same row offline, the newer `updatedAt` row can win.
+
+## Current Code Slice
+
+### C2. Unit-Boundary Parser
+
+Purpose:
+
+- Make Quick Capture reliable when Los dictates punctuation-free notes while walking.
+
+Implemented:
+
+- Parser evals for Los's field-note examples.
+- Unit phrase segmentation for notes like `104 done 105 in progress 312 sink leak`.
+- Generic `done` and `in progress` unit drafts.
+- Named crew movement parsing for notes like `Jose moved from 203 to 205`.
+- Reduced sink/leak issue bleed so a leak on one unit does not create leak drafts for nearby units.
+
+Remaining:
+
+- Detect conflicting draft updates for the same unit in one capture batch and require explicit confirmation.
+- Preserve deterministic/local parsing with no server-side AI dependency.
 
 ## Slice Protocol
 

@@ -181,6 +181,8 @@ These slices make the core Copilot loop reliable enough for walking.
 
 ### C1. Dictation Parser Eval Suite
 
+Status: implemented in the C1 Dictation Parser Eval Suite release slice.
+
 Scope:
 
 - Add realistic punctuation-free field-note fixtures.
@@ -192,10 +194,12 @@ Scope:
 
 Acceptance:
 
-- Parser tests fail before behavior changes and pass after parser fixes.
+- Parser tests cover the known failing cases and pass with the current parser fixes.
 - Regression suite can be run locally.
 
 ### C2. Unit-Boundary Parser
+
+Status: partially implemented. Unit phrase segmentation, generic done/in-progress drafts, and named crew movement parsing are in place. Same-unit conflict detection remains.
 
 Scope:
 

@@ -15,42 +15,39 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - A3 Number Input Safety is shipped in `6c34eb8`.
 - A4 Report Date Safety is shipped in `72ddd4a`.
 - A5 Issue Status Safety is shipped in `9f5169e`.
-- There is no active implementation branch.
-- The next ordered slice is B1 Project Archive, but it is blocked until Los explicitly approves Supabase migration/sync-schema work.
+- B1 Project Archive is implemented with a soft archive field, setup archive/restore UI, Supabase sync mapping, and regression tests.
+- The next ordered slice is B2 Demo Sync Boundary.
 
 ## Current Slice
 
-### B1. Project Archive
+### B2. Demo Sync Boundary
 
 Purpose:
 
-- Let Los safely hide duplicate/test Real Turn projects without true-deleting records or losing backup/sync safety.
+- Keep Demo Mode practice records from polluting real cloud work while preserving local demo practice.
 
 Scope:
 
-- Add a soft archive field to projects.
-- Hide archived projects from normal setup switchers and active project choices.
-- Require backup warning before archive.
-- Keep archive state synced across devices.
-- Do not true-delete records.
+- Audit current sync upload paths for Demo Mode records.
+- Keep Demo Mode usable locally.
+- Prevent demo seed records from being treated as active real cloud work.
+- Document any one-time cleanup separately.
 
 Out of scope:
 
-- True delete/tombstones.
 - Supabase data cleanup.
 - Multi-user/company project management.
-- Bulk archive or restore tooling beyond the minimum safe flow.
+- Removing demo records from local practice mode.
 
 Acceptance:
 
-- Duplicate/test Real Turn projects can be hidden without deleting local or cloud records.
-- Archived projects do not appear in normal active project switching.
-- Archive status survives reload and sync.
-- Any Supabase migration/sync-schema change has explicit approval before implementation.
+- Fresh devices still have demo practice data locally.
+- Real Turn sync does not re-upload demo data as active cloud work.
+- Any production cloud cleanup is listed as a separate approval item.
 
-Blocked decision:
+Risk:
 
-- B1 likely requires a Supabase migration/sync mapping change so archive state works across Mac, iPhone, and iPad. Fresh approval is required before Codex starts that work.
+- This slice must not delete or mutate existing production records. It is a boundary and upload-behavior slice, not a cleanup slice.
 
 ## Slice Protocol
 

@@ -823,6 +823,17 @@ small {
   padding-bottom: 2px;
 }
 
+.project-card {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.project-card .button {
+  min-height: 38px;
+  width: 100%;
+}
+
 .project-chip {
   display: grid;
   gap: 3px;
@@ -835,6 +846,11 @@ small {
   text-align: left;
 }
 
+.project-card .project-chip {
+  min-width: 0;
+  width: 100%;
+}
+
 .project-chip small {
   color: var(--muted);
 }
@@ -842,6 +858,28 @@ small {
 .project-chip.is-active {
   border-color: #2563eb;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.project-chip--archived {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.archive-panel {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 10px;
+}
+
+.archive-panel summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.archive-panel .project-switcher {
+  margin-top: 10px;
 }
 
 .status-badge {

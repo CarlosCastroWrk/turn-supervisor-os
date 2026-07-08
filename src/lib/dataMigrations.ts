@@ -8,6 +8,7 @@ const arrayOrEmpty = <T>(value: T[] | undefined): T[] => (Array.isArray(value) ?
 const normalizeProject = (project: Project): Project => ({
   ...project,
   mode: project.mode === 'real' ? 'real' : 'demo',
+  archivedAt: typeof project.archivedAt === 'string' && project.archivedAt.length > 0 ? project.archivedAt : undefined,
 });
 
 const fallbackStamp = (createdAt?: string, updatedAt?: string) => updatedAt || createdAt || new Date(0).toISOString();
@@ -40,13 +41,14 @@ const pickActiveProjectId = (projects: Project[], currentActiveProjectId: string
     return currentActiveProjectId;
   }
 
-  const activeProject = projects.find((project) => project.id === currentActiveProjectId);
-  const realProjects = projects
+  const visibleProjects = projects.filter((project) => !project.archivedAt);
+  const activeProject = visibleProjects.find((project) => project.id === currentActiveProjectId);
+  const realProjects = visibleProjects
     .filter((project) => project.mode === 'real')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   if (!activeProject) {
-    return realProjects[0]?.id ?? projects[0].id;
+    return realProjects[0]?.id ?? visibleProjects[0]?.id ?? projects[0].id;
   }
 
   if (activeProject.id === DEMO_PROJECT_ID && realProjects.length > 0) {

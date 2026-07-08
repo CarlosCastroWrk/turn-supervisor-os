@@ -1,8 +1,8 @@
-import { Download, PlayCircle, RotateCcw, Save } from 'lucide-react';
+import { Archive, Download, PlayCircle, RotateCcw, Save } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { Section } from '../components/Section';
-import { createRealTurnProject, switchActiveProject, updateProject } from '../lib/actions';
+import { archiveProject, createRealTurnProject, restoreProject, switchActiveProject, updateProject } from '../lib/actions';
 import { buildJsonBackup, downloadTextFile } from '../lib/exporters';
 import { getActiveProject, getProjectBuildings, getProjectUnits } from '../lib/metrics';
 import type { AppData, Project } from '../types';
@@ -16,7 +16,8 @@ export function SetupView({ data, setData }: SetupViewProps) {
   const project = getActiveProject(data);
   const date = new Date().toISOString().slice(0, 10);
   const demoProject = data.projects.find((item) => item.mode === 'demo');
-  const realProjects = data.projects.filter((item) => item.mode === 'real');
+  const realProjects = data.projects.filter((item) => item.mode === 'real' && !item.archivedAt);
+  const archivedRealProjects = data.projects.filter((item) => item.mode === 'real' && item.archivedAt);
   const activeBuildings = getProjectBuildings(data);
   const activeBuildingIds = useMemo(() => new Set(activeBuildings.map((building) => building.id)), [activeBuildings]);
   const activeFloors = data.floors.filter((floor) => activeBuildingIds.has(floor.buildingId));
@@ -81,6 +82,22 @@ export function SetupView({ data, setData }: SetupViewProps) {
     );
   };
 
+  const archiveRealProject = (projectToArchive: Project) => {
+    const backupMessage =
+      'Archive hides this Real Turn project from normal switching, but it does not delete units, issues, notes, or cloud records. Continue without exporting a fresh JSON backup?';
+    if (!backupTaken && !window.confirm(backupMessage)) {
+      return;
+    }
+
+    const activeMessage =
+      'This is the active Real Turn project. Archiving it will switch you to another visible Real Turn project or Demo Mode. Continue?';
+    if (project.id === projectToArchive.id && !window.confirm(activeMessage)) {
+      return;
+    }
+
+    setData((current) => archiveProject(current, projectToArchive.id));
+  };
+
   return (
     <div className="page">
       <div className="page-title">
@@ -118,17 +135,42 @@ export function SetupView({ data, setData }: SetupViewProps) {
         {realProjects.length > 0 ? (
           <div className="project-switcher">
             {realProjects.map((realProject) => (
-              <button
-                className={`project-chip ${project.id === realProject.id ? 'is-active' : ''}`}
-                key={realProject.id}
-                type="button"
-                onClick={() => setData((current) => switchActiveProject(current, realProject.id))}
-              >
-                <strong>{realProject.name}</strong>
-                <small>{realProject.propertyName || 'No property name'}</small>
-              </button>
+              <article className="project-card" key={realProject.id}>
+                <button
+                  className={`project-chip ${project.id === realProject.id ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={() => setData((current) => switchActiveProject(current, realProject.id))}
+                >
+                  <strong>{realProject.name}</strong>
+                  <small>{realProject.propertyName || 'No property name'}</small>
+                </button>
+                <Button aria-label={`Archive ${realProject.name}`} onClick={() => archiveRealProject(realProject)} variant="ghost">
+                  <Archive size={16} aria-hidden="true" />
+                  Archive
+                </Button>
+              </article>
             ))}
           </div>
+        ) : null}
+
+        {archivedRealProjects.length > 0 ? (
+          <details className="archive-panel">
+            <summary>Archived Real Turn projects ({archivedRealProjects.length})</summary>
+            <div className="project-switcher">
+              {archivedRealProjects.map((archivedProject) => (
+                <article className="project-card" key={archivedProject.id}>
+                  <div className="project-chip project-chip--archived">
+                    <strong>{archivedProject.name}</strong>
+                    <small>{archivedProject.propertyName || 'No property name'}</small>
+                  </div>
+                  <Button onClick={() => setData((current) => restoreProject(current, archivedProject.id))} variant="secondary">
+                    <RotateCcw size={16} aria-hidden="true" />
+                    Restore
+                  </Button>
+                </article>
+              ))}
+            </div>
+          </details>
         ) : null}
       </Section>
 

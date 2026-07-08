@@ -127,6 +127,7 @@ export interface Project {
   estimatedUnits: number;
   estimatedBeds: number;
   estimatedCommonAreas: number;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

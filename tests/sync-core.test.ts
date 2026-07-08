@@ -38,6 +38,19 @@ test('syncRowFingerprint treats equivalent timestamptz strings as unchanged', ()
   assert.equal(syncRowFingerprint(localRow), syncRowFingerprint(remoteRow));
 });
 
+test('syncRowFingerprint treats equivalent archived_at timestamptz strings as unchanged', () => {
+  const localRow = {
+    id: 'project_real',
+    archived_at: '2026-07-08T15:00:00.000Z',
+  };
+  const remoteRow = {
+    id: 'project_real',
+    archived_at: '2026-07-08T10:00:00-05:00',
+  };
+
+  assert.equal(syncRowFingerprint(localRow), syncRowFingerprint(remoteRow));
+});
+
 test('syncRowFingerprint ignores JSON object key order', () => {
   const localRow = {
     id: 'draft_1',

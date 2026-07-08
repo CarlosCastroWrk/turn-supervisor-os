@@ -135,6 +135,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         estimated_units: project.estimatedUnits,
         estimated_beds: project.estimatedBeds,
         estimated_common_areas: project.estimatedCommonAreas,
+        archived_at: project.archivedAt ?? null,
         created_at: project.createdAt,
         updated_at: project.updatedAt,
       };
@@ -155,6 +156,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         estimatedUnits: numberValue(row, 'estimated_units'),
         estimatedBeds: numberValue(row, 'estimated_beds'),
         estimatedCommonAreas: numberValue(row, 'estimated_common_areas'),
+        archivedAt: optionalString(row, 'archived_at'),
         createdAt: stringValue(row, 'created_at', nowISO()),
         updatedAt: stringValue(row, 'updated_at', nowISO()),
       }) satisfies Project,

@@ -80,6 +80,66 @@ export const updateProject = (data: AppData, projectId: EntityId, patch: Partial
   ],
 });
 
+const isArchivedProject = (project: Project) => Boolean(project.archivedAt);
+
+const activeFallbackAfterArchive = (data: AppData, archivedProjectId: EntityId) => {
+  const visibleProjects = data.projects.filter((project) => project.id !== archivedProjectId && !isArchivedProject(project));
+  const realProjects = visibleProjects
+    .filter((project) => project.mode === 'real')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const demoProject = visibleProjects.find((project) => project.mode === 'demo');
+
+  return realProjects[0]?.id ?? demoProject?.id ?? visibleProjects[0]?.id ?? data.activeProjectId;
+};
+
+export const archiveProject = (data: AppData, projectId: EntityId): AppData => {
+  const project = data.projects.find((item) => item.id === projectId);
+  if (!project || project.mode !== 'real' || isArchivedProject(project)) {
+    return data;
+  }
+
+  const archivedAt = nowISO();
+  const activeProjectId = data.activeProjectId === projectId ? activeFallbackAfterArchive(data, projectId) : data.activeProjectId;
+
+  return {
+    ...data,
+    activeProjectId,
+    projects: data.projects.map((item) =>
+      item.id === projectId ? { ...item, archivedAt, updatedAt: archivedAt } : item,
+    ),
+    activityLogs: [
+      activity(projectId, 'Project', projectId, 'Archived Real Turn project', 'Project was hidden from normal project switching. Records were not deleted.'),
+      ...data.activityLogs,
+    ],
+  };
+};
+
+export const restoreProject = (data: AppData, projectId: EntityId): AppData => {
+  const project = data.projects.find((item) => item.id === projectId);
+  if (!project || project.mode !== 'real' || !isArchivedProject(project)) {
+    return data;
+  }
+
+  const updatedAt = nowISO();
+
+  return {
+    ...data,
+    projects: data.projects.map((item) => {
+      if (item.id !== projectId) {
+        return item;
+      }
+
+      const restoredProject = { ...item };
+      delete restoredProject.archivedAt;
+      return { ...restoredProject, updatedAt };
+    }),
+    activityLogs: [
+      activity(projectId, 'Project', projectId, 'Restored Real Turn project', 'Project is visible in normal project switching again.'),
+      ...data.activityLogs,
+    ],
+  };
+};
+
 const buildingNameForIndex = (index: number) => `Building ${String.fromCharCode(65 + index)}`;
 
 const unitNumberFor = (firstUnitNumber: number, floorNumber: number, unitIndex: number) => {
@@ -90,7 +150,7 @@ const unitNumberFor = (firstUnitNumber: number, floorNumber: number, unitIndex: 
 
 export const switchActiveProject = (data: AppData, projectId: EntityId): AppData => {
   const project = data.projects.find((item) => item.id === projectId);
-  if (!project) {
+  if (!project || isArchivedProject(project)) {
     return data;
   }
 

@@ -24,7 +24,7 @@ import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, nowISO, todayISO } from '../lib/constants';
 import type { AppNavigate } from '../lib/routing';
-import { getVoiceCaptureGuidance, isRestartableSpeechError, voiceErrorStatus } from '../lib/voiceCapture';
+import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
 
 interface CopilotViewProps {
@@ -262,13 +262,16 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const voiceSheetTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const keepListeningRef = useRef(false);
   const lastSpeechErrorRef = useRef<string | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
+  const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('');
+  const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0);
   const [parseSummary, setParseSummary] = useState('');
   const [draftFilter, setDraftFilter] = useState<DraftFilter>('pending');
   const [activeDraftBatchId, setActiveDraftBatchId] = useState('');
@@ -311,25 +314,34 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const pendingMemory = data.memoryCandidates.filter((candidate) => candidate.status === 'pending');
   const quickInputReady = quickInput.trim().length > 0;
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+  const deviceCaptureContext = useMemo(
+    () => ({
+      userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+      platform: typeof navigator === 'undefined' ? '' : navigator.platform,
+      maxTouchPoints: typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints,
+    }),
+    [],
+  );
   const voiceGuidance = useMemo(
     () =>
       getVoiceCaptureGuidance({
         speechRecognitionAvailable: speechSupported,
-        userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
-        platform: typeof navigator === 'undefined' ? '' : navigator.platform,
-        maxTouchPoints: typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints,
+        ...deviceCaptureContext,
       }),
-    [speechSupported],
+    [deviceCaptureContext, speechSupported],
   );
+  const canAutoFocusCaptureText = useMemo(() => shouldAutoFocusCaptureText(deviceCaptureContext), [deviceCaptureContext]);
+  const voiceDuration = formatVoiceDuration(voiceElapsedSeconds);
+  const voiceTranscriptPreview = [quickInput.trim(), interimTranscript.trim()].filter(Boolean).join(' ');
 
   useEffect(() => {
-    if (mode !== 'quick') {
+    if (mode !== 'quick' || !canAutoFocusCaptureText) {
       return;
     }
 
     const id = window.setTimeout(() => quickInputRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
-  }, [mode]);
+  }, [canAutoFocusCaptureText, mode]);
 
   useEffect(
     () => () => {
@@ -341,6 +353,20 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     },
     [],
   );
+
+  useEffect(() => {
+    if (!isVoiceSheetOpen) {
+      return;
+    }
+
+    const id = window.setInterval(() => setVoiceElapsedSeconds((current) => current + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [isVoiceSheetOpen]);
+
+  useEffect(() => {
+    document.body.classList.toggle('voice-sheet-open', isVoiceSheetOpen);
+    return () => document.body.classList.remove('voice-sheet-open');
+  }, [isVoiceSheetOpen]);
 
   const stopVoiceCapture = () => {
     keepListeningRef.current = false;
@@ -359,13 +385,16 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     setIsRecording(false);
     setInterimTranscript('');
     setVoiceStatus(voiceGuidance.unavailableStatus);
-    quickInputRef.current?.focus();
+    window.requestAnimationFrame(() => {
+      const target = isVoiceSheetOpen ? voiceSheetTextareaRef.current : quickInputRef.current;
+      target?.focus({ preventScroll: true });
+    });
   };
 
   const startVoiceCapture = () => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      focusFallbackDictation();
+      setVoiceStatus(voiceGuidance.unavailableStatus);
       return;
     }
 
@@ -445,7 +474,30 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     } catch {
       keepListeningRef.current = false;
       setVoiceStatus('Voice capture could not start. Use keyboard dictation or type into the note box.');
-      quickInputRef.current?.focus();
+    }
+  };
+
+  const openVoiceSheet = () => {
+    setIsVoiceSheetOpen(true);
+    setVoiceElapsedSeconds(0);
+    setInterimTranscript('');
+    setVoiceStatus('');
+    if (speechSupported) {
+      startVoiceCapture();
+      return;
+    }
+
+    setVoiceStatus(voiceGuidance.unavailableStatus);
+  };
+
+  const closeVoiceSheet = () => {
+    if (isRecording || keepListeningRef.current) {
+      stopVoiceCapture();
+    }
+    setIsVoiceSheetOpen(false);
+    setInterimTranscript('');
+    if (quickInput.trim()) {
+      setVoiceStatus('Voice note saved to the text box. Review it, then create drafts.');
     }
   };
 
@@ -671,12 +723,13 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 <button
                   className="voice-record-button"
                   type="button"
-                  onClick={isRecording ? stopVoiceCapture : speechSupported ? startVoiceCapture : focusFallbackDictation}
-                  aria-pressed={isRecording}
+                  onClick={openVoiceSheet}
+                  aria-haspopup="dialog"
+                  aria-expanded={isVoiceSheetOpen}
                   aria-describedby="voice-capture-guidance"
                 >
-                  {isRecording ? <Square size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
-                  <span>{isRecording ? 'Stop' : voiceGuidance.idleButtonLabel}</span>
+                  <Mic size={18} aria-hidden="true" />
+                  <span>{voiceGuidance.idleButtonLabel}</span>
                 </button>
                 <div className="voice-meter" aria-hidden="true">
                   <span />
@@ -686,8 +739,8 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                   <span />
                 </div>
                 <div>
-                  <strong>{isRecording ? 'Recording voice note' : voiceGuidance.title}</strong>
-                  <p id="voice-capture-guidance">{isRecording ? 'Listening. Speak naturally; short pauses are okay.' : voiceGuidance.description}</p>
+                  <strong>{voiceGuidance.title}</strong>
+                  <p id="voice-capture-guidance">{voiceGuidance.description}</p>
                   <small>{voiceGuidance.privacyNote}</small>
                 </div>
               </div>
@@ -701,7 +754,6 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
               <Field label="Voice or messy note">
                 <textarea
                   ref={quickInputRef}
-                  autoFocus
                   enterKeyHint="done"
                   inputMode="text"
                   rows={7}
@@ -728,6 +780,91 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
               {parseSummary ? <p className="success-text">{parseSummary}</p> : null}
             </div>
           </Section>
+
+          {isVoiceSheetOpen ? (
+            <div className="voice-sheet-backdrop" role="presentation">
+              <section
+                className={`voice-sheet voice-sheet--${voiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="voice-sheet-title"
+              >
+                <div className="voice-sheet__handle" aria-hidden="true" />
+                <div className="voice-sheet__topline">
+                  <div>
+                    <span className="quiet-label">Voice capture</span>
+                    <h2 id="voice-sheet-title">{speechSupported ? 'Listening mode' : 'Dictation mode'}</h2>
+                  </div>
+                  <button className="icon-button" type="button" onClick={closeVoiceSheet} aria-label="Close voice mode">
+                    <X size={20} aria-hidden="true" />
+                  </button>
+                </div>
+
+                <div className="voice-orb-wrap" aria-hidden="true">
+                  <div className="voice-orb">
+                    <Mic size={28} />
+                  </div>
+                  <span />
+                  <span />
+                </div>
+
+                <div className="voice-session-meta">
+                  <strong>{isRecording ? 'Recording' : speechSupported ? 'Ready' : 'Ready for keyboard mic'}</strong>
+                  <span>{voiceDuration}</span>
+                </div>
+
+                <div className="voice-sheet-meter" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                  <span />
+                </div>
+
+                <div className="voice-transcript-panel" aria-live="polite">
+                  {speechSupported ? (
+                    <p>{voiceTranscriptPreview || 'Transcript will appear here as your browser returns words.'}</p>
+                  ) : (
+                    <textarea
+                      ref={voiceSheetTextareaRef}
+                      rows={5}
+                      value={quickInput}
+                      onChange={(event) => setQuickInput(event.target.value)}
+                      placeholder="Tap Use keyboard mic, then dictate: unit 204 paint done but cleaning blocked keys missing."
+                      aria-label="Voice mode dictation text"
+                    />
+                  )}
+                </div>
+
+                {voiceStatus ? (
+                  <p className={isRecording ? 'success-text' : 'muted'} role="status" aria-live="polite">
+                    {voiceStatus}
+                  </p>
+                ) : null}
+
+                <div className="voice-sheet-actions">
+                  {speechSupported ? (
+                    <Button variant={isRecording ? 'ghost' : 'primary'} onClick={isRecording ? stopVoiceCapture : startVoiceCapture}>
+                      {isRecording ? <Square size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
+                      {isRecording ? 'Stop' : 'Record'}
+                    </Button>
+                  ) : (
+                    <Button variant="primary" onClick={focusFallbackDictation}>
+                      <Mic size={18} aria-hidden="true" />
+                      {voiceGuidance.sheetPrimaryAction}
+                    </Button>
+                  )}
+                  <Button onClick={closeVoiceSheet}>
+                    <Check size={18} aria-hidden="true" />
+                    Done
+                  </Button>
+                </div>
+                <small>{voiceGuidance.privacyNote}</small>
+              </section>
+            </div>
+          ) : null}
 
           <Section
             title="Draft Actions Inbox"

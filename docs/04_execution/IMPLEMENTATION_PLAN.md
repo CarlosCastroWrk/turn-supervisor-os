@@ -26,7 +26,7 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - D4 Issue Flow Simplification is implemented with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board.
 - D5 Sidebar And Responsive Frame is implemented with a page-attached desktop/sidebar layout, persisted collapsed state, compact tablet Capture behavior, and responsive smoke coverage.
 - D6 Hash Routing and deep links is implemented with local URL hash parsing/building, unit detail routes, issue-focused routes, filtered unit list routes, and reload/back smoke coverage.
-- C4 Voice Reliability is implemented with clearer browser speech states, iPhone/iPad keyboard dictation fallback, ordinary-pause restart handling, and targeted tests.
+- C4 Voice Reliability is implemented with clearer browser speech states, a mobile/iPad voice sheet that does not auto-open the keyboard, iPhone/iPad keyboard dictation fallback, ordinary-pause restart handling, and targeted tests.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
 - The current code slice is E2 Report Preview And Print/PDF.
 

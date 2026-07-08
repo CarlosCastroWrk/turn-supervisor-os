@@ -75,3 +75,4 @@
 - Completed D5 Sidebar And Responsive Frame by attaching the desktop sidebar to the page frame, persisting collapsed sidebar state, compacting Capture on iPad landscape, and verifying desktop/iPad/phone rendered layouts without horizontal overflow.
 - Completed D6 Hash Routing and deep links by adding local hash routes for top-level views, unit details, filtered unit lists, focused issues, reload persistence, and browser back behavior.
 - Completed C4 Voice Reliability by adding clearer Capture speech availability states, iPhone/iPad keyboard dictation fallback, browser pause restart handling, and targeted voice capture tests.
+- Added a C4 follow-up voice-mode sheet so iPhone/iPad voice capture opens as a focused recording/dictation surface instead of zooming directly into the messy-note textarea.

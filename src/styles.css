@@ -1125,6 +1125,27 @@ small {
   opacity: 0;
 }
 
+.photo-capture__status,
+.photo-capture__error {
+  margin: 0;
+  border-radius: var(--radius);
+  padding: 9px 10px;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.photo-capture__status {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.photo-capture__error {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

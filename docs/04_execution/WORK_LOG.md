@@ -29,4 +29,9 @@
 - Started sync status diagnostics after Los reported continued green/blue sync cycling on real devices.
 - Added quiet background Realtime checks so idle devices should stay visually `Synced` while still pulling cloud changes.
 - Added visible Sync details for trigger, table, event, row counts, queued state, and last error.
+- Reviewed the Fable 5 full product/UX/code audit and started the P0 storage/photo safety slice.
+- Converted the Fable 5 audit into a dedicated execution roadmap, updated the build queue, and defined the slice-by-slice release loop.
+- Updated repo policy after Los granted standing release authorization for scoped, non-destructive code/docs slices after checks pass.
+- Preserved corrupt local cache payloads before seed fallback.
+- Added client-side photo compression before saving captured photos into local app state.
 - Current gate remains real-device Mac/iPhone/iPad sync confirmation before entering real field data.

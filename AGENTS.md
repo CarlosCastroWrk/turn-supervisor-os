@@ -22,7 +22,8 @@ Operate as a senior software engineer, product operator, and rigorous reviewer.
 
 - Do not expose secrets or print environment values.
 - Do not alter production data.
-- Do not commit, push, merge, deploy, force-push, or perform destructive actions without explicit approval.
+- Los has granted standing approval for Codex to commit, push, open PRs, mark PRs ready, merge, and deploy scoped, non-destructive code/docs slices after required checks pass and the diff is reviewed.
+- Still require fresh explicit approval before force-push, destructive git operations, production data changes, Supabase migrations, Supabase data cleanup, secret/env changes, reset/delete operations, or product-scope changes into CRM/company/multi-user software.
 - Use a git worktree for parallel write tasks.
 
 ## Verification
@@ -40,4 +41,3 @@ End substantive tasks with:
 - Verification performed
 - Remaining risks/blockers
 - Single best next action
-

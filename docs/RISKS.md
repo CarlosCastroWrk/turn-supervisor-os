@@ -4,16 +4,17 @@
 
 | Risk | Severity | Status | Mitigation |
 | --- | --- | --- | --- |
-| Real-device sync may fail or require manual pull | High | Open | Run Mac/iPhone/iPad QA before real field data. The sync fingerprinting fix is deployed, but devices still need the sync diagnostics slice deployed and retested. |
+| Real-device sync may fail or require manual pull | High | Guarded | Baseline sync now settles on Los's Mac, iPhone, and iPad. Offline/reconnect QA still must pass before real field data. |
 | Offline edits may not merge as expected | High | Open | Test airplane mode edits before Turn. Keep JSON backups before serious use. |
 | Demo data could contaminate Real Turn reports or Copilot answers | High | Open | Test Real Turn views, exports, reports, and Copilot answers with obvious demo vs real labels. |
 | Delete/reset behavior can be misunderstood | High | Open | Keep reset warnings explicit. Do not reset real data without backup. Document that cloud records can pull back after local reset. |
 | Photo image data is local-only | Medium | Open | Avoid relying on cross-device photos until Supabase Storage upload is implemented. Export backups if photos matter. |
-| `localStorage` can fill up with large base64 photos | Medium | Open | Keep photo use light until compression/storage work is built. |
+| `localStorage` can fill up with large photo payloads | Medium | Guarded | Captured photos are compressed before saving, but photos still belong in IndexedDB/Supabase Storage before heavy field use. |
+| Corrupt local cache can hide field data | Medium | Guarded | Corrupt cache payloads are preserved under a recovery key before the app falls back to seed data. JSON backups remain the recovery path Los can use directly. |
 | Reports may be treated as official company records | Medium | Open | Keep copy personal and factual. Do not use company branding or invented numbers. |
 | No restore-from-JSON flow in-app | Medium | Open | Backups are still useful for recovery evidence, but restore requires manual/developer help today. |
 | Parser has no formal eval suite | Medium | Open | Add realistic field-note parser tests after device sync is no longer blocking. |
-| Sync status lacks enough field diagnostics | Medium | Guarded | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error. It still needs production device verification. |
+| Sync status lacks enough field diagnostics | Medium | Closed | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error, and Los confirmed production devices settle on `Synced`. |
 | Vercel CLI was outdated locally | Low | Closed | Upgraded to `54.21.1` on 2026-07-07 after Los approved. |
 
 ## Product Scope Risks

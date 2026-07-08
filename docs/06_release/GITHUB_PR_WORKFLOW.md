@@ -13,7 +13,7 @@ This project now uses pull requests for normal non-emergency work.
 7. Push the branch to GitHub.
 8. Open a draft PR.
 9. Review the GitHub diff, checks, and notes.
-10. Merge only after Los approves.
+10. Under Los's standing release authorization, mark ready, merge, and deploy when checks pass and the diff stays within the approved non-destructive slice.
 
 ## Direct-To-Main Exception
 
@@ -25,6 +25,30 @@ Use direct `main` only when:
 - The change is narrow.
 - Verification passes.
 - A production deploy is needed immediately.
+
+## Standing Release Authorization
+
+Los has authorized Codex to keep the Fable 5 slice train moving without asking for per-slice approval on normal scoped code/docs work.
+
+Allowed after checks pass and the diff is reviewed:
+
+- Commit
+- Push
+- Open PR
+- Mark PR ready
+- Merge
+- Deploy production
+
+Still requires fresh explicit approval:
+
+- Force-push
+- Destructive git operations
+- Production data changes
+- Supabase migrations
+- Supabase data cleanup
+- Secret or environment variable changes
+- Reset/delete operations
+- Product-scope changes into CRM/company/multi-user software
 
 ## PR Description Standard
 
@@ -41,8 +65,8 @@ Every PR should say:
 
 - `main` should represent the current shipped or shippable state.
 - Documentation-only work should still use PRs.
-- App code, Supabase migrations, sync behavior, parser behavior, and UI changes should use PRs unless Los approves a hotfix.
-- Do not merge, deploy, or apply database migrations without explicit approval.
+- App code, sync behavior, parser behavior, and UI changes should use PRs unless Los approves a hotfix.
+- Do not apply database migrations or run remote data cleanup without fresh explicit approval.
 
 ## GitHub Tabs For Los
 
@@ -64,4 +88,3 @@ Vercel CLI version verified on 2026-07-07:
 ```text
 54.21.1
 ```
-

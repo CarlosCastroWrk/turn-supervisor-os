@@ -27,8 +27,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - D5 Sidebar And Responsive Frame is implemented with a page-attached desktop/sidebar layout, persisted collapsed state, compact tablet Capture behavior, and responsive smoke coverage.
 - D6 Hash Routing and deep links is implemented with local URL hash parsing/building, unit detail routes, issue-focused routes, filtered unit list routes, and reload/back smoke coverage.
 - C4 Voice Reliability is implemented with clearer browser speech states, a mobile/iPad voice sheet that does not auto-open the keyboard, iPhone/iPad keyboard dictation fallback, ordinary-pause restart handling, and targeted tests.
+- E2 Report Preview And Print/PDF is implemented with an in-app review surface, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is E2 Report Preview And Print/PDF.
+- The current code slice is E1 Daily Activity Snapshot.
 
 ## Current Field Gate
 
@@ -255,7 +256,7 @@ Out of scope:
 - Automatic texting or autonomous mutations.
 - Durable recorded-audio upload/storage.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### E2. Report Preview And Print/PDF
 
@@ -274,6 +275,27 @@ Out of scope:
 - Server-side AI report writing.
 - Automatic texting/emailing.
 - Company report portal.
+- Photo binary sync.
+
+## Current Code Slice
+
+### E1. Daily Activity Snapshot
+
+Purpose:
+
+- Make reports and daily memory more source-grounded by distinguishing what changed during the selected day from the board's current state.
+
+Scope:
+
+- Start recording a source-grounded daily summary from activity logs.
+- Distinguish current state from historical day state.
+- Feed stronger data into report preview without inventing missing facts.
+
+Out of scope:
+
+- Server-side AI report writing.
+- Automatic texting/emailing.
+- Company reporting portal.
 - Photo binary sync.
 
 ## Slice Protocol
@@ -377,8 +399,9 @@ Reports:
 17. D6 Hash Routing and deep links
 18. C4 Voice Reliability
 19. E2 Report Preview And Print PDF
-20. F1 IndexedDB Photo Store
-21. F2 Supabase Storage Photo Sync
+20. E1 Daily Activity Snapshot
+21. F1 IndexedDB Photo Store
+22. F2 Supabase Storage Photo Sync
 
 This order can change if testing finds a higher-risk failure.
 

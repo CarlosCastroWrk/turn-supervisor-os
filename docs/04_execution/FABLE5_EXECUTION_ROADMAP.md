@@ -353,6 +353,8 @@ Acceptance:
 
 ### E2. Report Preview And Print PDF
 
+Status: implemented in the E2 Report Preview And Print/PDF release slice.
+
 Scope:
 
 - Build an in-app report preview.

@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, Filter, Plus, Search } from 'lucide-react';
+import { AlertTriangle, Brush, CheckCircle2, Filter, Hammer, Plus, Search, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { ProgressBar } from '../components/ProgressBar';
@@ -9,6 +9,7 @@ import { addUnits, unitTradesComplete, updateUnit } from '../lib/actions';
 import {
   getBuildingSummary,
   getProjectBuildings,
+  getProjectCrewMembers,
   getProjectIssues,
   getProjectUnits,
   isBlockedUnit,
@@ -16,7 +17,7 @@ import {
   isInspectionUnit,
   isReadyUnit,
 } from '../lib/metrics';
-import type { AppData, AppView, Building, Floor, Unit, UnitStatusFilter } from '../types';
+import type { AppData, AppView, Building, CrewMember, Floor, Issue, Unit, UnitStatusFilter } from '../types';
 
 interface UnitsViewProps {
   data: AppData;
@@ -40,6 +41,59 @@ const floorSort = (a: Floor, b: Floor) => a.name.localeCompare(b.name, undefined
 const unitSort = (a: Unit, b: Unit) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true });
 const UNIT_RENDER_STEP = 100;
 
+const openIssueStatuses = new Set(['Open', 'In Progress', 'Waiting']);
+const issuePriorityWeight: Record<Issue['priority'], number> = { Critical: 4, High: 3, Medium: 2, Low: 1 };
+
+const attentionRank = (unit: Unit, openIssues: Issue[]) => {
+  if (isBlockedUnit(unit)) return 0;
+  if (openIssues.some((issue) => ['Critical', 'High'].includes(issue.priority))) return 1;
+  if (openIssues.length > 0) return 2;
+  if (isInspectionUnit(unit)) return 3;
+  if (isInProgressUnit(unit)) return 4;
+  if (unit.overallStatus === 'Not Started') return 5;
+  if (isReadyUnit(unit)) return 6;
+  return 7;
+};
+
+const sortIssuesByFieldPriority = (a: Issue, b: Issue) => {
+  const priorityDelta = issuePriorityWeight[b.priority] - issuePriorityWeight[a.priority];
+  if (priorityDelta !== 0) return priorityDelta;
+  return b.updatedAt.localeCompare(a.updatedAt);
+};
+
+const latestActivityAt = (unit: Unit, openIssues: Issue[]) =>
+  [unit.updatedAt, ...openIssues.map((issue) => issue.updatedAt)].sort().slice(-1)[0] ?? unit.updatedAt;
+
+const formatFieldTime = (dateTime: string) =>
+  new Date(dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+const blockerSummaryFor = (unit: Unit, openIssues: Issue[]) => {
+  const topIssue = [...openIssues].sort(sortIssuesByFieldPriority)[0];
+  if (topIssue) {
+    return topIssue.title;
+  }
+
+  if (unit.overallStatus.includes('Blocked')) {
+    return unit.overallStatus;
+  }
+
+  const blockedTrades = [
+    unit.paintStatus === 'Blocked' ? 'paint' : undefined,
+    unit.cleanStatus === 'Blocked' ? 'clean' : undefined,
+    unit.repairStatus === 'Blocked' ? 'repair' : undefined,
+    unit.trashStatus === 'Blocked' ? 'trash' : undefined,
+  ].filter(Boolean);
+
+  return blockedTrades.length > 0 ? `${blockedTrades.join(', ')} blocked` : 'No open issue';
+};
+
+const crewSummaryFor = (unit: Unit, crewById: Map<string, CrewMember>) => {
+  const names = unit.assignedCrewIds.map((crewId) => crewById.get(crewId)?.name).filter((name): name is string => Boolean(name));
+  if (names.length === 0) return 'No crew assigned';
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, 2).join(', ')}${names.length > 2 ? ` +${names.length - 2}` : ''}`;
+};
+
 export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'All' }: UnitsViewProps) {
   const [buildingFilter, setBuildingFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('All');
@@ -56,6 +110,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
   const buildings = getProjectBuildings(data);
   const units = getProjectUnits(data);
   const issues = getProjectIssues(data);
+  const crewMembers = getProjectCrewMembers(data);
   const floors = data.floors;
 
   const visibleFloors = useMemo(() => {
@@ -66,12 +121,43 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
     });
   }, [buildingFilter, buildings, floors]);
 
-  const filteredUnits = units
+  const openIssuesByUnitId = useMemo(() => {
+    const issueMap = new Map<string, Issue[]>();
+    issues.forEach((issue) => {
+      if (!issue.unitId || !openIssueStatuses.has(issue.status)) {
+        return;
+      }
+
+      const unitIssues = issueMap.get(issue.unitId) ?? [];
+      unitIssues.push(issue);
+      issueMap.set(issue.unitId, unitIssues);
+    });
+    return issueMap;
+  }, [issues]);
+
+  const crewById = useMemo(() => new Map(crewMembers.map((crew) => [crew.id, crew])), [crewMembers]);
+
+  const queryText = query.trim().toLowerCase();
+  const unitsMatchingLocationAndSearch = units
     .filter((unit) => buildingFilter === 'All' || unit.buildingId === buildingFilter)
     .filter((unit) => floorFilter === 'All' || unit.floorId === floorFilter)
+    .filter((unit) => (queryText ? unit.unitNumber.toLowerCase().includes(queryText) : true));
+
+  const statusCounts = statusFilters.reduce(
+    (counts, filter) => ({
+      ...counts,
+      [filter]: unitsMatchingLocationAndSearch.filter((unit) => matchesStatusFilter(unit, filter)).length,
+    }),
+    {} as Record<UnitStatusFilter, number>,
+  );
+
+  const filteredUnits = unitsMatchingLocationAndSearch
     .filter((unit) => matchesStatusFilter(unit, statusFilter))
-    .filter((unit) => unit.unitNumber.toLowerCase().includes(query.toLowerCase()))
-    .sort(unitSort);
+    .sort((a, b) => {
+      const rankDelta =
+        attentionRank(a, openIssuesByUnitId.get(a.id) ?? []) - attentionRank(b, openIssuesByUnitId.get(b.id) ?? []);
+      return rankDelta === 0 ? unitSort(a, b) : rankDelta;
+    });
   const visibleUnits = filteredUnits.slice(0, visibleUnitLimit);
   const hiddenUnitCount = Math.max(filteredUnits.length - visibleUnits.length, 0);
 
@@ -243,6 +329,20 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
             </select>
           </Field>
         </div>
+        <div className="status-chip-row" aria-label="Unit status filters">
+          {statusFilters.map((filter) => (
+            <button
+              aria-pressed={statusFilter === filter}
+              className={`status-chip ${statusFilter === filter ? 'is-active' : ''}`}
+              key={filter}
+              onClick={() => setStatusFilter(filter)}
+              type="button"
+            >
+              <span>{filter}</span>
+              <strong>{statusCounts[filter]}</strong>
+            </button>
+          ))}
+        </div>
       </Section>
 
       <Section title="Units" kicker={`${visibleUnits.length} of ${filteredUnits.length} shown`}>
@@ -257,37 +357,57 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
         ) : null}
         <div className="unit-grid">
           {visibleUnits.map((unit) => {
-            const unitIssues = issues.filter((issue) => issue.unitId === unit.id && !['Closed', 'Resolved'].includes(issue.status));
+            const unitIssues = openIssuesByUnitId.get(unit.id) ?? [];
+            const hasAttention = unitIssues.length > 0 || isBlockedUnit(unit) || isInspectionUnit(unit);
+            const blockerSummary = blockerSummaryFor(unit, unitIssues);
+            const crewSummary = crewSummaryFor(unit, crewById);
+            const latestActivity = formatFieldTime(latestActivityAt(unit, unitIssues));
             return (
-              <article className="unit-card" key={unit.id}>
-                <button className="unit-card__main" type="button" onClick={() => onNavigate('unitDetail', unit.id)}>
-                  <div>
-                    <span className="quiet-label">Unit</span>
-                    <h3>{unit.unitNumber}</h3>
-                    <small>
-                      {unit.bedCount} beds · {unit.bathroomCount} baths
-                    </small>
+              <article className={`unit-card ${hasAttention ? 'unit-card--attention' : ''}`} key={unit.id}>
+                <button className="unit-card__open" type="button" onClick={() => onNavigate('unitDetail', unit.id)}>
+                  <div className="unit-card__main">
+                    <div>
+                      <span className="quiet-label">Unit</span>
+                      <h3>{unit.unitNumber}</h3>
+                      <small>
+                        {unit.bedCount} beds · {unit.bathroomCount} baths
+                      </small>
+                    </div>
+                    <StatusBadge value={unit.overallStatus} />
                   </div>
-                  <StatusBadge value={unit.overallStatus} />
+
+                  <div className="unit-card__summary">
+                    <span className={unitIssues.length > 0 || isBlockedUnit(unit) ? 'unit-card__signal is-hot' : 'unit-card__signal'}>
+                      {unitIssues.length > 0 || isBlockedUnit(unit) ? (
+                        <AlertTriangle size={15} aria-hidden="true" />
+                      ) : (
+                        <CheckCircle2 size={15} aria-hidden="true" />
+                      )}
+                      {blockerSummary}
+                    </span>
+                    <span>{crewSummary}</span>
+                    <span>Updated {latestActivity}</span>
+                  </div>
+
+                  <div className="unit-card__statuses">
+                    <span>Paint: {unit.paintStatus}</span>
+                    <span>Clean: {unit.cleanStatus}</span>
+                    <span>Repair: {unit.repairStatus}</span>
+                    <span>Inspect: {unit.inspectionStatus}</span>
+                  </div>
+
+                  <div className="unit-card__footer">
+                    <span className={unitIssues.length > 0 ? 'issue-count issue-count--hot' : 'issue-count'}>
+                      {unitIssues.length > 0 ? <AlertTriangle size={15} aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
+                      {unitIssues.length === 1 ? '1 open issue' : `${unitIssues.length} open issues`}
+                    </span>
+                    <small>Open unit</small>
+                  </div>
                 </button>
-
-                <div className="unit-card__statuses">
-                  <span>Paint: {unit.paintStatus}</span>
-                  <span>Clean: {unit.cleanStatus}</span>
-                  <span>Repair: {unit.repairStatus}</span>
-                  <span>Inspect: {unit.inspectionStatus}</span>
-                </div>
-
-                <div className="unit-card__footer">
-                  <span className={unitIssues.length > 0 ? 'issue-count issue-count--hot' : 'issue-count'}>
-                    {unitIssues.length > 0 ? <AlertTriangle size={15} aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
-                    {unitIssues.length} issue(s)
-                  </span>
-                  <small>{new Date(unit.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</small>
-                </div>
 
                 <div className="quick-status-row">
                   <Button
+                    className="button--compact"
                     onClick={() =>
                       setData((current) =>
                         updateUnit(
@@ -299,9 +419,11 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                       )
                     }
                   >
-                    Paint done
+                    <Brush size={15} aria-hidden="true" />
+                    Paint
                   </Button>
                   <Button
+                    className="button--compact"
                     onClick={() =>
                       setData((current) =>
                         updateUnit(
@@ -315,9 +437,11 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                       )
                     }
                   >
-                    Clean done
+                    <Sparkles size={15} aria-hidden="true" />
+                    Clean
                   </Button>
                   <Button
+                    className="button--compact"
                     onClick={() =>
                       setData((current) =>
                         updateUnit(
@@ -329,6 +453,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                       )
                     }
                   >
+                    <Hammer size={15} aria-hidden="true" />
                     Repair
                   </Button>
                 </div>

@@ -19,7 +19,18 @@ import type {
   UnitWorkflowStatus,
   WorkStatus,
 } from '../types';
-import { createId, nowISO, todayISO } from './constants';
+import {
+  ASSIGNMENT_STATUSES,
+  CREW_TRADES,
+  ISSUE_CATEGORIES,
+  ISSUE_PRIORITIES,
+  ISSUE_STATUSES,
+  UNIT_WORKFLOW_STATUSES,
+  WORK_STATUSES,
+  createId,
+  nowISO,
+  todayISO,
+} from './constants';
 
 export interface RealTurnSetupInput {
   projectName: string;
@@ -441,9 +452,47 @@ const payloadStringArray = (payload: Record<string, unknown>, key: string) => {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 };
 
+type PayloadEnumResult<T extends string> = {
+  error?: string;
+  value?: T;
+};
+
+type RequiredPayloadEnumResult<T extends string> = {
+  error?: string;
+  value: T;
+};
+
+const payloadEnum = <T extends string>(payload: Record<string, unknown>, key: string, allowed: readonly T[]): PayloadEnumResult<T> => {
+  const value = payloadString(payload, key);
+  if (!value) {
+    return { value: undefined };
+  }
+
+  if ((allowed as readonly string[]).includes(value)) {
+    return { value: value as T };
+  }
+
+  return { error: `Invalid ${key}: ${value}.` };
+};
+
+const payloadEnumOrDefault = <T extends string>(
+  payload: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  fallback: T,
+): RequiredPayloadEnumResult<T> => {
+  const result = payloadEnum(payload, key, allowed);
+  return { error: result.error, value: result.value ?? fallback };
+};
+
 const findDraftUnit = (data: AppData, draft: DraftAction) => {
   const unitNumber = payloadString(draft.payload, 'unitNumber');
-  return data.units.find((unit) => unit.id === draft.targetEntityId || (unitNumber && unit.unitNumber === unitNumber));
+  const activeProjectUnits = data.units.filter((unit) => unit.projectId === data.activeProjectId);
+  if (draft.targetEntityId) {
+    return activeProjectUnits.find((unit) => unit.id === draft.targetEntityId);
+  }
+
+  return activeProjectUnits.find((unit) => unitNumber && unit.unitNumber === unitNumber);
 };
 
 const workDone = (status: Unit['paintStatus']) => status === 'Complete' || status === 'Not Applicable';
@@ -486,17 +535,21 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
     }
 
     const patch: Partial<Unit> = {};
-    const overallStatus = payloadString(draft.payload, 'overallStatus');
-    const paintStatus = payloadString(draft.payload, 'paintStatus');
-    const cleanStatus = payloadString(draft.payload, 'cleanStatus');
-    const repairStatus = payloadString(draft.payload, 'repairStatus');
-    const inspectionStatus = payloadString(draft.payload, 'inspectionStatus');
+    const overallStatus = payloadEnum(draft.payload, 'overallStatus', UNIT_WORKFLOW_STATUSES);
+    const paintStatus = payloadEnum(draft.payload, 'paintStatus', WORK_STATUSES);
+    const cleanStatus = payloadEnum(draft.payload, 'cleanStatus', WORK_STATUSES);
+    const repairStatus = payloadEnum(draft.payload, 'repairStatus', WORK_STATUSES);
+    const inspectionStatus = payloadEnum(draft.payload, 'inspectionStatus', WORK_STATUSES);
+    const invalidStatus = [overallStatus, paintStatus, cleanStatus, repairStatus, inspectionStatus].find((result) => result.error);
+    if (invalidStatus?.error) {
+      return failDraft(next, draft, invalidStatus.error);
+    }
 
-    if (overallStatus) patch.overallStatus = overallStatus as UnitWorkflowStatus;
-    if (paintStatus) patch.paintStatus = paintStatus as WorkStatus;
-    if (cleanStatus) patch.cleanStatus = cleanStatus as WorkStatus;
-    if (repairStatus) patch.repairStatus = repairStatus as WorkStatus;
-    if (inspectionStatus) patch.inspectionStatus = inspectionStatus as WorkStatus;
+    if (overallStatus.value) patch.overallStatus = overallStatus.value as UnitWorkflowStatus;
+    if (paintStatus.value) patch.paintStatus = paintStatus.value as WorkStatus;
+    if (cleanStatus.value) patch.cleanStatus = cleanStatus.value as WorkStatus;
+    if (repairStatus.value) patch.repairStatus = repairStatus.value as WorkStatus;
+    if (inspectionStatus.value) patch.inspectionStatus = inspectionStatus.value as WorkStatus;
 
     if (patch.overallStatus === 'Ready' && !unitCanBeReady(unit, patch) && draft.payload.explicitReadyConfirmation !== true) {
       return failDraft(next, draft, 'Ready is blocked until paint, clean, maintenance, and inspection are complete.');
@@ -513,6 +566,14 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
       return failDraft(next, draft, `Unit ${unitNumber} is not in setup. Create or confirm the unit first.`);
     }
 
+    const category = payloadEnumOrDefault(draft.payload, 'category', ISSUE_CATEGORIES, 'Other');
+    const priority = payloadEnumOrDefault(draft.payload, 'priority', ISSUE_PRIORITIES, 'Medium');
+    const status = payloadEnumOrDefault(draft.payload, 'status', ISSUE_STATUSES, 'Open');
+    const invalidIssueValue = [category, priority, status].find((result) => result.error);
+    if (invalidIssueValue?.error) {
+      return failDraft(next, draft, invalidIssueValue.error);
+    }
+
     const now = nowISO();
     next = addIssue(next, {
       id: createId('issue'),
@@ -521,10 +582,10 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
       floorId: unit?.floorId,
       unitId: unit?.id,
       title: payloadString(draft.payload, 'title') || draft.title,
-      category: (payloadString(draft.payload, 'category') || 'Other') as Issue['category'],
-      priority: (payloadString(draft.payload, 'priority') || 'Medium') as Issue['priority'],
+      category: category.value,
+      priority: priority.value,
       owner: payloadString(draft.payload, 'owner') || '',
-      status: (payloadString(draft.payload, 'status') || 'Open') as Issue['status'],
+      status: status.value,
       dueAt: payloadString(draft.payload, 'dueAt'),
       notes: payloadString(draft.payload, 'notes') || draft.sourceText,
       resolutionNotes: '',
@@ -536,13 +597,20 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
 
   if (draft.type === 'CREATE_ASSIGNMENT') {
     const unitNumbers = payloadStringArray(draft.payload, 'unitNumbers');
-    const linkedUnits = next.units.filter((unit) => unitNumbers.includes(unit.unitNumber));
+    const linkedUnits = next.units.filter((unit) => unit.projectId === next.activeProjectId && unitNumbers.includes(unit.unitNumber));
+    const trade = payloadEnumOrDefault(draft.payload, 'trade', CREW_TRADES, 'Other');
+    const status = payloadEnumOrDefault(draft.payload, 'status', ASSIGNMENT_STATUSES, 'In Progress');
+    const invalidAssignmentValue = [trade, status].find((result) => result.error);
+    if (invalidAssignmentValue?.error) {
+      return failDraft(next, draft, invalidAssignmentValue.error);
+    }
+
     const now = todayISO();
     const assignment: Assignment = {
       id: createId('assignment'),
       projectId: next.activeProjectId,
       teamName: payloadString(draft.payload, 'teamName') || 'Crew update',
-      trade: (payloadString(draft.payload, 'trade') || 'Other') as Assignment['trade'],
+      trade: trade.value,
       buildingId: linkedUnits[0]?.buildingId,
       floorId: linkedUnits[0]?.floorId,
       unitIds: linkedUnits.map((unit) => unit.id),
@@ -551,7 +619,7 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
       startTime: payloadString(draft.payload, 'startTime'),
       expectedCompletion: '',
       actualCompletion: payloadString(draft.payload, 'status') === 'Complete' ? new Date().toTimeString().slice(0, 5) : '',
-      status: (payloadString(draft.payload, 'status') || 'In Progress') as Assignment['status'],
+      status: status.value,
       notes: draft.sourceText,
       createdAt: nowISO(),
       updatedAt: nowISO(),

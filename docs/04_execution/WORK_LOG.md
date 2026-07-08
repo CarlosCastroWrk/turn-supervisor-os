@@ -34,4 +34,7 @@
 - Updated repo policy after Los granted standing release authorization for scoped, non-destructive code/docs slices after checks pass.
 - Preserved corrupt local cache payloads before seed fallback.
 - Added client-side photo compression before saving captured photos into local app state.
+- Started A2 Draft Apply Safety after shipping storage/photo safety.
+- Added active-project scoping for draft unit-number lookup and assignment unit matching.
+- Added enum validation for draft unit status and issue payloads, plus regression tests for duplicate unit numbers and invalid payloads.
 - Current gate remains real-device Mac/iPhone/iPad sync confirmation before entering real field data.

@@ -13,6 +13,7 @@ const statusLabel = {
   signed_out: 'Sign in',
   syncing: 'Syncing',
   synced: 'Synced',
+  pending_upload: 'Upload needed',
   offline: 'Offline',
   error: 'Check sync',
 };
@@ -163,7 +164,7 @@ export function SyncPanel({ sync }: SyncPanelProps) {
                 Pull cloud
               </Button>
               <Button disabled={syncBusy} onClick={() => void sync.uploadNow()}>
-                Upload this device
+                Check cloud + upload
               </Button>
               <Button disabled={syncBusy} onClick={() => void sync.signOut()} variant="ghost">
                 Sign out

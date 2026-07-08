@@ -114,7 +114,7 @@ Goal: harden the app for field pressure.
 
 Slices:
 
-- Activity log pruning and pull pagination
+- Activity log pruning
 - Undo/toast feedback
 - PWA install and offline startup
 - Accessibility and field contrast

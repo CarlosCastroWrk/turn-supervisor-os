@@ -55,6 +55,7 @@ Every near-term change should serve that loop.
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
+- Sync pull hardening that reads Supabase rows in ordered pages, keeps `Pull cloud` pull-only, shows `Upload needed` when a pull leaves unsent local changes, and checks cloud before local upload flows push changed rows
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
 - Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
@@ -87,6 +88,7 @@ Every near-term change should serve that loop.
 ## What Does Not Exist Yet
 
 - Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
+- True conflict review for simultaneous same-row edits across devices
 - Delete propagation / tombstones for synced rows
 - Photo binary sync through Supabase Storage
 - Restore-from-JSON import flow in the app
@@ -147,4 +149,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice is P0 Sync Trust / Report Thaw. E3 Daily Log Auto-Draft is paused until the audit-blocking sync and report safety gaps are tightened.
+While that physical-device check is pending, the next code slice is P0 Report Thaw. E3 Daily Log Auto-Draft is paused until the audit-blocking sync and report safety gaps are tightened.

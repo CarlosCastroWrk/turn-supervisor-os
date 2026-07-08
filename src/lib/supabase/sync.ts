@@ -28,7 +28,7 @@ import {
 } from './syncBoundary';
 import { mergePhotoNotes, mergeRows, syncRowFingerprint } from './syncCore';
 
-type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'offline' | 'error';
+type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'pending_upload' | 'offline' | 'error';
 type SyncTrigger = 'startup' | 'manual' | 'pull' | 'upload' | 'realtime' | 'reconnect' | 'local_edit';
 type Row = Record<string, unknown>;
 type SyncedKey = SyncBoundaryKey;
@@ -632,8 +632,9 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
 ];
 
 export const syncedTables = tableConfigs.map((config) => config.table);
+export const remotePullPageSize = 1000;
 
-const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
+export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
   normalizeAppData({
     ...local,
     projects: mergeRows(local.projects, (remote.projects ?? []) as Project[]),
@@ -704,25 +705,39 @@ const initialDiagnostics: SyncDiagnostics = {
   runCount: 0,
 };
 
-const fetchRemoteData = async (client: SupabaseClient) => {
+export const fetchRemoteData = async (client: SupabaseClient) => {
   const remote: SyncRemoteData = {};
   let rowCount = 0;
 
   for (const config of tableConfigs) {
-    const { data, error } = await client.from(config.table).select('*');
-    if (error) {
-      throw error;
+    const tableRows: Row[] = [];
+    let from = 0;
+
+    while (true) {
+      const to = from + remotePullPageSize - 1;
+      const { data, error } = await client.from(config.table).select('*').order('id', { ascending: true }).range(from, to);
+      if (error) {
+        throw error;
+      }
+
+      const rows = (data ?? []) as Row[];
+      tableRows.push(...rows);
+
+      if (rows.length < remotePullPageSize) {
+        break;
+      }
+
+      from += remotePullPageSize;
     }
 
-    const rows = (data ?? []) as Row[];
-    rowCount += rows.length;
-    remote[config.key] = rows.map(config.fromRow);
+    rowCount += tableRows.length;
+    remote[config.key] = tableRows.map(config.fromRow);
   }
 
   return { remote, rowCount, baseline: baselineFromRemoteData(remote) };
 };
 
-const uploadLocalData = async (client: SupabaseClient, data: AppData, baseline: SyncBaseline): Promise<UploadLocalDataResult> => {
+export const uploadLocalData = async (client: SupabaseClient, data: AppData, baseline: SyncBaseline): Promise<UploadLocalDataResult> => {
   const nextBaseline = cloneBaseline(baseline);
   const boundary = createDemoSyncBoundary(data);
   const failures: string[] = [];
@@ -892,23 +907,20 @@ export const useSupabaseSync = (
         applyingRemoteRef.current = false;
       }, 0);
 
-      const uploadResult = await uploadLocalData(client, nextData, syncBaselineRef.current);
-      syncBaselineRef.current = uploadResult.baseline;
-      if (uploadResult.failures.length > 0) {
-        throw new Error(uploadFailureMessage(uploadResult.failures));
-      }
-
-      setStatus('synced');
+      const hasPendingUpload = hasChangedRows(nextData, syncBaselineRef.current);
+      setStatus(hasPendingUpload ? 'pending_upload' : 'synced');
       setLastSyncedAt(nowISO());
       finishDiagnostics({
         lastPulledRows: rowCount,
-        lastUploadedRows: uploadResult.uploadedRows,
-        lastUploadedTables: uploadResult.uploadedTables,
+        lastUploadedRows: 0,
+        lastUploadedTables: [],
       });
       setMessage(
-        rowCount > 0
-          ? `Cloud updates pulled. Uploaded ${uploadResult.uploadedRows} local change(s).`
-          : `No cloud records yet. Uploaded ${uploadResult.uploadedRows} local record(s).`,
+        hasPendingUpload
+          ? 'Cloud updates pulled. This device still has local changes; tap Sync now to upload.'
+          : rowCount > 0
+            ? 'Cloud updates pulled. No local changes were uploaded.'
+            : 'No cloud records found. No local changes were uploaded.',
       );
     } catch (error) {
       failDiagnostics(error);
@@ -949,9 +961,27 @@ export const useSupabaseSync = (
       startDiagnostics(options.trigger, options.quiet);
       if (!options.quiet) {
         setStatus('syncing');
-        setMessage('Uploading this device...');
+        setMessage('Checking cloud before upload...');
       }
-      const uploadResult = await uploadLocalData(client, dataRef.current, syncBaselineRef.current);
+
+      const { remote, rowCount, baseline } = await fetchRemoteData(client);
+      let nextData = dataRef.current;
+      syncBaselineRef.current = baseline;
+
+      if (rowCount > 0) {
+        nextData = hasStoredDataRef.current
+          ? mergeRemoteData(dataRef.current, remote)
+          : replaceRemoteData(dataRef.current, remote);
+        applyingRemoteRef.current = true;
+        setData(nextData);
+        dataRef.current = nextData;
+        hasStoredDataRef.current = true;
+        window.setTimeout(() => {
+          applyingRemoteRef.current = false;
+        }, 0);
+      }
+
+      const uploadResult = await uploadLocalData(client, nextData, syncBaselineRef.current);
       syncBaselineRef.current = uploadResult.baseline;
       if (uploadResult.failures.length > 0) {
         throw new Error(uploadFailureMessage(uploadResult.failures));
@@ -959,13 +989,13 @@ export const useSupabaseSync = (
       setStatus('synced');
       setLastSyncedAt(nowISO());
       finishDiagnostics({
-        lastPulledRows: 0,
+        lastPulledRows: rowCount,
         lastUploadedRows: uploadResult.uploadedRows,
         lastUploadedTables: uploadResult.uploadedTables,
       });
       setMessage(
         uploadResult.uploadedRows > 0
-          ? `Uploaded ${uploadResult.uploadedRows} local change(s) to Supabase.`
+          ? `Checked cloud first, then uploaded ${uploadResult.uploadedRows} local change(s).`
           : 'No local changes to upload.',
       );
     } catch (error) {
@@ -981,7 +1011,7 @@ export const useSupabaseSync = (
         window.setTimeout(() => void syncNowRef.current?.(pendingOptions), 250);
       }
     }
-  }, [client, failDiagnostics, finishDiagnostics, markQueued, session, startDiagnostics]);
+  }, [client, failDiagnostics, finishDiagnostics, markQueued, session, setData, startDiagnostics]);
 
   const syncNow = useCallback(async (options: SyncRunOptions = { trigger: 'manual' }) => {
     if (!client || !session) return;

@@ -241,7 +241,8 @@ small {
 
 .sync-panel--offline .sync-panel__summary,
 .sync-panel--error .sync-panel__summary,
-.sync-panel--not_configured .sync-panel__summary {
+.sync-panel--not_configured .sync-panel__summary,
+.sync-panel--pending_upload .sync-panel__summary {
   border-color: #fed7aa;
   background: #fff7ed;
   color: #9a3412;

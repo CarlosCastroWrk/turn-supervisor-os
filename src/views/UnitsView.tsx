@@ -17,12 +17,13 @@ import {
   isInspectionUnit,
   isReadyUnit,
 } from '../lib/metrics';
-import type { AppData, AppView, Building, CrewMember, Floor, Issue, Unit, UnitStatusFilter } from '../types';
+import type { AppNavigate } from '../lib/routing';
+import type { AppData, Building, CrewMember, Floor, Issue, Unit, UnitStatusFilter } from '../types';
 
 interface UnitsViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
-  onNavigate: (view: AppView, unitId?: string) => void;
+  onNavigate: AppNavigate;
   initialStatusFilter?: UnitStatusFilter;
 }
 

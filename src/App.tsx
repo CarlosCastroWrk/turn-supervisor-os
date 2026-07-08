@@ -1,9 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
+import { buildAppHash, parseAppHash, routeForNavigation } from './lib/routing';
+import type { AppNavigate } from './lib/routing';
 import { usePersistentAppData } from './lib/storage';
 import { useSupabaseSync } from './lib/supabase/sync';
-import type { AppView, UnitStatusFilter } from './types';
 import { AssignmentsView } from './views/AssignmentsView';
 import { CopilotView } from './views/CopilotView';
 import { CrewsView } from './views/CrewsView';
@@ -20,37 +21,51 @@ import { UnitsView } from './views/UnitsView';
 function App() {
   const { data, setData, hasStoredData } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
-  const [activeView, setActiveView] = useState<AppView>('dashboard');
-  const [activeUnitId, setActiveUnitId] = useState<string | undefined>();
-  const [unitStatusFilter, setUnitStatusFilter] = useState<UnitStatusFilter>('All');
+  const [route, setRoute] = useState(() => parseAppHash(typeof window === 'undefined' ? '' : window.location.hash));
 
-  const navigate = useCallback((view: AppView, unitId?: string, options?: { unitStatusFilter?: UnitStatusFilter }) => {
-    if (view === 'units') {
-      setUnitStatusFilter(options?.unitStatusFilter ?? 'All');
+  useEffect(() => {
+    const handleRouteChange = () => {
+      setRoute(parseAppHash(window.location.hash));
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    };
+
+    window.addEventListener('hashchange', handleRouteChange);
+    window.addEventListener('popstate', handleRouteChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleRouteChange);
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, []);
+
+  const navigate = useCallback<AppNavigate>((view, unitId, options) => {
+    const nextRoute = routeForNavigation(view, unitId, options);
+    const nextHash = buildAppHash(nextRoute);
+
+    if (window.location.hash !== nextHash) {
+      window.history.pushState(null, '', nextHash);
     }
-    if (unitId) {
-      setActiveUnitId(unitId);
-    }
-    setActiveView(view);
+
+    setRoute(nextRoute);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
   return (
-    <AppShell activeView={activeView} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
-      {activeView === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
-      {activeView === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
-      {activeView === 'setup' ? <SetupView data={data} setData={setData} /> : null}
-      {activeView === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={unitStatusFilter} /> : null}
-      {activeView === 'unitDetail' ? (
-        <UnitDetailView data={data} setData={setData} unitId={activeUnitId} onNavigate={navigate} />
+    <AppShell activeView={route.view} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
+      {route.view === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
+      {route.view === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
+      {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
+      {route.view === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={route.unitStatusFilter} /> : null}
+      {route.view === 'unitDetail' ? (
+        <UnitDetailView data={data} setData={setData} unitId={route.unitId} onNavigate={navigate} />
       ) : null}
-      {activeView === 'issues' ? <IssuesView data={data} setData={setData} /> : null}
-      {activeView === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
-      {activeView === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
-      {activeView === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
-      {activeView === 'reports' ? <ReportsView data={data} /> : null}
-      {activeView === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
-      {activeView === 'export' ? <ExportView data={data} setData={setData} /> : null}
+      {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
+      {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
+      {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
+      {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
+      {route.view === 'reports' ? <ReportsView data={data} /> : null}
+      {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
+      {route.view === 'export' ? <ExportView data={data} setData={setData} /> : null}
     </AppShell>
   );
 }

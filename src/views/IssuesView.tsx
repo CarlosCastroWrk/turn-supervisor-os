@@ -1,5 +1,5 @@
 import { AlertOctagon, CheckCircle2, EyeOff, PlayCircle, Plus, TimerReset } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
@@ -12,6 +12,7 @@ import type { AppData, Issue, IssueCategory, IssueStatus } from '../types';
 interface IssuesViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
+  focusedIssueId?: string;
 }
 
 type IssueStatusFilter = 'Active' | 'All' | IssueStatus;
@@ -34,7 +35,7 @@ const issueStatusSortWeight: Record<IssueStatus, number> = {
   Closed: 4,
 };
 
-export function IssuesView({ data, setData }: IssuesViewProps) {
+export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
   const activeProject = getActiveProject(data);
   const units = getProjectUnits(data);
   const issues = getProjectIssues(data);
@@ -47,6 +48,7 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
   const [notes, setNotes] = useState('');
   const [blocksUnit, setBlocksUnit] = useState(false);
   const [pendingRemoveIssueId, setPendingRemoveIssueId] = useState<string | undefined>();
+  const focusedIssueRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setOwner((current) => current.trim() || defaultOwner);
@@ -62,6 +64,26 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
         }),
     [issues, statusFilter],
   );
+
+  useEffect(() => {
+    if (!focusedIssueId) {
+      return;
+    }
+
+    const focusedIssue = issues.find((issue) => issue.id === focusedIssueId);
+    if (focusedIssue && !matchesIssueStatusFilter(focusedIssue, statusFilter)) {
+      setStatusFilter('All');
+    }
+  }, [focusedIssueId, issues, statusFilter]);
+
+  useEffect(() => {
+    if (!focusedIssueId || !focusedIssueRef.current) {
+      return;
+    }
+
+    focusedIssueRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    focusedIssueRef.current.focus({ preventScroll: true });
+  }, [focusedIssueId, visibleIssues]);
 
   const createIssue = () => {
     if (!title.trim()) {
@@ -169,7 +191,12 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
           {visibleIssues.map((issue) => {
             const linkedUnit = units.find((unit) => unit.id === issue.unitId);
             return (
-              <article className="issue-card" key={issue.id}>
+              <article
+                className={`issue-card ${focusedIssueId === issue.id ? 'issue-card--focused' : ''}`}
+                key={issue.id}
+                ref={focusedIssueId === issue.id ? focusedIssueRef : undefined}
+                tabIndex={focusedIssueId === issue.id ? -1 : undefined}
+              >
                 <div className="issue-card__header">
                   <div>
                     <h3>{issue.title}</h3>

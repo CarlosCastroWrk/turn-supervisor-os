@@ -19,28 +19,19 @@ import type {
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { getSupabaseClient, isSupabaseConfigured, isSyncFeatureEnabled } from './client';
+import {
+  createDemoSyncBoundary,
+  isDemoScopedSyncItem,
+  withLocalDemoRows,
+  type SyncBoundaryKey,
+  type SyncRemoteData,
+} from './syncBoundary';
 import { mergePhotoNotes, mergeRows, syncRowFingerprint } from './syncCore';
 
 type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'offline' | 'error';
 type SyncTrigger = 'startup' | 'manual' | 'pull' | 'upload' | 'realtime' | 'reconnect' | 'local_edit';
 type Row = Record<string, unknown>;
-type SyncedKey =
-  | 'projects'
-  | 'buildings'
-  | 'floors'
-  | 'units'
-  | 'crewMembers'
-  | 'assignments'
-  | 'issues'
-  | 'photoNotes'
-  | 'dailyLogs'
-  | 'trainingQuestions'
-  | 'activityLogs'
-  | 'draftActions'
-  | 'memories'
-  | 'memoryCandidates'
-  | 'followUpTasks';
-type SyncRemoteData = Partial<Record<SyncedKey, { id: string }[]>>;
+type SyncedKey = SyncBoundaryKey;
 type SyncBaseline = Partial<Record<SyncedKey, Map<string, string>>>;
 type SyncRunOptions = {
   quiet?: boolean;
@@ -690,8 +681,12 @@ const changedItemsForConfig = (data: AppData, baseline: SyncBaseline, config: Sy
   return items.filter((item) => rowFingerprint(config, item) !== tableBaseline?.get(item.id));
 };
 
-const hasChangedRows = (data: AppData, baseline: SyncBaseline) =>
-  tableConfigs.some((config) => changedItemsForConfig(data, baseline, config).length > 0);
+const hasChangedRows = (data: AppData, baseline: SyncBaseline) => {
+  const boundary = createDemoSyncBoundary(data);
+  return tableConfigs.some((config) =>
+    changedItemsForConfig(data, baseline, config).some((item) => !isDemoScopedSyncItem(boundary, config.key, item)),
+  );
+};
 
 interface UploadLocalDataResult {
   baseline: SyncBaseline;
@@ -729,12 +724,13 @@ const fetchRemoteData = async (client: SupabaseClient) => {
 
 const uploadLocalData = async (client: SupabaseClient, data: AppData, baseline: SyncBaseline): Promise<UploadLocalDataResult> => {
   const nextBaseline = cloneBaseline(baseline);
+  const boundary = createDemoSyncBoundary(data);
   const failures: string[] = [];
   const uploadedTables: string[] = [];
   let uploadedRows = 0;
 
   for (const config of tableConfigs) {
-    const items = changedItemsForConfig(data, baseline, config);
+    const items = changedItemsForConfig(data, baseline, config).filter((item) => !isDemoScopedSyncItem(boundary, config.key, item));
     if (items.length === 0) {
       continue;
     }
@@ -756,25 +752,28 @@ const uploadLocalData = async (client: SupabaseClient, data: AppData, baseline: 
   return { baseline: nextBaseline, failures, uploadedRows, uploadedTables };
 };
 
-const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
-  normalizeAppData({
+const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
+  const remoteWithLocalDemo = withLocalDemoRows(local, remote);
+
+  return normalizeAppData({
     ...local,
-    projects: (remote.projects ?? local.projects) as Project[],
-    buildings: (remote.buildings ?? local.buildings) as AppData['buildings'],
-    floors: (remote.floors ?? local.floors) as AppData['floors'],
-    units: (remote.units ?? local.units) as Unit[],
-    crewMembers: (remote.crewMembers ?? local.crewMembers) as CrewMember[],
-    assignments: (remote.assignments ?? local.assignments) as Assignment[],
-    issues: (remote.issues ?? local.issues) as Issue[],
-    photoNotes: (remote.photoNotes ?? local.photoNotes) as PhotoNote[],
-    dailyLogs: (remote.dailyLogs ?? local.dailyLogs) as DailyLog[],
+    projects: (remoteWithLocalDemo.projects ?? local.projects) as Project[],
+    buildings: (remoteWithLocalDemo.buildings ?? local.buildings) as AppData['buildings'],
+    floors: (remoteWithLocalDemo.floors ?? local.floors) as AppData['floors'],
+    units: (remoteWithLocalDemo.units ?? local.units) as Unit[],
+    crewMembers: (remoteWithLocalDemo.crewMembers ?? local.crewMembers) as CrewMember[],
+    assignments: (remoteWithLocalDemo.assignments ?? local.assignments) as Assignment[],
+    issues: (remoteWithLocalDemo.issues ?? local.issues) as Issue[],
+    photoNotes: (remoteWithLocalDemo.photoNotes ?? local.photoNotes) as PhotoNote[],
+    dailyLogs: (remoteWithLocalDemo.dailyLogs ?? local.dailyLogs) as DailyLog[],
     trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
-    activityLogs: (remote.activityLogs ?? local.activityLogs) as ActivityLog[],
-    draftActions: (remote.draftActions ?? local.draftActions) as DraftAction[],
-    memories: (remote.memories ?? local.memories) as Memory[],
+    activityLogs: (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
+    draftActions: (remoteWithLocalDemo.draftActions ?? local.draftActions) as DraftAction[],
+    memories: (remoteWithLocalDemo.memories ?? local.memories) as Memory[],
     memoryCandidates: (remote.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
-    followUpTasks: (remote.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
+    followUpTasks: (remoteWithLocalDemo.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
   });
+};
 
 export const useSupabaseSync = (
   data: AppData,

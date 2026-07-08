@@ -59,3 +59,7 @@
 - Added project soft archive/restore behavior for Real Turn projects without deleting local or cloud records.
 - Added Supabase `projects.archived_at` schema support and sync timestamp fingerprinting for archive state.
 - Added regression tests for archive active-project fallback, restore behavior, reload normalization, and timestamp fingerprint stability.
+- Started B2 Demo Sync Boundary on `codex/demo-sync-boundary`.
+- Added a sync boundary helper that skips demo-scoped projects, units, buildings, floors, crews, assignments, issues, photo notes, daily logs, activity logs, and linked draft/follow-up/memory rows during upload.
+- Preserved local Demo Mode practice records when a fresh device pulls real cloud records.
+- Added regression tests for demo upload filtering and fresh-device demo preservation.

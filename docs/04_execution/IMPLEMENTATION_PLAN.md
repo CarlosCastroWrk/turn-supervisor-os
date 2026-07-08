@@ -16,38 +16,40 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - A4 Report Date Safety is shipped in `72ddd4a`.
 - A5 Issue Status Safety is shipped in `9f5169e`.
 - B1 Project Archive is implemented with a soft archive field, setup archive/restore UI, Supabase sync mapping, and regression tests.
-- The next ordered slice is B2 Demo Sync Boundary.
+- B2 Demo Sync Boundary is implemented with upload filtering for demo-scoped rows and fresh-device demo preservation.
+- The next ordered slice is B3 Offline/Reconnect Trust.
 
 ## Current Slice
 
-### B2. Demo Sync Boundary
+### B3. Offline/Reconnect Trust
 
 Purpose:
 
-- Keep Demo Mode practice records from polluting real cloud work while preserving local demo practice.
+- Prove offline field edits survive reconnect and propagate across Los's Mac, iPhone, and iPad.
 
 Scope:
 
-- Audit current sync upload paths for Demo Mode records.
-- Keep Demo Mode usable locally.
-- Prevent demo seed records from being treated as active real cloud work.
-- Document any one-time cleanup separately.
+- Run Mac/iPhone/iPad airplane-mode edit test.
+- Confirm 2-3 offline QA edits remain visible locally while offline.
+- Confirm reconnect uploads those edits and other devices pull them.
+- Capture any stale overwrite, duplicate, or unclear sync status behavior.
 
 Out of scope:
 
 - Supabase data cleanup.
 - Multi-user/company project management.
-- Removing demo records from local practice mode.
+- Conflict review UI.
+- True delete/tombstones.
 
 Acceptance:
 
-- Fresh devices still have demo practice data locally.
-- Real Turn sync does not re-upload demo data as active cloud work.
-- Any production cloud cleanup is listed as a separate approval item.
+- 2-3 offline QA edits survive reconnect and appear on other devices.
+- Sync status remains understandable during offline/reconnect.
+- No duplicates appear.
 
 Risk:
 
-- This slice must not delete or mutate existing production records. It is a boundary and upload-behavior slice, not a cleanup slice.
+- Whole-row last-write-wins remains the current conflict behavior. If multiple devices edit the same row offline, the newer `updatedAt` row can win.
 
 ## Slice Protocol
 

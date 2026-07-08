@@ -49,6 +49,7 @@ Every near-term change should serve that loop.
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
+- Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
 - Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
 - Number input safety that fixes setup/count-field leading-zero editing behavior
@@ -136,4 +137,4 @@ Verify B1 Project Archive on production after deployment:
 5. Reopen the PWA on iPhone/iPad and confirm the archive state syncs.
 6. Restore the project if you still need it.
 
-After that, the next build slice is B2 Demo Sync Boundary.
+After that, the next build slice is B3 Offline/Reconnect Trust.

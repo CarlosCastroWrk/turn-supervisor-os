@@ -147,6 +147,8 @@ Acceptance:
 
 ### B2. Demo Sync Boundary
 
+Status: implemented in the B2 Demo Sync Boundary release slice.
+
 Scope:
 
 - Prevent demo seed records from being uploaded as real working cloud data.

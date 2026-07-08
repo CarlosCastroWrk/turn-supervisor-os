@@ -1,0 +1,214 @@
+import type {
+  ActivityLog,
+  AppData,
+  Assignment,
+  CrewMember,
+  DailyLog,
+  DraftAction,
+  FollowUpTask,
+  Issue,
+  Memory,
+  MemoryCandidate,
+  PhotoNote,
+  Project,
+  TrainingQuestion,
+  Unit,
+} from '../../types';
+
+export type SyncBoundaryKey =
+  | 'projects'
+  | 'buildings'
+  | 'floors'
+  | 'units'
+  | 'crewMembers'
+  | 'assignments'
+  | 'issues'
+  | 'photoNotes'
+  | 'dailyLogs'
+  | 'trainingQuestions'
+  | 'activityLogs'
+  | 'draftActions'
+  | 'memories'
+  | 'memoryCandidates'
+  | 'followUpTasks';
+
+export type SyncRemoteData = Partial<Record<SyncBoundaryKey, { id: string }[]>>;
+
+interface DemoSyncBoundary {
+  demoProjectIds: Set<string>;
+  demoBuildingIds: Set<string>;
+  demoFloorIds: Set<string>;
+  demoUnitIds: Set<string>;
+  demoCrewMemberIds: Set<string>;
+  demoAssignmentIds: Set<string>;
+  demoIssueIds: Set<string>;
+  demoPhotoNoteIds: Set<string>;
+  demoDailyLogIds: Set<string>;
+  demoActivityLogIds: Set<string>;
+}
+
+const appendMissingRows = <T extends { id: string }>(remoteRows: T[] | undefined, localRows: T[]) => {
+  const remote = remoteRows ?? [];
+  const remoteIds = new Set(remote.map((item) => item.id));
+  return [...remote, ...localRows.filter((item) => !remoteIds.has(item.id))];
+};
+
+const isDemoEntityId = (boundary: DemoSyncBoundary, id: string | undefined) => {
+  if (!id) {
+    return false;
+  }
+
+  return (
+    boundary.demoUnitIds.has(id) ||
+    boundary.demoIssueIds.has(id) ||
+    boundary.demoCrewMemberIds.has(id) ||
+    boundary.demoBuildingIds.has(id) ||
+    boundary.demoFloorIds.has(id)
+  );
+};
+
+export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
+  const demoProjectIds = new Set(data.projects.filter((project) => project.mode === 'demo').map((project) => project.id));
+  const demoBuildingIds = new Set(
+    data.buildings.filter((building) => demoProjectIds.has(building.projectId)).map((building) => building.id),
+  );
+  const demoFloorIds = new Set(
+    data.floors.filter((floor) => demoBuildingIds.has(floor.buildingId)).map((floor) => floor.id),
+  );
+  const demoUnitIds = new Set(data.units.filter((unit) => demoProjectIds.has(unit.projectId)).map((unit) => unit.id));
+  const demoCrewMemberIds = new Set(
+    data.crewMembers.filter((crew) => crew.projectId && demoProjectIds.has(crew.projectId)).map((crew) => crew.id),
+  );
+  const demoAssignmentIds = new Set(
+    data.assignments.filter((assignment) => demoProjectIds.has(assignment.projectId)).map((assignment) => assignment.id),
+  );
+  const demoIssueIds = new Set(data.issues.filter((issue) => demoProjectIds.has(issue.projectId)).map((issue) => issue.id));
+  const demoPhotoNoteIds = new Set(
+    data.photoNotes.filter((photo) => demoProjectIds.has(photo.projectId)).map((photo) => photo.id),
+  );
+  const demoDailyLogIds = new Set(data.dailyLogs.filter((log) => demoProjectIds.has(log.projectId)).map((log) => log.id));
+  const demoActivityLogIds = new Set(
+    data.activityLogs.filter((log) => demoProjectIds.has(log.projectId)).map((log) => log.id),
+  );
+
+  return {
+    demoProjectIds,
+    demoBuildingIds,
+    demoFloorIds,
+    demoUnitIds,
+    demoCrewMemberIds,
+    demoAssignmentIds,
+    demoIssueIds,
+    demoPhotoNoteIds,
+    demoDailyLogIds,
+    demoActivityLogIds,
+  };
+};
+
+export const isDemoScopedSyncItem = (
+  boundary: DemoSyncBoundary,
+  key: SyncBoundaryKey,
+  item: { id: string },
+) => {
+  switch (key) {
+    case 'projects':
+      return boundary.demoProjectIds.has(item.id);
+    case 'buildings':
+      return boundary.demoBuildingIds.has(item.id);
+    case 'floors':
+      return boundary.demoFloorIds.has(item.id);
+    case 'units':
+      return boundary.demoUnitIds.has(item.id);
+    case 'crewMembers':
+      return boundary.demoCrewMemberIds.has(item.id);
+    case 'assignments':
+      return boundary.demoAssignmentIds.has(item.id);
+    case 'issues':
+      return boundary.demoIssueIds.has(item.id);
+    case 'photoNotes':
+      return boundary.demoPhotoNoteIds.has(item.id);
+    case 'dailyLogs':
+      return boundary.demoDailyLogIds.has(item.id);
+    case 'activityLogs':
+      return boundary.demoActivityLogIds.has(item.id);
+    case 'draftActions': {
+      const draft = item as DraftAction;
+      return isDemoEntityId(boundary, draft.targetEntityId);
+    }
+    case 'memories': {
+      const memory = item as Memory;
+      return isDemoEntityId(boundary, memory.sourceEntityId);
+    }
+    case 'followUpTasks': {
+      const task = item as FollowUpTask;
+      return isDemoEntityId(boundary, task.relatedEntityId);
+    }
+    case 'trainingQuestions':
+    case 'memoryCandidates':
+      return false;
+    default:
+      return false;
+  }
+};
+
+export const filterUploadableSyncItems = <T extends { id: string }>(
+  data: AppData,
+  key: SyncBoundaryKey,
+  items: T[],
+) => {
+  const boundary = createDemoSyncBoundary(data);
+  return items.filter((item) => !isDemoScopedSyncItem(boundary, key, item));
+};
+
+export const withLocalDemoRows = (local: AppData, remote: SyncRemoteData): SyncRemoteData => {
+  const boundary = createDemoSyncBoundary(local);
+
+  return {
+    ...remote,
+    projects: appendMissingRows(remote.projects as Project[] | undefined, local.projects.filter((project) => boundary.demoProjectIds.has(project.id))),
+    buildings: appendMissingRows(
+      remote.buildings as AppData['buildings'] | undefined,
+      local.buildings.filter((building) => boundary.demoBuildingIds.has(building.id)),
+    ),
+    floors: appendMissingRows(
+      remote.floors as AppData['floors'] | undefined,
+      local.floors.filter((floor) => boundary.demoFloorIds.has(floor.id)),
+    ),
+    units: appendMissingRows(remote.units as Unit[] | undefined, local.units.filter((unit) => boundary.demoUnitIds.has(unit.id))),
+    crewMembers: appendMissingRows(
+      remote.crewMembers as CrewMember[] | undefined,
+      local.crewMembers.filter((crew) => boundary.demoCrewMemberIds.has(crew.id)),
+    ),
+    assignments: appendMissingRows(
+      remote.assignments as Assignment[] | undefined,
+      local.assignments.filter((assignment) => boundary.demoAssignmentIds.has(assignment.id)),
+    ),
+    issues: appendMissingRows(remote.issues as Issue[] | undefined, local.issues.filter((issue) => boundary.demoIssueIds.has(issue.id))),
+    photoNotes: appendMissingRows(
+      remote.photoNotes as PhotoNote[] | undefined,
+      local.photoNotes.filter((photo) => boundary.demoPhotoNoteIds.has(photo.id)),
+    ),
+    dailyLogs: appendMissingRows(
+      remote.dailyLogs as DailyLog[] | undefined,
+      local.dailyLogs.filter((log) => boundary.demoDailyLogIds.has(log.id)),
+    ),
+    activityLogs: appendMissingRows(
+      remote.activityLogs as ActivityLog[] | undefined,
+      local.activityLogs.filter((log) => boundary.demoActivityLogIds.has(log.id)),
+    ),
+    draftActions: appendMissingRows(
+      remote.draftActions as DraftAction[] | undefined,
+      local.draftActions.filter((draft) => isDemoScopedSyncItem(boundary, 'draftActions', draft)),
+    ),
+    memories: appendMissingRows(
+      remote.memories as Memory[] | undefined,
+      local.memories.filter((memory) => isDemoScopedSyncItem(boundary, 'memories', memory)),
+    ),
+    memoryCandidates: remote.memoryCandidates as MemoryCandidate[] | undefined,
+    followUpTasks: appendMissingRows(
+      remote.followUpTasks as FollowUpTask[] | undefined,
+      local.followUpTasks.filter((task) => isDemoScopedSyncItem(boundary, 'followUpTasks', task)),
+    ),
+    trainingQuestions: remote.trainingQuestions as TrainingQuestion[] | undefined,
+  };
+};

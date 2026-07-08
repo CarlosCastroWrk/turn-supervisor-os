@@ -53,3 +53,5 @@
 - Started A5 Issue Status Safety on `codex/issue-status-safety`.
 - Added explicit `Blocks this unit` controls so issue creation is issue-only unless Los chooses to change the linked unit status.
 - Added regression tests for non-blocking issue creation, explicit blocking, and issue resolution not changing unit status.
+- Shipped A5 Issue Status Safety in `9f5169e`.
+- Marked B1 Project Archive as blocked until Los explicitly approves Supabase migration/sync-schema work.

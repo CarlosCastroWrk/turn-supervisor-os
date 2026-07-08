@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped app commit:
 
 ```text
-72ddd4a Add report date safety
+9f5169e Add issue status safety
 ```
 
 Production:
@@ -53,7 +53,7 @@ Every near-term change should serve that loop.
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
 - Number input safety that fixes setup/count-field leading-zero editing behavior
 - Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
-- A pending issue status safety slice that stops issue creation from changing unit status unless Los explicitly marks it blocking
+- Issue status safety that stops issue creation from changing unit status unless Los explicitly marks it blocking
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
@@ -74,6 +74,7 @@ Every near-term change should serve that loop.
 ## What Does Not Exist Yet
 
 - Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
+- Project archive for hiding duplicate/test Real Turn projects
 - Delete propagation / tombstones for synced rows
 - Photo binary sync through Supabase Storage
 - Restore-from-JSON import flow in the app
@@ -126,4 +127,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Run the offline/reconnect QA checklist in [TESTING.md](TESTING.md) before entering real field data.
+Approve or defer B1 Project Archive Supabase migration/sync-schema work. If deferred, run C1 Dictation Parser Eval Suite as the next safe non-migration slice.

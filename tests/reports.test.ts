@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
-import { buildDailyActivitySnapshot, buildDailyReport, buildDailyReportPreview } from '../src/lib/exporters.ts';
+import { buildDailyActivitySnapshot, buildDailyReport, buildDailyReportPreview, buildJsonBackup } from '../src/lib/exporters.ts';
+import {
+  buildReportDocumentDraft,
+  markReportDraftEditsAgainstGenerated,
+  mergeReportDocumentDraft,
+  upsertReportDraft,
+} from '../src/lib/reportDrafts.ts';
 import { formatDate, todayISO } from '../src/lib/constants.ts';
 import type { ActivityLog, AppData, DailyLog } from '../src/types.ts';
 
@@ -205,4 +211,139 @@ test('buildDailyReport includes activity snapshot without treating current state
   assert.match(report, /Activity Snapshot \(Jan 15, 2026\):/);
   assert.match(report, /Updated unit: Unit 204 marked Ready/);
   assert.match(report, /Completed Today:\n- No completed summary saved for this date\./);
+});
+
+test('report document draft keeps generated sections thawed until Los edits them', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+  const reportDate = '2026-01-15';
+  const firstPreview = buildDailyReportPreview(data, project, reportDate);
+  const savedDraft = buildReportDocumentDraft(firstPreview, project.id, reportDate, '2026-01-15T12:00:00.000Z');
+
+  const secondData = {
+    ...data,
+    activityLogs: [
+      {
+        id: 'activity_new_report',
+        projectId: project.id,
+        entityType: 'Unit',
+        entityId: 'unit_204',
+        action: 'Updated unit',
+        note: 'Unit 204 marked Ready',
+        createdAt: localTimestamp(reportDate, '12:30'),
+      },
+    ],
+  } satisfies AppData;
+  const secondPreview = buildDailyReportPreview(secondData, project, reportDate);
+  const secondGenerated = buildReportDocumentDraft(secondPreview, project.id, reportDate, '2026-01-15T12:05:00.000Z');
+  const merged = mergeReportDocumentDraft(savedDraft, secondGenerated);
+
+  assert.match(merged.sections.find((section) => section.title === 'Activity Snapshot')?.body ?? '', /Unit 204 marked Ready/);
+});
+
+test('report document draft preserves edited sections while untouched sections keep regenerating', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+  const reportDate = '2026-01-15';
+  const firstPreview = buildDailyReportPreview(data, project, reportDate);
+  const savedDraft = buildReportDocumentDraft(firstPreview, project.id, reportDate, '2026-01-15T12:00:00.000Z');
+  const editedDraft = {
+    ...savedDraft,
+    sections: savedDraft.sections.map((section) =>
+      section.title === 'Completed Today'
+        ? { ...section, body: 'Los edited this section for Tony.', bodyEdited: true }
+        : section,
+    ),
+  };
+
+  const secondData = {
+    ...data,
+    activityLogs: [
+      {
+        id: 'activity_new_report',
+        projectId: project.id,
+        entityType: 'Issue',
+        entityId: 'issue_312',
+        action: 'Created issue',
+        note: 'Unit 312 sink leak',
+        createdAt: localTimestamp(reportDate, '13:00'),
+      },
+    ],
+  } satisfies AppData;
+  const secondPreview = buildDailyReportPreview(secondData, project, reportDate);
+  const secondGenerated = buildReportDocumentDraft(secondPreview, project.id, reportDate, '2026-01-15T12:05:00.000Z');
+  const merged = mergeReportDocumentDraft(editedDraft, secondGenerated);
+
+  assert.match(merged.sections.find((section) => section.title === 'Activity Snapshot')?.body ?? '', /Unit 312 sink leak/);
+  assert.equal(merged.sections.find((section) => section.title === 'Completed Today')?.body, 'Los edited this section for Tony.');
+});
+
+test('legacy auto-saved report drafts do not freeze generated sections after migration', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+  const reportDate = '2026-01-15';
+  const firstPreview = buildDailyReportPreview(data, project, reportDate);
+  const legacyDraft = buildReportDocumentDraft(firstPreview, project.id, reportDate, '2026-01-15T12:00:00.000Z');
+
+  const secondData = {
+    ...data,
+    activityLogs: [
+      {
+        id: 'activity_legacy_report',
+        projectId: project.id,
+        entityType: 'Unit',
+        entityId: 'unit_205',
+        action: 'Updated unit',
+        note: 'Unit 205 blocked on keys',
+        createdAt: localTimestamp(reportDate, '14:00'),
+      },
+    ],
+  } satisfies AppData;
+  const secondPreview = buildDailyReportPreview(secondData, project, reportDate);
+  const secondGenerated = buildReportDocumentDraft(secondPreview, project.id, reportDate, '2026-01-15T12:05:00.000Z');
+  const migrated = markReportDraftEditsAgainstGenerated(legacyDraft, buildReportDocumentDraft(firstPreview, project.id, reportDate));
+  const merged = mergeReportDocumentDraft(migrated, secondGenerated);
+
+  assert.equal(migrated.sections.find((section) => section.title === 'Activity Snapshot')?.bodyEdited, false);
+  assert.match(merged.sections.find((section) => section.title === 'Activity Snapshot')?.body ?? '', /Unit 205 blocked on keys/);
+});
+
+test('legacy edited report drafts remain edited after migration', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+  const reportDate = '2026-01-15';
+  const preview = buildDailyReportPreview(data, project, reportDate);
+  const generated = buildReportDocumentDraft(preview, project.id, reportDate);
+  const legacyDraft = {
+    ...generated,
+    sections: generated.sections.map((section) =>
+      section.title === 'Completed Today' ? { ...section, body: 'Legacy edited completion note.' } : section,
+    ),
+  };
+  const migrated = markReportDraftEditsAgainstGenerated(legacyDraft, generated);
+
+  assert.equal(migrated.sections.find((section) => section.title === 'Completed Today')?.bodyEdited, true);
+});
+
+test('report document drafts live in AppData backups', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+  const reportDate = '2026-01-15';
+  const preview = buildDailyReportPreview(data, project, reportDate);
+  const draft = {
+    ...buildReportDocumentDraft(preview, project.id, reportDate, '2026-01-15T12:00:00.000Z'),
+    title: 'Los edited report title',
+    titleEdited: true,
+  };
+  const dataWithDraft = upsertReportDraft(data, draft);
+  const backup = JSON.parse(buildJsonBackup(dataWithDraft)) as { data: AppData };
+
+  assert.equal(backup.data.reportDrafts[0]?.title, 'Los edited report title');
+  assert.equal(backup.data.reportDrafts[0]?.projectId, project.id);
+  assert.equal(backup.data.reportDrafts[0]?.date, reportDate);
 });

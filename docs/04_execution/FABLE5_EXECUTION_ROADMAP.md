@@ -374,6 +374,22 @@ Acceptance:
 - Report is readable before export.
 - PDF output has title, sections, bullets, blockers, and tomorrow priorities.
 
+### P0 Report Thaw / Backup
+
+Scope:
+
+- Keep generated report sections updating until Los edits that section.
+- Preserve edited title, summary, and section bodies without freezing untouched sections.
+- Move report drafts into AppData so JSON backup includes report edits.
+- Add per-section reset behavior.
+
+Acceptance:
+
+- Opening a report in the morning does not permanently freeze empty generated sections.
+- Edited sections remain under Los's control.
+- JSON backup includes report draft edits.
+- Supabase report-draft sync is documented as a separate migration decision.
+
 ### E3. Daily Log Auto-Draft
 
 Scope:

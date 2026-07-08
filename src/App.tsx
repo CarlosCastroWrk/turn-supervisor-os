@@ -63,7 +63,7 @@ function App() {
       {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
       {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
       {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
-      {route.view === 'reports' ? <ReportsView data={data} /> : null}
+      {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
       {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
       {route.view === 'export' ? <ExportView data={data} setData={setData} /> : null}
     </AppShell>

@@ -254,6 +254,26 @@ export interface DailyLog {
   updatedAt: string;
 }
 
+export interface ReportDocumentSectionDraft {
+  title: string;
+  subtitle: string;
+  body: string;
+  bodyEdited: boolean;
+}
+
+export interface ReportDocumentDraft {
+  id: EntityId;
+  projectId: EntityId;
+  date: string;
+  title: string;
+  titleEdited: boolean;
+  summary: string;
+  summaryEdited: boolean;
+  sections: ReportDocumentSectionDraft[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TrainingQuestion {
   id: EntityId;
   question: string;
@@ -386,6 +406,7 @@ export interface AppData {
   issues: Issue[];
   photoNotes: PhotoNote[];
   dailyLogs: DailyLog[];
+  reportDrafts: ReportDocumentDraft[];
   trainingQuestions: TrainingQuestion[];
   activityLogs: ActivityLog[];
   draftActions: DraftAction[];

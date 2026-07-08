@@ -1,4 +1,4 @@
-import type { AppData, DailyLog, FollowUpTask, Issue, Project, Unit } from '../types';
+import type { ActivityLog, AppData, DailyLog, FollowUpTask, Issue, Project, Unit } from '../types';
 import { formatDate, todayISO } from './constants';
 import { getPriorityIssues, getProjectAssignments, getProjectIssues, getProjectUnits, getUnitSummary } from './metrics';
 
@@ -234,6 +234,62 @@ const reportLinesOrMissing = (value: string | undefined, label: string) => {
     .filter(Boolean);
 };
 
+const operationalActivityTypes = new Set<ActivityLog['entityType']>([
+  'Project',
+  'Unit',
+  'CrewMember',
+  'Assignment',
+  'Issue',
+  'PhotoNote',
+  'FollowUpTask',
+]);
+
+const toLocalDate = (dateTime: string) => {
+  const date = new Date(dateTime);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const formatActivityTime = (dateTime: string) => {
+  const date = new Date(dateTime);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+};
+
+export const buildDailyActivitySnapshot = (data: AppData, project: Project, reportDate: string) => {
+  const activityLogs = data.activityLogs
+    .filter(
+      (log) =>
+        log.projectId === project.id &&
+        toLocalDate(log.createdAt) === reportDate &&
+        operationalActivityTypes.has(log.entityType),
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  const shownLogs = activityLogs.slice(0, 8);
+  const items = shownLogs.map((log) => {
+    const time = formatActivityTime(log.createdAt);
+    const note = log.note.trim();
+    const detail = note ? `${log.action}: ${note}` : log.action;
+    return time ? `${time} - ${detail}` : detail;
+  });
+
+  if (activityLogs.length > shownLogs.length) {
+    items.push(`${activityLogs.length - shownLogs.length} more recorded update(s) not shown.`);
+  }
+
+  return {
+    total: activityLogs.length,
+    items: items.length > 0 ? items : ['No recorded app activity for this date.'],
+  };
+};
+
 export interface DailyReportPreviewMetric {
   label: string;
   value: string;
@@ -266,6 +322,7 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
   const issues = getPriorityIssues(getProjectIssues(data));
   const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === reportDate);
   const summary = getUnitSummary(units);
+  const activitySnapshot = buildDailyActivitySnapshot(data, project, reportDate);
   const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
   const missing = assignments.filter((assignment) => ['No Show', 'Delayed'].includes(assignment.status));
   const painterCount = checkedIn.filter((assignment) => assignment.trade === 'Painter').length;
@@ -290,13 +347,18 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
     projectManagerName: project.projectManagerName,
     location: project.location,
     metrics: [
-      { label: 'Total units', value: String(summary.totalUnits), helper: 'Active project units' },
-      { label: 'Ready', value: String(summary.ready), helper: `${summary.percentComplete}% ready` },
-      { label: 'In progress', value: String(summary.inProgress), helper: 'Moving now' },
-      { label: 'Blocked', value: String(summary.blocked), helper: 'Need attention' },
-      { label: 'Inspection', value: String(summary.inspection), helper: 'Need final eyes' },
+      { label: 'Total units', value: String(summary.totalUnits), helper: 'Current board state' },
+      { label: 'Ready', value: String(summary.ready), helper: `${summary.percentComplete}% ready now` },
+      { label: 'In progress', value: String(summary.inProgress), helper: 'Current board state' },
+      { label: 'Blocked', value: String(summary.blocked), helper: 'Current board state' },
+      { label: 'Inspection', value: String(summary.inspection), helper: 'Current board state' },
     ],
     sections: [
+      {
+        title: 'Activity Snapshot',
+        subtitle: `Recorded updates for ${formatDate(reportDate)}`,
+        items: activitySnapshot.items,
+      },
       {
         title: 'Completed Today',
         subtitle: 'Progress recorded for this date',
@@ -339,6 +401,7 @@ export const buildDailyReport = (data: AppData, project: Project, reportDate = t
   const issues = getPriorityIssues(getProjectIssues(data));
   const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === reportDate);
   const summary = getUnitSummary(units);
+  const activitySnapshot = buildDailyActivitySnapshot(data, project, reportDate);
   const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
   const missing = assignments.filter((assignment) => ['No Show', 'Delayed'].includes(assignment.status));
   const reportStatus = dailyLog
@@ -352,12 +415,15 @@ Status: ${reportStatus}
 Property: ${project.propertyName}
 Supervisor: ${project.supervisorName}
 
-Progress:
+Progress (current board state):
 - Total units: ${summary.totalUnits}
 - Units ready: ${summary.ready}
 - Units in progress: ${summary.inProgress}
 - Units blocked: ${summary.blocked}
 - Units needing inspection: ${summary.inspection}
+
+Activity Snapshot (${formatDate(reportDate)}):
+${activitySnapshot.items.map((item) => `- ${item}`).join('\n')}
 
 Completed Today:
 ${reportFieldOrMissing(dailyLog?.completedSummary, 'completed summary')}

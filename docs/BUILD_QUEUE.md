@@ -7,10 +7,14 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
-- [ ] Current code slice is E1 Daily Activity Snapshot.
-  - [ ] Start recording a source-grounded daily summary from activity logs.
-  - [ ] Distinguish current state from historical day state.
-  - [ ] Prepare stronger report preview data.
+- [x] E1 Daily Activity Snapshot.
+  - [x] Start recording a source-grounded daily summary from activity logs.
+  - [x] Distinguish current state from historical day state.
+  - [x] Prepare stronger report preview data.
+- [ ] Current code slice is E3 Daily Log Auto-Draft.
+  - [ ] Draft Daily Log sections from selected-date activity and field captures.
+  - [ ] Keep auto-drafted content editable and review-first.
+  - [ ] Avoid treating generated text as confirmed field truth until Los saves it.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -37,7 +41,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## P2: Can Wait Until After Turn Starts If P0/P1 Are Stable
 
-- [ ] E1 Daily Activity Snapshot.
+- [x] E1 Daily Activity Snapshot.
 - [ ] E3 Daily Log Auto-Draft.
 - [ ] E4 Memory Consumption and project scoping.
 - [ ] F1 IndexedDB Photo Store.
@@ -103,3 +107,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D6 Hash Routing and deep links: URL hashes preserve top-level views, unit detail routes, unit status filters, issue-focused routes, reload state, and browser back behavior.
 - [x] C4 Voice Reliability: Capture explains browser speech support, opens a mobile/iPad voice sheet without auto-opening the keyboard, falls back to keyboard dictation when speech recognition is unavailable, restarts after ordinary browser pauses where supported, and keeps draft-first confirmation.
 - [x] E2 Report Preview And Print/PDF: Reports now show an in-app review surface, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks.
+- [x] E1 Daily Activity Snapshot: Reports now include selected-date operational activity from synced activity logs, label progress metrics as current board state, preserve old edited report drafts when generated sections change, and download edited report text.

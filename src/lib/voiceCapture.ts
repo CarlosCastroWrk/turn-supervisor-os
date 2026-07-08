@@ -14,6 +14,7 @@ export interface VoiceCaptureGuidance {
   privacyNote: string;
   idleButtonLabel: string;
   unavailableStatus: string;
+  sheetPrimaryAction: string;
 }
 
 export const isAppleTouchDevice = ({ userAgent = '', platform = '', maxTouchPoints = 0 }: Omit<VoiceCaptureContext, 'speechRecognitionAvailable'>) =>
@@ -26,8 +27,9 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
       title: 'Browser voice capture',
       description: 'Tap Record. Short pauses are okay; the app will keep listening when the browser allows it.',
       privacyNote: 'Speech transcription is handled by the browser/OS. This app only turns saved text into draft actions.',
-      idleButtonLabel: 'Record',
+      idleButtonLabel: 'Voice Mode',
       unavailableStatus: 'Browser voice capture is ready.',
+      sheetPrimaryAction: 'Stop',
     };
   }
 
@@ -35,10 +37,11 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
     return {
       mode: 'keyboardDictation',
       title: 'Keyboard dictation fallback',
-      description: 'Tap Dictate, then use the iPhone/iPad keyboard mic in the note box.',
+      description: 'Open voice mode first. Use the keyboard mic only when you are ready to dictate.',
       privacyNote: 'Keyboard dictation is handled by iOS/iPadOS. This app only saves the text you leave in the note box.',
-      idleButtonLabel: 'Dictate',
-      unavailableStatus: 'Note box focused. Use the keyboard mic, then tap Create Drafts.',
+      idleButtonLabel: 'Voice Mode',
+      unavailableStatus: 'Voice mode is ready. Tap Use keyboard mic when you want iOS/iPadOS dictation.',
+      sheetPrimaryAction: 'Use keyboard mic',
     };
   }
 
@@ -47,9 +50,19 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
     title: 'Text capture fallback',
     description: 'Browser voice capture is unavailable here. Type, paste, or use your device dictation into the note box.',
     privacyNote: 'Nothing changes on the board until you create and approve draft actions.',
-    idleButtonLabel: 'Focus note',
+    idleButtonLabel: 'Open note',
     unavailableStatus: 'Note box focused. Type, paste, or use system dictation.',
+    sheetPrimaryAction: 'Type note',
   };
+};
+
+export const shouldAutoFocusCaptureText = (context: Omit<VoiceCaptureContext, 'speechRecognitionAvailable'>) => !isAppleTouchDevice(context);
+
+export const formatVoiceDuration = (totalSeconds: number) => {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = String(safeSeconds % 60).padStart(2, '0');
+  return `${minutes}:${seconds}`;
 };
 
 export const isRestartableSpeechError = (error?: string) => !error || error === 'no-speech';

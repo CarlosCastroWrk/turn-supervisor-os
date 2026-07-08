@@ -78,3 +78,4 @@
 - Added a C4 follow-up voice-mode sheet so iPhone/iPad voice capture opens as a focused recording/dictation surface instead of zooming directly into the messy-note textarea.
 - Completed E2 Report Preview And Print/PDF by adding an in-app report preview, print styling for Save as PDF/share as PDF, preserved copy/download text fallbacks, and mobile layout cleanup around the global Capture button.
 - Polished the E2 report preview into a cleaner field handoff with a stronger header, summary readout, numbered/subtitled sections, styled progress cards, and print/mobile rendered checks.
+- Toned the report preview back down after Los said the first polish pass had too much visual styling; removed the badge, color strip, colored metric accents, and numbered section cards while keeping the useful summary and subtitles.

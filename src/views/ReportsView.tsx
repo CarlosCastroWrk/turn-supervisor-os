@@ -72,7 +72,6 @@ export function ReportsView({ data }: ReportsViewProps) {
         <article className="report-preview" aria-label="Daily report preview">
           <header className="report-preview__header">
             <div>
-              <span className="report-preview__eyebrow">{preview.eyebrow}</span>
               <span className="quiet-label">{preview.reportDateLabel}</span>
               <h2>{preview.title}</h2>
               <p>
@@ -92,7 +91,7 @@ export function ReportsView({ data }: ReportsViewProps) {
           </div>
 
           <section className="report-brief" aria-label="Report field summary">
-            <span>Field Readout</span>
+            <span>Summary</span>
             <p>{preview.summary}</p>
           </section>
 
@@ -107,10 +106,9 @@ export function ReportsView({ data }: ReportsViewProps) {
           </div>
 
           <div className="report-sections">
-            {preview.sections.map((section, index) => (
+            {preview.sections.map((section) => (
               <section key={section.title} className="report-preview-section">
                 <div className="report-preview-section__header">
-                  <span>{String(index + 1).padStart(2, '0')}</span>
                   <div>
                     <h3>{section.title}</h3>
                     <p>{section.subtitle}</p>

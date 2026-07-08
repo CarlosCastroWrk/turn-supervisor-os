@@ -248,7 +248,6 @@ export interface DailyReportPreviewSection {
 
 export interface DailyReportPreview {
   title: string;
-  eyebrow: string;
   summary: string;
   reportDateLabel: string;
   status: string;
@@ -277,7 +276,6 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
 
   return {
     title: 'Turn Supervisor Daily Report',
-    eyebrow: 'Private Field Handoff',
     summary: dailyLog
       ? `${progressSummary} ${issueCount > 0 ? `${issueCount} priority issue${issueCount === 1 ? '' : 's'} still need follow-up.` : 'No high-priority open issues are logged.'}`
       : `Draft shell for ${formatDate(reportDate)}. ${progressSummary} Add a Daily Log before treating this as the final field report.`,
@@ -301,12 +299,12 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
     sections: [
       {
         title: 'Completed Today',
-        subtitle: 'Verified progress and closeout notes',
+        subtitle: 'Progress recorded for this date',
         items: reportLinesOrMissing(dailyLog?.completedSummary, 'completed summary'),
       },
       {
         title: 'Open Issues',
-        subtitle: 'Items that need follow-up before the board is clean',
+        subtitle: 'Items still requiring follow-up',
         items:
           issues.length > 0
             ? issues.slice(0, 8).map((issue) => `${issue.title}: ${issue.status}${issue.owner ? ` (${issue.owner})` : ''}`)
@@ -314,7 +312,7 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
       },
       {
         title: 'Crew Notes',
-        subtitle: 'Attendance and movement signal for the day',
+        subtitle: 'Crew check-in signal',
         items: [
           `Painters checked in: ${painterCount}`,
           `Cleaners checked in: ${cleanerCount}`,
@@ -324,12 +322,12 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
       },
       {
         title: 'Tomorrow Priorities',
-        subtitle: 'First things to attack next shift',
+        subtitle: 'Next-shift priorities',
         items: reportLinesOrMissing(dailyLog?.tomorrowPriorities, 'tomorrow priorities'),
       },
       {
         title: 'Questions / Needs',
-        subtitle: 'Decisions, blockers, and asks for Tony',
+        subtitle: 'Blockers, decisions, or asks',
         items: reportLinesOrMissing(dailyLog?.blockers, 'blockers or questions'),
       },
     ],

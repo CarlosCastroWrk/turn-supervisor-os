@@ -12,37 +12,37 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - Sync diagnostics are deployed.
 - The next real-device gate is offline/reconnect QA.
 - A2 Draft Apply Safety is shipped in `6697278`.
-- The current implementation branch is `codex/number-input-safety`.
+- A3 Number Input Safety is shipped in `6c34eb8`.
+- The current implementation branch is `codex/report-date-safety`.
 
 ## Current Slice
 
-### A3. Number Input Safety
+### A4. Report Date Safety
 
 Purpose:
 
-- Prevent setup and field count inputs from turning typed values like `20` and `8` into `020` and `08` while keeping mobile numeric keyboards.
+- Prevent selected past/future report dates from silently generating today's report and prevent missing-data placeholders from looking like real progress.
 
 Scope:
 
-- Add shared integer input behavior for count fields.
-- Apply it to Start Real Turn setup counts, editable project estimates, Quick Unit Creation counts, and Unit Detail bed/bath counts.
-- Preserve a temporary blank editing state while focused.
-- Canonicalize leading-zero drafts on blur.
-- Add regression tests for leading-zero and blank number drafts.
+- Make report generation use the selected report date explicitly.
+- Label reports with no saved Daily Log as draft/missing-data.
+- Replace placeholder report text with source-grounded missing-data statements.
+- Add regression tests for selected-date behavior and placeholder safety.
 
 Out of scope:
 
-- Per-unit bed model redesign.
-- Bulk CSV import.
-- Project archive/delete.
-- Dashboard stat redesign.
+- PDF/print layout redesign.
+- Automatic daily-log generation.
+- AI-authored report summaries.
+- Report routing or sending.
 
 Acceptance:
 
-- Typing `20` into a zero field shows `20`, not `020`.
-- Typing `8` into a zero field shows `8`, not `08`.
-- Blank focused fields do not force `0` while Los is typing.
-- Setup validation and count minimums still prevent impossible projects.
+- Opening a past date with no daily log does not silently generate today's report.
+- Missing Daily Log reports are visibly labeled as drafts.
+- Generated text does not include fake blank placeholders like `1. 2. 3.` or `Add completed work before sending`.
+- Existing daily-log content still appears for the selected date.
 
 ## Slice Protocol
 

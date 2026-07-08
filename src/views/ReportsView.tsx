@@ -16,7 +16,8 @@ export function ReportsView({ data }: ReportsViewProps) {
   const [date, setDate] = useState(todayISO());
   const [copied, setCopied] = useState(false);
   const dailyLog = data.dailyLogs.find((log) => log.projectId === project.id && log.date === date);
-  const report = useMemo(() => buildDailyReport(data, project, dailyLog), [data, dailyLog, project]);
+  const report = useMemo(() => buildDailyReport(data, project, date, dailyLog), [data, date, dailyLog, project]);
+  const reportFileName = dailyLog ? `turn-daily-report-${date}.txt` : `turn-daily-report-draft-${date}.txt`;
 
   const copy = async () => {
     try {
@@ -42,13 +43,18 @@ export function ReportsView({ data }: ReportsViewProps) {
           <Field label="Report date">
             <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
           </Field>
+          {!dailyLog ? (
+            <div className="report-warning" role="status">
+              No Daily Log is saved for this date. This report is a draft shell with missing-data labels, not a completed field report.
+            </div>
+          ) : null}
           <textarea className="report-box" readOnly value={report} />
           <div className="button-row">
             <Button variant="primary" onClick={copy}>
               <ClipboardCopy size={18} aria-hidden="true" />
               {copied ? 'Copied' : 'Copy Report'}
             </Button>
-            <Button onClick={() => downloadTextFile(`turn-daily-report-${date}.txt`, report)}>
+            <Button onClick={() => downloadTextFile(reportFileName, report)}>
               <Download size={18} aria-hidden="true" />
               Download Text
             </Button>
@@ -58,4 +64,3 @@ export function ReportsView({ data }: ReportsViewProps) {
     </div>
   );
 }
-

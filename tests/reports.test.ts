@@ -70,9 +70,12 @@ test('buildDailyReportPreview structures missing daily log output for print revi
   const preview = buildDailyReportPreview(data, project, '2026-01-15');
 
   assert.equal(preview.title, 'Turn Supervisor Daily Report');
+  assert.equal(preview.eyebrow, 'Private Field Handoff');
   assert.equal(preview.isMissingDailyLog, true);
   assert.match(preview.status, /Missing Daily Log/);
+  assert.match(preview.summary, /Draft shell for Jan 15, 2026/);
   assert.equal(preview.metrics.some((metric) => metric.label === 'Ready'), true);
+  assert.equal(preview.sections.find((section) => section.title === 'Open Issues')?.subtitle, 'Items that need follow-up before the board is clean');
   assert.deepEqual(
     preview.sections.find((section) => section.title === 'Tomorrow Priorities')?.items,
     ['No tomorrow priorities saved for this date.'],
@@ -102,6 +105,7 @@ test('buildDailyReportPreview includes saved daily log sections and report recip
 
   assert.equal(preview.isMissingDailyLog, false);
   assert.equal(preview.projectManagerName, project.projectManagerName);
+  assert.match(preview.summary, /priority issue/);
   assert.deepEqual(preview.sections.find((section) => section.title === 'Completed Today')?.items, [
     'Paint finished in units 201-204.',
     'Cleaners finished 103.',

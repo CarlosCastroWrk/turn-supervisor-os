@@ -242,11 +242,14 @@ export interface DailyReportPreviewMetric {
 
 export interface DailyReportPreviewSection {
   title: string;
+  subtitle: string;
   items: string[];
 }
 
 export interface DailyReportPreview {
   title: string;
+  eyebrow: string;
+  summary: string;
   reportDateLabel: string;
   status: string;
   isMissingDailyLog: boolean;
@@ -269,9 +272,15 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
   const painterCount = checkedIn.filter((assignment) => assignment.trade === 'Painter').length;
   const cleanerCount = checkedIn.filter((assignment) => assignment.trade === 'Cleaner').length;
   const reassignedCount = assignments.filter((assignment) => assignment.status === 'Reassigned').length;
+  const issueCount = issues.length;
+  const progressSummary = `${summary.ready} of ${summary.totalUnits} units ready, ${summary.inProgress} moving, ${summary.blocked} blocked, ${summary.inspection} waiting on inspection.`;
 
   return {
     title: 'Turn Supervisor Daily Report',
+    eyebrow: 'Private Field Handoff',
+    summary: dailyLog
+      ? `${progressSummary} ${issueCount > 0 ? `${issueCount} priority issue${issueCount === 1 ? '' : 's'} still need follow-up.` : 'No high-priority open issues are logged.'}`
+      : `Draft shell for ${formatDate(reportDate)}. ${progressSummary} Add a Daily Log before treating this as the final field report.`,
     reportDateLabel: formatDate(reportDate),
     status: dailyLog
       ? 'DRAFT - Saved daily log found for this date. Review before sending.'
@@ -292,10 +301,12 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
     sections: [
       {
         title: 'Completed Today',
+        subtitle: 'Verified progress and closeout notes',
         items: reportLinesOrMissing(dailyLog?.completedSummary, 'completed summary'),
       },
       {
         title: 'Open Issues',
+        subtitle: 'Items that need follow-up before the board is clean',
         items:
           issues.length > 0
             ? issues.slice(0, 8).map((issue) => `${issue.title}: ${issue.status}${issue.owner ? ` (${issue.owner})` : ''}`)
@@ -303,6 +314,7 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
       },
       {
         title: 'Crew Notes',
+        subtitle: 'Attendance and movement signal for the day',
         items: [
           `Painters checked in: ${painterCount}`,
           `Cleaners checked in: ${cleanerCount}`,
@@ -312,10 +324,12 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
       },
       {
         title: 'Tomorrow Priorities',
+        subtitle: 'First things to attack next shift',
         items: reportLinesOrMissing(dailyLog?.tomorrowPriorities, 'tomorrow priorities'),
       },
       {
         title: 'Questions / Needs',
+        subtitle: 'Decisions, blockers, and asks for Tony',
         items: reportLinesOrMissing(dailyLog?.blockers, 'blockers or questions'),
       },
     ],

@@ -13,7 +13,8 @@ The goal is not to build a company product. The goal is a private, local-first, 
 - Keep Copilot draft-first; no silent AI mutations.
 - Do not add browser API keys, automatic texting, payroll, CRM workflows, or multi-user/company portal features.
 - Codex may implement and stress-test slices autonomously after Los sets direction.
-- Commits, pushes, PR creation, merges, production deploys, Supabase data cleanup, and destructive changes still require explicit approval unless Los changes the repo safety policy.
+- Los has granted standing approval for commits, pushes, PR creation, merges, and production deploys for scoped, non-destructive code/docs slices after checks pass and the diff is reviewed.
+- Supabase migrations, Supabase data cleanup, destructive changes, force-pushes, secret/env changes, and product-scope changes still require fresh explicit approval.
 - Fable 5 can be used as an external reviewer or implementation agent, but Codex remains the release gate before merge/deploy.
 
 ## Build Loop
@@ -60,7 +61,7 @@ Acceptance:
 
 ### A2. Draft Apply Safety
 
-Status: in progress on `agent/draft-apply-safety`.
+Status: shipped in `6697278`.
 
 Scope:
 
@@ -76,6 +77,8 @@ Acceptance:
 - Existing Draft Action flow stays draft-first.
 
 ### A3. Number Input Safety
+
+Status: in progress on `codex/number-input-safety`.
 
 Scope:
 

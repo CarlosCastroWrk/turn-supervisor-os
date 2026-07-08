@@ -4,12 +4,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] A2 Draft Apply Safety on `agent/draft-apply-safety`
-  - [x] Scope draft unit-number lookup to the active project.
-  - [x] Validate unit status payload enums before applying.
-  - [x] Validate issue category, priority, and status payload enums before creating issues.
-  - [x] Keep assignment unit-number lookup active-project scoped.
-  - [x] Add draft apply regression tests.
+- [ ] A3 Number Input Safety on `codex/number-input-safety`
+  - [x] Add shared numeric input behavior for setup and field count inputs.
+  - [x] Fix leading-zero drafts like `020` and `08`.
+  - [x] Use iOS-friendly numeric keyboard hints.
+  - [x] Add number-input regression tests.
   - [ ] Commit, push, PR, merge, deploy under standing release authorization.
 
 ## P0: Must Clear Before Real Field Reliance
@@ -17,7 +16,6 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] A3 Number Input Safety: fix setup leading-zero bug and numeric keypad behavior.
 - [ ] A4 Report Date Safety: selected-date reports and placeholder guard.
 - [ ] A5 Issue Status Safety: stop issue creation from clobbering unit status.
 - [ ] B1 Project Archive: safely hide duplicate/test Real Turn projects.
@@ -91,3 +89,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Add sync status diagnostics showing trigger reason, table activity, upload count, queued state, and last error.
 - [x] Confirm deployed sync diagnostics settle on `Synced` across Los's Mac, iPhone, and iPad.
 - [x] A1 Storage And Photo Safety: preserve corrupt cache, compress photos before local save, and deploy execution roadmap.
+- [x] A2 Draft Apply Safety: active-project draft lookup, enum validation, regression tests, and production deploy.

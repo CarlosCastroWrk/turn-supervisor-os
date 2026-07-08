@@ -1,6 +1,6 @@
 import { AlertTriangle, CheckCircle2, Filter, Plus, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, Field, NumberInput } from '../components/FormControls';
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
@@ -347,13 +347,13 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
               <input inputMode="numeric" value={quickStart} onChange={(event) => setQuickStart(event.target.value)} />
             </Field>
             <Field label="Units per floor">
-              <input min={1} type="number" value={quickCount} onChange={(event) => setQuickCount(Number(event.target.value))} />
+              <NumberInput min={1} value={quickCount} onValueChange={setQuickCount} />
             </Field>
             <Field label="Beds per unit">
-              <input min={0} type="number" value={quickBeds} onChange={(event) => setQuickBeds(Number(event.target.value))} />
+              <NumberInput min={0} value={quickBeds} onValueChange={setQuickBeds} />
             </Field>
             <Field label="Baths per unit">
-              <input min={0} type="number" value={quickBaths} onChange={(event) => setQuickBaths(Number(event.target.value))} />
+              <NumberInput min={0} value={quickBaths} onValueChange={setQuickBaths} />
             </Field>
           </div>
           <Button variant="primary" onClick={quickCreate}>

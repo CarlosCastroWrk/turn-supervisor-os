@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
+import { applyDraftAction, updateDraftAction } from '../src/lib/actions.ts';
 import { mockAgentProvider } from '../src/lib/ai/mockAgentProvider.ts';
 import type { AgentParseResult } from '../src/lib/ai/types.ts';
 import type { AppData, Building, DraftAction, Floor, Project, Unit } from '../src/types.ts';
@@ -114,6 +115,7 @@ test('parser keeps a multi-condition blocker on the mentioned unit only', async 
 
   assert.deepEqual(result.detectedEntities.units, ['204']);
   assert.equal(result.draftActions.length, 3);
+  assert.equal(result.draftActions.some((action) => action.payload.requiresConflictConfirmation === true), false);
   assert.equal(result.draftActions.every((action) => action.payload.unitNumber === '204'), true);
 
   const paintDraft = result.draftActions.find((action) => action.type === 'UPDATE_UNIT_STATUS' && action.payload.paintStatus === 'Complete');
@@ -139,4 +141,31 @@ test('parser converts named crew movement into an assignment draft', async () =>
   assert.equal(assignment.payload.teamName, 'Jose crew');
   assert.deepEqual(assignment.payload.unitNumbers, ['205']);
   assert.equal(assignment.payload.status, 'In Progress');
+});
+
+test('parser flags competing same-unit status drafts for explicit confirmation', async () => {
+  const result = await parse('104 done 104 in progress');
+
+  assert.deepEqual(result.detectedEntities.units, ['104']);
+  assert.equal(result.draftActions.length, 2);
+  assert.match(result.warnings.join(' '), /Conflicting draft updates need confirmation.*104/);
+  assert.equal(result.clarificationQuestions.length, 1);
+  assert.equal(result.draftActions.every((action) => action.payload.unitNumber === '104'), true);
+  assert.equal(result.draftActions.every((action) => action.payload.requiresConflictConfirmation === true), true);
+  assert.equal(result.draftActions.every((action) => action.payload.explicitConflictConfirmation !== true), true);
+});
+
+test('conflicting drafts cannot apply until they are explicitly confirmed', async () => {
+  const result = await parse('104 done 104 in progress');
+  const draft = result.draftActions[0];
+
+  const blocked = applyDraftAction({ ...parserData(), draftActions: [draft] }, draft.id);
+  assert.equal(blocked.draftActions[0].status, 'failed');
+  assert.match(blocked.draftActions[0].error ?? '', /conflicts with another draft/i);
+
+  const confirmedInput = updateDraftAction({ ...parserData(), draftActions: [draft] }, draft.id, {
+    payload: { ...draft.payload, explicitConflictConfirmation: true },
+  });
+  const confirmed = applyDraftAction(confirmedInput, draft.id);
+  assert.equal(confirmed.draftActions[0].status, 'applied');
 });

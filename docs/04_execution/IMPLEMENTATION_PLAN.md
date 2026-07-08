@@ -18,8 +18,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - B1 Project Archive is implemented with a soft archive field, setup archive/restore UI, Supabase sync mapping, and regression tests.
 - B2 Demo Sync Boundary is implemented with upload filtering for demo-scoped rows and fresh-device demo preservation.
 - C1 Dictation Parser Eval Suite is implemented with regression coverage for Los's punctuation-free field notes.
+- C2 Unit-Boundary Parser is implemented with same-unit conflict confirmation.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is the remaining C2 Unit-Boundary Parser conflict-detection work.
+- The current code slice is C3 Draft Batch Safety.
 
 ## Current Field Gate
 
@@ -53,7 +54,7 @@ Risk:
 
 - Whole-row last-write-wins remains the current conflict behavior. If multiple devices edit the same row offline, the newer `updatedAt` row can win.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### C2. Unit-Boundary Parser
 
@@ -69,10 +70,31 @@ Implemented:
 - Named crew movement parsing for notes like `Jose moved from 203 to 205`.
 - Reduced sink/leak issue bleed so a leak on one unit does not create leak drafts for nearby units.
 
-Remaining:
+Completed:
 
 - Detect conflicting draft updates for the same unit in one capture batch and require explicit confirmation.
 - Preserve deterministic/local parsing with no server-side AI dependency.
+
+## Current Code Slice
+
+### C3. Draft Batch Safety
+
+Purpose:
+
+- Prevent old or hidden Draft Actions from being approved accidentally during field work.
+
+Scope:
+
+- Group drafts by capture batch.
+- Scope Approve All to the visible/current batch.
+- Flag stale drafts older than today.
+- Make applied drafts show where they went.
+
+Out of scope:
+
+- Server-side AI.
+- Automatic mutation without draft approval.
+- Company/multi-user approval workflows.
 
 ## Slice Protocol
 

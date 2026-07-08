@@ -457,6 +457,66 @@ const missingUnitFollowUps = (data: AppData, units: string[], sourceText: string
       }),
     );
 
+const statusPayloadKeys = ['paintStatus', 'cleanStatus', 'repairStatus', 'flooringStatus', 'trashStatus', 'inspectionStatus'] as const;
+const blockingOverallStatuses = new Set(['Access Blocked', 'Hold / Blocked']);
+
+const hasConflictingStatusDrafts = (drafts: DraftAction[]) => {
+  const statusKeyConflict = statusPayloadKeys.some((key) => new Set(drafts.map((draft) => draft.payload[key]).filter(Boolean)).size > 1);
+  const overallStatuses = new Set(drafts.map((draft) => draft.payload.overallStatus).filter(Boolean));
+  const overallConflict =
+    overallStatuses.size > 1 && !Array.from(overallStatuses).some((status) => blockingOverallStatuses.has(String(status)));
+
+  return statusKeyConflict || overallConflict;
+};
+
+const withConflictWarnings = (draftActions: DraftAction[]): { draftActions: DraftAction[]; conflictUnits: string[] } => {
+  const updateDraftsByUnit = new Map<string, DraftAction[]>();
+  draftActions.forEach((draft) => {
+    if (draft.type !== 'UPDATE_UNIT_STATUS') {
+      return;
+    }
+
+    const unitNumber = typeof draft.payload.unitNumber === 'string' ? draft.payload.unitNumber : '';
+    if (!unitNumber) {
+      return;
+    }
+
+    updateDraftsByUnit.set(unitNumber, [...(updateDraftsByUnit.get(unitNumber) ?? []), draft]);
+  });
+
+  const conflictUnits = Array.from(updateDraftsByUnit.entries())
+    .filter(([, drafts]) => drafts.length > 1 && hasConflictingStatusDrafts(drafts))
+    .map(([unitNumber]) => unitNumber);
+
+  if (conflictUnits.length === 0) {
+    return { draftActions, conflictUnits };
+  }
+
+  const conflictUnitSet = new Set(conflictUnits);
+  return {
+    conflictUnits,
+    draftActions: draftActions.map((draft) => {
+      const unitNumber = typeof draft.payload.unitNumber === 'string' ? draft.payload.unitNumber : '';
+      if (draft.type !== 'UPDATE_UNIT_STATUS' || !conflictUnitSet.has(unitNumber)) {
+        return draft;
+      }
+
+      const conflictReason = `Capture produced conflicting status drafts for Unit ${unitNumber}. Confirm the correct draft before approving.`;
+      return {
+        ...draft,
+        summary: `${draft.summary} Conflict confirmation required.`,
+        confidence: Math.min(draft.confidence, 0.58),
+        why: `${draft.why} ${conflictReason}`,
+        payload: {
+          ...draft.payload,
+          requiresConflictConfirmation: true,
+          conflictReason,
+        },
+      };
+    }),
+  };
+};
+
 const parseQuickCapture = async (input: string, data: AppData): Promise<AgentParseResult> => {
   const rawInput = input.trim();
   const units = extractUnitNumbers(rawInput, data);
@@ -501,6 +561,12 @@ const parseQuickCapture = async (input: string, data: AppData): Promise<AgentPar
   });
 
   draftActions.push(...missingUnitFollowUps(data, units, rawInput));
+
+  const conflictCheck = withConflictWarnings(draftActions);
+  draftActions.splice(0, draftActions.length, ...conflictCheck.draftActions);
+  if (conflictCheck.conflictUnits.length > 0) {
+    warnings.push(`Conflicting draft updates need confirmation for Unit(s): ${conflictCheck.conflictUnits.join(', ')}.`);
+  }
 
   const notFound = units.filter((unitNumber) => !findUnitByNumber(data, unitNumber));
   if (notFound.length > 0) {

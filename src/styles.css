@@ -1432,6 +1432,14 @@ small {
   gap: 12px;
 }
 
+.report-editor-section-actions {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .report-preview {
   display: grid;
   gap: 18px;

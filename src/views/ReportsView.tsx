@@ -1,147 +1,90 @@
 import { ClipboardCopy, Download, Printer } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { buildDailyReport, buildDailyReportPreview, downloadTextFile } from '../lib/exporters';
 import { getActiveProject } from '../lib/metrics';
+import {
+  LEGACY_REPORT_DRAFTS_KEY,
+  buildEditedReportText,
+  buildReportDocumentDraft,
+  findReportDraft,
+  markReportDraftEditsAgainstGenerated,
+  mergeReportDocumentDraft,
+  parseLegacyReportDraft,
+  reportDraftId,
+  reportSectionLines,
+  upsertReportDraft,
+} from '../lib/reportDrafts';
 import { todayISO } from '../lib/constants';
-import type { AppData } from '../types';
+import { nowISO } from '../lib/constants';
+import type { AppData, ReportDocumentDraft } from '../types';
 
 interface ReportsViewProps {
   data: AppData;
+  setData: Dispatch<SetStateAction<AppData>>;
 }
 
-interface ReportDocumentSectionDraft {
-  title: string;
-  subtitle: string;
-  body: string;
-}
-
-interface ReportDocumentDraft {
-  title: string;
-  summary: string;
-  sections: ReportDocumentSectionDraft[];
-}
-
-const REPORT_DRAFTS_KEY = 'turn-supervisor-os:report-document-drafts:v0';
-
-const buildReportDocumentDraft = (preview: ReturnType<typeof buildDailyReportPreview>): ReportDocumentDraft => ({
-  title: preview.title,
-  summary: preview.summary,
-  sections: preview.sections.map((section) => ({
-    title: section.title,
-    subtitle: section.subtitle,
-    body: section.items.join('\n'),
-  })),
-});
-
-const readReportDrafts = (): Record<string, ReportDocumentDraft> => {
+const readLegacyReportDraft = (key: string, projectId: string, reportDate: string) => {
   try {
-    const raw = window.localStorage.getItem(REPORT_DRAFTS_KEY);
+    const raw = window.localStorage.getItem(LEGACY_REPORT_DRAFTS_KEY);
     if (!raw) {
-      return {};
+      return undefined;
     }
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    const legacyDraft = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>)[key] : undefined;
+    return parseLegacyReportDraft(legacyDraft, projectId, reportDate);
   } catch {
-    return {};
+    return undefined;
   }
 };
 
-const readReportDraft = (key: string) => readReportDrafts()[key];
-
-const mergeReportDocumentDraft = (
-  savedDraft: ReportDocumentDraft | undefined,
-  generatedDraft: ReportDocumentDraft,
-): ReportDocumentDraft => {
-  if (!savedDraft) {
-    return generatedDraft;
-  }
-
-  const savedSections = Array.isArray(savedDraft.sections) ? savedDraft.sections : [];
-
-  return {
-    title: typeof savedDraft.title === 'string' ? savedDraft.title : generatedDraft.title,
-    summary: typeof savedDraft.summary === 'string' ? savedDraft.summary : generatedDraft.summary,
-    sections: generatedDraft.sections.map((generatedSection) => {
-      const savedSection = savedSections.find((section) => section?.title === generatedSection.title);
-      return {
-        ...generatedSection,
-        body: typeof savedSection?.body === 'string' ? savedSection.body : generatedSection.body,
-      };
-    }),
-  };
-};
-
-const saveReportDraft = (key: string, draft: ReportDocumentDraft) => {
-  try {
-    const drafts = readReportDrafts();
-    drafts[key] = draft;
-    window.localStorage.setItem(REPORT_DRAFTS_KEY, JSON.stringify(drafts));
-  } catch {
-    // Report edits remain usable in memory if browser storage is unavailable.
-  }
-};
-
-const reportSectionLines = (body: string) =>
-  body
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-const buildEditedReportText = (
-  draft: ReportDocumentDraft,
-  preview: ReturnType<typeof buildDailyReportPreview>,
-) =>
-  [
-    draft.title.trim() || preview.title,
-    '',
-    `Date: ${preview.reportDateLabel}`,
-    `Property: ${preview.propertyName}${preview.location ? ` - ${preview.location}` : ''}`,
-    `Supervisor: ${preview.supervisorName || 'Los'}`,
-    preview.projectManagerName ? `For: ${preview.projectManagerName}` : '',
-    `Status: ${preview.status}`,
-    '',
-    'Summary:',
-    draft.summary.trim() || preview.summary,
-    '',
-    'Progress (current board state):',
-    ...preview.metrics.map((metric) => `- ${metric.label}: ${metric.value} (${metric.helper})`),
-    '',
-    ...draft.sections.flatMap((section) => [
-      section.title,
-      ...reportSectionLines(section.body).map((line) => `- ${line}`),
-      '',
-    ]),
-  ]
-    .filter((line, index, lines) => line !== '' || lines[index - 1] !== '')
-    .join('\n')
-    .trim();
-
-export function ReportsView({ data }: ReportsViewProps) {
+export function ReportsView({ data, setData }: ReportsViewProps) {
   const project = getActiveProject(data);
   const [date, setDate] = useState(todayISO());
   const [copied, setCopied] = useState(false);
   const dailyLog = data.dailyLogs.find((log) => log.projectId === project.id && log.date === date);
   const report = useMemo(() => buildDailyReport(data, project, date, dailyLog), [data, date, dailyLog, project]);
   const preview = useMemo(() => buildDailyReportPreview(data, project, date, dailyLog), [data, date, dailyLog, project]);
-  const generatedDraft = useMemo(() => buildReportDocumentDraft(preview), [preview]);
-  const reportDraftKey = `${project.id}:${date}`;
-  const [documentDraft, setDocumentDraft] = useState(() => mergeReportDocumentDraft(readReportDraft(reportDraftKey), generatedDraft));
-  const [loadedDraftKey, setLoadedDraftKey] = useState(reportDraftKey);
+  const generatedDraft = useMemo(() => buildReportDocumentDraft(preview, project.id, date), [date, preview, project.id]);
+  const reportDraftKey = reportDraftId(project.id, date);
+  const savedDraft = useMemo(() => findReportDraft(data, project.id, date), [data, date, project.id]);
+  const documentDraft = useMemo(() => mergeReportDocumentDraft(savedDraft, generatedDraft), [generatedDraft, savedDraft]);
   const editedReport = useMemo(() => buildEditedReportText(documentDraft, preview), [documentDraft, preview]);
   const reportFileName = dailyLog ? `turn-daily-report-${date}.txt` : `turn-daily-report-draft-${date}.txt`;
 
   useEffect(() => {
-    setDocumentDraft(mergeReportDocumentDraft(readReportDraft(reportDraftKey), generatedDraft));
-    setLoadedDraftKey(reportDraftKey);
-  }, [generatedDraft, reportDraftKey]);
-
-  useEffect(() => {
-    if (loadedDraftKey === reportDraftKey) {
-      saveReportDraft(reportDraftKey, documentDraft);
+    if (savedDraft) {
+      return;
     }
-  }, [documentDraft, loadedDraftKey, reportDraftKey]);
+
+    const legacyDraft = readLegacyReportDraft(reportDraftKey, project.id, date);
+    if (!legacyDraft) {
+      return;
+    }
+
+    const migratedDraft = mergeReportDocumentDraft(markReportDraftEditsAgainstGenerated(legacyDraft, generatedDraft), generatedDraft);
+    setData((current) => {
+      if (findReportDraft(current, project.id, date)) {
+        return current;
+      }
+
+      return upsertReportDraft(current, migratedDraft);
+    });
+  }, [date, generatedDraft, project.id, reportDraftKey, savedDraft, setData]);
+
+  const updateDocumentDraft = (updater: (draft: ReportDocumentDraft) => ReportDocumentDraft) => {
+    setData((current) => {
+      const baseDraft = mergeReportDocumentDraft(findReportDraft(current, project.id, date), generatedDraft);
+      const timestamp = nowISO();
+      const nextDraft = updater(baseDraft);
+      return upsertReportDraft(current, {
+        ...nextDraft,
+        createdAt: nextDraft.createdAt || timestamp,
+        updatedAt: timestamp,
+      });
+    });
+  };
 
   const copy = async () => {
     try {
@@ -154,7 +97,21 @@ export function ReportsView({ data }: ReportsViewProps) {
   };
 
   const printReport = () => window.print();
-  const resetDocumentDraft = () => setDocumentDraft(generatedDraft);
+  const resetDocumentDraft = () =>
+    updateDocumentDraft((draft) => ({
+      ...generatedDraft,
+      createdAt: draft.createdAt,
+      updatedAt: nowISO(),
+    }));
+
+  const resetSection = (sectionTitle: string) =>
+    updateDocumentDraft((draft) => ({
+      ...draft,
+      sections: draft.sections.map((section) => {
+        const generatedSection = generatedDraft.sections.find((item) => item.title === sectionTitle);
+        return generatedSection && section.title === sectionTitle ? generatedSection : section;
+      }),
+    }));
 
   return (
     <div className="page page--reports">
@@ -197,13 +154,17 @@ export function ReportsView({ data }: ReportsViewProps) {
           <Field label="Report title">
             <input
               value={documentDraft.title}
-              onChange={(event) => setDocumentDraft((draft) => ({ ...draft, title: event.target.value }))}
+              onChange={(event) =>
+                updateDocumentDraft((draft) => ({ ...draft, title: event.target.value, titleEdited: true }))
+              }
             />
           </Field>
           <Field label="Summary">
             <textarea
               value={documentDraft.summary}
-              onChange={(event) => setDocumentDraft((draft) => ({ ...draft, summary: event.target.value }))}
+              onChange={(event) =>
+                updateDocumentDraft((draft) => ({ ...draft, summary: event.target.value, summaryEdited: true }))
+              }
               rows={3}
             />
           </Field>
@@ -213,15 +174,19 @@ export function ReportsView({ data }: ReportsViewProps) {
                 <textarea
                   value={section.body}
                   onChange={(event) =>
-                    setDocumentDraft((draft) => ({
+                    updateDocumentDraft((draft) => ({
                       ...draft,
                       sections: draft.sections.map((item, itemIndex) =>
-                        itemIndex === index ? { ...item, body: event.target.value } : item,
+                        itemIndex === index ? { ...item, body: event.target.value, bodyEdited: true } : item,
                       ),
                     }))
                   }
                   rows={4}
                 />
+                <div className="report-editor-section-actions">
+                  <span className="quiet-label">{section.bodyEdited ? 'Edited' : 'Generated'}</span>
+                  {section.bodyEdited ? <Button onClick={() => resetSection(section.title)}>Reset section</Button> : null}
+                </div>
               </Field>
             ))}
           </div>

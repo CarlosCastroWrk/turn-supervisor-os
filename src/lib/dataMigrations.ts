@@ -1,4 +1,4 @@
-import type { AppData, Assignment, Building, CrewMember, Floor, PhotoNote, Project } from '../types';
+import type { AppData, Assignment, Building, CrewMember, Floor, PhotoNote, Project, ReportDocumentDraft } from '../types';
 import { UNIT_WORKFLOW_STATUSES } from './constants';
 
 const DEMO_PROJECT_ID = 'project_west_campus_turn';
@@ -34,6 +34,20 @@ const normalizeAssignment = (assignment: Assignment): Assignment => ({
 const normalizePhotoNote = (photo: PhotoNote): PhotoNote => ({
   ...photo,
   updatedAt: fallbackStamp(photo.createdAt, photo.updatedAt),
+});
+
+const normalizeReportDraft = (draft: ReportDocumentDraft): ReportDocumentDraft => ({
+  ...draft,
+  titleEdited: draft.titleEdited === true,
+  summaryEdited: draft.summaryEdited === true,
+  sections: arrayOrEmpty(draft.sections).map((section) => ({
+    title: typeof section.title === 'string' ? section.title : '',
+    subtitle: typeof section.subtitle === 'string' ? section.subtitle : '',
+    body: typeof section.body === 'string' ? section.body : '',
+    bodyEdited: section.bodyEdited === true,
+  })),
+  createdAt: draft.createdAt || fallbackStamp(undefined, draft.updatedAt),
+  updatedAt: fallbackStamp(draft.createdAt, draft.updatedAt),
 });
 
 const pickActiveProjectId = (projects: Project[], currentActiveProjectId: string) => {
@@ -86,6 +100,7 @@ export const normalizeAppData = (data: AppData): AppData => {
     issues: arrayOrEmpty(data.issues),
     photoNotes: arrayOrEmpty(data.photoNotes).map(normalizePhotoNote),
     dailyLogs: arrayOrEmpty(data.dailyLogs),
+    reportDrafts: arrayOrEmpty(data.reportDrafts).map(normalizeReportDraft),
     trainingQuestions: arrayOrEmpty(data.trainingQuestions),
     activityLogs: arrayOrEmpty(data.activityLogs),
     draftActions: arrayOrEmpty(data.draftActions),

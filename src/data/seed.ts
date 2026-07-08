@@ -294,6 +294,7 @@ export const seedData: AppData = {
   issues,
   photoNotes: [],
   dailyLogs,
+  reportDrafts: [],
   trainingQuestions: createTrainingQuestions(now),
   activityLogs: [
     {

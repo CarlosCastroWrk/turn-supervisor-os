@@ -788,7 +788,7 @@ small {
 }
 
 .list-card--button,
-.unit-card__main {
+.unit-card__open {
   width: 100%;
   border: 0;
   background: transparent;
@@ -1099,13 +1099,99 @@ small {
   color: #ffffff;
 }
 
+.button--compact {
+  min-height: 38px;
+  justify-content: center;
+  padding: 8px 10px;
+}
+
+.status-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-chip {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.status-chip strong {
+  color: var(--text);
+}
+
+.status-chip.is-active {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.status-chip.is-active strong {
+  color: #ffffff;
+}
+
 .unit-card {
   overflow: hidden;
+}
+
+.unit-card--attention {
+  border-color: #f59e0b;
+  box-shadow: inset 4px 0 0 #f59e0b, 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.unit-card__open {
+  display: grid;
+  padding: 0;
+  cursor: pointer;
+}
+
+.unit-card__open:hover,
+.unit-card__open:focus-visible {
+  background: #f8fafc;
 }
 
 .unit-card__main {
   min-height: 88px;
   padding: 14px;
+}
+
+.unit-card__summary {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding: 10px 14px 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.unit-card__summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unit-card__signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #475569;
+}
+
+.unit-card__signal.is-hot {
+  color: var(--red);
 }
 
 .unit-card__statuses {
@@ -1148,6 +1234,15 @@ small {
 
 .quick-status-row {
   padding: 0 14px 14px;
+}
+
+.unit-card .quick-status-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.unit-card .quick-status-row .button {
+  width: 100%;
 }
 
 .detail-header {

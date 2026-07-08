@@ -22,8 +22,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - C3 Draft Batch Safety is implemented with visible-only bulk apply/reject, stale draft flags, and applied unit targets.
 - D1 Clickable Dashboard Stats is implemented with filtered Units navigation from the dashboard.
 - D2 Needs Attention Feed is implemented with actionable dashboard feed cards and suggestion links.
+- D3 Units Scan Upgrade is implemented with needs-attention sorting, counted status chips, tappable unit card bodies, compact quick status actions, and blocker/crew/last-activity context.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is D3 Units Scan Upgrade.
+- The current code slice is D4 Issue Flow Simplification.
 
 ## Current Field Gate
 
@@ -140,7 +141,7 @@ Out of scope:
 - AI-generated priorities.
 - Company/multi-user task assignment.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### D3. Units Scan Upgrade
 
@@ -148,17 +149,41 @@ Purpose:
 
 - Make the Units page faster to scan and update while walking.
 
-Scope:
+Implemented:
 
-- Improve card information hierarchy on iPhone.
-- Keep status and issue context visible.
-- Preserve existing large-list rendering limits.
+- Sorts units by needs-attention rank before ordinary unit-number order.
+- Adds counted status filter chips for All, Blocked, Ready, Not Started, In Progress, and Needs Inspection.
+- Makes the main unit card body tappable while keeping quick update buttons separate.
+- Shows blocker/open issue, crew, open issue count, and last activity context.
+- Keeps the existing 100-at-a-time render limit.
 
 Out of scope:
 
 - Bulk CSV import.
 - Full route/deep-link system.
 - New assignment or crew workflows.
+
+## Current Code Slice
+
+### D4. Issue Flow Simplification
+
+Purpose:
+
+- Make issue capture faster and safer while Los is walking.
+
+Scope:
+
+- Default date and owner.
+- Remove priority from the field form for now.
+- Keep category and unit selection.
+- Add simple safe remove/resolve behavior for accidental issues.
+
+Out of scope:
+
+- Automatic unit status mutation without explicit intent.
+- Delete propagation/tombstones.
+- Report/PDF redesign.
+- Bulk issue import.
 
 ## Slice Protocol
 

@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through D2 Needs Attention Feed
+A2 Draft Apply Safety through D3 Units Scan Upgrade
 ```
 
 Production:
@@ -43,6 +43,7 @@ Every near-term change should serve that loop.
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
 - Clickable dashboard stat cards that navigate to filtered unit lists
 - Needs Attention and Smart Suggestion dashboard cards that navigate to the relevant unit, issue, assignment, or daily log view
+- Units page scan upgrades with needs-attention sorting, counted status filter chips, larger tappable unit cards, compact quick status actions, and visible blocker/crew/last-activity context
 - Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and deterministic smart suggestions
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
 - PWA manifest and service worker
@@ -141,4 +142,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice is D3 Units Scan Upgrade.
+While that physical-device check is pending, the next code slice is D4 Issue Flow Simplification.

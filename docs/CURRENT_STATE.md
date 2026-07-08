@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through C2 Unit-Boundary Parser
+A2 Draft Apply Safety through C3 Draft Batch Safety
 ```
 
 Production:
@@ -52,6 +52,7 @@ Every near-term change should serve that loop.
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
 - Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
+- Draft batch safety that scopes bulk approval/rejection to visible drafts, flags stale pending drafts, and opens applied unit targets
 - Parser eval coverage for punctuation-free field notes and deterministic draft targets
 - Unit-boundary parser behavior that splits punctuation-free captures by unit, parses simple crew movement, and requires confirmation for conflicting same-unit drafts
 - Number input safety that fixes setup/count-field leading-zero editing behavior
@@ -138,4 +139,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice is C3 Draft Batch Safety.
+While that physical-device check is pending, the next code slice is D1 Clickable Dashboard Stats.

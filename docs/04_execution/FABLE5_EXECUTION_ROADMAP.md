@@ -215,6 +215,8 @@ Acceptance:
 
 ### C3. Draft Batch Safety
 
+Status: implemented in the C3 Draft Batch Safety release slice.
+
 Scope:
 
 - Group drafts by capture batch.

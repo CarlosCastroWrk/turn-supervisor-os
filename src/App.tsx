@@ -34,7 +34,7 @@ function App() {
   return (
     <AppShell activeView={activeView} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
       {activeView === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
-      {activeView === 'copilot' ? <CopilotView data={data} setData={setData} /> : null}
+      {activeView === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
       {activeView === 'setup' ? <SetupView data={data} setData={setData} /> : null}
       {activeView === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} /> : null}
       {activeView === 'unitDetail' ? (

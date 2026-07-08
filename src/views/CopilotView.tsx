@@ -23,11 +23,12 @@ import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, nowISO, todayISO } from '../lib/constants';
-import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
+import type { AppData, AppView, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
 
 interface CopilotViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
+  onNavigate: (view: AppView, unitId?: string) => void;
 }
 
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
@@ -84,6 +85,20 @@ const modeLabels: { mode: CopilotMode; label: string }[] = [
 ];
 
 const confidenceLabel = (value: number) => `${Math.round(value * 100)}%`;
+const payloadString = (draft: DraftAction, key: string) => {
+  const value = draft.payload[key];
+  return typeof value === 'string' ? value : '';
+};
+const captureBatchId = (draft: DraftAction) => payloadString(draft, 'captureBatchId');
+const isStalePendingDraft = (draft: DraftAction) => draft.status === 'pending' && draft.createdAt.slice(0, 10) !== todayISO();
+const draftTargetLabel = (draft: DraftAction) => {
+  const unitNumber = payloadString(draft, 'unitNumber');
+  if (unitNumber) return `Unit ${unitNumber}`;
+  if (draft.targetEntityType === 'issue') return 'Issues';
+  if (draft.targetEntityType === 'assignment' || draft.targetEntityType === 'crew') return 'Assignments';
+  if (draft.targetEntityType === 'dailyLog') return 'Daily Log';
+  return draft.targetEntityType;
+};
 
 const emptyDailyLog = (projectId: string, date: string): DailyLog => {
   const now = nowISO();
@@ -105,14 +120,20 @@ const emptyDailyLog = (projectId: string, date: string): DailyLog => {
 
 function DraftActionCard({
   draft,
+  isStale,
+  targetLabel,
   onApply,
   onConfirmConflictAndApply,
+  onOpenTarget,
   onReject,
   onSavePayload,
 }: {
   draft: DraftAction;
+  isStale: boolean;
+  targetLabel: string;
   onApply: () => void;
   onConfirmConflictAndApply: () => void;
+  onOpenTarget?: () => void;
   onReject: () => void;
   onSavePayload: (payload: Record<string, unknown>) => void;
 }) {
@@ -143,13 +164,16 @@ function DraftActionCard({
       </div>
       <p>{draft.summary}</p>
       <div className="draft-meta">
-        <span>Target: {draft.targetEntityType}</span>
+        <span>Target: {targetLabel}</span>
         <span>Confidence: {confidenceLabel(draft.confidence)}</span>
+        {captureBatchId(draft) ? <span>Batch: {captureBatchId(draft).slice(-6)}</span> : null}
+        {isStale ? <span>Stale</span> : null}
       </div>
       <details>
         <summary>Why this draft exists</summary>
         <p>{draft.why}</p>
       </details>
+      {isStale ? <p className="error-text">This pending draft is from a previous day. Review it by itself before approving.</p> : null}
       {needsConflictConfirmation ? (
         <p className="error-text">
           This conflicts with another draft from the same capture. Confirm this is the correct update before approving.
@@ -160,8 +184,13 @@ function DraftActionCard({
       </Field>
       {payloadError ? <p className="error-text">{payloadError}</p> : null}
       {draft.error ? <p className="error-text">{draft.error}</p> : null}
-      {draft.status === 'applied' ? <p className="success-text">Applied. The linked board record was updated.</p> : null}
+      {draft.status === 'applied' ? <p className="success-text">Applied to {targetLabel}.</p> : null}
       {draft.status === 'rejected' ? <p className="muted">Rejected. No board record was changed.</p> : null}
+      {draft.status === 'applied' && onOpenTarget ? (
+        <div className="button-row">
+          <Button onClick={onOpenTarget}>Open {targetLabel}</Button>
+        </div>
+      ) : null}
       {isActionable ? (
         <div className="button-row">
           <Button onClick={savePayload}>
@@ -227,7 +256,7 @@ function MemoryCandidateCard({
   );
 }
 
-export function CopilotView({ data, setData }: CopilotViewProps) {
+export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -237,6 +266,7 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
   const [voiceStatus, setVoiceStatus] = useState('');
   const [parseSummary, setParseSummary] = useState('');
   const [draftFilter, setDraftFilter] = useState<DraftFilter>('pending');
+  const [activeDraftBatchId, setActiveDraftBatchId] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
   const [askInput, setAskInput] = useState('');
   const [askResult, setAskResult] = useState<AskOsResult | null>(null);
@@ -254,12 +284,25 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
     }),
     [data.draftActions],
   );
+  const latestPendingBatchId = useMemo(() => {
+    const latestPendingDraft = data.draftActions.find((draft) => draft.status === 'pending' && captureBatchId(draft));
+    return latestPendingDraft ? captureBatchId(latestPendingDraft) : '';
+  }, [data.draftActions]);
+  const selectedPendingBatchId = activeDraftBatchId || latestPendingBatchId || '';
   const visibleDrafts = useMemo(() => {
     if (draftFilter === 'all') {
       return data.draftActions.slice(0, 20);
     }
-    return data.draftActions.filter((draft) => draft.status === draftFilter).slice(0, 20);
-  }, [data.draftActions, draftFilter]);
+    const byStatus = data.draftActions.filter((draft) => draft.status === draftFilter);
+    if (draftFilter === 'pending' && selectedPendingBatchId) {
+      return byStatus.filter((draft) => captureBatchId(draft) === selectedPendingBatchId).slice(0, 20);
+    }
+    return byStatus.slice(0, 20);
+  }, [data.draftActions, draftFilter, selectedPendingBatchId]);
+  const visiblePendingDraftIds = useMemo(
+    () => visibleDrafts.filter((draft) => draft.status === 'pending').map((draft) => draft.id),
+    [visibleDrafts],
+  );
   const pendingMemory = data.memoryCandidates.filter((candidate) => candidate.status === 'pending');
   const quickInputReady = quickInput.trim().length > 0;
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
@@ -341,8 +384,12 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
     setParseSummary(result.summary);
     setDraftNotice('');
     setDraftFilter('pending');
+    const batchId = createId('capture_batch');
+    if (result.draftActions.length > 0) {
+      setActiveDraftBatchId(batchId);
+    }
     setData((current) => {
-      let next = addDraftActions(current, result.draftActions, quickInput);
+      let next = addDraftActions(current, result.draftActions, quickInput, batchId);
       next = addMemoryCandidates(next, result.memoryCandidates);
       return addAgentRun(next, 'quick_capture', quickInput, result);
     });
@@ -401,16 +448,54 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
   };
 
   const applyPendingDrafts = () => {
-    setData((current) => applyAllPendingDraftActions(current));
-    setDraftNotice('Approved pending drafts. Applied items moved to Applied; anything blocked moved to Failed.');
+    const count = visiblePendingDraftIds.length;
+    setData((current) => applyAllPendingDraftActions(current, visiblePendingDraftIds));
+    setDraftNotice(`Approved ${count} visible pending draft(s). Applied items moved to Applied; anything blocked moved to Failed.`);
     setDraftFilter('applied');
   };
 
   const rejectPendingDrafts = () => {
-    setData((current) => rejectAllPendingDraftActions(current));
-    setDraftNotice('Rejected pending drafts. They moved to Rejected and no board records changed.');
+    const count = visiblePendingDraftIds.length;
+    setData((current) => rejectAllPendingDraftActions(current, visiblePendingDraftIds));
+    setDraftNotice(`Rejected ${count} visible pending draft(s). They moved to Rejected and no board records changed.`);
     setDraftFilter('rejected');
   };
+
+  const openDraftTarget = (draft: DraftAction) => {
+    const unitNumber = payloadString(draft, 'unitNumber');
+    const unitId =
+      draft.targetEntityId ??
+      data.units.find((unit) => unit.projectId === data.activeProjectId && unitNumber && unit.unitNumber === unitNumber)?.id;
+
+    if (unitId && (draft.targetEntityType === 'unit' || unitNumber)) {
+      onNavigate('unitDetail', unitId);
+      return;
+    }
+
+    if (draft.type === 'CREATE_ISSUE' || draft.type === 'UPDATE_ISSUE') {
+      onNavigate('issues');
+      return;
+    }
+
+    if (draft.type === 'CREATE_ASSIGNMENT' || draft.type === 'UPDATE_ASSIGNMENT') {
+      onNavigate('assignments');
+      return;
+    }
+
+    if (draft.type === 'ADD_DAILY_LOG_ENTRY') {
+      onNavigate('daily');
+    }
+  };
+
+  const canOpenDraftTarget = (draft: DraftAction) =>
+    Boolean(
+      (draft.targetEntityType === 'unit' && (draft.targetEntityId || payloadString(draft, 'unitNumber'))) ||
+        draft.type === 'CREATE_ISSUE' ||
+        draft.type === 'UPDATE_ISSUE' ||
+        draft.type === 'CREATE_ASSIGNMENT' ||
+        draft.type === 'UPDATE_ASSIGNMENT' ||
+        draft.type === 'ADD_DAILY_LOG_ENTRY',
+    );
 
   const saveRawNoteOnly = () => {
     if (!quickInput.trim()) {
@@ -572,9 +657,9 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
             kicker={`${draftCounts.pending} pending`}
             action={
               <div className="button-row">
-                <Button disabled={draftCounts.pending === 0} onClick={applyPendingDrafts}>Approve All</Button>
-                <Button disabled={draftCounts.pending === 0} variant="ghost" onClick={rejectPendingDrafts}>
-                  Reject All
+                <Button disabled={visiblePendingDraftIds.length === 0} onClick={applyPendingDrafts}>Approve Visible</Button>
+                <Button disabled={visiblePendingDraftIds.length === 0} variant="ghost" onClick={rejectPendingDrafts}>
+                  Reject Visible
                 </Button>
               </div>
             }
@@ -592,15 +677,23 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
                 </button>
               ))}
             </div>
-            <p className="muted">Approved drafts update the board. Rejected drafts stay in Rejected and do not change records.</p>
+            <p className="muted">
+              Approved drafts update the board. Bulk actions only affect the visible pending drafts in this view.
+            </p>
+            {draftFilter === 'pending' && selectedPendingBatchId ? (
+              <p className="muted">Showing the current capture batch. Use All to review older drafts.</p>
+            ) : null}
             {draftNotice ? <p className="success-text">{draftNotice}</p> : null}
             <div className="draft-list">
               {visibleDrafts.map((draft) => (
                 <DraftActionCard
                   key={draft.id}
                   draft={draft}
+                  isStale={isStalePendingDraft(draft)}
+                  targetLabel={draftTargetLabel(draft)}
                   onApply={() => applyOneDraft(draft)}
                   onConfirmConflictAndApply={() => confirmConflictAndApplyOneDraft(draft)}
+                  onOpenTarget={canOpenDraftTarget(draft) ? () => openDraftTarget(draft) : undefined}
                   onReject={() => rejectOneDraft(draft)}
                   onSavePayload={(payload) => setData((current) => updateDraftAction(current, draft.id, { payload }))}
                 />

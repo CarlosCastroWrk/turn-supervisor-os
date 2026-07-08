@@ -387,23 +387,36 @@ export const addPhotoNote = (data: AppData, photo: PhotoNote): AppData => ({
   ],
 });
 
-export const addDraftActions = (data: AppData, draftActions: DraftAction[], sourceNote: string): AppData => ({
-  ...data,
-  draftActions: [...draftActions, ...data.draftActions],
-  activityLogs:
-    draftActions.length > 0
-      ? [
-          activity(
-            data.activeProjectId,
-            'DraftAction',
-            draftActions[0].id,
-            'Created draft actions',
-            `${draftActions.length} draft action(s) from Quick Capture: ${sourceNote.slice(0, 120)}`,
-          ),
-          ...data.activityLogs,
-        ]
-      : data.activityLogs,
-});
+export const addDraftActions = (data: AppData, draftActions: DraftAction[], sourceNote: string, batchId = createId('capture_batch')): AppData => {
+  const captureCreatedAt = nowISO();
+  const batchedDraftActions = draftActions.map((draft) => ({
+    ...draft,
+    payload: {
+      ...draft.payload,
+      captureBatchId: typeof draft.payload.captureBatchId === 'string' ? draft.payload.captureBatchId : batchId,
+      captureCreatedAt,
+      captureSourceNote: sourceNote,
+    },
+  }));
+
+  return {
+    ...data,
+    draftActions: [...batchedDraftActions, ...data.draftActions],
+    activityLogs:
+      batchedDraftActions.length > 0
+        ? [
+            activity(
+              data.activeProjectId,
+              'DraftAction',
+              batchedDraftActions[0].id,
+              'Created draft actions',
+              `${batchedDraftActions.length} draft action(s) from Quick Capture: ${sourceNote.slice(0, 120)}`,
+            ),
+            ...data.activityLogs,
+          ]
+        : data.activityLogs,
+  };
+};
 
 export const updateDraftAction = (data: AppData, draftActionId: EntityId, patch: Partial<DraftAction>): AppData => ({
   ...data,
@@ -799,12 +812,21 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
   return failDraft(next, draft, 'This draft action type is not implemented yet.');
 };
 
-export const applyAllPendingDraftActions = (data: AppData): AppData =>
-  data.draftActions
-    .filter((draft) => draft.status === 'pending')
+const pendingDraftsForAction = (data: AppData, draftIds?: EntityId[]) => {
+  const allowedIds = draftIds ? new Set(draftIds) : undefined;
+  return data.draftActions.filter((draft) => draft.status === 'pending' && (!allowedIds || allowedIds.has(draft.id)));
+};
+
+export const applyAllPendingDraftActions = (data: AppData, draftIds?: EntityId[]): AppData =>
+  pendingDraftsForAction(data, draftIds)
     .reduce((current, draft) => applyDraftAction(current, draft.id), data);
 
-export const rejectAllPendingDraftActions = (data: AppData): AppData => ({
-  ...data,
-  draftActions: data.draftActions.map((draft) => (draft.status === 'pending' ? { ...draft, status: 'rejected' } : draft)),
-});
+export const rejectAllPendingDraftActions = (data: AppData, draftIds?: EntityId[]): AppData => {
+  const allowedIds = draftIds ? new Set(draftIds) : undefined;
+  return {
+    ...data,
+    draftActions: data.draftActions.map((draft) =>
+      draft.status === 'pending' && (!allowedIds || allowedIds.has(draft.id)) ? { ...draft, status: 'rejected' } : draft,
+    ),
+  };
+};

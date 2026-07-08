@@ -376,19 +376,22 @@ Acceptance:
 
 ### P0 Report Thaw / Backup
 
+Status: implemented in the P0 Report Thaw / Backup and Report Draft Supabase Sync release slices.
+
 Scope:
 
 - Keep generated report sections updating until Los edits that section.
 - Preserve edited title, summary, and section bodies without freezing untouched sections.
 - Move report drafts into AppData so JSON backup includes report edits.
 - Add per-section reset behavior.
+- Sync editable report drafts through Supabase after explicit migration approval.
 
 Acceptance:
 
 - Opening a report in the morning does not permanently freeze empty generated sections.
 - Edited sections remain under Los's control.
 - JSON backup includes report draft edits.
-- Supabase report-draft sync is documented as a separate migration decision.
+- Supabase report-draft sync uses owner-scoped RLS, Realtime, and demo-boundary protection.
 
 ### E3. Daily Log Auto-Draft
 
@@ -512,8 +515,9 @@ Only after the field-safe deterministic version is trusted.
 20. P0 Parser And Stale Unit Safety
 21. P0 Sync Trust / Pull Pagination
 22. P0 Report Thaw
-23. E3 Daily Log Auto-Draft
-24. F1 IndexedDB Photo Store
-25. F2 Supabase Storage Photo Sync
+23. P0 Report Draft Supabase Sync
+24. E3 Daily Log Auto-Draft
+25. F1 IndexedDB Photo Store
+26. F2 Supabase Storage Photo Sync
 
 This order can change if real-device testing finds a higher-risk failure.

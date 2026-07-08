@@ -8,7 +8,7 @@ import {
   syncedTables,
   uploadLocalData,
 } from '../src/lib/supabase/sync.ts';
-import type { AppData, Project, Unit } from '../src/types.ts';
+import type { AppData, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
 
 type RemoteRow = Record<string, unknown>;
 type RangeCall = { from: number; table: string; to: number };
@@ -57,6 +57,26 @@ const unit = (updatedAt = stamp, notes = 'local stale note'): Unit => ({
   updatedAt,
 });
 
+const reportDraft = (updatedAt = stamp): ReportDocumentDraft => ({
+  id: 'project_sync_pull:2026-07-08',
+  projectId: 'project_sync_pull',
+  date: '2026-07-08',
+  title: 'Edited Turn Report',
+  titleEdited: true,
+  summary: 'Edited report summary',
+  summaryEdited: true,
+  sections: [
+    {
+      title: 'Open Issues',
+      subtitle: 'Needs attention',
+      body: 'Unit 203 waiting on paint',
+      bodyEdited: true,
+    },
+  ],
+  createdAt: stamp,
+  updatedAt,
+});
+
 const appData = (localProject = project(), localUnit = unit()): AppData => ({
   activeProjectId: localProject.id,
   projects: [localProject],
@@ -68,6 +88,7 @@ const appData = (localProject = project(), localUnit = unit()): AppData => ({
   issues: [],
   photoNotes: [],
   dailyLogs: [],
+  reportDrafts: [],
   trainingQuestions: [],
   activityLogs: [],
   draftActions: [],
@@ -122,6 +143,26 @@ const unitRow = (updatedAt = stamp, notes = 'cloud newer note'): RemoteRow => ({
   updated_at: updatedAt,
 });
 
+const reportDraftRow = (updatedAt = stamp): RemoteRow => ({
+  id: 'project_sync_pull:2026-07-08',
+  project_id: 'project_sync_pull',
+  date: '2026-07-08',
+  title: 'Cloud Edited Turn Report',
+  title_edited: true,
+  summary: 'Cloud edited report summary',
+  summary_edited: true,
+  sections: [
+    {
+      title: 'Open Issues',
+      subtitle: 'Needs attention',
+      body: 'Unit 203 waiting on paint',
+      bodyEdited: true,
+    },
+  ],
+  created_at: stamp,
+  updated_at: updatedAt,
+});
+
 const rowsByTable = (overrides: Record<string, RemoteRow[]> = {}) =>
   new Map(syncedTables.map((table) => [table, overrides[table] ?? []]));
 
@@ -171,6 +212,45 @@ test('fetchRemoteData paginates table pulls past the Supabase 1000-row default',
     { from: 0, to: remotePullPageSize - 1 },
     { from: remotePullPageSize, to: remotePullPageSize * 2 - 1 },
   ]);
+});
+
+test('fetchRemoteData maps report draft rows with edited section state', async () => {
+  const result = await fetchRemoteData(
+    asSupabaseClient(
+      fakeClient(
+        rowsByTable({
+          report_drafts: [reportDraftRow()],
+        }),
+      ),
+    ),
+  );
+
+  const draft = result.remote.reportDrafts?.[0];
+
+  assert.equal(draft?.id, 'project_sync_pull:2026-07-08');
+  assert.equal(draft?.title, 'Cloud Edited Turn Report');
+  assert.equal(draft?.titleEdited, true);
+  assert.equal(draft?.summaryEdited, true);
+  assert.equal(draft?.sections[0]?.bodyEdited, true);
+  assert.equal(draft?.sections[0]?.body, 'Unit 203 waiting on paint');
+});
+
+test('uploadLocalData serializes edited report drafts for Supabase upsert', async () => {
+  const upsertCalls: UpsertCall[] = [];
+  const local = {
+    ...appData(),
+    reportDrafts: [reportDraft('2026-07-08T12:05:00.000Z')],
+  };
+
+  const result = await uploadLocalData(asSupabaseClient(fakeClient(rowsByTable(), [], upsertCalls)), local, {});
+  const reportDraftUpsert = upsertCalls.find((call) => call.table === 'report_drafts');
+  const row = reportDraftUpsert?.rows[0];
+
+  assert.equal(result.uploadedTables.includes('report_drafts'), true);
+  assert.equal(row?.project_id, 'project_sync_pull');
+  assert.equal(row?.title_edited, true);
+  assert.equal(Array.isArray(row?.sections), true);
+  assert.equal((row?.sections as ReportDocumentDraft['sections'])?.[0]?.bodyEdited, true);
 });
 
 test('pull-before-upload keeps a newer cloud row from being re-overwritten by a stale local row', async () => {

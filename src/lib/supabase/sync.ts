@@ -13,6 +13,7 @@ import type {
   MemoryCandidate,
   PhotoNote,
   Project,
+  ReportDocumentDraft,
   TrainingQuestion,
   Unit,
 } from '../../types';
@@ -103,6 +104,23 @@ const stringArray = (row: Row, key: string) => {
 const objectValue = (row: Row, key: string) => {
   const value = row[key];
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+};
+
+const reportSectionsValue = (row: Row, key: string): ReportDocumentDraft['sections'] => {
+  const value = row[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.map((section) => {
+    const raw = section && typeof section === 'object' && !Array.isArray(section) ? (section as Record<string, unknown>) : {};
+    return {
+      title: typeof raw.title === 'string' ? raw.title : '',
+      subtitle: typeof raw.subtitle === 'string' ? raw.subtitle : '',
+      body: typeof raw.body === 'string' ? raw.body : '',
+      bodyEdited: raw.bodyEdited === true,
+    };
+  });
 };
 
 const tableConfigs: SyncTable<{ id: string }>[] = [
@@ -442,6 +460,38 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
       }) satisfies DailyLog,
   },
   {
+    key: 'reportDrafts',
+    table: 'report_drafts',
+    toRow: (item) => {
+      const draft = item as ReportDocumentDraft;
+      return {
+        id: draft.id,
+        project_id: draft.projectId,
+        date: draft.date,
+        title: draft.title,
+        title_edited: draft.titleEdited,
+        summary: draft.summary,
+        summary_edited: draft.summaryEdited,
+        sections: draft.sections,
+        created_at: draft.createdAt,
+        updated_at: draft.updatedAt,
+      };
+    },
+    fromRow: (row) =>
+      ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'project_id'),
+        date: stringValue(row, 'date'),
+        title: stringValue(row, 'title'),
+        titleEdited: booleanValue(row, 'title_edited'),
+        summary: stringValue(row, 'summary'),
+        summaryEdited: booleanValue(row, 'summary_edited'),
+        sections: reportSectionsValue(row, 'sections'),
+        createdAt: stringValue(row, 'created_at', nowISO()),
+        updatedAt: stringValue(row, 'updated_at', nowISO()),
+      }) satisfies ReportDocumentDraft,
+  },
+  {
     key: 'trainingQuestions',
     table: 'training_questions',
     toRow: (item) => {
@@ -646,6 +696,7 @@ export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData
     issues: mergeRows(local.issues, (remote.issues ?? []) as Issue[]),
     photoNotes: mergePhotoNotes(local.photoNotes, (remote.photoNotes ?? []) as PhotoNote[]),
     dailyLogs: mergeRows(local.dailyLogs, (remote.dailyLogs ?? []) as DailyLog[]),
+    reportDrafts: mergeRows(local.reportDrafts, (remote.reportDrafts ?? []) as ReportDocumentDraft[]),
     trainingQuestions: mergeRows(local.trainingQuestions, (remote.trainingQuestions ?? []) as TrainingQuestion[]),
     activityLogs: mergeRows(local.activityLogs, (remote.activityLogs ?? []) as ActivityLog[]),
     draftActions: mergeRows(local.draftActions, (remote.draftActions ?? []) as DraftAction[]),
@@ -781,6 +832,7 @@ const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
     issues: (remoteWithLocalDemo.issues ?? local.issues) as Issue[],
     photoNotes: (remoteWithLocalDemo.photoNotes ?? local.photoNotes) as PhotoNote[],
     dailyLogs: (remoteWithLocalDemo.dailyLogs ?? local.dailyLogs) as DailyLog[],
+    reportDrafts: (remoteWithLocalDemo.reportDrafts ?? local.reportDrafts) as ReportDocumentDraft[],
     trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
     activityLogs: (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
     draftActions: (remoteWithLocalDemo.draftActions ?? local.draftActions) as DraftAction[],

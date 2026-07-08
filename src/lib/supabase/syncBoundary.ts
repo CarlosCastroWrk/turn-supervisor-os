@@ -11,6 +11,7 @@ import type {
   MemoryCandidate,
   PhotoNote,
   Project,
+  ReportDocumentDraft,
   TrainingQuestion,
   Unit,
 } from '../../types';
@@ -25,6 +26,7 @@ export type SyncBoundaryKey =
   | 'issues'
   | 'photoNotes'
   | 'dailyLogs'
+  | 'reportDrafts'
   | 'trainingQuestions'
   | 'activityLogs'
   | 'draftActions'
@@ -44,6 +46,7 @@ interface DemoSyncBoundary {
   demoIssueIds: Set<string>;
   demoPhotoNoteIds: Set<string>;
   demoDailyLogIds: Set<string>;
+  demoReportDraftIds: Set<string>;
   demoActivityLogIds: Set<string>;
 }
 
@@ -87,6 +90,9 @@ export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
     data.photoNotes.filter((photo) => demoProjectIds.has(photo.projectId)).map((photo) => photo.id),
   );
   const demoDailyLogIds = new Set(data.dailyLogs.filter((log) => demoProjectIds.has(log.projectId)).map((log) => log.id));
+  const demoReportDraftIds = new Set(
+    data.reportDrafts.filter((draft) => demoProjectIds.has(draft.projectId)).map((draft) => draft.id),
+  );
   const demoActivityLogIds = new Set(
     data.activityLogs.filter((log) => demoProjectIds.has(log.projectId)).map((log) => log.id),
   );
@@ -101,6 +107,7 @@ export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
     demoIssueIds,
     demoPhotoNoteIds,
     demoDailyLogIds,
+    demoReportDraftIds,
     demoActivityLogIds,
   };
 };
@@ -129,6 +136,8 @@ export const isDemoScopedSyncItem = (
       return boundary.demoPhotoNoteIds.has(item.id);
     case 'dailyLogs':
       return boundary.demoDailyLogIds.has(item.id);
+    case 'reportDrafts':
+      return boundary.demoReportDraftIds.has(item.id);
     case 'activityLogs':
       return boundary.demoActivityLogIds.has(item.id);
     case 'draftActions': {
@@ -191,6 +200,10 @@ export const withLocalDemoRows = (local: AppData, remote: SyncRemoteData): SyncR
     dailyLogs: appendMissingRows(
       remote.dailyLogs as DailyLog[] | undefined,
       local.dailyLogs.filter((log) => boundary.demoDailyLogIds.has(log.id)),
+    ),
+    reportDrafts: appendMissingRows(
+      remote.reportDrafts as ReportDocumentDraft[] | undefined,
+      local.reportDrafts.filter((draft) => boundary.demoReportDraftIds.has(draft.id)),
     ),
     activityLogs: appendMissingRows(
       remote.activityLogs as ActivityLog[] | undefined,

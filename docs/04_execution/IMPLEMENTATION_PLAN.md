@@ -14,37 +14,43 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - A2 Draft Apply Safety is shipped in `6697278`.
 - A3 Number Input Safety is shipped in `6c34eb8`.
 - A4 Report Date Safety is shipped in `72ddd4a`.
-- The current implementation branch is `codex/issue-status-safety`.
+- A5 Issue Status Safety is shipped in `9f5169e`.
+- There is no active implementation branch.
+- The next ordered slice is B1 Project Archive, but it is blocked until Los explicitly approves Supabase migration/sync-schema work.
 
 ## Current Slice
 
-### A5. Issue Status Safety
+### B1. Project Archive
 
 Purpose:
 
-- Stop ordinary issue creation from silently changing unit board status. Status-changing issue behavior must require explicit intent from Los.
+- Let Los safely hide duplicate/test Real Turn projects without true-deleting records or losing backup/sync safety.
 
 Scope:
 
-- Add an explicit `Blocks this unit` control to issue creation flows.
-- Default issue creation to issue-only.
-- Only update linked unit overall status when `Blocks this unit` is selected.
-- Keep issue resolution from silently guessing unit readiness.
-- Add regression tests for non-blocking, blocking, and resolved issue flows.
+- Add a soft archive field to projects.
+- Hide archived projects from normal setup switchers and active project choices.
+- Require backup warning before archive.
+- Keep archive state synced across devices.
+- Do not true-delete records.
 
 Out of scope:
 
 - True delete/tombstones.
-- Full issue/archive workflow redesign.
-- Conflict review UI.
-- Automatic status derivation after issue resolution.
+- Supabase data cleanup.
+- Multi-user/company project management.
+- Bulk archive or restore tooling beyond the minimum safe flow.
 
 Acceptance:
 
-- Creating a non-blocking issue does not change the linked unit status.
-- Blocking status requires Los to check `Blocks this unit`.
-- Resolving an issue does not silently mark a unit ready or alter its status.
-- Existing issue creation remains fast on iPhone/iPad.
+- Duplicate/test Real Turn projects can be hidden without deleting local or cloud records.
+- Archived projects do not appear in normal active project switching.
+- Archive status survives reload and sync.
+- Any Supabase migration/sync-schema change has explicit approval before implementation.
+
+Blocked decision:
+
+- B1 likely requires a Supabase migration/sync mapping change so archive state works across Mac, iPhone, and iPad. Fresh approval is required before Codex starts that work.
 
 ## Slice Protocol
 

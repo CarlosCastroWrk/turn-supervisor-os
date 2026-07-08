@@ -4,19 +4,16 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] A5 Issue Status Safety on `codex/issue-status-safety`
-  - [x] Stop issue creation from automatically changing linked unit status.
-  - [x] Add explicit `Blocks this unit` control for status-changing issues.
-  - [x] Keep issue resolution from guessing unit status.
-  - [x] Add issue/status regression tests.
-  - [ ] Commit, push, PR, merge, deploy under standing release authorization.
+- [ ] No active implementation slice.
+  - [ ] Next ordered slice is B1 Project Archive.
+  - [ ] B1 requires fresh explicit approval before any Supabase migration or sync-schema work.
+  - [ ] If B1 approval is deferred, the next safe non-migration slice is C1 Dictation Parser Eval Suite.
 
 ## P0: Must Clear Before Real Field Reliance
 
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] B1 Project Archive: safely hide duplicate/test Real Turn projects.
 - [ ] B2 Demo Sync Boundary: keep demo practice data out of real cloud work.
 - [ ] C1 Dictation Parser Eval Suite.
 - [ ] C2 Unit-Boundary Parser for punctuation-free field notes.
@@ -63,6 +60,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## Blocked
 
 - Real Property Doctor Services workflow details remain partially blocked until training clarifies what Los actually supervises day to day.
+- B1 Project Archive requires explicit approval before Supabase migration or sync-schema work.
 - Supabase one-time cleanup for duplicate/demo cloud records requires explicit approval before any data-changing command.
 
 ## Done
@@ -90,3 +88,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] A2 Draft Apply Safety: active-project draft lookup, enum validation, regression tests, and production deploy.
 - [x] A3 Number Input Safety: shared integer input behavior, iOS numeric keyboard hints, leading-zero fix, and production deploy.
 - [x] A4 Report Date Safety: selected-date reports, missing-log draft labels, placeholder removal, and production deploy.
+- [x] A5 Issue Status Safety: explicit `Blocks this unit` behavior, non-blocking issue creation, status-resolution guard, and production deploy.

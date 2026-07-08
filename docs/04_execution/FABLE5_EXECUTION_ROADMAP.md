@@ -110,7 +110,7 @@ Acceptance:
 
 ### A5. Issue Status Safety
 
-Status: in progress on `codex/issue-status-safety`.
+Status: shipped in `9f5169e`.
 
 Scope:
 
@@ -129,6 +129,8 @@ Acceptance:
 These slices clean up test noise and reduce resurrection/duplication risks.
 
 ### B1. Project Archive
+
+Status: blocked until Los explicitly approves the Supabase migration/sync-schema portion.
 
 Scope:
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
-import { addIssueWithOptionalUnitBlock, updateIssue } from '../src/lib/actions.ts';
+import { addIssueWithOptionalUnitBlock, closeIssueFromBoard, resolveIssue, updateIssue } from '../src/lib/actions.ts';
 import type { AppData, Issue } from '../src/types.ts';
 
 const cloneSeed = (): AppData => JSON.parse(JSON.stringify(seedData)) as AppData;
@@ -61,4 +61,38 @@ test('resolving an issue does not silently guess or overwrite the linked unit st
 
   assert.equal(updatedUnit?.overallStatus, 'Ready');
   assert.equal(next.issues[0].status, 'Resolved');
+});
+
+test('resolveIssue keeps the issue row and leaves the linked unit status unchanged', () => {
+  const data = cloneSeed();
+  const readyUnit = data.units.find((unit) => unit.id === 'unit_102');
+  assert.ok(readyUnit);
+
+  const withIssue = addIssueWithOptionalUnitBlock(data, issueForUnit(readyUnit.id), false);
+  const issue = withIssue.issues[0];
+  const next = resolveIssue(withIssue, issue.id);
+  const updatedUnit = next.units.find((unit) => unit.id === readyUnit.id);
+  const resolvedIssue = next.issues.find((item) => item.id === issue.id);
+
+  assert.equal(next.issues.length, withIssue.issues.length);
+  assert.equal(resolvedIssue?.status, 'Resolved');
+  assert.equal(resolvedIssue?.resolutionNotes, 'Resolved from issue board.');
+  assert.equal(updatedUnit?.overallStatus, 'Ready');
+});
+
+test('closeIssueFromBoard soft closes without deleting the issue or changing the linked unit', () => {
+  const data = cloneSeed();
+  const readyUnit = data.units.find((unit) => unit.id === 'unit_102');
+  assert.ok(readyUnit);
+
+  const withIssue = addIssueWithOptionalUnitBlock(data, issueForUnit(readyUnit.id), false);
+  const issue = withIssue.issues[0];
+  const next = closeIssueFromBoard(withIssue, issue.id);
+  const updatedUnit = next.units.find((unit) => unit.id === readyUnit.id);
+  const closedIssue = next.issues.find((item) => item.id === issue.id);
+
+  assert.equal(next.issues.length, withIssue.issues.length);
+  assert.equal(closedIssue?.status, 'Closed');
+  assert.equal(closedIssue?.resolutionNotes, 'Removed from normal issue board.');
+  assert.equal(updatedUnit?.overallStatus, 'Ready');
 });

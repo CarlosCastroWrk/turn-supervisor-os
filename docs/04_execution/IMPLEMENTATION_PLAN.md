@@ -24,8 +24,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - D2 Needs Attention Feed is implemented with actionable dashboard feed cards and suggestion links.
 - D3 Units Scan Upgrade is implemented with needs-attention sorting, counted status chips, tappable unit card bodies, compact quick status actions, and blocker/crew/last-activity context.
 - D4 Issue Flow Simplification is implemented with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board.
+- D5 Sidebar And Responsive Frame is implemented with a page-attached desktop/sidebar layout, persisted collapsed state, compact tablet Capture behavior, and responsive smoke coverage.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is D5 Sidebar And Responsive Frame.
+- The current code slice is D6 Hash Routing and deep links.
 
 ## Current Field Gate
 
@@ -187,7 +188,7 @@ Out of scope:
 - Report/PDF redesign.
 - Bulk issue import.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### D5. Sidebar And Responsive Frame
 
@@ -195,7 +196,7 @@ Purpose:
 
 - Make navigation and global Capture placement feel intentional across Mac, iPad, and iPhone.
 
-Scope:
+Implemented:
 
 - Make Mac sidebar part of the full page frame, not a floating detached card.
 - Keep Capture bottom-right while reducing overlap on dense field screens.
@@ -207,6 +208,28 @@ Out of scope:
 - Full hash routing.
 - New navigation destinations.
 - Company/multi-user portal layout.
+
+## Current Code Slice
+
+### D6. Hash Routing and deep links
+
+Purpose:
+
+- Make dashboard, unit, and issue navigation survive reload/back behavior in the field.
+
+Scope:
+
+- Preserve active top-level view in the URL hash.
+- Add lightweight hash support for unit and issue detail targets already reachable from dashboard cards.
+- Keep routing compatible with the current static Vite/Vercel/PWA deployment.
+- Avoid introducing server routing, auth changes, or company/multi-user navigation.
+
+Out of scope:
+
+- Full React Router migration.
+- Server-rendered routes.
+- Public/shareable company links.
+- Conflict review UI.
 
 ## Slice Protocol
 
@@ -304,10 +327,13 @@ Reports:
 12. D1 Clickable Dashboard Stats
 13. D2 Needs Attention Feed
 14. D3 Units Scan Upgrade
-15. E2 Report Preview And Print PDF
+15. D4 Issue Flow Simplification
 16. D5 Sidebar And Responsive Frame
-17. F1 IndexedDB Photo Store
-18. F2 Supabase Storage Photo Sync
+17. D6 Hash Routing and deep links
+18. C4 Voice Reliability
+19. E2 Report Preview And Print PDF
+20. F1 IndexedDB Photo Store
+21. F2 Supabase Storage Photo Sync
 
 This order can change if testing finds a higher-risk failure.
 

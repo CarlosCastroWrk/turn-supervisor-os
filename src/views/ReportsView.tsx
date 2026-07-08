@@ -50,6 +50,29 @@ const readReportDrafts = (): Record<string, ReportDocumentDraft> => {
 
 const readReportDraft = (key: string) => readReportDrafts()[key];
 
+const mergeReportDocumentDraft = (
+  savedDraft: ReportDocumentDraft | undefined,
+  generatedDraft: ReportDocumentDraft,
+): ReportDocumentDraft => {
+  if (!savedDraft) {
+    return generatedDraft;
+  }
+
+  const savedSections = Array.isArray(savedDraft.sections) ? savedDraft.sections : [];
+
+  return {
+    title: typeof savedDraft.title === 'string' ? savedDraft.title : generatedDraft.title,
+    summary: typeof savedDraft.summary === 'string' ? savedDraft.summary : generatedDraft.summary,
+    sections: generatedDraft.sections.map((generatedSection) => {
+      const savedSection = savedSections.find((section) => section?.title === generatedSection.title);
+      return {
+        ...generatedSection,
+        body: typeof savedSection?.body === 'string' ? savedSection.body : generatedSection.body,
+      };
+    }),
+  };
+};
+
 const saveReportDraft = (key: string, draft: ReportDocumentDraft) => {
   try {
     const drafts = readReportDrafts();
@@ -82,7 +105,7 @@ const buildEditedReportText = (
     'Summary:',
     draft.summary.trim() || preview.summary,
     '',
-    'Progress:',
+    'Progress (current board state):',
     ...preview.metrics.map((metric) => `- ${metric.label}: ${metric.value} (${metric.helper})`),
     '',
     ...draft.sections.flatMap((section) => [
@@ -104,13 +127,13 @@ export function ReportsView({ data }: ReportsViewProps) {
   const preview = useMemo(() => buildDailyReportPreview(data, project, date, dailyLog), [data, date, dailyLog, project]);
   const generatedDraft = useMemo(() => buildReportDocumentDraft(preview), [preview]);
   const reportDraftKey = `${project.id}:${date}`;
-  const [documentDraft, setDocumentDraft] = useState(() => readReportDraft(reportDraftKey) ?? generatedDraft);
+  const [documentDraft, setDocumentDraft] = useState(() => mergeReportDocumentDraft(readReportDraft(reportDraftKey), generatedDraft));
   const [loadedDraftKey, setLoadedDraftKey] = useState(reportDraftKey);
   const editedReport = useMemo(() => buildEditedReportText(documentDraft, preview), [documentDraft, preview]);
   const reportFileName = dailyLog ? `turn-daily-report-${date}.txt` : `turn-daily-report-draft-${date}.txt`;
 
   useEffect(() => {
-    setDocumentDraft(readReportDraft(reportDraftKey) ?? generatedDraft);
+    setDocumentDraft(mergeReportDocumentDraft(readReportDraft(reportDraftKey), generatedDraft));
     setLoadedDraftKey(reportDraftKey);
   }, [generatedDraft, reportDraftKey]);
 
@@ -161,7 +184,7 @@ export function ReportsView({ data }: ReportsViewProps) {
               <ClipboardCopy size={18} aria-hidden="true" />
               {copied ? 'Copied' : 'Copy Text'}
             </Button>
-            <Button className="report-action-secondary" onClick={() => downloadTextFile(reportFileName, report)}>
+            <Button className="report-action-secondary" onClick={() => downloadTextFile(reportFileName, editedReport || report)}>
               <Download size={18} aria-hidden="true" />
               Download Text
             </Button>

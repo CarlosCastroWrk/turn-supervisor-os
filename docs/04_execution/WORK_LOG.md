@@ -80,3 +80,4 @@
 - Polished the E2 report preview into a cleaner field handoff with a stronger header, summary readout, numbered/subtitled sections, styled progress cards, and print/mobile rendered checks.
 - Toned the report preview back down after Los said the first polish pass had too much visual styling; removed the badge, color strip, colored metric accents, and numbered section cards while keeping the useful summary and subtitles.
 - Simplified the report into an editable document draft so Los can change the title, summary, and section text before copying, downloading, or printing/saving as PDF.
+- Completed E1 Daily Activity Snapshot by adding selected-date operational activity bullets to Reports, labeling progress metrics as current board state, preserving old edited report drafts when new generated sections appear, and making Download Text use the edited report.

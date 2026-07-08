@@ -38,3 +38,10 @@
 - Added active-project scoping for draft unit-number lookup and assignment unit matching.
 - Added enum validation for draft unit status and issue payloads, plus regression tests for duplicate unit numbers and invalid payloads.
 - Current gate remains real-device Mac/iPhone/iPad sync confirmation before entering real field data.
+
+## 2026-07-08
+
+- Shipped A2 Draft Apply Safety in `6697278`.
+- Started A3 Number Input Safety on `codex/number-input-safety`.
+- Added shared integer input behavior for setup/count fields so zero-valued fields can be typed into without creating leading-zero drafts.
+- Added regression tests for `020`, `08`, blank drafts, and pasted numeric text.

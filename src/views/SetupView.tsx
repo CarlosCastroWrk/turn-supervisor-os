@@ -1,6 +1,6 @@
 import { Download, PlayCircle, RotateCcw, Save } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, Field, NumberInput } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { createRealTurnProject, switchActiveProject, updateProject } from '../lib/actions';
 import { buildJsonBackup, downloadTextFile } from '../lib/exporters';
@@ -163,22 +163,22 @@ export function SetupView({ data, setData }: SetupViewProps) {
           </div>
           <div className="grid four">
             <Field label="Buildings">
-              <input min={1} type="number" value={buildingCount} onChange={(event) => setBuildingCount(Number(event.target.value))} />
+              <NumberInput min={1} value={buildingCount} onValueChange={setBuildingCount} />
             </Field>
             <Field label="Floors per building">
-              <input min={0} type="number" value={floorsPerBuilding} onChange={(event) => setFloorsPerBuilding(Number(event.target.value))} />
+              <NumberInput min={0} value={floorsPerBuilding} onValueChange={setFloorsPerBuilding} />
             </Field>
             <Field label="Units per floor">
-              <input min={0} type="number" value={unitsPerFloor} onChange={(event) => setUnitsPerFloor(Number(event.target.value))} />
+              <NumberInput min={0} value={unitsPerFloor} onValueChange={setUnitsPerFloor} />
             </Field>
             <Field label="First unit number">
-              <input min={1} type="number" value={firstUnitNumber} onChange={(event) => setFirstUnitNumber(Number(event.target.value))} />
+              <NumberInput min={1} value={firstUnitNumber} onValueChange={setFirstUnitNumber} />
             </Field>
             <Field label="Beds per unit">
-              <input min={0} type="number" value={bedCount} onChange={(event) => setBedCount(Number(event.target.value))} />
+              <NumberInput min={0} value={bedCount} onValueChange={setBedCount} />
             </Field>
             <Field label="Bathrooms per unit">
-              <input min={0} type="number" value={bathroomCount} onChange={(event) => setBathroomCount(Number(event.target.value))} />
+              <NumberInput min={0} value={bathroomCount} onValueChange={setBathroomCount} />
             </Field>
             <Field label="Common area per unit">
               <select value={hasCommonArea ? 'yes' : 'no'} onChange={(event) => setHasCommonArea(event.target.value === 'yes')}>
@@ -233,36 +233,16 @@ export function SetupView({ data, setData }: SetupViewProps) {
           </div>
           <div className="grid four">
             <Field label="Estimated buildings">
-              <input
-                min={0}
-                type="number"
-                value={project.estimatedBuildings}
-                onChange={(event) => saveField({ estimatedBuildings: Number(event.target.value) })}
-              />
+              <NumberInput min={0} value={project.estimatedBuildings} onValueChange={(estimatedBuildings) => saveField({ estimatedBuildings })} />
             </Field>
             <Field label="Estimated units">
-              <input
-                min={0}
-                type="number"
-                value={project.estimatedUnits}
-                onChange={(event) => saveField({ estimatedUnits: Number(event.target.value) })}
-              />
+              <NumberInput min={0} value={project.estimatedUnits} onValueChange={(estimatedUnits) => saveField({ estimatedUnits })} />
             </Field>
             <Field label="Estimated beds">
-              <input
-                min={0}
-                type="number"
-                value={project.estimatedBeds}
-                onChange={(event) => saveField({ estimatedBeds: Number(event.target.value) })}
-              />
+              <NumberInput min={0} value={project.estimatedBeds} onValueChange={(estimatedBeds) => saveField({ estimatedBeds })} />
             </Field>
             <Field label="Estimated common areas">
-              <input
-                min={0}
-                type="number"
-                value={project.estimatedCommonAreas}
-                onChange={(event) => saveField({ estimatedCommonAreas: Number(event.target.value) })}
-              />
+              <NumberInput min={0} value={project.estimatedCommonAreas} onValueChange={(estimatedCommonAreas) => saveField({ estimatedCommonAreas })} />
             </Field>
           </div>
           <Field label="Notes">

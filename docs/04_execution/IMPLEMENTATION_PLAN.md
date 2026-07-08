@@ -11,37 +11,38 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - Baseline sync settles on Los's Mac, iPhone, and iPad.
 - Sync diagnostics are deployed.
 - The next real-device gate is offline/reconnect QA.
-- The current implementation branch is `agent/draft-apply-safety`.
+- A2 Draft Apply Safety is shipped in `6697278`.
+- The current implementation branch is `codex/number-input-safety`.
 
 ## Current Slice
 
-### A2. Draft Apply Safety
+### A3. Number Input Safety
 
 Purpose:
 
-- Prevent Draft Actions from mutating the wrong project and prevent edited JSON payloads from writing invalid enum values.
+- Prevent setup and field count inputs from turning typed values like `20` and `8` into `020` and `08` while keeping mobile numeric keyboards.
 
 Scope:
 
-- Scope draft unit-number lookup to the active project.
-- Validate unit status payloads before applying.
-- Validate issue payload category, priority, and status before creating issues.
-- Keep assignment unit-number lookup active-project scoped.
-- Add draft apply regression tests.
+- Add shared integer input behavior for count fields.
+- Apply it to Start Real Turn setup counts, editable project estimates, Quick Unit Creation counts, and Unit Detail bed/bath counts.
+- Preserve a temporary blank editing state while focused.
+- Canonicalize leading-zero drafts on blur.
+- Add regression tests for leading-zero and blank number drafts.
 
 Out of scope:
 
-- Draft batch approval changes.
-- Parser unit-boundary improvements.
-- Typed payload editors.
-- True delete/tombstone behavior.
+- Per-unit bed model redesign.
+- Bulk CSV import.
+- Project archive/delete.
+- Dashboard stat redesign.
 
 Acceptance:
 
-- Drafts for real unit numbers do not mutate demo units with the same number.
-- Invalid status/category/priority payloads fail the draft with an error.
-- Failed invalid drafts do not mutate units or create issues.
-- Existing valid draft apply behavior still passes.
+- Typing `20` into a zero field shows `20`, not `020`.
+- Typing `8` into a zero field shows `8`, not `08`.
+- Blank focused fields do not force `0` while Los is typing.
+- Setup validation and count minimums still prevent impossible projects.
 
 ## Slice Protocol
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, ClipboardPlus, PenLine, Plus, ShieldCheck, Wrench } from 'lucide-react';
-import { Button, Field } from '../components/FormControls';
+import { Button, Field, NumberInput } from '../components/FormControls';
 import { PhotoCapture } from '../components/PhotoCapture';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
@@ -339,19 +339,13 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
 
           <div className="grid two">
             <Field label="Beds">
-              <input
-                min={0}
-                type="number"
-                value={unit.bedCount}
-                onChange={(event) => updateStatus({ bedCount: Number(event.target.value) }, 'Changed bed count.')}
-              />
+              <NumberInput min={0} value={unit.bedCount} onValueChange={(bedCount) => updateStatus({ bedCount }, 'Changed bed count.')} />
             </Field>
             <Field label="Bathrooms">
-              <input
+              <NumberInput
                 min={0}
-                type="number"
                 value={unit.bathroomCount}
-                onChange={(event) => updateStatus({ bathroomCount: Number(event.target.value) }, 'Changed bathroom count.')}
+                onValueChange={(bathroomCount) => updateStatus({ bathroomCount }, 'Changed bathroom count.')}
               />
             </Field>
           </div>

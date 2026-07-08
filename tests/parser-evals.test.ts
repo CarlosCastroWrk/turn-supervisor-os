@@ -96,7 +96,11 @@ test('parser scopes punctuation-free unit updates to each unit phrase', async ()
 
   const readyDraft = findDraft(result, 'UPDATE_UNIT_STATUS', '104');
   assert.equal(readyDraft?.payload.overallStatus, 'Ready');
-  assert.equal(readyDraft?.payload.explicitReadyConfirmation, true);
+  assert.equal(readyDraft?.payload.paintStatus, undefined);
+  assert.equal(readyDraft?.payload.cleanStatus, undefined);
+  assert.equal(readyDraft?.payload.repairStatus, undefined);
+  assert.equal(readyDraft?.payload.inspectionStatus, undefined);
+  assert.equal(readyDraft?.payload.explicitReadyConfirmation, undefined);
 
   const progressDraft = findDraft(result, 'UPDATE_UNIT_STATUS', '105');
   assert.equal(progressDraft?.payload.overallStatus, 'Painting');
@@ -157,7 +161,10 @@ test('parser flags competing same-unit status drafts for explicit confirmation',
 
 test('conflicting drafts cannot apply until they are explicitly confirmed', async () => {
   const result = await parse('104 done 104 in progress');
-  const draft = result.draftActions[0];
+  const draft = result.draftActions.find(
+    (action) => action.type === 'UPDATE_UNIT_STATUS' && action.payload.overallStatus === 'Painting',
+  );
+  assert.ok(draft);
 
   const blocked = applyDraftAction({ ...parserData(), draftActions: [draft] }, draft.id);
   assert.equal(blocked.draftActions[0].status, 'failed');
@@ -168,4 +175,30 @@ test('conflicting drafts cannot apply until they are explicitly confirmed', asyn
   });
   const confirmed = applyDraftAction(confirmedInput, draft.id);
   assert.equal(confirmed.draftActions[0].status, 'applied');
+});
+
+test('parser does not turn negated completion notes into ready drafts', async () => {
+  const result = await parse('104 not done');
+
+  assert.deepEqual(result.detectedEntities.units, ['104']);
+  assert.equal(
+    result.draftActions.some((action) => action.type === 'UPDATE_UNIT_STATUS' && action.payload.overallStatus === 'Ready'),
+    false,
+  );
+  assert.equal(result.draftActions.some((action) => action.type === 'ADD_DAILY_LOG_ENTRY'), true);
+  assert.match(result.warnings.join(' '), /No high-confidence structured action found/);
+});
+
+test('parser-created ready drafts cannot bypass ready safety checks', async () => {
+  const result = await parse('104 done');
+  const readyDraft = findDraft(result, 'UPDATE_UNIT_STATUS', '104');
+  assert.ok(readyDraft);
+  assert.equal(readyDraft.payload.overallStatus, 'Ready');
+  assert.equal(readyDraft.payload.explicitReadyConfirmation, undefined);
+
+  const applied = applyDraftAction({ ...parserData(), draftActions: [readyDraft] }, readyDraft.id);
+
+  assert.equal(applied.draftActions[0].status, 'failed');
+  assert.match(applied.draftActions[0].error ?? '', /Ready is blocked/);
+  assert.equal(applied.units.find((item) => item.unitNumber === '104')?.overallStatus, 'Not Started');
 });

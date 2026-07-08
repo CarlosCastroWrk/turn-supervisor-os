@@ -61,6 +61,7 @@ Every near-term change should serve that loop.
 - Draft batch safety that scopes bulk approval/rejection to visible drafts, flags stale pending drafts, and opens applied unit targets
 - Parser eval coverage for punctuation-free field notes and deterministic draft targets
 - Unit-boundary parser behavior that splits punctuation-free captures by unit, parses simple crew movement, and requires confirmation for conflicting same-unit drafts
+- Parser Ready safety that prevents parser-generated Ready drafts from bypassing or inventing trade/inspection completion and treats negated completion notes as raw notes instead of Ready updates
 - Number input safety that fixes setup/count-field leading-zero editing behavior
 - Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
 - Editable in-app report document with a restrained field-report layout, custom title/summary/section text, selected-date activity snapshot, current-state progress labeling, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks
@@ -146,4 +147,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice is E3 Daily Log Auto-Draft.
+While that physical-device check is pending, the next code slice is P0 Sync Trust / Report Thaw. E3 Daily Log Auto-Draft is paused until the audit-blocking sync and report safety gaps are tightened.

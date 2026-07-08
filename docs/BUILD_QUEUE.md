@@ -11,7 +11,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Start recording a source-grounded daily summary from activity logs.
   - [x] Distinguish current state from historical day state.
   - [x] Prepare stronger report preview data.
-- [ ] Current code slice is E3 Daily Log Auto-Draft.
+- [ ] Current code slice is P0 Parser And Stale Unit Safety.
+  - [x] Stop parser-created ready drafts from bypassing Ready safety checks or inventing trade completion.
+  - [x] Treat negated completion notes as raw notes instead of Ready drafts.
+  - [x] Stop stale unit detail links from falling back to the first unit.
+- [ ] E3 Daily Log Auto-Draft is paused until P0 sync/report safety is tighter.
   - [ ] Draft Daily Log sections from selected-date activity and field captures.
   - [ ] Keep auto-drafted content editable and review-first.
   - [ ] Avoid treating generated text as confirmed field truth until Los saves it.
@@ -21,6 +25,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
+- [x] Stop parser-created Ready drafts from bypassing Ready safety, inventing trade completion, and block negated completion notes from becoming Ready updates.
+- [x] Stop stale unit detail routes from editing the wrong fallback unit.
 - [x] C1 Dictation Parser Eval Suite.
 - [x] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [x] C3 Draft Batch Safety: visible/current batch approval only.
@@ -108,3 +114,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] C4 Voice Reliability: Capture explains browser speech support, opens a mobile/iPad voice sheet without auto-opening the keyboard, falls back to keyboard dictation when speech recognition is unavailable, restarts after ordinary browser pauses where supported, and keeps draft-first confirmation.
 - [x] E2 Report Preview And Print/PDF: Reports now show an in-app review surface, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks.
 - [x] E1 Daily Activity Snapshot: Reports now include selected-date operational activity from synced activity logs, label progress metrics as current board state, preserve old edited report drafts when generated sections change, and download edited report text.
+- [x] P0 Parser And Stale Unit Safety: parser-generated Ready drafts no longer carry explicit ready confirmation or inferred trade completion, negated completion notes fall back to raw-note capture, and stale unit detail links show a no-unit state instead of opening the first unit.

@@ -320,6 +320,30 @@ export const updateIssue = (data: AppData, issueId: EntityId, patch: Partial<Iss
   };
 };
 
+export const resolveIssue = (data: AppData, issueId: EntityId): AppData => {
+  const existing = data.issues.find((issue) => issue.id === issueId);
+  if (!existing) {
+    return data;
+  }
+
+  return updateIssue(data, issueId, {
+    status: 'Resolved',
+    resolutionNotes: existing.resolutionNotes.trim() || 'Resolved from issue board.',
+  });
+};
+
+export const closeIssueFromBoard = (data: AppData, issueId: EntityId): AppData => {
+  const existing = data.issues.find((issue) => issue.id === issueId);
+  if (!existing) {
+    return data;
+  }
+
+  return updateIssue(data, issueId, {
+    status: 'Closed',
+    resolutionNotes: existing.resolutionNotes.trim() || 'Removed from normal issue board.',
+  });
+};
+
 export const addCrewMember = (data: AppData, crew: CrewMember): AppData => ({
   ...data,
   crewMembers: [crew, ...data.crewMembers],

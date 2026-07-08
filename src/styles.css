@@ -1020,6 +1020,30 @@ small {
   padding: 4px 8px;
 }
 
+.issue-card .quick-status-row {
+  padding: 0;
+}
+
+.issue-card .quick-status-row .button {
+  flex: 1 1 118px;
+}
+
+.issue-confirm-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius);
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 10px;
+}
+
+.issue-confirm-strip .button-row {
+  padding: 0;
+}
+
 .filter-panel,
 .grid {
   display: grid;
@@ -1676,6 +1700,11 @@ small {
 
   .mode-card .button-row {
     width: 100%;
+  }
+
+  .issue-confirm-strip {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

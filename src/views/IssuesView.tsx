@@ -1,43 +1,66 @@
-import { AlertOctagon, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { AlertOctagon, CheckCircle2, EyeOff, PlayCircle, Plus, TimerReset } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
-import { addIssueWithOptionalUnitBlock, updateIssue } from '../lib/actions';
+import { addIssueWithOptionalUnitBlock, closeIssueFromBoard, resolveIssue, updateIssue } from '../lib/actions';
 import { createId, nowISO } from '../lib/constants';
-import { ISSUE_CATEGORIES, ISSUE_PRIORITIES, ISSUE_STATUSES } from '../lib/constants';
-import { getProjectIssues, getProjectUnits } from '../lib/metrics';
-import type { AppData, Issue, IssueCategory, IssuePriority, IssueStatus } from '../types';
+import { ISSUE_CATEGORIES, ISSUE_STATUSES } from '../lib/constants';
+import { getActiveProject, getProjectIssues, getProjectUnits } from '../lib/metrics';
+import type { AppData, Issue, IssueCategory, IssueStatus } from '../types';
 
 interface IssuesViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
 }
 
+type IssueStatusFilter = 'Active' | 'All' | IssueStatus;
+
+const activeIssueStatuses = new Set<IssueStatus>(['Open', 'In Progress', 'Waiting']);
+const issueStatusFilters: IssueStatusFilter[] = ['Active', 'All', ...ISSUE_STATUSES];
+const defaultManualIssuePriority: Issue['priority'] = 'Medium';
+
+const matchesIssueStatusFilter = (issue: Issue, filter: IssueStatusFilter) => {
+  if (filter === 'All') return true;
+  if (filter === 'Active') return activeIssueStatuses.has(issue.status);
+  return issue.status === filter;
+};
+
+const issueStatusSortWeight: Record<IssueStatus, number> = {
+  Open: 0,
+  'In Progress': 1,
+  Waiting: 2,
+  Resolved: 3,
+  Closed: 4,
+};
+
 export function IssuesView({ data, setData }: IssuesViewProps) {
+  const activeProject = getActiveProject(data);
   const units = getProjectUnits(data);
   const issues = getProjectIssues(data);
-  const [statusFilter, setStatusFilter] = useState('Open');
-  const [priorityFilter, setPriorityFilter] = useState('All');
+  const defaultOwner = activeProject.supervisorName.trim() || 'Los';
+  const [statusFilter, setStatusFilter] = useState<IssueStatusFilter>('Active');
   const [title, setTitle] = useState('');
   const [unitId, setUnitId] = useState('');
   const [category, setCategory] = useState<IssueCategory>('Maintenance');
-  const [priority, setPriority] = useState<IssuePriority>('High');
-  const [owner, setOwner] = useState('');
-  const [dueAt, setDueAt] = useState('');
+  const [owner, setOwner] = useState(defaultOwner);
   const [notes, setNotes] = useState('');
   const [blocksUnit, setBlocksUnit] = useState(false);
+  const [pendingRemoveIssueId, setPendingRemoveIssueId] = useState<string | undefined>();
+
+  useEffect(() => {
+    setOwner((current) => current.trim() || defaultOwner);
+  }, [defaultOwner]);
 
   const visibleIssues = useMemo(
     () =>
       issues
-        .filter((issue) => statusFilter === 'All' || issue.status === statusFilter)
-        .filter((issue) => priorityFilter === 'All' || issue.priority === priorityFilter)
+        .filter((issue) => matchesIssueStatusFilter(issue, statusFilter))
         .sort((a, b) => {
-          const weights = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-          return weights[b.priority] - weights[a.priority] || b.updatedAt.localeCompare(a.updatedAt);
+          const statusDelta = issueStatusSortWeight[a.status] - issueStatusSortWeight[b.status];
+          return statusDelta === 0 ? b.updatedAt.localeCompare(a.updatedAt) : statusDelta;
         }),
-    [issues, priorityFilter, statusFilter],
+    [issues, statusFilter],
   );
 
   const createIssue = () => {
@@ -57,10 +80,10 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
         unitId: linkedUnit?.id,
         title: title.trim(),
         category,
-        priority,
-        owner,
+        priority: defaultManualIssuePriority,
+        owner: owner.trim() || defaultOwner,
         status: 'Open',
-        dueAt,
+        dueAt: '',
         notes,
         resolutionNotes: '',
         createdAt: now,
@@ -72,10 +95,10 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
 
     setTitle('');
     setUnitId('');
-    setOwner('');
-    setDueAt('');
+    setOwner(defaultOwner);
     setNotes('');
     setBlocksUnit(false);
+    setPendingRemoveIssueId(undefined);
   };
 
   return (
@@ -110,18 +133,8 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
                 ))}
               </select>
             </Field>
-            <Field label="Priority">
-              <select value={priority} onChange={(event) => setPriority(event.target.value as IssuePriority)}>
-                {ISSUE_PRIORITIES.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
-            </Field>
             <Field label="Owner / responsible">
               <input value={owner} onChange={(event) => setOwner(event.target.value)} placeholder="Los, Tony, maintenance..." />
-            </Field>
-            <Field label="Due date/time">
-              <input value={dueAt} onChange={(event) => setDueAt(event.target.value)} type="datetime-local" />
             </Field>
           </div>
           <Field label="Notes">
@@ -144,18 +157,9 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
       <Section title="Open Board" kicker={`${visibleIssues.length} shown`}>
         <div className="filter-panel">
           <Field label="Status">
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option>All</option>
-              {ISSUE_STATUSES.map((status) => (
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as IssueStatusFilter)}>
+              {issueStatusFilters.map((status) => (
                 <option key={status}>{status}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Priority">
-            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}>
-              <option>All</option>
-              {ISSUE_PRIORITIES.map((item) => (
-                <option key={item}>{item}</option>
               ))}
             </select>
           </Field>
@@ -174,26 +178,66 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
                     </small>
                   </div>
                   <div className="badge-row">
-                    <StatusBadge value={issue.priority} />
                     <StatusBadge value={issue.status} />
                   </div>
                 </div>
                 <p>{issue.notes || 'No notes yet.'}</p>
                 <div className="issue-card__meta">
                   <span>Owner: {issue.owner || 'Not set'}</span>
-                  <span>Due: {issue.dueAt ? new Date(issue.dueAt).toLocaleString() : 'Not set'}</span>
+                  <span>Logged: {new Date(issue.createdAt).toLocaleString()}</span>
                 </div>
                 <div className="quick-status-row">
-                  {ISSUE_STATUSES.map((status) => (
-                    <Button
-                      key={status}
-                      className={issue.status === status ? 'is-selected' : ''}
-                      onClick={() => setData((current) => updateIssue(current, issue.id, { status: status as IssueStatus }))}
-                    >
-                      {status}
+                  {['Resolved', 'Closed'].includes(issue.status) ? (
+                    <Button onClick={() => setData((current) => updateIssue(current, issue.id, { status: 'Open' }))}>
+                      <TimerReset size={16} aria-hidden="true" />
+                      Reopen
                     </Button>
-                  ))}
+                  ) : (
+                    <>
+                      <Button
+                        className={issue.status === 'In Progress' ? 'is-selected' : ''}
+                        onClick={() => setData((current) => updateIssue(current, issue.id, { status: 'In Progress' }))}
+                      >
+                        <PlayCircle size={16} aria-hidden="true" />
+                        Start
+                      </Button>
+                      <Button
+                        className={issue.status === 'Waiting' ? 'is-selected' : ''}
+                        onClick={() => setData((current) => updateIssue(current, issue.id, { status: 'Waiting' }))}
+                      >
+                        <TimerReset size={16} aria-hidden="true" />
+                        Waiting
+                      </Button>
+                      <Button onClick={() => setData((current) => resolveIssue(current, issue.id))}>
+                        <CheckCircle2 size={16} aria-hidden="true" />
+                        Resolve
+                      </Button>
+                      <Button variant="ghost" onClick={() => setPendingRemoveIssueId(issue.id)}>
+                        <EyeOff size={16} aria-hidden="true" />
+                        Remove
+                      </Button>
+                    </>
+                  )}
                 </div>
+                {pendingRemoveIssueId === issue.id ? (
+                  <div className="issue-confirm-strip">
+                    <strong>Remove from normal board?</strong>
+                    <div className="button-row">
+                      <Button
+                        variant="danger"
+                        onClick={() => {
+                          setData((current) => closeIssueFromBoard(current, issue.id));
+                          setPendingRemoveIssueId(undefined);
+                        }}
+                      >
+                        Confirm remove
+                      </Button>
+                      <Button variant="ghost" onClick={() => setPendingRemoveIssueId(undefined)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
                 <Field label="Resolution notes">
                   <textarea
                     rows={2}

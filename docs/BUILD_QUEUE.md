@@ -7,10 +7,10 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
-- [ ] Current code slice is D4 Issue Flow Simplification.
-  - [ ] Default date and owner for faster issue entry.
-  - [ ] Remove priority from the field issue form for now.
-  - [ ] Add safe remove/resolve behavior for accidental issues.
+- [ ] Current code slice is D5 Sidebar And Responsive Frame.
+  - [ ] Make Mac sidebar feel attached to the page frame.
+  - [ ] Improve iPad breakpoint/orientation behavior.
+  - [ ] Reduce floating Capture overlap on dense field screens.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -26,7 +26,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D1 Clickable Dashboard Stats.
 - [x] D2 Needs Attention Feed with deep links.
 - [x] D3 Units Scan Upgrade.
-- [ ] D4 Issue Flow Simplification.
+- [x] D4 Issue Flow Simplification.
 - [ ] D5 Sidebar And Responsive Frame.
 - [ ] D6 Hash Routing and deep links.
 - [ ] C4 Voice Reliability.
@@ -98,3 +98,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D1 Clickable Dashboard Stats: dashboard unit stats navigate to filtered Units views, Common Areas is removed from primary stats, and unreliable bed count is removed from the Units stat.
 - [x] D2 Needs Attention Feed: dashboard attention items and smart suggestions navigate to relevant unit, issue, assignment, or daily log views.
 - [x] D3 Units Scan Upgrade: Units list sorts attention first, adds counted status chips, makes card bodies tappable, and surfaces blocker, crew, issue count, and last activity context.
+- [x] D4 Issue Flow Simplification: issue entry defaults owner/date, removes priority/date from the field form, uses Active issue filtering, and soft-closes accidental issues from the normal board after confirmation.

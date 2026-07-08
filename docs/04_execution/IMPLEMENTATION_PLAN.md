@@ -23,8 +23,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - D1 Clickable Dashboard Stats is implemented with filtered Units navigation from the dashboard.
 - D2 Needs Attention Feed is implemented with actionable dashboard feed cards and suggestion links.
 - D3 Units Scan Upgrade is implemented with needs-attention sorting, counted status chips, tappable unit card bodies, compact quick status actions, and blocker/crew/last-activity context.
+- D4 Issue Flow Simplification is implemented with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is D4 Issue Flow Simplification.
+- The current code slice is D5 Sidebar And Responsive Frame.
 
 ## Current Field Gate
 
@@ -163,7 +164,7 @@ Out of scope:
 - Full route/deep-link system.
 - New assignment or crew workflows.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### D4. Issue Flow Simplification
 
@@ -171,12 +172,13 @@ Purpose:
 
 - Make issue capture faster and safer while Los is walking.
 
-Scope:
+Implemented:
 
-- Default date and owner.
-- Remove priority from the field form for now.
-- Keep category and unit selection.
-- Add simple safe remove/resolve behavior for accidental issues.
+- Defaults issue owner to the active project supervisor/Los.
+- Relies on `createdAt` for logged date instead of asking Los for a date/time in the field form.
+- Removes priority from the field form and manual board filters while preserving the stored priority field for existing/parser records.
+- Adds Active issue filtering for Open, In Progress, and Waiting.
+- Adds resolve and two-step soft remove actions that keep issue rows and do not mutate linked unit status.
 
 Out of scope:
 
@@ -184,6 +186,27 @@ Out of scope:
 - Delete propagation/tombstones.
 - Report/PDF redesign.
 - Bulk issue import.
+
+## Current Code Slice
+
+### D5. Sidebar And Responsive Frame
+
+Purpose:
+
+- Make navigation and global Capture placement feel intentional across Mac, iPad, and iPhone.
+
+Scope:
+
+- Make Mac sidebar part of the full page frame, not a floating detached card.
+- Keep Capture bottom-right while reducing overlap on dense field screens.
+- Persist collapsed state.
+- Fix iPad breakpoint/orientation behavior.
+
+Out of scope:
+
+- Full hash routing.
+- New navigation destinations.
+- Company/multi-user portal layout.
 
 ## Slice Protocol
 

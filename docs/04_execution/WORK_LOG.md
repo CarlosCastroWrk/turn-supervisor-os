@@ -71,3 +71,4 @@
 - Completed D1 Clickable Dashboard Stats by making unit status cards navigate to filtered Units views, removing Common Areas from the primary stat row, and removing unreliable bed count from the Units stat.
 - Completed D2 Needs Attention Feed by replacing passive dashboard issue cards with clickable attention items and making smart suggestions navigate to related units, issues, assignments, or daily log.
 - Completed D3 Units Scan Upgrade by sorting unit cards by needs-attention rank, adding counted status chips, making the main card body tappable, surfacing blocker/crew/last-activity context, and keeping the 100-at-a-time render guard.
+- Completed D4 Issue Flow Simplification by removing priority/date from the field issue form, defaulting owner/date capture, adding Active issue filtering, and making accidental issue removal a confirmed soft close instead of a delete.

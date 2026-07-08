@@ -12,7 +12,7 @@
 | Photo image data is local-only | Medium | Open | Avoid relying on cross-device photos until Supabase Storage upload is implemented. Export backups if photos matter. |
 | `localStorage` can fill up with large photo payloads | Medium | Guarded | Captured photos are compressed before saving, but photos still belong in IndexedDB/Supabase Storage before heavy field use. |
 | Corrupt local cache can hide field data | Medium | Guarded | Corrupt cache payloads are preserved under a recovery key before the app falls back to seed data. JSON backups remain the recovery path Los can use directly. |
-| Editable report drafts do not yet sync across devices | Medium | Open | Report drafts now live in AppData and JSON backups, but Supabase sync needs a report-drafts table migration before Mac/iPhone/iPad edits travel automatically. |
+| Editable report drafts do not yet sync across devices | Medium | Open | Report drafts now live in AppData and JSON backups. Draft PR #30 adds the `report_drafts` migration and sync mapping, but it cannot merge/deploy until Supabase Postgres password auth is restored and `supabase db push` succeeds. |
 | Reports may be treated as official company records | Medium | Open | Keep copy personal and factual. Do not use company branding or invented numbers. |
 | No restore-from-JSON flow in-app | Medium | Open | Backups are still useful for recovery evidence, but restore requires manual/developer help today. |
 | Parser has no formal eval suite | Medium | Open | Add realistic field-note parser tests after device sync is no longer blocking. |

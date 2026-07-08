@@ -106,17 +106,21 @@ const emptyDailyLog = (projectId: string, date: string): DailyLog => {
 function DraftActionCard({
   draft,
   onApply,
+  onConfirmConflictAndApply,
   onReject,
   onSavePayload,
 }: {
   draft: DraftAction;
   onApply: () => void;
+  onConfirmConflictAndApply: () => void;
   onReject: () => void;
   onSavePayload: (payload: Record<string, unknown>) => void;
 }) {
   const [payloadText, setPayloadText] = useState(() => JSON.stringify(draft.payload, null, 2));
   const [payloadError, setPayloadError] = useState('');
   const isActionable = draft.status === 'pending' || draft.status === 'failed';
+  const needsConflictConfirmation =
+    draft.payload.requiresConflictConfirmation === true && draft.payload.explicitConflictConfirmation !== true;
 
   const savePayload = () => {
     try {
@@ -146,6 +150,11 @@ function DraftActionCard({
         <summary>Why this draft exists</summary>
         <p>{draft.why}</p>
       </details>
+      {needsConflictConfirmation ? (
+        <p className="error-text">
+          This conflicts with another draft from the same capture. Confirm this is the correct update before approving.
+        </p>
+      ) : null}
       <Field label="Editable payload">
         <textarea rows={6} value={payloadText} onChange={(event) => setPayloadText(event.target.value)} />
       </Field>
@@ -159,10 +168,17 @@ function DraftActionCard({
             <Save size={16} aria-hidden="true" />
             Save Edit
           </Button>
-          <Button variant="primary" onClick={onApply}>
-            <Check size={16} aria-hidden="true" />
-            Approve
-          </Button>
+          {needsConflictConfirmation ? (
+            <Button variant="primary" onClick={onConfirmConflictAndApply}>
+              <Check size={16} aria-hidden="true" />
+              Confirm & Approve
+            </Button>
+          ) : (
+            <Button variant="primary" onClick={onApply}>
+              <Check size={16} aria-hidden="true" />
+              Approve
+            </Button>
+          )}
           <Button variant="ghost" onClick={onReject}>
             <X size={16} aria-hidden="true" />
             Reject
@@ -352,6 +368,19 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
   const applyOneDraft = (draft: DraftAction) => {
     setData((current) => {
       const next = applyDraftAction(current, draft.id);
+      const updated = next.draftActions.find((item) => item.id === draft.id);
+      if (updated) {
+        window.queueMicrotask(() => afterDraftChange(draft, updated.status));
+      }
+      return next;
+    });
+  };
+
+  const confirmConflictAndApplyOneDraft = (draft: DraftAction) => {
+    setData((current) => {
+      const confirmedPayload = { ...draft.payload, explicitConflictConfirmation: true };
+      const withConfirmation = updateDraftAction(current, draft.id, { payload: confirmedPayload });
+      const next = applyDraftAction(withConfirmation, draft.id);
       const updated = next.draftActions.find((item) => item.id === draft.id);
       if (updated) {
         window.queueMicrotask(() => afterDraftChange(draft, updated.status));
@@ -571,6 +600,7 @@ export function CopilotView({ data, setData }: CopilotViewProps) {
                   key={draft.id}
                   draft={draft}
                   onApply={() => applyOneDraft(draft)}
+                  onConfirmConflictAndApply={() => confirmConflictAndApplyOneDraft(draft)}
                   onReject={() => rejectOneDraft(draft)}
                   onSavePayload={(payload) => setData((current) => updateDraftAction(current, draft.id, { payload }))}
                 />

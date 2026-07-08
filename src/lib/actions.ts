@@ -609,6 +609,14 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
 
   let next: AppData = updateDraftAction(data, draft.id, { status: 'approved', error: undefined });
 
+  if (draft.payload.requiresConflictConfirmation === true && draft.payload.explicitConflictConfirmation !== true) {
+    return failDraft(
+      next,
+      draft,
+      'This draft conflicts with another draft from the same capture. Confirm it before approving.',
+    );
+  }
+
   if (draft.type === 'UPDATE_UNIT_STATUS') {
     const unit = findDraftUnit(next, draft);
     if (!unit) {

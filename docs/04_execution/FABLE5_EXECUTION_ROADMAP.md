@@ -199,7 +199,7 @@ Acceptance:
 
 ### C2. Unit-Boundary Parser
 
-Status: partially implemented. Unit phrase segmentation, generic done/in-progress drafts, and named crew movement parsing are in place. Same-unit conflict detection remains.
+Status: implemented in the C2 Unit-Boundary Parser release slice.
 
 Scope:
 

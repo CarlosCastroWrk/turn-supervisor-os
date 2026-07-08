@@ -6,7 +6,7 @@ import {
   MessageSquareText,
   UserCheck,
 } from 'lucide-react';
-import type { AppData, AppView, DailyLog } from '../types';
+import type { AppData, AppView, DailyLog, UnitStatusFilter } from '../types';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import { formatDate, todayISO } from '../lib/constants';
 import {
@@ -26,7 +26,7 @@ import { StatusBadge } from '../components/StatusBadge';
 
 interface DashboardViewProps {
   data: AppData;
-  onNavigate: (view: AppView) => void;
+  onNavigate: (view: AppView, unitId?: string, options?: { unitStatusFilter?: UnitStatusFilter }) => void;
 }
 
 const getTurnDay = (startDate: string) => {
@@ -81,12 +81,35 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
       <ProgressBar value={summary.percentComplete} label="Overall readiness" />
 
       <div className="stats-grid">
-        <StatCard label="Units" value={summary.totalUnits} detail={`${summary.totalBeds} beds`} />
-        <StatCard label="Ready" value={summary.ready} detail="Final-ready units" tone="success" />
-        <StatCard label="In Progress" value={summary.inProgress} detail="Moving now" tone="info" />
-        <StatCard label="Blocked" value={summary.blocked} detail="Need attention" tone="danger" />
-        <StatCard label="Inspection" value={summary.inspection} detail="Need final eyes" tone="warning" />
-        <StatCard label="Common Areas" value={summary.totalCommonAreas} detail="Tracked locally" />
+        <StatCard label="Units" value={summary.totalUnits} detail="All units" onClick={() => onNavigate('units', undefined, { unitStatusFilter: 'All' })} />
+        <StatCard
+          label="Ready"
+          value={summary.ready}
+          detail="Final-ready units"
+          tone="success"
+          onClick={() => onNavigate('units', undefined, { unitStatusFilter: 'Ready' })}
+        />
+        <StatCard
+          label="In Progress"
+          value={summary.inProgress}
+          detail="Moving now"
+          tone="info"
+          onClick={() => onNavigate('units', undefined, { unitStatusFilter: 'In Progress' })}
+        />
+        <StatCard
+          label="Blocked"
+          value={summary.blocked}
+          detail="Need attention"
+          tone="danger"
+          onClick={() => onNavigate('units', undefined, { unitStatusFilter: 'Blocked' })}
+        />
+        <StatCard
+          label="Inspection"
+          value={summary.inspection}
+          detail="Need final eyes"
+          tone="warning"
+          onClick={() => onNavigate('units', undefined, { unitStatusFilter: 'Needs Inspection' })}
+        />
       </div>
 
       <Section title="Quick Actions" kicker="1-3 taps">

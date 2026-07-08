@@ -248,6 +248,8 @@ These slices turn the app from display-first into action-first.
 
 ### D1. Clickable Dashboard Stats
 
+Status: implemented in the D1 Clickable Dashboard Stats release slice.
+
 Scope:
 
 - Make Units, Ready, In Progress, Blocked, and Inspection cards clickable.

@@ -3,7 +3,7 @@ import { AppShell } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
 import { usePersistentAppData } from './lib/storage';
 import { useSupabaseSync } from './lib/supabase/sync';
-import type { AppView } from './types';
+import type { AppView, UnitStatusFilter } from './types';
 import { AssignmentsView } from './views/AssignmentsView';
 import { CopilotView } from './views/CopilotView';
 import { CrewsView } from './views/CrewsView';
@@ -22,8 +22,12 @@ function App() {
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [activeView, setActiveView] = useState<AppView>('dashboard');
   const [activeUnitId, setActiveUnitId] = useState<string | undefined>();
+  const [unitStatusFilter, setUnitStatusFilter] = useState<UnitStatusFilter>('All');
 
-  const navigate = useCallback((view: AppView, unitId?: string) => {
+  const navigate = useCallback((view: AppView, unitId?: string, options?: { unitStatusFilter?: UnitStatusFilter }) => {
+    if (view === 'units') {
+      setUnitStatusFilter(options?.unitStatusFilter ?? 'All');
+    }
     if (unitId) {
       setActiveUnitId(unitId);
     }
@@ -36,7 +40,7 @@ function App() {
       {activeView === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
       {activeView === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
       {activeView === 'setup' ? <SetupView data={data} setData={setData} /> : null}
-      {activeView === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} /> : null}
+      {activeView === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={unitStatusFilter} /> : null}
       {activeView === 'unitDetail' ? (
         <UnitDetailView data={data} setData={setData} unitId={activeUnitId} onNavigate={navigate} />
       ) : null}

@@ -68,3 +68,4 @@
 - Added unit phrase segmentation, generic done/in-progress unit drafts, sink/leak issue scoping, and named crew movement assignment parsing.
 - Completed C2 Unit-Boundary Parser by flagging competing same-unit status drafts, blocking apply until explicit confirmation, and adding a visible `Confirm & Approve` path in Capture.
 - Completed C3 Draft Batch Safety with capture batch ids, visible-only bulk approve/reject, stale pending draft flags, and `Open Unit` links on applied unit drafts.
+- Completed D1 Clickable Dashboard Stats by making unit status cards navigate to filtered Units views, removing Common Areas from the primary stat row, and removing unreliable bed count from the Units stat.

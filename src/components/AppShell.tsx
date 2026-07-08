@@ -12,7 +12,7 @@ import {
   Truck,
   Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AppView } from '../types';
 
 interface AppShellProps {
@@ -44,8 +44,34 @@ const sidebarGroups: { label: string; items: { view: AppView; label: string; ico
   { label: 'System', items: secondaryNav.filter((item) => ['setup', 'training', 'export'].includes(item.view)) },
 ];
 
+const SIDEBAR_COLLAPSED_KEY = 'turn-supervisor-os:sidebar-collapsed';
+
+const getStoredSidebarState = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShellProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarState);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed));
+    } catch {
+      // Layout preference is non-critical; private browsing can block localStorage.
+    }
+  }, [sidebarCollapsed]);
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}>

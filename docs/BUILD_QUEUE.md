@@ -15,11 +15,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep untouched report sections regenerated as the day changes.
   - [x] Move editable report drafts into AppData so reports export with JSON backups.
   - [x] Add dirty/reset behavior per report section.
-  - [ ] Supabase sync for report drafts requires an explicit report-drafts table migration.
-- [ ] E3 Daily Log Auto-Draft is paused until P0 sync/report safety is tighter.
-  - [ ] Draft Daily Log sections from selected-date activity and field captures.
-  - [ ] Keep auto-drafted content editable and review-first.
-  - [ ] Avoid treating generated text as confirmed field truth until Los saves it.
+  - [ ] Supabase sync for report drafts is in draft PR #30 and is blocked until the Supabase DB password credential is refreshed.
+- [x] E3 Daily Log Auto-Draft.
+  - [x] Draft Daily Log sections from selected-date activity and field captures.
+  - [x] Keep auto-drafted content editable and review-first.
+  - [x] Avoid treating generated text as confirmed field truth until Los saves it.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -51,7 +51,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## P2: Can Wait Until After Turn Starts If P0/P1 Are Stable
 
 - [x] E1 Daily Activity Snapshot.
-- [ ] E3 Daily Log Auto-Draft.
+- [x] E3 Daily Log Auto-Draft.
 - [ ] E4 Memory Consumption and project scoping.
 - [ ] F1 IndexedDB Photo Store.
 - [ ] F2 Supabase Storage Photo Sync.
@@ -76,6 +76,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 - Real Property Doctor Services workflow details remain partially blocked until training clarifies what Los actually supervises day to day.
 - Supabase one-time cleanup for duplicate/demo cloud records requires explicit approval before any data-changing command.
+- Report-draft Supabase sync PR #30 is blocked until the Supabase Postgres password is available to `supabase db push`.
 
 ## Done
 
@@ -120,3 +121,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] P0 Parser And Stale Unit Safety: parser-generated Ready drafts no longer carry explicit ready confirmation or inferred trade completion, negated completion notes fall back to raw-note capture, and stale unit detail links show a no-unit state instead of opening the first unit.
 - [x] P0 Sync Trust / Pull Pagination: Supabase pull reads paginate past 1000 rows, `Pull cloud` is pull-only, `Upload needed` appears when local changes remain after pull, upload flows check cloud before pushing, and sync internals have regression coverage for stale-local upload prevention.
 - [x] P0 Report Thaw / Backup: editable report drafts now live in AppData, JSON backups include report edits, untouched generated sections keep updating, and edited sections can be reset individually.
+- [x] E3 Daily Log Auto-Draft: Daily Log can draft empty sections from grounded activity, blockers, issues, assignments, and current board signals while still requiring Los to review and save.

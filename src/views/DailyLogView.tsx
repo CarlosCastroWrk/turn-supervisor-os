@@ -1,9 +1,10 @@
-import { Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Save, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { upsertDailyLog } from '../lib/actions';
 import { createId, nowISO, todayISO } from '../lib/constants';
+import { buildDailyLogAutoDraft } from '../lib/dailyLogAutoDraft';
 import { getActiveProject } from '../lib/metrics';
 import type { AppData, DailyLog } from '../types';
 
@@ -34,7 +35,12 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
   const project = getActiveProject(data);
   const [date, setDate] = useState(todayISO());
   const [dirty, setDirty] = useState(false);
+  const [autoDraftMessage, setAutoDraftMessage] = useState('');
   const [draft, setDraft] = useState<DailyLog>(() => data.dailyLogs.find((log) => log.projectId === project.id && log.date === todayISO()) ?? emptyLog(project.id, todayISO()));
+  const autoDraftPreview = useMemo(
+    () => buildDailyLogAutoDraft(data, project, date, draft),
+    [data, date, draft, project],
+  );
 
   useEffect(() => {
     if (dirty) {
@@ -44,6 +50,7 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
   }, [data.dailyLogs, date, dirty, project.id]);
 
   const updateDraft = (patch: Partial<DailyLog>) => {
+    setAutoDraftMessage('');
     setDirty(true);
     setDraft((current) => ({ ...current, ...patch, date }));
   };
@@ -56,12 +63,26 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
       return;
     }
     setDirty(false);
+    setAutoDraftMessage('');
     setDate(nextDate);
   };
 
   const save = () => {
     setData((current) => upsertDailyLog(current, { ...draft, projectId: project.id, date }));
     setDirty(false);
+    setAutoDraftMessage('Daily Log saved.');
+  };
+
+  const applyAutoDraft = () => {
+    const result = buildDailyLogAutoDraft(data, project, date, draft);
+    if (result.changedFields.length === 0) {
+      setAutoDraftMessage('No empty sections to draft from the current activity.');
+      return;
+    }
+
+    setDraft(result.dailyLog);
+    setDirty(true);
+    setAutoDraftMessage(`Drafted ${result.changedFields.length} section${result.changedFields.length === 1 ? '' : 's'}. Review before saving.`);
   };
 
   return (
@@ -78,6 +99,26 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
           <Field label="Date">
             <input type="date" value={date} onChange={(event) => changeDate(event.target.value)} />
           </Field>
+          <div className="daily-autodraft">
+            <div>
+              <span className="quiet-label">Draft first</span>
+              <strong>Build from activity</strong>
+              <small>
+                {autoDraftPreview.sourceCount > 0
+                  ? `${autoDraftPreview.sourceCount} source signal${autoDraftPreview.sourceCount === 1 ? '' : 's'} available`
+                  : 'No captured activity yet'}
+              </small>
+            </div>
+            <Button variant="secondary" onClick={applyAutoDraft} disabled={autoDraftPreview.changedFields.length === 0}>
+              <Sparkles size={18} aria-hidden="true" />
+              Draft empty sections
+            </Button>
+          </div>
+          {autoDraftMessage ? (
+            <small className="daily-autodraft__status" role="status">
+              {autoDraftMessage}
+            </small>
+          ) : null}
           <Field label="Morning Plan">
             <textarea
               rows={5}
@@ -139,4 +180,3 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
     </div>
   );
 }
-

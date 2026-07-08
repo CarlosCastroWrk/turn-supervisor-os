@@ -13,36 +13,38 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - The next real-device gate is offline/reconnect QA.
 - A2 Draft Apply Safety is shipped in `6697278`.
 - A3 Number Input Safety is shipped in `6c34eb8`.
-- The current implementation branch is `codex/report-date-safety`.
+- A4 Report Date Safety is shipped in `72ddd4a`.
+- The current implementation branch is `codex/issue-status-safety`.
 
 ## Current Slice
 
-### A4. Report Date Safety
+### A5. Issue Status Safety
 
 Purpose:
 
-- Prevent selected past/future report dates from silently generating today's report and prevent missing-data placeholders from looking like real progress.
+- Stop ordinary issue creation from silently changing unit board status. Status-changing issue behavior must require explicit intent from Los.
 
 Scope:
 
-- Make report generation use the selected report date explicitly.
-- Label reports with no saved Daily Log as draft/missing-data.
-- Replace placeholder report text with source-grounded missing-data statements.
-- Add regression tests for selected-date behavior and placeholder safety.
+- Add an explicit `Blocks this unit` control to issue creation flows.
+- Default issue creation to issue-only.
+- Only update linked unit overall status when `Blocks this unit` is selected.
+- Keep issue resolution from silently guessing unit readiness.
+- Add regression tests for non-blocking, blocking, and resolved issue flows.
 
 Out of scope:
 
-- PDF/print layout redesign.
-- Automatic daily-log generation.
-- AI-authored report summaries.
-- Report routing or sending.
+- True delete/tombstones.
+- Full issue/archive workflow redesign.
+- Conflict review UI.
+- Automatic status derivation after issue resolution.
 
 Acceptance:
 
-- Opening a past date with no daily log does not silently generate today's report.
-- Missing Daily Log reports are visibly labeled as drafts.
-- Generated text does not include fake blank placeholders like `1. 2. 3.` or `Add completed work before sending`.
-- Existing daily-log content still appears for the selected date.
+- Creating a non-blocking issue does not change the linked unit status.
+- Blocking status requires Los to check `Blocks this unit`.
+- Resolving an issue does not silently mark a unit ready or alter its status.
+- Existing issue creation remains fast on iPhone/iPad.
 
 ## Slice Protocol
 

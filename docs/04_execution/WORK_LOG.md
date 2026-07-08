@@ -49,3 +49,7 @@
 - Started A4 Report Date Safety on `codex/report-date-safety`.
 - Made daily reports use the selected report date explicitly and label missing-log reports as draft/missing-data.
 - Added regression tests so past empty report dates cannot fall back to today's report.
+- Shipped A4 Report Date Safety in `72ddd4a`.
+- Started A5 Issue Status Safety on `codex/issue-status-safety`.
+- Added explicit `Blocks this unit` controls so issue creation is issue-only unless Los chooses to change the linked unit status.
+- Added regression tests for non-blocking issue creation, explicit blocking, and issue resolution not changing unit status.

@@ -4,10 +4,10 @@ import { Button, Field, NumberInput } from '../components/FormControls';
 import { PhotoCapture } from '../components/PhotoCapture';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
-import { addIssue, addPhotoNote, unitTradesComplete, updateUnit } from '../lib/actions';
+import { addIssueWithOptionalUnitBlock, addPhotoNote, unitTradesComplete, updateUnit } from '../lib/actions';
 import { createId, formatTime, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, ISSUE_PRIORITIES, WORK_STATUSES } from '../lib/constants';
-import type { AppData, AppView, IssueCategory, IssuePriority, UnitWorkflowStatus, WorkStatus } from '../types';
+import type { AppData, AppView, Issue, IssueCategory, IssuePriority, UnitWorkflowStatus, WorkStatus } from '../types';
 
 interface UnitDetailViewProps {
   data: AppData;
@@ -23,6 +23,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
   const [issueCategory, setIssueCategory] = useState<IssueCategory>('Maintenance');
   const [issuePriority, setIssuePriority] = useState<IssuePriority>('High');
   const [issueNotes, setIssueNotes] = useState('');
+  const [issueBlocksUnit, setIssueBlocksUnit] = useState(false);
 
   if (!unit) {
     return (
@@ -97,7 +98,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
 
     const now = nowISO();
     setData((current) => {
-      const withIssue = addIssue(current, {
+      const issue: Issue = {
         id: createId('issue'),
         projectId: unit.projectId,
         buildingId: unit.buildingId,
@@ -113,21 +114,14 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
         resolutionNotes: '',
         createdAt: now,
         updatedAt: now,
-      });
+      };
 
-      return updateUnit(
-        withIssue,
-        unit.id,
-        {
-          overallStatus:
-            issueCategory === 'Access' ? 'Access Blocked' : issueCategory === 'Maintenance' ? 'Maintenance Needed' : 'Hold / Blocked',
-        },
-        `Issue created: ${title}`,
-      );
+      return addIssueWithOptionalUnitBlock(current, issue, issueBlocksUnit);
     });
 
     setIssueTitle('');
     setIssueNotes('');
+    setIssueBlocksUnit(false);
   };
 
   return (
@@ -245,6 +239,13 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
                 placeholder="What is blocked and who needs to know?"
               />
             </Field>
+            <label className="checkbox-field">
+              <input checked={issueBlocksUnit} type="checkbox" onChange={(event) => setIssueBlocksUnit(event.target.checked)} />
+              <span>
+                <strong>Blocks this unit</strong>
+                <small>Only turn this on if this issue should change the board status.</small>
+              </span>
+            </label>
             <Button disabled={!issueTitle.trim()} variant="primary" onClick={logQuickIssue}>
               <Plus size={18} aria-hidden="true" />
               Log Issue

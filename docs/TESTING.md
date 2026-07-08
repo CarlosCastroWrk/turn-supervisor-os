@@ -63,13 +63,29 @@ Pass:
 - [ ] Wait 60-90 seconds.
 - [ ] Confirm the panel settles on `Synced`.
 - [ ] Confirm it does not repeatedly cycle through `Syncing`.
+- [ ] If cycling continues after the diagnostics deployment, open `Sync details` and record Last trigger, Last table, Last event, Pulled rows, Uploaded rows, Queued, and Last error.
 
 Pass:
 
 - The app settles on `Synced` after one manual sync.
 - No duplicate records appear.
 
-If it keeps cycling, do not enter real field data yet. Open the `sync status diagnostics` PR next.
+If it keeps cycling, do not enter real field data yet. Use `Sync details` to identify whether the loop is caused by Realtime, reconnect, auth/session changes, local edits, upload failures, or queued sync runs.
+
+### 1B. Sync Diagnostics Check
+
+- [ ] Open the sync panel after the app says `Synced`.
+- [ ] Open `Sync details`.
+- [ ] Confirm idle Realtime/background checks do not flip the summary back to `Syncing`.
+- [ ] Confirm `Background checks` may increase while the visible status remains `Synced`.
+- [ ] Confirm manual `Sync now`, `Pull cloud`, and `Upload this device` still show clear foreground sync status.
+- [ ] If a device keeps cycling, record the diagnostics values before refreshing.
+
+Pass:
+
+- Idle devices stay visually stable on `Synced`.
+- The diagnostics identify the last trigger and table without exposing secrets.
+- Blue `Syncing` is reserved for manual sync, initial startup sync, reconnect sync, or real local uploads.
 
 ### 2. Real Turn Mode Creation
 

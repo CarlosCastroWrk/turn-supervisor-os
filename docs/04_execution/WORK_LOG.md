@@ -26,4 +26,7 @@
 - Shipped sync change fingerprinting fix so equivalent Supabase timestamp and JSON shapes do not trigger repeated false uploads.
 - Upgraded local Vercel CLI to `54.21.1` after Los explicitly approved.
 - Adopted pull requests for normal non-emergency slices; direct `main` commits are reserved for urgent approved hotfixes.
+- Started sync status diagnostics after Los reported continued green/blue sync cycling on real devices.
+- Added quiet background Realtime checks so idle devices should stay visually `Synced` while still pulling cloud changes.
+- Added visible Sync details for trigger, table, event, row counts, queued state, and last error.
 - Current gate remains real-device Mac/iPhone/iPad sync confirmation before entering real field data.

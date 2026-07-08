@@ -5,7 +5,7 @@ Tasks move through this queue after the current Phase 1 goal is understood.
 ## P0: Must Clear Before Real Field Reliance
 
 - [ ] Confirm deployed sync fingerprinting fix settles on `Synced` across Mac/iPhone/iPad.
-- [ ] If sync still cycles, add sync status diagnostics showing trigger reason, table activity, upload count, and last error.
+- [ ] Merge/deploy sync status diagnostics and confirm idle devices stay `Synced`.
 - [ ] Run Mac/iPhone/iPad production sync QA from `docs/TESTING.md`.
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
@@ -49,3 +49,4 @@ Tasks move through this queue after the current Phase 1 goal is understood.
 - [x] Fix sync change fingerprinting for equivalent Supabase timestamp/JSON shapes.
 - [x] Upgrade Vercel CLI to `54.21.1`.
 - [x] Document PR workflow for non-emergency slices.
+- [x] Add sync status diagnostics showing trigger reason, table activity, upload count, queued state, and last error.

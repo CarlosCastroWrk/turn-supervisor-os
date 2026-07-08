@@ -4,7 +4,7 @@
 
 | Risk | Severity | Status | Mitigation |
 | --- | --- | --- | --- |
-| Real-device sync may fail or require manual pull | High | Open | Run Mac/iPhone/iPad QA before real field data. The sync fingerprinting fix is deployed, but must be confirmed on real devices. If cycling continues, build sync status diagnostics next. |
+| Real-device sync may fail or require manual pull | High | Open | Run Mac/iPhone/iPad QA before real field data. The sync fingerprinting fix is deployed, but devices still need the sync diagnostics slice deployed and retested. |
 | Offline edits may not merge as expected | High | Open | Test airplane mode edits before Turn. Keep JSON backups before serious use. |
 | Demo data could contaminate Real Turn reports or Copilot answers | High | Open | Test Real Turn views, exports, reports, and Copilot answers with obvious demo vs real labels. |
 | Delete/reset behavior can be misunderstood | High | Open | Keep reset warnings explicit. Do not reset real data without backup. Document that cloud records can pull back after local reset. |
@@ -13,7 +13,7 @@
 | Reports may be treated as official company records | Medium | Open | Keep copy personal and factual. Do not use company branding or invented numbers. |
 | No restore-from-JSON flow in-app | Medium | Open | Backups are still useful for recovery evidence, but restore requires manual/developer help today. |
 | Parser has no formal eval suite | Medium | Open | Add realistic field-note parser tests after device sync is no longer blocking. |
-| Sync status lacks enough field diagnostics | Medium | Open | If the panel keeps cycling, add visible diagnostics for sync trigger, table, uploaded row count, and last error. |
+| Sync status lacks enough field diagnostics | Medium | Guarded | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error. It still needs production device verification. |
 | Vercel CLI was outdated locally | Low | Closed | Upgraded to `54.21.1` on 2026-07-07 after Los approved. |
 
 ## Product Scope Risks

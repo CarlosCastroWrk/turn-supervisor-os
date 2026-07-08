@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through B1 Project Archive
+A2 Draft Apply Safety through C1 Dictation Parser Eval Suite
 ```
 
 Production:
@@ -52,6 +52,7 @@ Every near-term change should serve that loop.
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
 - Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
+- Parser eval coverage for punctuation-free field notes and deterministic draft targets
 - Number input safety that fixes setup/count-field leading-zero editing behavior
 - Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
 - Issue status safety that stops issue creation from changing unit status unless Los explicitly marks it blocking
@@ -81,7 +82,6 @@ Every near-term change should serve that loop.
 - Restore-from-JSON import flow in the app
 - Multi-user mode
 - Automated browser regression suite
-- Formal parser/eval test suite with realistic field notes
 - Server-side AI provider route
 - Durable recorded-audio transcription pipeline
 - Company product features
@@ -128,13 +128,13 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Verify B1 Project Archive on production after deployment:
+Run the B3 real-device offline/reconnect check before entering real field data:
 
-1. Open Setup on Mac.
-2. Export a fresh JSON backup.
-3. Archive one duplicate/test Real Turn project.
-4. Confirm it disappears from normal Real Turn switching and appears in Archived Real Turn projects.
-5. Reopen the PWA on iPhone/iPad and confirm the archive state syncs.
-6. Restore the project if you still need it.
+1. Open production on iPhone.
+2. Turn on airplane mode.
+3. Update 2-3 obvious QA units/issues.
+4. Confirm the changes remain visible locally.
+5. Turn airplane mode off.
+6. Confirm Mac and iPad receive the updates after reconnect.
 
-After that, the next build slice is B3 Offline/Reconnect Trust.
+While that physical-device check is pending, the next code slice is the remaining C2 conflict-detection behavior for same-unit draft conflicts.

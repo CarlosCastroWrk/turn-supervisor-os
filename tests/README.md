@@ -1,11 +1,20 @@
 # Tests
 
-Tests go here after the runtime stack is selected.
+The current automated gate is:
 
-Expected future categories:
+```bash
+npm run test:sync
+```
 
-- Unit tests
-- Integration tests
-- End-to-end or smoke tests
-- Fixture data marked as test-only
+Covered categories:
 
+- Supabase sync row merge/fingerprint behavior
+- Demo/real sync boundaries
+- Draft Action apply safety
+- Number input canonicalization
+- Report date safety
+- Issue status safety
+- Project archive behavior
+- Parser evals for punctuation-free field notes
+
+Use parser evals for Quick Capture regressions before changing the deterministic Copilot parser.

@@ -4,16 +4,21 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] Next ordered slice is B3 Offline/Reconnect Trust.
+- [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
+- [ ] Current code slice is remaining C2 Unit-Boundary Parser conflict detection.
+  - [x] Add parser evals for Los's punctuation-free field notes.
+  - [x] Split punctuation-free unit phrases by actual unit mention.
+  - [x] Convert simple named crew movement into an assignment draft.
+  - [ ] Detect conflicting draft updates for the same unit and require explicit confirmation.
 
 ## P0: Must Clear Before Real Field Reliance
 
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] C1 Dictation Parser Eval Suite.
+- [x] C1 Dictation Parser Eval Suite.
 - [ ] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [ ] C3 Draft Batch Safety: visible/current batch approval only.
 
@@ -88,3 +93,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] A5 Issue Status Safety: explicit `Blocks this unit` behavior, non-blocking issue creation, status-resolution guard, and production deploy.
 - [x] B1 Project Archive: soft archive for duplicate/test Real Turn projects, setup restore panel, Supabase `archived_at` sync mapping, and archive regression tests.
 - [x] B2 Demo Sync Boundary: demo-scoped rows stay local on upload, fresh devices keep local demo practice data after pulling real cloud rows, and no cloud cleanup runs.
+- [x] C1 Dictation Parser Eval Suite: regression tests for Los's punctuation-free field notes, unit target scoping, and crew-movement assignment parsing.

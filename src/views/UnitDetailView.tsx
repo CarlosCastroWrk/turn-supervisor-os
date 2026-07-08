@@ -17,7 +17,7 @@ interface UnitDetailViewProps {
 }
 
 export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetailViewProps) {
-  const unit = data.units.find((item) => item.id === unitId) ?? data.units[0];
+  const unit = data.units.find((item) => item.id === unitId);
   const [quickNote, setQuickNote] = useState('');
   const [issueTitle, setIssueTitle] = useState('');
   const [issueCategory, setIssueCategory] = useState<IssueCategory>('Maintenance');
@@ -29,7 +29,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
     return (
       <div className="page">
         <Button onClick={() => onNavigate('units')}>Back to Units</Button>
-        <p>No unit selected.</p>
+        <p>{unitId ? 'Unit not found. Go back to Units before making edits.' : 'No unit selected.'}</p>
       </div>
     );
   }

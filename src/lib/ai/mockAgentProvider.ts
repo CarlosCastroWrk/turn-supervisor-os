@@ -134,6 +134,10 @@ const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, so
   const unit = findUnitByNumber(data, unitNumber);
   const drafts: DraftAction[] = [];
   const confidence = confidenceForUnit(unit);
+  const negatesCompletion =
+    /\b(?:not|never)\s+(?:done|complete|completed|finished|ready)\b/.test(lower) ||
+    /\b(?:do not|don't|dont)\s+(?:mark\s+)?(?:unit\s*#?\s*)?\d{3,4}\s+(?:done|complete|completed|finished|ready)\b/.test(lower) ||
+    /\b(?:is not|isn't|isnt|was not|wasn't|wasnt)\s+(?:done|complete|completed|finished|ready)\b/.test(lower);
 
   const addStatusDraft = (title: string, payload: Record<string, WorkStatus | string | boolean>, why: string, summary = title) => {
     drafts.push(
@@ -153,19 +157,15 @@ const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, so
 
   if (
     /\b(?:done|complete|completed|finished)\b/.test(lower) &&
+    !negatesCompletion &&
     !/\bpaint(?:ing|er)?\b|\bclean(?:ing|er)?\b|\bmaintenance\b|\brepair\b|\bfloor(?:ing)?\b|\btrash\b|\binspection\b/.test(lower)
   ) {
     addStatusDraft(
       `Mark Unit ${unitNumber} ready`,
       {
-        paintStatus: 'Complete',
-        cleanStatus: 'Complete',
-        repairStatus: 'Complete',
-        inspectionStatus: 'Complete',
         overallStatus: 'Ready',
-        explicitReadyConfirmation: true,
       },
-      'The note says the unit is done, so this creates a reviewable ready draft.',
+      'The note says the unit is done, so this creates a reviewable ready draft without inventing trade completion.',
     );
   }
 

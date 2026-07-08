@@ -222,6 +222,106 @@ const reportFieldOrMissing = (value: string | undefined, label: string) => {
   return trimmed || `- No ${label} saved for this date.`;
 };
 
+const reportLinesOrMissing = (value: string | undefined, label: string) => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return [`No ${label} saved for this date.`];
+  }
+
+  return trimmed
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+};
+
+export interface DailyReportPreviewMetric {
+  label: string;
+  value: string;
+  helper: string;
+}
+
+export interface DailyReportPreviewSection {
+  title: string;
+  items: string[];
+}
+
+export interface DailyReportPreview {
+  title: string;
+  reportDateLabel: string;
+  status: string;
+  isMissingDailyLog: boolean;
+  propertyName: string;
+  projectName: string;
+  supervisorName: string;
+  projectManagerName: string;
+  location: string;
+  metrics: DailyReportPreviewMetric[];
+  sections: DailyReportPreviewSection[];
+}
+
+export const buildDailyReportPreview = (data: AppData, project: Project, reportDate = todayISO(), dailyLog?: DailyLog): DailyReportPreview => {
+  const units = getProjectUnits(data);
+  const issues = getPriorityIssues(getProjectIssues(data));
+  const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === reportDate);
+  const summary = getUnitSummary(units);
+  const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
+  const missing = assignments.filter((assignment) => ['No Show', 'Delayed'].includes(assignment.status));
+  const painterCount = checkedIn.filter((assignment) => assignment.trade === 'Painter').length;
+  const cleanerCount = checkedIn.filter((assignment) => assignment.trade === 'Cleaner').length;
+  const reassignedCount = assignments.filter((assignment) => assignment.status === 'Reassigned').length;
+
+  return {
+    title: 'Turn Supervisor Daily Report',
+    reportDateLabel: formatDate(reportDate),
+    status: dailyLog
+      ? 'DRAFT - Saved daily log found for this date. Review before sending.'
+      : 'DRAFT - Missing Daily Log for selected date. Do not send as a completed field report until this date has a saved Daily Log.',
+    isMissingDailyLog: !dailyLog,
+    propertyName: project.propertyName,
+    projectName: project.name,
+    supervisorName: project.supervisorName,
+    projectManagerName: project.projectManagerName,
+    location: project.location,
+    metrics: [
+      { label: 'Total units', value: String(summary.totalUnits), helper: 'Active project units' },
+      { label: 'Ready', value: String(summary.ready), helper: `${summary.percentComplete}% ready` },
+      { label: 'In progress', value: String(summary.inProgress), helper: 'Moving now' },
+      { label: 'Blocked', value: String(summary.blocked), helper: 'Need attention' },
+      { label: 'Inspection', value: String(summary.inspection), helper: 'Need final eyes' },
+    ],
+    sections: [
+      {
+        title: 'Completed Today',
+        items: reportLinesOrMissing(dailyLog?.completedSummary, 'completed summary'),
+      },
+      {
+        title: 'Open Issues',
+        items:
+          issues.length > 0
+            ? issues.slice(0, 8).map((issue) => `${issue.title}: ${issue.status}${issue.owner ? ` (${issue.owner})` : ''}`)
+            : ['No open high-priority issues logged.'],
+      },
+      {
+        title: 'Crew Notes',
+        items: [
+          `Painters checked in: ${painterCount}`,
+          `Cleaners checked in: ${cleanerCount}`,
+          `Missing/no-show/delayed: ${missing.length}`,
+          `Reassigned: ${reassignedCount}`,
+        ],
+      },
+      {
+        title: 'Tomorrow Priorities',
+        items: reportLinesOrMissing(dailyLog?.tomorrowPriorities, 'tomorrow priorities'),
+      },
+      {
+        title: 'Questions / Needs',
+        items: reportLinesOrMissing(dailyLog?.blockers, 'blockers or questions'),
+      },
+    ],
+  };
+};
+
 export const buildDailyReport = (data: AppData, project: Project, reportDate = todayISO(), dailyLog?: DailyLog) => {
   const units = getProjectUnits(data);
   const issues = getPriorityIssues(getProjectIssues(data));

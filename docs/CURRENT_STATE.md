@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through D6 Hash Routing and deep links, plus C4 Voice Reliability
+A2 Draft Apply Safety through D6 Hash Routing and deep links, plus C4 Voice Reliability and E2 Report Preview/Print
 ```
 
 Production:
@@ -63,6 +63,7 @@ Every near-term change should serve that loop.
 - Unit-boundary parser behavior that splits punctuation-free captures by unit, parses simple crew movement, and requires confirmation for conflicting same-unit drafts
 - Number input safety that fixes setup/count-field leading-zero editing behavior
 - Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
+- In-app report preview with print styling for Save as PDF/share as PDF, while preserving copy/download text fallbacks
 - Issue status safety that stops issue creation from changing unit status unless Los explicitly marks it blocking
 - Project archive safety that hides duplicate/test Real Turn projects without deleting their units, issues, notes, or cloud rows
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
@@ -145,4 +146,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice is E2 Report Preview And Print/PDF.
+While that physical-device check is pending, the next code slice is E1 Daily Activity Snapshot.

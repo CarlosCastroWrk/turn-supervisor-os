@@ -2,12 +2,13 @@ interface SectionProps {
   title: string;
   kicker?: string;
   action?: React.ReactNode;
+  className?: string;
   children: React.ReactNode;
 }
 
-export function Section({ title, kicker, action, children }: SectionProps) {
+export function Section({ title, kicker, action, className, children }: SectionProps) {
   return (
-    <section className="section">
+    <section className={className ? `section ${className}` : 'section'}>
       <div className="section__header">
         <div>
           {kicker ? <span className="section__kicker">{kicker}</span> : null}
@@ -19,4 +20,3 @@ export function Section({ title, kicker, action, children }: SectionProps) {
     </section>
   );
 }
-

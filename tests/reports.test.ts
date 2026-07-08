@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
-import { buildDailyReport } from '../src/lib/exporters.ts';
+import { buildDailyReport, buildDailyReportPreview } from '../src/lib/exporters.ts';
 import { formatDate, todayISO } from '../src/lib/constants.ts';
 import type { AppData, DailyLog } from '../src/types.ts';
 
@@ -60,4 +60,51 @@ test('buildDailyReport includes saved daily log content for the selected date', 
   assert.match(report, /Paint finished in units 201-204/);
   assert.match(report, /Keys missing for 205/);
   assert.match(report, /Walk 205 first/);
+});
+
+test('buildDailyReportPreview structures missing daily log output for print review', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+
+  const preview = buildDailyReportPreview(data, project, '2026-01-15');
+
+  assert.equal(preview.title, 'Turn Supervisor Daily Report');
+  assert.equal(preview.isMissingDailyLog, true);
+  assert.match(preview.status, /Missing Daily Log/);
+  assert.equal(preview.metrics.some((metric) => metric.label === 'Ready'), true);
+  assert.deepEqual(
+    preview.sections.find((section) => section.title === 'Tomorrow Priorities')?.items,
+    ['No tomorrow priorities saved for this date.'],
+  );
+});
+
+test('buildDailyReportPreview includes saved daily log sections and report recipient metadata', () => {
+  const data = cloneSeed();
+  const project = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(project);
+  const dailyLog: DailyLog = {
+    id: 'daily_preview',
+    projectId: project.id,
+    date: '2026-01-15',
+    morningPlan: '',
+    middayUpdate: '',
+    endOfDayReflection: '',
+    completedSummary: 'Paint finished in units 201-204.\nCleaners finished 103.',
+    blockers: 'Keys missing for 205.',
+    lessons: '',
+    tomorrowPriorities: 'Walk 205 first.',
+    createdAt: '2026-01-15T12:00:00.000Z',
+    updatedAt: '2026-01-15T12:00:00.000Z',
+  };
+
+  const preview = buildDailyReportPreview(data, project, dailyLog.date, dailyLog);
+
+  assert.equal(preview.isMissingDailyLog, false);
+  assert.equal(preview.projectManagerName, project.projectManagerName);
+  assert.deepEqual(preview.sections.find((section) => section.title === 'Completed Today')?.items, [
+    'Paint finished in units 201-204.',
+    'Cleaners finished 103.',
+  ]);
+  assert.deepEqual(preview.sections.find((section) => section.title === 'Questions / Needs')?.items, ['Keys missing for 205.']);
 });

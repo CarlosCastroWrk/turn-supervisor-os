@@ -7,10 +7,10 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
-- [ ] Current code slice is D6 Hash Routing and deep links.
-  - [ ] Preserve active view/detail state in the URL.
-  - [ ] Support reload/back behavior for dashboard-to-unit and dashboard-to-issue paths.
-  - [ ] Keep routing local-first and compatible with the static Vercel/PWA deploy.
+- [ ] Current code slice is C4 Voice Reliability.
+  - [ ] Make dictation fallback states clearer on iPhone/iPad.
+  - [ ] Confirm Capture stays usable when browser speech recognition is unavailable.
+  - [ ] Keep capture draft-first and deterministic.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -28,7 +28,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D3 Units Scan Upgrade.
 - [x] D4 Issue Flow Simplification.
 - [x] D5 Sidebar And Responsive Frame.
-- [ ] D6 Hash Routing and deep links.
+- [x] D6 Hash Routing and deep links.
 - [ ] C4 Voice Reliability.
 - [ ] E2 Report Preview And Print/PDF.
 - [ ] Run field test on iPhone Safari or installed PWA.
@@ -100,3 +100,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D3 Units Scan Upgrade: Units list sorts attention first, adds counted status chips, makes card bodies tappable, and surfaces blocker, crew, issue count, and last activity context.
 - [x] D4 Issue Flow Simplification: issue entry defaults owner/date, removes priority/date from the field form, uses Active issue filtering, and soft-closes accidental issues from the normal board after confirmation.
 - [x] D5 Sidebar And Responsive Frame: desktop sidebar is attached to the page frame, collapsed state persists, iPad landscape uses compact Capture, and mobile/desktop rendered smokes have no horizontal overflow.
+- [x] D6 Hash Routing and deep links: URL hashes preserve top-level views, unit detail routes, unit status filters, issue-focused routes, reload state, and browser back behavior.

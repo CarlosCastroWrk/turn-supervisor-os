@@ -23,12 +23,13 @@ import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, nowISO, todayISO } from '../lib/constants';
-import type { AppData, AppView, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
+import type { AppNavigate } from '../lib/routing';
+import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
 
 interface CopilotViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
-  onNavigate: (view: AppView, unitId?: string) => void;
+  onNavigate: AppNavigate;
 }
 
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';

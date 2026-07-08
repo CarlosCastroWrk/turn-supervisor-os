@@ -6,7 +6,8 @@ import {
   MessageSquareText,
   UserCheck,
 } from 'lucide-react';
-import type { AppData, AppView, DailyLog, Issue, SmartSuggestion, Unit, UnitStatusFilter } from '../types';
+import type { AppNavigate } from '../lib/routing';
+import type { AppData, DailyLog, Issue, SmartSuggestion, Unit } from '../types';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import { formatDate, todayISO } from '../lib/constants';
 import {
@@ -27,7 +28,7 @@ import { StatusBadge } from '../components/StatusBadge';
 
 interface DashboardViewProps {
   data: AppData;
-  onNavigate: (view: AppView, unitId?: string, options?: { unitStatusFilter?: UnitStatusFilter }) => void;
+  onNavigate: AppNavigate;
 }
 
 const getTurnDay = (startDate: string) => {
@@ -68,11 +69,7 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
   const blockedUnits = units.filter(isBlockedUnit);
 
   const navigateToIssue = (issue: Issue) => {
-    if (issue.unitId) {
-      onNavigate('unitDetail', issue.unitId);
-      return;
-    }
-    onNavigate('issues');
+    onNavigate('issues', undefined, { issueId: issue.id });
   };
 
   const navigateToSuggestion = (suggestion: SmartSuggestion) => {

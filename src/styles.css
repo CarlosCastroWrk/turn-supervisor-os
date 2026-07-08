@@ -1003,6 +1003,11 @@ small {
   padding: 14px;
 }
 
+.issue-card--focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16), 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
 .mini-metrics,
 .crew-details,
 .issue-card__meta {

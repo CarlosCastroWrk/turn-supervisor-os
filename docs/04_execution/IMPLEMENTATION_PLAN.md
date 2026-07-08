@@ -25,8 +25,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - D3 Units Scan Upgrade is implemented with needs-attention sorting, counted status chips, tappable unit card bodies, compact quick status actions, and blocker/crew/last-activity context.
 - D4 Issue Flow Simplification is implemented with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board.
 - D5 Sidebar And Responsive Frame is implemented with a page-attached desktop/sidebar layout, persisted collapsed state, compact tablet Capture behavior, and responsive smoke coverage.
+- D6 Hash Routing and deep links is implemented with local URL hash parsing/building, unit detail routes, issue-focused routes, filtered unit list routes, and reload/back smoke coverage.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is D6 Hash Routing and deep links.
+- The current code slice is C4 Voice Reliability.
 
 ## Current Field Gate
 
@@ -209,7 +210,7 @@ Out of scope:
 - New navigation destinations.
 - Company/multi-user portal layout.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### D6. Hash Routing and deep links
 
@@ -217,7 +218,7 @@ Purpose:
 
 - Make dashboard, unit, and issue navigation survive reload/back behavior in the field.
 
-Scope:
+Implemented:
 
 - Preserve active top-level view in the URL hash.
 - Add lightweight hash support for unit and issue detail targets already reachable from dashboard cards.
@@ -230,6 +231,28 @@ Out of scope:
 - Server-rendered routes.
 - Public/shareable company links.
 - Conflict review UI.
+
+## Current Code Slice
+
+### C4. Voice Reliability
+
+Purpose:
+
+- Make Capture understandable and usable on iPhone/iPad when browser speech recognition is unavailable or unreliable.
+
+Scope:
+
+- Clarify browser speech-recognition availability and keyboard dictation fallback states.
+- Keep the voice note / messy note workflow fast on mobile.
+- Preserve draft-first confirmation and deterministic parsing.
+- Add targeted browser smoke for the fallback state.
+
+Out of scope:
+
+- Server-side transcription.
+- Browser API keys.
+- Automatic texting or autonomous mutations.
+- Durable recorded-audio upload/storage.
 
 ## Slice Protocol
 

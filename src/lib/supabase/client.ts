@@ -1,9 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const viteEnv = import.meta.env ?? {};
+const supabaseUrl = viteEnv.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const isSyncFeatureEnabled = import.meta.env.VITE_ENABLE_SYNC === 'true';
+export const isSyncFeatureEnabled = viteEnv.VITE_ENABLE_SYNC === 'true';
 
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&

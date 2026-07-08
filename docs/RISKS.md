@@ -4,7 +4,8 @@
 
 | Risk | Severity | Status | Mitigation |
 | --- | --- | --- | --- |
-| Real-device sync may fail or require manual pull | High | Guarded | Baseline sync now settles on Los's Mac, iPhone, and iPad. Offline/reconnect QA still must pass before real field data. |
+| Real-device sync may fail or require manual pull | High | Guarded | Baseline sync now settles on Los's Mac, iPhone, and iPad. Pull reads now paginate, `Pull cloud` no longer uploads, `Upload needed` appears when local changes remain, and upload flows check cloud before pushing. Offline/reconnect QA still must pass before real field data. |
+| Simultaneous same-row edits may still overwrite by timestamp | High | Open | Pull-before-push reduces stale device clobbers, but true conflict review does not exist yet. Avoid editing the same unit/log on multiple devices at once. Keep JSON backups before serious use. |
 | Offline edits may not merge as expected | High | Open | Test airplane mode edits before Turn. Keep JSON backups before serious use. |
 | Demo data could contaminate Real Turn reports or Copilot answers | High | Open | Test Real Turn views, exports, reports, and Copilot answers with obvious demo vs real labels. |
 | Delete/reset behavior can be misunderstood | High | Open | Keep reset warnings explicit. Do not reset real data without backup. Document that cloud records can pull back after local reset. |

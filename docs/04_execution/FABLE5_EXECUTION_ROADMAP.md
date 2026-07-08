@@ -168,12 +168,20 @@ Scope:
 - Run Mac/iPhone/iPad airplane-mode edit test.
 - Document device writer rule if whole-row last-write-wins remains.
 - Capture any sync conflicts or stale overwrites as follow-up slices.
+- Pull cloud data in pages so large activity histories and fresh-device restores do not silently truncate at 1000 rows.
+- Pull and merge cloud state before upload flows push local changes.
+- Keep `Pull cloud` as a pull-only recovery action.
+- Show a clear pending-upload state when pull-only recovery leaves local changes unsent.
 
 Acceptance:
 
 - 2-3 offline QA edits survive reconnect and appear on other devices.
 - Sync status remains understandable.
 - No duplicates appear.
+- Fresh-device pulls can retrieve more than 1000 rows per table.
+- `Pull cloud` does not upload local rows.
+- The sync pill does not claim `Synced` when local changes still need upload after pull.
+- Upload flows do not blindly overwrite newer cloud rows without first checking cloud state.
 
 ## Phase C: Capture Trust
 
@@ -484,7 +492,12 @@ Only after the field-safe deterministic version is trusted.
 16. D6 Hash Routing
 17. C4 Voice Reliability
 18. E2 Report Preview And Print PDF
-19. F1 IndexedDB Photo Store
-20. F2 Supabase Storage Photo Sync
+19. E1 Daily Activity Snapshot
+20. P0 Parser And Stale Unit Safety
+21. P0 Sync Trust / Pull Pagination
+22. P0 Report Thaw
+23. E3 Daily Log Auto-Draft
+24. F1 IndexedDB Photo Store
+25. F2 Supabase Storage Photo Sync
 
 This order can change if real-device testing finds a higher-risk failure.

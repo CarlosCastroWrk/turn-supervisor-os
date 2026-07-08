@@ -1495,11 +1495,21 @@ small {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 12px;
-  align-items: center;
+  align-items: start;
   border: 1px solid #bfdbfe;
   border-radius: var(--radius);
   background: #eff6ff;
   padding: 12px;
+}
+
+.voice-memo--keyboardDictation {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.voice-memo--manualEntry {
+  border-color: var(--border);
+  background: #f8fafc;
 }
 
 .voice-record-button {
@@ -1519,6 +1529,11 @@ small {
 
 .voice-memo.is-recording .voice-record-button {
   background: #dc2626;
+}
+
+.voice-memo--keyboardDictation .voice-record-button,
+.voice-memo--manualEntry .voice-record-button {
+  background: #334155;
 }
 
 .voice-meter {
@@ -1559,12 +1574,18 @@ small {
 }
 
 .voice-memo strong,
-.voice-memo p {
+.voice-memo p,
+.voice-memo small {
   display: block;
 }
 
 .voice-memo p {
   font-size: 0.82rem;
+}
+
+.voice-memo small {
+  margin-top: 4px;
+  font-size: 0.76rem;
 }
 
 .voice-interim {

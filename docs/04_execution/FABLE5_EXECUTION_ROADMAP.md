@@ -231,6 +231,8 @@ Acceptance:
 
 ### C4. Voice Reliability
 
+Status: implemented in the C4 Voice Reliability release slice.
+
 Scope:
 
 - Improve browser speech-recognition restart behavior where supported.
@@ -471,12 +473,16 @@ Only after the field-safe deterministic version is trusted.
 7. B2 Demo Sync Boundary
 8. C1 Dictation Parser Eval Suite
 9. C2 Unit-Boundary Parser
-10. D1 Clickable Dashboard Stats
-11. D2 Needs Attention Feed
-12. D3 Units Scan Upgrade
-13. E2 Report Preview And Print PDF
-14. D5 Sidebar And Responsive Frame
-15. F1 IndexedDB Photo Store
-16. F2 Supabase Storage Photo Sync
+10. C3 Draft Batch Safety
+11. D1 Clickable Dashboard Stats
+12. D2 Needs Attention Feed
+13. D3 Units Scan Upgrade
+14. D4 Issue Flow Simplification
+15. D5 Sidebar And Responsive Frame
+16. D6 Hash Routing
+17. C4 Voice Reliability
+18. E2 Report Preview And Print PDF
+19. F1 IndexedDB Photo Store
+20. F2 Supabase Storage Photo Sync
 
 This order can change if real-device testing finds a higher-risk failure.

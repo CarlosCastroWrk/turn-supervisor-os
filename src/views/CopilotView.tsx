@@ -24,6 +24,7 @@ import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, nowISO, todayISO } from '../lib/constants';
 import type { AppNavigate } from '../lib/routing';
+import { getVoiceCaptureGuidance, isRestartableSpeechError, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
 
 interface CopilotViewProps {
@@ -262,6 +263,9 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const keepListeningRef = useRef(false);
+  const lastSpeechErrorRef = useRef<string | undefined>(undefined);
+  const restartTimerRef = useRef<number | undefined>(undefined);
   const [isRecording, setIsRecording] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('');
@@ -307,6 +311,16 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const pendingMemory = data.memoryCandidates.filter((candidate) => candidate.status === 'pending');
   const quickInputReady = quickInput.trim().length > 0;
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
+  const voiceGuidance = useMemo(
+    () =>
+      getVoiceCaptureGuidance({
+        speechRecognitionAvailable: speechSupported,
+        userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
+        platform: typeof navigator === 'undefined' ? '' : navigator.platform,
+        maxTouchPoints: typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints,
+      }),
+    [speechSupported],
+  );
 
   useEffect(() => {
     if (mode !== 'quick') {
@@ -319,26 +333,55 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
 
   useEffect(
     () => () => {
+      keepListeningRef.current = false;
+      if (restartTimerRef.current) {
+        window.clearTimeout(restartTimerRef.current);
+      }
       recognitionRef.current?.abort();
     },
     [],
   );
 
   const stopVoiceCapture = () => {
+    keepListeningRef.current = false;
+    if (restartTimerRef.current) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = undefined;
+    }
     recognitionRef.current?.stop();
     setIsRecording(false);
     setInterimTranscript('');
+    setVoiceStatus('Stopped. Review the text, then create drafts or save the raw note.');
+  };
+
+  const focusFallbackDictation = () => {
+    keepListeningRef.current = false;
+    setIsRecording(false);
+    setInterimTranscript('');
+    setVoiceStatus(voiceGuidance.unavailableStatus);
+    quickInputRef.current?.focus();
   };
 
   const startVoiceCapture = () => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      setVoiceStatus('Voice transcription is not available in this browser. Use the iPad/iPhone keyboard dictation mic in the note box.');
-      quickInputRef.current?.focus();
+      focusFallbackDictation();
       return;
     }
 
-    recognitionRef.current?.abort();
+    lastSpeechErrorRef.current = undefined;
+    if (restartTimerRef.current) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = undefined;
+    }
+    if (recognitionRef.current) {
+      keepListeningRef.current = false;
+      recognitionRef.current.onend = null;
+      recognitionRef.current.onerror = null;
+      recognitionRef.current.onresult = null;
+      recognitionRef.current.abort();
+      recognitionRef.current = null;
+    }
     const recognition = new Recognition();
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -363,17 +406,47 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       setInterimTranscript(interim);
     };
     recognition.onerror = (event) => {
-      setVoiceStatus(`Voice capture stopped: ${event.error ?? event.message ?? 'browser error'}.`);
+      lastSpeechErrorRef.current = event.error;
+      if (isRestartableSpeechError(event.error) && keepListeningRef.current) {
+        setVoiceStatus('Still listening. Pauses are okay.');
+        return;
+      }
+
+      keepListeningRef.current = false;
+      setVoiceStatus(voiceErrorStatus(event.error, event.message));
       setIsRecording(false);
     };
     recognition.onend = () => {
-      setIsRecording(false);
       setInterimTranscript('');
+      if (keepListeningRef.current && isRestartableSpeechError(lastSpeechErrorRef.current)) {
+        restartTimerRef.current = window.setTimeout(() => {
+          try {
+            lastSpeechErrorRef.current = undefined;
+            recognition.start();
+            setIsRecording(true);
+            setVoiceStatus('Still listening. Pauses are okay.');
+          } catch {
+            keepListeningRef.current = false;
+            setIsRecording(false);
+            setVoiceStatus('Voice capture paused by the browser. Use keyboard dictation or tap Record again.');
+          }
+        }, 250);
+        return;
+      }
+
+      setIsRecording(false);
     };
     recognitionRef.current = recognition;
-    setVoiceStatus('Listening. Speak naturally, then stop when the note is done.');
-    setIsRecording(true);
-    recognition.start();
+    keepListeningRef.current = true;
+    setVoiceStatus('Listening. Speak naturally; short pauses are okay.');
+    try {
+      recognition.start();
+      setIsRecording(true);
+    } catch {
+      keepListeningRef.current = false;
+      setVoiceStatus('Voice capture could not start. Use keyboard dictation or type into the note box.');
+      quickInputRef.current?.focus();
+    }
   };
 
   const parseQuickCapture = async () => {
@@ -594,15 +667,16 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
         <>
           <Section title="Field Capture" kicker="Draft-first">
             <div className="form-card copilot-card">
-              <div className={`voice-memo ${isRecording ? 'is-recording' : ''}`}>
+              <div className={`voice-memo voice-memo--${voiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}>
                 <button
                   className="voice-record-button"
                   type="button"
-                  onClick={isRecording ? stopVoiceCapture : startVoiceCapture}
+                  onClick={isRecording ? stopVoiceCapture : speechSupported ? startVoiceCapture : focusFallbackDictation}
                   aria-pressed={isRecording}
+                  aria-describedby="voice-capture-guidance"
                 >
                   {isRecording ? <Square size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
-                  <span>{isRecording ? 'Stop' : 'Record'}</span>
+                  <span>{isRecording ? 'Stop' : voiceGuidance.idleButtonLabel}</span>
                 </button>
                 <div className="voice-meter" aria-hidden="true">
                   <span />
@@ -612,22 +686,24 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                   <span />
                 </div>
                 <div>
-                  <strong>{isRecording ? 'Recording voice note' : 'Voice note'}</strong>
-                  <p>
-                    {speechSupported
-                      ? 'Tap Record to transcribe, or tap the note box and use keyboard dictation.'
-                      : 'Use the iPad/iPhone keyboard dictation mic in the note box.'}
-                  </p>
+                  <strong>{isRecording ? 'Recording voice note' : voiceGuidance.title}</strong>
+                  <p id="voice-capture-guidance">{isRecording ? 'Listening. Speak naturally; short pauses are okay.' : voiceGuidance.description}</p>
+                  <small>{voiceGuidance.privacyNote}</small>
                 </div>
               </div>
               {interimTranscript ? <p className="voice-interim">{interimTranscript}</p> : null}
-              {voiceStatus ? <p className={isRecording ? 'success-text' : 'muted'}>{voiceStatus}</p> : null}
+              {voiceStatus ? (
+                <p className={isRecording ? 'success-text' : 'muted'} role="status" aria-live="polite">
+                  {voiceStatus}
+                </p>
+              ) : null}
 
               <Field label="Voice or messy note">
                 <textarea
                   ref={quickInputRef}
                   autoFocus
                   enterKeyHint="done"
+                  inputMode="text"
                   rows={7}
                   value={quickInput}
                   onChange={(event) => setQuickInput(event.target.value)}

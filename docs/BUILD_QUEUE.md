@@ -7,10 +7,10 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
-- [ ] Current code slice is C4 Voice Reliability.
-  - [ ] Make dictation fallback states clearer on iPhone/iPad.
-  - [ ] Confirm Capture stays usable when browser speech recognition is unavailable.
-  - [ ] Keep capture draft-first and deterministic.
+- [ ] Current code slice is E2 Report Preview And Print/PDF.
+  - [ ] Build an in-app report preview.
+  - [ ] Add print styling for Save as PDF/share as PDF.
+  - [ ] Keep copy-to-text export.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -29,7 +29,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D4 Issue Flow Simplification.
 - [x] D5 Sidebar And Responsive Frame.
 - [x] D6 Hash Routing and deep links.
-- [ ] C4 Voice Reliability.
+- [x] C4 Voice Reliability.
 - [ ] E2 Report Preview And Print/PDF.
 - [ ] Run field test on iPhone Safari or installed PWA.
 - [ ] Run field test on iPad Safari or installed PWA.
@@ -101,3 +101,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D4 Issue Flow Simplification: issue entry defaults owner/date, removes priority/date from the field form, uses Active issue filtering, and soft-closes accidental issues from the normal board after confirmation.
 - [x] D5 Sidebar And Responsive Frame: desktop sidebar is attached to the page frame, collapsed state persists, iPad landscape uses compact Capture, and mobile/desktop rendered smokes have no horizontal overflow.
 - [x] D6 Hash Routing and deep links: URL hashes preserve top-level views, unit detail routes, unit status filters, issue-focused routes, reload state, and browser back behavior.
+- [x] C4 Voice Reliability: Capture explains browser speech support, falls back to iPhone/iPad keyboard dictation when speech recognition is unavailable, restarts after ordinary browser pauses where supported, and keeps draft-first confirmation.

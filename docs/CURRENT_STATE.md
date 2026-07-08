@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through D6 Hash Routing and deep links
+A2 Draft Apply Safety through D6 Hash Routing and deep links, plus C4 Voice Reliability
 ```
 
 Production:
@@ -68,7 +68,7 @@ Every near-term change should serve that loop.
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
-- Voice-memo style Capture UI with browser speech-recognition support where available and iPhone/iPad keyboard dictation fallback
+- Voice-memo style Capture UI with browser speech-recognition support where available, short-pause restart handling, and clear iPhone/iPad keyboard dictation fallback
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
 - Export/backup tools for JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
 
@@ -145,4 +145,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice is C4 Voice Reliability.
+While that physical-device check is pending, the next code slice is E2 Report Preview And Print/PDF.

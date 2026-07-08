@@ -26,8 +26,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - D4 Issue Flow Simplification is implemented with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board.
 - D5 Sidebar And Responsive Frame is implemented with a page-attached desktop/sidebar layout, persisted collapsed state, compact tablet Capture behavior, and responsive smoke coverage.
 - D6 Hash Routing and deep links is implemented with local URL hash parsing/building, unit detail routes, issue-focused routes, filtered unit list routes, and reload/back smoke coverage.
+- C4 Voice Reliability is implemented with clearer browser speech states, iPhone/iPad keyboard dictation fallback, ordinary-pause restart handling, and targeted tests.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is C4 Voice Reliability.
+- The current code slice is E2 Report Preview And Print/PDF.
 
 ## Current Field Gate
 
@@ -232,7 +233,7 @@ Out of scope:
 - Public/shareable company links.
 - Conflict review UI.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### C4. Voice Reliability
 
@@ -253,6 +254,27 @@ Out of scope:
 - Browser API keys.
 - Automatic texting or autonomous mutations.
 - Durable recorded-audio upload/storage.
+
+## Current Code Slice
+
+### E2. Report Preview And Print/PDF
+
+Purpose:
+
+- Make the report useful before export and printable/shareable as a clean PDF for Tony.
+
+Scope:
+
+- Build an in-app report preview.
+- Add print stylesheet support for Save as PDF/share as PDF.
+- Keep copy-to-text export.
+
+Out of scope:
+
+- Server-side AI report writing.
+- Automatic texting/emailing.
+- Company report portal.
+- Photo binary sync.
 
 ## Slice Protocol
 

@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test:sync": "node --experimental-strip-types --test tests/sync-core.test.ts",
+    "test:sync": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/sync-core.test.ts tests/actions-draft.test.ts",
     "preview": "vite preview --host 0.0.0.0",
     "check:os": "scripts/check_os.sh"
   },

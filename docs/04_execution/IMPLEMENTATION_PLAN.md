@@ -11,36 +11,37 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - Baseline sync settles on Los's Mac, iPhone, and iPad.
 - Sync diagnostics are deployed.
 - The next real-device gate is offline/reconnect QA.
-- The current implementation branch is `agent/storage-photo-safety`.
+- The current implementation branch is `agent/draft-apply-safety`.
 
 ## Current Slice
 
-### A1. Storage And Photo Safety
+### A2. Draft Apply Safety
 
 Purpose:
 
-- Reduce immediate local data-loss risk from corrupt localStorage and large photo payloads.
+- Prevent Draft Actions from mutating the wrong project and prevent edited JSON payloads from writing invalid enum values.
 
 Scope:
 
-- Preserve corrupt local cache payloads before seed fallback.
-- Compress captured photos before saving them into app state.
-- Show capture success/error feedback.
-- Keep photos local-only.
+- Scope draft unit-number lookup to the active project.
+- Validate unit status payloads before applying.
+- Validate issue payload category, priority, and status before creating issues.
+- Keep assignment unit-number lookup active-project scoped.
+- Add draft apply regression tests.
 
 Out of scope:
 
-- IndexedDB photo binary store.
-- Supabase Storage upload/download.
-- Photo delete/restore.
-- Report/photo PDF embedding.
+- Draft batch approval changes.
+- Parser unit-boundary improvements.
+- Typed payload editors.
+- True delete/tombstone behavior.
 
 Acceptance:
 
-- Bad local cache payload is preserved under a recovery key.
-- App still boots after corrupt-cache fallback.
-- Test photo saves, reloads, and remains visible.
-- Normal edits still save after adding a photo.
+- Drafts for real unit numbers do not mutate demo units with the same number.
+- Invalid status/category/priority payloads fail the draft with an error.
+- Failed invalid drafts do not mutate units or create issues.
+- Existing valid draft apply behavior still passes.
 
 ## Slice Protocol
 

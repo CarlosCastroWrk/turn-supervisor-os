@@ -42,7 +42,7 @@ These slices protect Los from losing data or corrupting the board before real fi
 
 ### A1. Storage And Photo Safety
 
-Status: in progress on `agent/storage-photo-safety`.
+Status: shipped in `7cdf90b`.
 
 Scope:
 
@@ -59,6 +59,8 @@ Acceptance:
 - Normal unit edits still save after a photo is added.
 
 ### A2. Draft Apply Safety
+
+Status: in progress on `agent/draft-apply-safety`.
 
 Scope:
 

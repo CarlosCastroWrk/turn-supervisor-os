@@ -4,20 +4,19 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] A1 Storage And Photo Safety on `agent/storage-photo-safety`
-  - [x] Preserve corrupt local cache payloads before seed fallback.
-  - [x] Compress captured photos before saving them into local app state.
-  - [x] Add photo compression success/error feedback.
-  - [x] Add photo storage safety checklist.
-  - [ ] Commit, push, PR, merge, deploy after Los approval.
-  - [ ] Verify local photo capture on production.
+- [ ] A2 Draft Apply Safety on `agent/draft-apply-safety`
+  - [x] Scope draft unit-number lookup to the active project.
+  - [x] Validate unit status payload enums before applying.
+  - [x] Validate issue category, priority, and status payload enums before creating issues.
+  - [x] Keep assignment unit-number lookup active-project scoped.
+  - [x] Add draft apply regression tests.
+  - [ ] Commit, push, PR, merge, deploy under standing release authorization.
 
 ## P0: Must Clear Before Real Field Reliance
 
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] A2 Draft Apply Safety: project-scope draft unit lookup and enum validation.
 - [ ] A3 Number Input Safety: fix setup leading-zero bug and numeric keypad behavior.
 - [ ] A4 Report Date Safety: selected-date reports and placeholder guard.
 - [ ] A5 Issue Status Safety: stop issue creation from clobbering unit status.
@@ -91,3 +90,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Document PR workflow for non-emergency slices.
 - [x] Add sync status diagnostics showing trigger reason, table activity, upload count, queued state, and last error.
 - [x] Confirm deployed sync diagnostics settle on `Synced` across Los's Mac, iPhone, and iPad.
+- [x] A1 Storage And Photo Safety: preserve corrupt cache, compress photos before local save, and deploy execution roadmap.

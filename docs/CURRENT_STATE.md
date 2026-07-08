@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped app commit:
 
 ```text
-7976564 Add sync status diagnostics
+7cdf90b Add storage photo safety and execution roadmap
 ```
 
 Production:
@@ -49,7 +49,8 @@ Every near-term change should serve that loop.
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
-- A pending storage/photo safety slice that preserves corrupt local cache payloads and compresses photos before saving them locally
+- Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
+- A pending draft apply safety slice that scopes draft unit lookup to the active project and validates draft payload enums before mutation
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens

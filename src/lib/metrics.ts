@@ -1,8 +1,13 @@
 import type { AppData, Assignment, Building, Floor, Issue, Project, Unit } from '../types';
 
+export const isArchivedProject = (project: Project) => Boolean(project.archivedAt);
+
+export const getVisibleProjects = (projects: Project[]) => projects.filter((project) => !isArchivedProject(project));
+
 export const getActiveProject = (data: AppData): Project => {
-  const project = data.projects.find((item) => item.id === data.activeProjectId);
-  return project ?? data.projects[0];
+  const visibleProjects = getVisibleProjects(data.projects);
+  const project = visibleProjects.find((item) => item.id === data.activeProjectId);
+  return project ?? visibleProjects[0] ?? data.projects[0];
 };
 
 export const getProjectUnits = (data: AppData) => data.units.filter((unit) => unit.projectId === data.activeProjectId);

@@ -4,10 +4,9 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] No active implementation slice.
-  - [ ] Next ordered slice is B1 Project Archive.
-  - [ ] B1 requires fresh explicit approval before any Supabase migration or sync-schema work.
-  - [ ] If B1 approval is deferred, the next safe non-migration slice is C1 Dictation Parser Eval Suite.
+- [ ] Next ordered slice is B2 Demo Sync Boundary.
+  - [ ] Confirm Demo Mode practice records do not get uploaded as active real cloud work.
+  - [ ] Do not run one-time cloud cleanup without separate explicit approval.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -60,7 +59,6 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## Blocked
 
 - Real Property Doctor Services workflow details remain partially blocked until training clarifies what Los actually supervises day to day.
-- B1 Project Archive requires explicit approval before Supabase migration or sync-schema work.
 - Supabase one-time cleanup for duplicate/demo cloud records requires explicit approval before any data-changing command.
 
 ## Done
@@ -89,3 +87,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] A3 Number Input Safety: shared integer input behavior, iOS numeric keyboard hints, leading-zero fix, and production deploy.
 - [x] A4 Report Date Safety: selected-date reports, missing-log draft labels, placeholder removal, and production deploy.
 - [x] A5 Issue Status Safety: explicit `Blocks this unit` behavior, non-blocking issue creation, status-resolution guard, and production deploy.
+- [x] B1 Project Archive: soft archive for duplicate/test Real Turn projects, setup restore panel, Supabase `archived_at` sync mapping, and archive regression tests.

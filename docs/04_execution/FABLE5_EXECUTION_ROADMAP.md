@@ -130,7 +130,7 @@ These slices clean up test noise and reduce resurrection/duplication risks.
 
 ### B1. Project Archive
 
-Status: blocked until Los explicitly approves the Supabase migration/sync-schema portion.
+Status: implemented in the B1 Project Archive release slice.
 
 Scope:
 

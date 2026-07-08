@@ -1,6 +1,7 @@
 import type { PhotoNote } from '../../types';
 
 const TIMESTAMP_FIELDS = new Set([
+  'archived_at',
   'applied_at',
   'completed_at',
   'created_at',

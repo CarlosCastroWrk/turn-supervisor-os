@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyDraftAction } from '../src/lib/actions.ts';
+import { addDraftActions, applyAllPendingDraftActions, applyDraftAction, rejectAllPendingDraftActions } from '../src/lib/actions.ts';
 import { seedData } from '../src/data/seed.ts';
 import type { AppData, DraftAction, Unit } from '../src/types.ts';
 
@@ -122,4 +122,39 @@ test('applyDraftAction fails invalid issue payload enums without creating an iss
   assert.equal(next.issues.length, data.issues.length);
   assert.equal(next.draftActions[0].status, 'failed');
   assert.match(next.draftActions[0].error ?? '', /Invalid category/);
+});
+
+test('addDraftActions stamps a capture batch onto every draft payload', () => {
+  const data = withRealProject();
+  const first = baseDraft({ id: 'draft_batch_1', payload: { unitNumber: '203', paintStatus: 'Complete' } });
+  const second = baseDraft({ id: 'draft_batch_2', payload: { unitNumber: '203', cleanStatus: 'Complete' } });
+
+  const next = addDraftActions(data, [first, second], '203 paint and clean done', 'capture_batch_test');
+
+  assert.equal(next.draftActions[0].payload.captureBatchId, 'capture_batch_test');
+  assert.equal(next.draftActions[1].payload.captureBatchId, 'capture_batch_test');
+  assert.equal(next.draftActions[0].payload.captureSourceNote, '203 paint and clean done');
+  assert.equal(typeof next.draftActions[0].payload.captureCreatedAt, 'string');
+});
+
+test('applyAllPendingDraftActions can be scoped to visible draft ids', () => {
+  const data = withRealProject();
+  const first = baseDraft({ id: 'draft_visible_apply', payload: { unitNumber: '203', paintStatus: 'Complete' } });
+  const second = baseDraft({ id: 'draft_hidden_apply', payload: { unitNumber: '203', cleanStatus: 'Complete' } });
+
+  const next = applyAllPendingDraftActions({ ...data, draftActions: [first, second] }, [first.id]);
+
+  assert.equal(next.draftActions.find((draft) => draft.id === first.id)?.status, 'applied');
+  assert.equal(next.draftActions.find((draft) => draft.id === second.id)?.status, 'pending');
+});
+
+test('rejectAllPendingDraftActions can be scoped to visible draft ids', () => {
+  const data = withRealProject();
+  const first = baseDraft({ id: 'draft_visible_reject', payload: { unitNumber: '203', paintStatus: 'Complete' } });
+  const second = baseDraft({ id: 'draft_hidden_reject', payload: { unitNumber: '203', cleanStatus: 'Complete' } });
+
+  const next = rejectAllPendingDraftActions({ ...data, draftActions: [first, second] }, [first.id]);
+
+  assert.equal(next.draftActions.find((draft) => draft.id === first.id)?.status, 'rejected');
+  assert.equal(next.draftActions.find((draft) => draft.id === second.id)?.status, 'pending');
 });

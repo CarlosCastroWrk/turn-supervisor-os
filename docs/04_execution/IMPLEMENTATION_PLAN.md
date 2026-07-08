@@ -19,8 +19,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - B2 Demo Sync Boundary is implemented with upload filtering for demo-scoped rows and fresh-device demo preservation.
 - C1 Dictation Parser Eval Suite is implemented with regression coverage for Los's punctuation-free field notes.
 - C2 Unit-Boundary Parser is implemented with same-unit conflict confirmation.
+- C3 Draft Batch Safety is implemented with visible-only bulk apply/reject, stale draft flags, and applied unit targets.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is C3 Draft Batch Safety.
+- The current code slice is D1 Clickable Dashboard Stats.
 
 ## Current Field Gate
 
@@ -75,7 +76,7 @@ Completed:
 - Detect conflicting draft updates for the same unit in one capture batch and require explicit confirmation.
 - Preserve deterministic/local parsing with no server-side AI dependency.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### C3. Draft Batch Safety
 
@@ -95,6 +96,27 @@ Out of scope:
 - Server-side AI.
 - Automatic mutation without draft approval.
 - Company/multi-user approval workflows.
+
+## Current Code Slice
+
+### D1. Clickable Dashboard Stats
+
+Purpose:
+
+- Turn the dashboard summary cards into fast navigation for field scanning.
+
+Scope:
+
+- Make Units, Ready, In Progress, Blocked, and Inspection cards clickable.
+- Link each card to the matching filtered Units view.
+- Drop Common Areas from the primary dashboard stat row.
+- Remove unreliable bed count from the Units stat until per-unit beds are intentional.
+
+Out of scope:
+
+- Full hash routing.
+- New CRM/company dashboards.
+- Report/PDF redesign.
 
 ## Slice Protocol
 

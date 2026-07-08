@@ -7,11 +7,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
-- [ ] Current code slice is C3 Draft Batch Safety.
-  - [ ] Group drafts by capture batch.
-  - [ ] Scope Approve All to visible/current batch.
-  - [ ] Flag stale drafts older than today.
-  - [ ] Applied drafts should link to what changed.
+- [ ] Current code slice is D1 Clickable Dashboard Stats.
+  - [ ] Make Units, Ready, In Progress, Blocked, and Inspection cards clickable.
+  - [ ] Link to filtered Units views.
+  - [ ] Drop Common Areas from primary dashboard stats.
+  - [ ] Remove unreliable bed count from Units stat until per-unit beds are intentional.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -20,7 +20,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
 - [x] C1 Dictation Parser Eval Suite.
 - [x] C2 Unit-Boundary Parser for punctuation-free field notes.
-- [ ] C3 Draft Batch Safety: visible/current batch approval only.
+- [x] C3 Draft Batch Safety: visible/current batch approval only.
 
 ## P1: Should Fix During Training
 
@@ -95,3 +95,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] B2 Demo Sync Boundary: demo-scoped rows stay local on upload, fresh devices keep local demo practice data after pulling real cloud rows, and no cloud cleanup runs.
 - [x] C1 Dictation Parser Eval Suite: regression tests for Los's punctuation-free field notes, unit target scoping, and crew-movement assignment parsing.
 - [x] C2 Unit-Boundary Parser: punctuation-free unit segmentation, generic done/in-progress drafts, crew movement parsing, sink/leak scoping, and same-unit conflict confirmation.
+- [x] C3 Draft Batch Safety: capture batch ids, visible-only bulk apply/reject, stale pending draft flags, and applied unit open target.

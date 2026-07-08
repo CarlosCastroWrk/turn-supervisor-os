@@ -21,8 +21,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - C2 Unit-Boundary Parser is implemented with same-unit conflict confirmation.
 - C3 Draft Batch Safety is implemented with visible-only bulk apply/reject, stale draft flags, and applied unit targets.
 - D1 Clickable Dashboard Stats is implemented with filtered Units navigation from the dashboard.
+- D2 Needs Attention Feed is implemented with actionable dashboard feed cards and suggestion links.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is D2 Needs Attention Feed.
+- The current code slice is D3 Units Scan Upgrade.
 
 ## Current Field Gate
 
@@ -119,7 +120,7 @@ Out of scope:
 - New CRM/company dashboards.
 - Report/PDF redesign.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### D2. Needs Attention Feed
 
@@ -138,6 +139,26 @@ Out of scope:
 - Full routing/deep-link URLs.
 - AI-generated priorities.
 - Company/multi-user task assignment.
+
+## Current Code Slice
+
+### D3. Units Scan Upgrade
+
+Purpose:
+
+- Make the Units page faster to scan and update while walking.
+
+Scope:
+
+- Improve card information hierarchy on iPhone.
+- Keep status and issue context visible.
+- Preserve existing large-list rendering limits.
+
+Out of scope:
+
+- Bulk CSV import.
+- Full route/deep-link system.
+- New assignment or crew workflows.
 
 ## Slice Protocol
 

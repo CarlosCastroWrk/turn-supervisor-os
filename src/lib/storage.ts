@@ -4,12 +4,14 @@ import type { AppData } from '../types';
 import { normalizeAppData } from './dataMigrations';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
+const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
 
 export const hasStoredAppData = () => Boolean(window.localStorage.getItem(STORAGE_KEY));
 
 export const loadAppData = (): AppData => {
+  const stored = window.localStorage.getItem(STORAGE_KEY);
+
   try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
     if (!stored) {
       return normalizeAppData(seedData);
     }
@@ -17,6 +19,13 @@ export const loadAppData = (): AppData => {
     return normalizeAppData({ ...seedData, ...JSON.parse(stored) } as AppData);
   } catch (error) {
     console.warn('Failed to load local Turn Supervisor OS data. Falling back to seed data.', error);
+    if (stored) {
+      try {
+        window.localStorage.setItem(CORRUPT_STORAGE_KEY, stored);
+      } catch (preserveError) {
+        console.warn('Failed to preserve corrupt Turn Supervisor OS data.', preserveError);
+      }
+    }
     return normalizeAppData(seedData);
   }
 };

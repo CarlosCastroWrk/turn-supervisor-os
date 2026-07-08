@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped app commit:
 
 ```text
-822aa8e Fix sync change fingerprinting
+7976564 Add sync status diagnostics
 ```
 
 Production:
@@ -48,7 +48,8 @@ Every near-term change should serve that loop.
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
-- A pending sync diagnostics slice that quiets background Realtime checks and exposes last trigger, table, event, row counts, queued state, and last error in the sync panel
+- Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
+- A pending storage/photo safety slice that preserves corrupt local cache payloads and compresses photos before saving them locally
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
@@ -68,7 +69,7 @@ Every near-term change should serve that loop.
 
 ## What Does Not Exist Yet
 
-- Full hands-on sync QA across Los's Mac, iPhone, and iPad
+- Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
 - Delete propagation / tombstones for synced rows
 - Photo binary sync through Supabase Storage
 - Restore-from-JSON import flow in the app
@@ -86,7 +87,7 @@ Every near-term change should serve that loop.
 - Real field records should live in Real Turn Mode.
 - `localStorage` is still the hot/offline cache even when Supabase sync is enabled.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
-- Base64 photo payloads remain local-only until the Storage/photo-compression slice.
+- Compressed photo payloads remain local-only until the Supabase Storage/IndexedDB photo slice.
 - Copilot output must remain draft-first; important mutations require explicit approval.
 - Memory candidates must be approved before use.
 - Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
@@ -106,21 +107,12 @@ Real-device Phase 1 QA:
 
 Current immediate field check:
 
-1. Open or hard-refresh the production PWA on Mac, iPhone, and iPad.
-2. Tap `Sync now` once.
-3. Wait 60-90 seconds.
-4. Confirm whether each device settles on `Synced` or keeps cycling.
-
-If sync still cycles after the diagnostics slice is deployed, open `Sync details` and record:
-
-- Last trigger
-- Last table
-- Last event
-- Pulled row count
-- Uploaded row count
-- Uploaded tables
-- Queued state
-- Last error detail
+1. Open production on iPhone.
+2. Turn on airplane mode.
+3. Update 2-3 obvious QA units/issues.
+4. Confirm the changes remain visible locally.
+5. Turn airplane mode off.
+6. Confirm Mac and iPad receive the updates after reconnect.
 
 ## GitHub Workflow
 
@@ -130,4 +122,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Run the Mac/iPhone/iPad Phase 1 sync checklist in [TESTING.md](TESTING.md) before entering real field data.
+Run the offline/reconnect QA checklist in [TESTING.md](TESTING.md) before entering real field data.

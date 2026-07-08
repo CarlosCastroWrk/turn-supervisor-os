@@ -13,9 +13,10 @@ This workspace is in Phase 1 Stabilize for PDS / Turn Field Copilot. The current
 7. [docs/DECISIONS.md](DECISIONS.md)
 8. [docs/BUILD_QUEUE.md](BUILD_QUEUE.md)
 9. [docs/04_execution/IMPLEMENTATION_PLAN.md](04_execution/IMPLEMENTATION_PLAN.md)
-10. [docs/05_quality/QA_PLAN.md](05_quality/QA_PLAN.md)
-11. [docs/06_release/GITHUB_PR_WORKFLOW.md](06_release/GITHUB_PR_WORKFLOW.md)
-12. [ops/decisions](../ops/decisions)
+10. [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/FABLE5_EXECUTION_ROADMAP.md)
+11. [docs/05_quality/QA_PLAN.md](05_quality/QA_PLAN.md)
+12. [docs/06_release/GITHUB_PR_WORKFLOW.md](06_release/GITHUB_PR_WORKFLOW.md)
+13. [ops/decisions](../ops/decisions)
 
 ## Source Of Truth
 
@@ -26,6 +27,7 @@ This workspace is in Phase 1 Stabilize for PDS / Turn Field Copilot. The current
 - Current risks: [docs/RISKS.md](RISKS.md)
 - Current decisions: [docs/DECISIONS.md](DECISIONS.md)
 - Approved tasks: [docs/BUILD_QUEUE.md](BUILD_QUEUE.md)
+- Fable 5 execution roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/FABLE5_EXECUTION_ROADMAP.md)
 - GitHub / PR workflow: [docs/06_release/GITHUB_PR_WORKFLOW.md](06_release/GITHUB_PR_WORKFLOW.md)
 - Architecture decisions: [ops/decisions](../ops/decisions)
 - Work history: [docs/04_execution/WORK_LOG.md](04_execution/WORK_LOG.md)

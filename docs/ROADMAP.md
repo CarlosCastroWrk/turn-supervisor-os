@@ -2,7 +2,7 @@
 
 ## Product Direction
 
-PDS / Turn Field Copilot is Los's private field companion for a two-week student housing Turn operation. It should help Los become organized, reliable, and useful under pressure.
+PDS / Turn Field Copilot is Los's private field companion for a two-week student housing Turn operation. It should help Los capture facts, confirm changes, keep the board accurate, follow up, report clearly, and learn the operation under pressure.
 
 It is not official Property Doctor Services software, not a company CRM, and not a multi-user portal.
 
@@ -10,112 +10,135 @@ It is not official Property Doctor Services software, not a company CRM, and not
 
 Capture -> Confirm -> Update Board -> Follow Up -> Report -> Learn
 
-If a feature does not directly improve that loop, challenge it before building.
+Every near-term slice must improve this loop or reduce a field-safety risk that would break it.
 
-## Phase 1: Stabilize
+## Execution Source Of Truth
 
-Goal: make the app safe to trust with real Turn data on Mac, iPhone, and iPad.
+The detailed slice train lives in [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/FABLE5_EXECUTION_ROADMAP.md).
 
-Status: in progress.
+That roadmap incorporates the Fable 5 audit and organizes the work into safe PR-sized slices.
 
-Done:
+## Phase A: Immediate Data Safety
 
-- Demo Mode vs Real Turn Mode
-- Start Real Turn flow
-- Backup prompt before starting a real project
-- Real project setup for property, location, dates, supervisor, project manager, buildings, floors, units, beds, and common areas
-- Project-scoped crew contacts
-- Dashboard mode labeling
-- Supabase migration for project mode and crew project scope
-- Production deploy with sync enabled
-- Global bottom-right Capture entry point
-- Organized/collapsible sidebar for iPad/desktop widths
-- Draft Action status clarity for Pending, Applied, Rejected, Failed, and All
-- Sync change fingerprinting fix to prevent equivalent Supabase rows from being re-uploaded repeatedly
-- Vercel CLI upgraded to `54.21.1`
-- PR workflow documented for non-emergency slices
+Goal: prevent data loss and board corruption before real field reliance.
 
-Still required:
+Slices:
 
-- Real-device Mac/iPhone/iPad sync QA
-- Verify that the deployed sync fingerprinting fix settles on `Synced` after one manual sync
-- Offline/reconnect QA
-- Backup/export QA
-- PWA install and layout QA
-- Confirm demo records do not contaminate real reports or Copilot answers
-- Document reset/delete behavior limits
-- Decide whether to repeat or accept the previously reported 300-unit stress test evidence
-- Add formal parser tests when Phase 1 device QA is no longer blocking
-
-Next PR if sync still cycles:
-
-- Sync status diagnostics showing trigger reason, table activity, row counts, and last error.
+- Storage and photo safety
+- Draft apply project scope and enum validation
+- Number input safety
+- Report date safety
+- Issue status safety
 
 Success gate:
 
-Los can create a Real Turn project, use it across Mac/iPhone/iPad, export backups, and know sample data will not pollute real field work.
+Los can capture notes/photos and apply drafts without obvious data-loss, cross-project, or form-input failures.
 
-## Phase 2: Field Experience
+## Phase B: Real Turn Cleanup And Sync Boundaries
 
-Goal: make walking the property effortless.
+Goal: clean test noise and reduce resurrection/duplication risks.
 
-Candidate work:
+Slices:
 
-- Today view for priorities, blockers, follow-ups, and next checks
-- Further Capture speed refinements after the global Capture entry point is field-tested
-- Fast unit search / command bar
-- Needs Attention queue
-- Walk Mode
-- Start My Day flow
-- End My Day flow
-- Owner and follow-up required for blockers
-- One-handed iPhone update flow
-- Better iPad overview
+- Project archive for duplicate/test Real Turn projects
+- Demo sync boundary
+- Offline/reconnect trust check
 
 Success gate:
 
-Los can update a unit in under 10 seconds, log an issue in under 20 seconds, add a capture note in under 15 seconds, and generate a report in under 30 seconds.
+Real Turn records stay separate, duplicate test projects can be hidden safely, and offline edits sync back cleanly.
 
-## Phase 3: AI Copilot
+## Phase C: Capture Trust
 
-Goal: reduce typing and thinking load without weakening human approval.
+Goal: make voice/dictation capture reliable enough to use while walking.
 
-Candidate work:
+Slices:
 
-- Server-side AI route only
-- No provider keys in browser code
-- Structured output validation
-- Messy-note parsing into typed Draft Actions
-- Voice transcription workflow
-- AI summaries and Tony-ready updates
-- Approved memory influence
-- Local fallback remains
 - Parser eval suite with realistic field notes
+- Unit-boundary parser
+- Draft batch safety
+- Voice reliability improvements
 
 Success gate:
 
-Los can dictate messy notes and convert them into accurate Draft Actions that are reviewed before applying.
+Los can dictate messy, punctuation-free field notes and get accurate draft actions for review.
 
-## Phase 4: Agentic Intelligence
+## Phase D: Field Command Center UX
 
-Goal: proactive but human-confirmed intelligence.
+Goal: turn the app from display-first into action-first.
 
-Candidate work:
+Slices:
 
-- What should I check next?
-- Stale unit detection
-- Risk clustering
-- Bottleneck detection
-- Floor-level issue grouping
-- Daily report auto-building
-- Follow-up reminders
-- Suggested Tony update
+- Clickable dashboard stats
+- Needs Attention feed
+- Units scan upgrade
+- Issue flow simplification
+- Sidebar and responsive frame
+- Hash routing/deep links
 
 Success gate:
 
-The app helps Los think ahead without acting without approval.
+Dashboard cards, issue cards, suggestions, and unit rows take Los to the underlying work instead of dead-ending.
 
-## Phase 5: Possible Company Product
+## Phase E: Reports And Daily Memory
+
+Goal: build Tony-ready reporting and source-grounded daily memory.
+
+Slices:
+
+- Daily activity snapshot
+- Report preview and print/PDF
+- Daily log auto-draft
+- Memory consumption and project scoping
+
+Success gate:
+
+The report builds throughout the day from real activity, remains editable, and can be previewed before export.
+
+## Phase F: Photo Durability
+
+Goal: make photos durable without breaking local-first behavior.
+
+Slices:
+
+- IndexedDB photo store
+- Supabase Storage photo sync
+
+Success gate:
+
+Photo sets no longer threaten the main app cache and can eventually sync across Los's devices.
+
+## Phase G: Performance, Accessibility, And Polish
+
+Goal: harden the app for field pressure.
+
+Slices:
+
+- Activity log pruning and pull pagination
+- Undo/toast feedback
+- PWA install and offline startup
+- Accessibility and field contrast
+
+Success gate:
+
+The app stays responsive, usable outdoors, and understandable after errors.
+
+## Phase H: Later Intelligence
+
+Only after the deterministic field tool is trusted.
+
+Possible future:
+
+- Server-side AI route
+- Structured model outputs with supporting record IDs
+- Model-assisted summaries with local fallback
+- Conflict review UI
+- True delete tombstones
+- Field-level merge/server timestamps
+
+Do not build Phase H until Phase A-D are safe enough for Turn use.
+
+## Possible Company Product
 
 Only after field validation and explicit leadership approval.
 
@@ -130,4 +153,4 @@ Possible future:
 - Crew communication
 - Real-time operations view
 
-Do not build Phase 5 during the current Turn preparation phase.
+Do not build company product features during the current Turn preparation phase.

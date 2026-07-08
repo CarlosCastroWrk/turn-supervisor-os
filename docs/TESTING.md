@@ -152,6 +152,21 @@ Pass:
 - File contents contain only expected project/test records for the chosen export.
 - Reports do not invent counts.
 
+### 5A. Photo Storage Safety
+
+- [ ] Open a QA unit.
+- [ ] Add one work-safe test photo.
+- [ ] Confirm the app shows a photo compression/saved message.
+- [ ] Reload the app.
+- [ ] Confirm the photo thumbnail and caption remain visible on that unit.
+- [ ] Confirm normal unit edits still save after the photo is added.
+
+Pass:
+
+- Photo capture does not freeze the app.
+- The photo is compressed before saving.
+- A reload does not lose the photo or nearby unit data.
+
 ### 6. Reset / Delete Safety
 
 - [ ] Export JSON before reset.

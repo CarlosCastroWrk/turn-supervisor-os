@@ -6,7 +6,7 @@ import {
   MessageSquareText,
   UserCheck,
 } from 'lucide-react';
-import type { AppData, AppView, DailyLog, UnitStatusFilter } from '../types';
+import type { AppData, AppView, DailyLog, Issue, SmartSuggestion, Unit, UnitStatusFilter } from '../types';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import { formatDate, todayISO } from '../lib/constants';
 import {
@@ -17,6 +17,7 @@ import {
   getProjectUnits,
   getTodayAssignments,
   getUnitSummary,
+  isBlockedUnit,
 } from '../lib/metrics';
 import { ProgressBar } from '../components/ProgressBar';
 import { QuickAction } from '../components/QuickAction';
@@ -52,6 +53,8 @@ const firstLines = (value: string, count = 3) =>
     .filter(Boolean)
     .slice(0, count);
 
+const unitLabel = (unit?: Unit) => (unit ? `Unit ${unit.unitNumber}` : 'Unit');
+
 export function DashboardView({ data, onNavigate }: DashboardViewProps) {
   const project = getActiveProject(data);
   const units = getProjectUnits(data);
@@ -62,6 +65,77 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
   const priorities = firstLines(todayLog?.tomorrowPriorities || todayLog?.morningPlan || '', 4);
   const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
   const smartSuggestions = generateSmartSuggestions(data).slice(0, 4);
+  const blockedUnits = units.filter(isBlockedUnit);
+
+  const navigateToIssue = (issue: Issue) => {
+    if (issue.unitId) {
+      onNavigate('unitDetail', issue.unitId);
+      return;
+    }
+    onNavigate('issues');
+  };
+
+  const navigateToSuggestion = (suggestion: SmartSuggestion) => {
+    if (suggestion.relatedEntityType === 'unit' && suggestion.relatedEntityId) {
+      onNavigate('unitDetail', suggestion.relatedEntityId);
+      return;
+    }
+
+    if (suggestion.relatedEntityType === 'issue' && suggestion.relatedEntityId) {
+      const linkedIssue = issues.find((issue) => issue.id === suggestion.relatedEntityId) ?? getProjectIssues(data).find((issue) => issue.id === suggestion.relatedEntityId);
+      if (linkedIssue) {
+        navigateToIssue(linkedIssue);
+        return;
+      }
+      onNavigate('issues');
+      return;
+    }
+
+    if (suggestion.relatedEntityType === 'assignment') {
+      onNavigate('assignments');
+      return;
+    }
+
+    if (suggestion.relatedEntityType === 'dailyLog') {
+      onNavigate('daily');
+      return;
+    }
+
+    if (suggestion.type === 'access_bottleneck') {
+      onNavigate('issues');
+    }
+  };
+
+  const attentionItems = [
+    ...(!todayLog
+      ? [
+          {
+            id: 'attention_daily_log',
+            title: 'Daily log not started',
+            detail: 'Capture blockers, progress, and tomorrow priorities.',
+            priority: 'Medium' as const,
+            onClick: () => onNavigate('daily'),
+          },
+        ]
+      : []),
+    ...blockedUnits.slice(0, 3).map((unit) => ({
+      id: `attention_blocked_${unit.id}`,
+      title: `${unitLabel(unit)} blocked`,
+      detail: unit.notes || `Current status: ${unit.overallStatus}`,
+      priority: 'High' as const,
+      onClick: () => onNavigate('unitDetail', unit.id),
+    })),
+    ...issues.slice(0, 3).map((issue) => {
+      const unit = issue.unitId ? units.find((item) => item.id === issue.unitId) : undefined;
+      return {
+        id: `attention_issue_${issue.id}`,
+        title: issue.title,
+        detail: unit ? `${unitLabel(unit)} - ${issue.status}` : `${issue.category} - ${issue.status}`,
+        priority: issue.priority,
+        onClick: () => navigateToIssue(issue),
+      };
+    }),
+  ].slice(0, 6);
 
   return (
     <div className="page page--dashboard">
@@ -124,34 +198,31 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
       </Section>
 
       <div className="dashboard-columns">
-        <Section title="High Priority" kicker="Open issues">
+        <Section title="Needs Attention" kicker={`${attentionItems.length} active`}>
           <div className="stack">
-            {issues.slice(0, 5).map((issue) => (
-              <article className="list-card" key={issue.id}>
+            {attentionItems.map((item) => (
+              <button className="list-card list-card--button" key={item.id} type="button" onClick={item.onClick}>
                 <div>
-                  <strong>{issue.title}</strong>
-                  <small>{issue.owner || 'Owner not set'}</small>
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
                 </div>
-                <div className="badge-row">
-                  <StatusBadge value={issue.priority} size="sm" />
-                  <StatusBadge value={issue.status} size="sm" />
-                </div>
-              </article>
+                <StatusBadge value={item.priority} size="sm" />
+              </button>
             ))}
-            {issues.length === 0 ? <p className="muted">No high-priority open issues logged.</p> : null}
+            {attentionItems.length === 0 ? <p className="muted">No active attention items.</p> : null}
           </div>
         </Section>
 
         <Section title="Smart Suggestions" kicker="Deterministic">
           <div className="stack">
             {smartSuggestions.map((suggestion) => (
-              <article className="list-card" key={suggestion.id}>
+              <button className="list-card list-card--button" key={suggestion.id} type="button" onClick={() => navigateToSuggestion(suggestion)}>
                 <div>
                   <strong>{suggestion.title}</strong>
                   <small>{suggestion.description}</small>
                 </div>
                 <StatusBadge value={suggestion.priority} size="sm" />
-              </article>
+              </button>
             ))}
             {smartSuggestions.length === 0 ? <p className="muted">No smart suggestions active.</p> : null}
           </div>

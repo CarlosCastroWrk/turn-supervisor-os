@@ -265,6 +265,8 @@ Acceptance:
 
 ### D2. Needs Attention Feed
 
+Status: implemented in the D2 Needs Attention Feed release slice.
+
 Scope:
 
 - Replace dead dashboard issue/suggestion sections with one action feed.

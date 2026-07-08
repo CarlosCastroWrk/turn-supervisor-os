@@ -16,18 +16,18 @@ import {
   isInspectionUnit,
   isReadyUnit,
 } from '../lib/metrics';
-import type { AppData, AppView, Building, Floor, Unit } from '../types';
+import type { AppData, AppView, Building, Floor, Unit, UnitStatusFilter } from '../types';
 
 interface UnitsViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
   onNavigate: (view: AppView, unitId?: string) => void;
+  initialStatusFilter?: UnitStatusFilter;
 }
 
-const statusFilters = ['All', 'Blocked', 'Ready', 'Not Started', 'In Progress', 'Needs Inspection'] as const;
-type StatusFilter = (typeof statusFilters)[number];
+const statusFilters: UnitStatusFilter[] = ['All', 'Blocked', 'Ready', 'Not Started', 'In Progress', 'Needs Inspection'];
 
-const matchesStatusFilter = (unit: Unit, filter: StatusFilter) => {
+const matchesStatusFilter = (unit: Unit, filter: UnitStatusFilter) => {
   if (filter === 'All') return true;
   if (filter === 'Blocked') return isBlockedUnit(unit);
   if (filter === 'Ready') return isReadyUnit(unit);
@@ -40,10 +40,10 @@ const floorSort = (a: Floor, b: Floor) => a.name.localeCompare(b.name, undefined
 const unitSort = (a: Unit, b: Unit) => a.unitNumber.localeCompare(b.unitNumber, undefined, { numeric: true });
 const UNIT_RENDER_STEP = 100;
 
-export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
+export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'All' }: UnitsViewProps) {
   const [buildingFilter, setBuildingFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const [statusFilter, setStatusFilter] = useState<UnitStatusFilter>(initialStatusFilter);
   const [query, setQuery] = useState('');
   const [visibleUnitLimit, setVisibleUnitLimit] = useState(UNIT_RENDER_STEP);
   const [quickBuilding, setQuickBuilding] = useState('Building B');
@@ -78,6 +78,10 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
   useEffect(() => {
     setVisibleUnitLimit(UNIT_RENDER_STEP);
   }, [buildingFilter, floorFilter, statusFilter, query]);
+
+  useEffect(() => {
+    setStatusFilter(initialStatusFilter);
+  }, [initialStatusFilter]);
 
   const quickCreate = () => {
     const now = nowISO();
@@ -232,7 +236,7 @@ export function UnitsView({ data, setData, onNavigate }: UnitsViewProps) {
             </select>
           </Field>
           <Field label="Status">
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as UnitStatusFilter)}>
               {statusFilters.map((filter) => (
                 <option key={filter}>{filter}</option>
               ))}

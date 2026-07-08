@@ -411,3 +411,5 @@ export type AppView =
   | 'copilot'
   | 'training'
   | 'export';
+
+export type UnitStatusFilter = 'All' | 'Blocked' | 'Ready' | 'Not Started' | 'In Progress' | 'Needs Inspection';

@@ -20,8 +20,9 @@ The active execution roadmap is [FABLE5_EXECUTION_ROADMAP.md](FABLE5_EXECUTION_R
 - C1 Dictation Parser Eval Suite is implemented with regression coverage for Los's punctuation-free field notes.
 - C2 Unit-Boundary Parser is implemented with same-unit conflict confirmation.
 - C3 Draft Batch Safety is implemented with visible-only bulk apply/reject, stale draft flags, and applied unit targets.
+- D1 Clickable Dashboard Stats is implemented with filtered Units navigation from the dashboard.
 - B3 Offline/Reconnect Trust remains the next physical-device gate.
-- The current code slice is D1 Clickable Dashboard Stats.
+- The current code slice is D2 Needs Attention Feed.
 
 ## Current Field Gate
 
@@ -97,7 +98,7 @@ Out of scope:
 - Automatic mutation without draft approval.
 - Company/multi-user approval workflows.
 
-## Current Code Slice
+## Recently Completed Code Slice
 
 ### D1. Clickable Dashboard Stats
 
@@ -117,6 +118,26 @@ Out of scope:
 - Full hash routing.
 - New CRM/company dashboards.
 - Report/PDF redesign.
+
+## Current Code Slice
+
+### D2. Needs Attention Feed
+
+Purpose:
+
+- Make the dashboard's attention items directly actionable during field scanning.
+
+Scope:
+
+- Convert issue/suggestion/dashboard feed items into navigation targets.
+- Prioritize blocked units, high-priority issues, and missing daily log.
+- Keep cards compact and usable on iPhone.
+
+Out of scope:
+
+- Full routing/deep-link URLs.
+- AI-generated priorities.
+- Company/multi-user task assignment.
 
 ## Slice Protocol
 

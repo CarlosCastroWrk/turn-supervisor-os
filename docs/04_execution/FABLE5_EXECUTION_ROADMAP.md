@@ -95,7 +95,7 @@ Acceptance:
 
 ### A4. Report Date Safety
 
-Status: in progress on `codex/report-date-safety`.
+Status: shipped in `72ddd4a`.
 
 Scope:
 
@@ -109,6 +109,8 @@ Acceptance:
 - Report copy clearly distinguishes missing data from real progress.
 
 ### A5. Issue Status Safety
+
+Status: in progress on `codex/issue-status-safety`.
 
 Scope:
 

@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped app commit:
 
 ```text
-6c34eb8 Add number input safety
+72ddd4a Add report date safety
 ```
 
 Production:
@@ -52,7 +52,8 @@ Every near-term change should serve that loop.
 - Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
 - Number input safety that fixes setup/count-field leading-zero editing behavior
-- A pending report date safety slice that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
+- Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
+- A pending issue status safety slice that stops issue creation from changing unit status unless Los explicitly marks it blocking
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens

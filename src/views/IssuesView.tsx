@@ -3,11 +3,11 @@ import { useMemo, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
-import { addIssue, updateIssue, updateUnit } from '../lib/actions';
+import { addIssueWithOptionalUnitBlock, updateIssue } from '../lib/actions';
 import { createId, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, ISSUE_PRIORITIES, ISSUE_STATUSES } from '../lib/constants';
 import { getProjectIssues, getProjectUnits } from '../lib/metrics';
-import type { AppData, IssueCategory, IssuePriority, IssueStatus } from '../types';
+import type { AppData, Issue, IssueCategory, IssuePriority, IssueStatus } from '../types';
 
 interface IssuesViewProps {
   data: AppData;
@@ -26,6 +26,7 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
   const [owner, setOwner] = useState('');
   const [dueAt, setDueAt] = useState('');
   const [notes, setNotes] = useState('');
+  const [blocksUnit, setBlocksUnit] = useState(false);
 
   const visibleIssues = useMemo(
     () =>
@@ -48,7 +49,7 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
     const now = nowISO();
 
     setData((current) => {
-      const next = addIssue(current, {
+      const issue: Issue = {
         id: createId('issue'),
         projectId: current.activeProjectId,
         buildingId: linkedUnit?.buildingId,
@@ -64,20 +65,9 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
         resolutionNotes: '',
         createdAt: now,
         updatedAt: now,
-      });
+      };
 
-      if (!linkedUnit) {
-        return next;
-      }
-
-      return updateUnit(
-        next,
-        linkedUnit.id,
-        {
-          overallStatus: category === 'Access' ? 'Access Blocked' : category === 'Maintenance' ? 'Maintenance Needed' : 'Hold / Blocked',
-        },
-        `Issue created: ${title.trim()}`,
-      );
+      return addIssueWithOptionalUnitBlock(current, issue, blocksUnit);
     });
 
     setTitle('');
@@ -85,6 +75,7 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
     setOwner('');
     setDueAt('');
     setNotes('');
+    setBlocksUnit(false);
   };
 
   return (
@@ -136,6 +127,13 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
           <Field label="Notes">
             <textarea value={notes} rows={3} onChange={(event) => setNotes(event.target.value)} placeholder="What happened? What is blocked?" />
           </Field>
+          <label className="checkbox-field">
+            <input checked={blocksUnit} type="checkbox" onChange={(event) => setBlocksUnit(event.target.checked)} />
+            <span>
+              <strong>Blocks this unit</strong>
+              <small>Only turn this on if the issue should change the unit board status.</small>
+            </span>
+          </label>
           <Button variant="primary" onClick={createIssue}>
             <Plus size={18} aria-hidden="true" />
             Add Issue
@@ -212,4 +210,3 @@ export function IssuesView({ data, setData }: IssuesViewProps) {
     </div>
   );
 }
-

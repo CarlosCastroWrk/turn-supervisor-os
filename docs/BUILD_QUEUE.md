@@ -4,11 +4,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] A4 Report Date Safety on `codex/report-date-safety`
-  - [x] Use the selected report date even when no Daily Log exists.
-  - [x] Label missing-log reports as draft/missing-data.
-  - [x] Remove placeholder report text from generated exports.
-  - [x] Add report-date regression tests.
+- [ ] A5 Issue Status Safety on `codex/issue-status-safety`
+  - [x] Stop issue creation from automatically changing linked unit status.
+  - [x] Add explicit `Blocks this unit` control for status-changing issues.
+  - [x] Keep issue resolution from guessing unit status.
+  - [x] Add issue/status regression tests.
   - [ ] Commit, push, PR, merge, deploy under standing release authorization.
 
 ## P0: Must Clear Before Real Field Reliance
@@ -16,7 +16,6 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] A5 Issue Status Safety: stop issue creation from clobbering unit status.
 - [ ] B1 Project Archive: safely hide duplicate/test Real Turn projects.
 - [ ] B2 Demo Sync Boundary: keep demo practice data out of real cloud work.
 - [ ] C1 Dictation Parser Eval Suite.
@@ -90,3 +89,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] A1 Storage And Photo Safety: preserve corrupt cache, compress photos before local save, and deploy execution roadmap.
 - [x] A2 Draft Apply Safety: active-project draft lookup, enum validation, regression tests, and production deploy.
 - [x] A3 Number Input Safety: shared integer input behavior, iOS numeric keyboard hints, leading-zero fix, and production deploy.
+- [x] A4 Report Date Safety: selected-date reports, missing-log draft labels, placeholder removal, and production deploy.

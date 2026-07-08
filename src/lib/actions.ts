@@ -226,6 +226,27 @@ export const addIssue = (data: AppData, issue: Issue): AppData => ({
   activityLogs: [activity(issue.projectId, 'Issue', issue.id, 'Created issue', issue.title), ...data.activityLogs],
 });
 
+export const blockingUnitStatusForIssue = (category: Issue['category']): UnitWorkflowStatus => {
+  if (category === 'Access' || category === 'Keys') return 'Access Blocked';
+  if (category === 'Maintenance') return 'Maintenance Needed';
+  return 'Hold / Blocked';
+};
+
+export const addIssueWithOptionalUnitBlock = (data: AppData, issue: Issue, blocksUnit: boolean): AppData => {
+  const withIssue = addIssue(data, issue);
+
+  if (!blocksUnit || !issue.unitId) {
+    return withIssue;
+  }
+
+  return updateUnit(
+    withIssue,
+    issue.unitId,
+    { overallStatus: blockingUnitStatusForIssue(issue.category) },
+    `Blocking issue created: ${issue.title}`,
+  );
+};
+
 export const updateIssue = (data: AppData, issueId: EntityId, patch: Partial<Issue>): AppData => {
   const existing = data.issues.find((issue) => issue.id === issueId);
   if (!existing) {

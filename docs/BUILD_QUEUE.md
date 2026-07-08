@@ -4,16 +4,15 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] Next ordered slice is B2 Demo Sync Boundary.
-  - [ ] Confirm Demo Mode practice records do not get uploaded as active real cloud work.
-  - [ ] Do not run one-time cloud cleanup without separate explicit approval.
+- [ ] Next ordered slice is B3 Offline/Reconnect Trust.
+  - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
+  - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
 
 ## P0: Must Clear Before Real Field Reliance
 
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] B2 Demo Sync Boundary: keep demo practice data out of real cloud work.
 - [ ] C1 Dictation Parser Eval Suite.
 - [ ] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [ ] C3 Draft Batch Safety: visible/current batch approval only.
@@ -88,3 +87,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] A4 Report Date Safety: selected-date reports, missing-log draft labels, placeholder removal, and production deploy.
 - [x] A5 Issue Status Safety: explicit `Blocks this unit` behavior, non-blocking issue creation, status-resolution guard, and production deploy.
 - [x] B1 Project Archive: soft archive for duplicate/test Real Turn projects, setup restore panel, Supabase `archived_at` sync mapping, and archive regression tests.
+- [x] B2 Demo Sync Boundary: demo-scoped rows stay local on upload, fresh devices keep local demo practice data after pulling real cloud rows, and no cloud cleanup runs.

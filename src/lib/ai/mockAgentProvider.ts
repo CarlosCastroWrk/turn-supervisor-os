@@ -632,7 +632,7 @@ ${assignments.filter((assignment) => !['Checked In', 'In Progress', 'Complete'].
 
 Suggested next walk path:
 ${suggestions.slice(0, 5).map((suggestion, index) => `${index + 1}. ${suggestion.title}`).join('\n') || '1. Re-walk active floors and update stale units.'}`,
-    end_of_day: `${buildDailyReport(data, project, todayLog)}
+    end_of_day: `${buildDailyReport(data, project, todayISO(), todayLog)}
 Stale / smart suggestions:
 ${suggestions.slice(0, 6).map((suggestion) => `- ${suggestion.title}`).join('\n') || '- No deterministic suggestions active.'}
 

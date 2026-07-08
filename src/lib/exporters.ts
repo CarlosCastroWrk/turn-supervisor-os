@@ -217,18 +217,26 @@ ${log.tomorrowPriorities || '-'}
     )
     .join('\n---\n');
 
-export const buildDailyReport = (data: AppData, project: Project, dailyLog?: DailyLog) => {
+const reportFieldOrMissing = (value: string | undefined, label: string) => {
+  const trimmed = value?.trim();
+  return trimmed || `- No ${label} saved for this date.`;
+};
+
+export const buildDailyReport = (data: AppData, project: Project, reportDate = todayISO(), dailyLog?: DailyLog) => {
   const units = getProjectUnits(data);
   const issues = getPriorityIssues(getProjectIssues(data));
-  const reportDate = dailyLog?.date || todayISO();
   const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === reportDate);
   const summary = getUnitSummary(units);
   const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
   const missing = assignments.filter((assignment) => ['No Show', 'Delayed'].includes(assignment.status));
+  const reportStatus = dailyLog
+    ? 'DRAFT - Saved daily log found for this date. Review before sending.'
+    : 'DRAFT - Missing Daily Log for selected date. Do not send as a completed field report until this date has a saved Daily Log.';
 
   return `Turn Supervisor Daily Report
 
 Date: ${formatDate(reportDate)}
+Status: ${reportStatus}
 Property: ${project.propertyName}
 Supervisor: ${project.supervisorName}
 
@@ -240,7 +248,7 @@ Progress:
 - Units needing inspection: ${summary.inspection}
 
 Completed Today:
-${dailyLog?.completedSummary || '- Add completed work before sending.'}
+${reportFieldOrMissing(dailyLog?.completedSummary, 'completed summary')}
 
 Open Issues:
 ${
@@ -259,9 +267,9 @@ Crew Notes:
 - Reassigned: ${assignments.filter((assignment) => assignment.status === 'Reassigned').length}
 
 Tomorrow Priorities:
-${dailyLog?.tomorrowPriorities || '1. \n2. \n3. '}
+${reportFieldOrMissing(dailyLog?.tomorrowPriorities, 'tomorrow priorities')}
 
 Questions / Needs:
-${dailyLog?.blockers || '-'}
+${reportFieldOrMissing(dailyLog?.blockers, 'blockers or questions')}
 `;
 };

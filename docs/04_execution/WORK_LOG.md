@@ -45,3 +45,7 @@
 - Started A3 Number Input Safety on `codex/number-input-safety`.
 - Added shared integer input behavior for setup/count fields so zero-valued fields can be typed into without creating leading-zero drafts.
 - Added regression tests for `020`, `08`, blank drafts, and pasted numeric text.
+- Shipped A3 Number Input Safety in `6c34eb8`.
+- Started A4 Report Date Safety on `codex/report-date-safety`.
+- Made daily reports use the selected report date explicitly and label missing-log reports as draft/missing-data.
+- Added regression tests so past empty report dates cannot fall back to today's report.

@@ -78,7 +78,7 @@ Acceptance:
 
 ### A3. Number Input Safety
 
-Status: in progress on `codex/number-input-safety`.
+Status: shipped in `6c34eb8`.
 
 Scope:
 
@@ -94,6 +94,8 @@ Acceptance:
 - Setup validation still prevents impossible projects.
 
 ### A4. Report Date Safety
+
+Status: in progress on `codex/report-date-safety`.
 
 Scope:
 

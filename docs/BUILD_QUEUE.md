@@ -4,11 +4,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] A3 Number Input Safety on `codex/number-input-safety`
-  - [x] Add shared numeric input behavior for setup and field count inputs.
-  - [x] Fix leading-zero drafts like `020` and `08`.
-  - [x] Use iOS-friendly numeric keyboard hints.
-  - [x] Add number-input regression tests.
+- [ ] A4 Report Date Safety on `codex/report-date-safety`
+  - [x] Use the selected report date even when no Daily Log exists.
+  - [x] Label missing-log reports as draft/missing-data.
+  - [x] Remove placeholder report text from generated exports.
+  - [x] Add report-date regression tests.
   - [ ] Commit, push, PR, merge, deploy under standing release authorization.
 
 ## P0: Must Clear Before Real Field Reliance
@@ -16,7 +16,6 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
-- [ ] A4 Report Date Safety: selected-date reports and placeholder guard.
 - [ ] A5 Issue Status Safety: stop issue creation from clobbering unit status.
 - [ ] B1 Project Archive: safely hide duplicate/test Real Turn projects.
 - [ ] B2 Demo Sync Boundary: keep demo practice data out of real cloud work.
@@ -90,3 +89,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Confirm deployed sync diagnostics settle on `Synced` across Los's Mac, iPhone, and iPad.
 - [x] A1 Storage And Photo Safety: preserve corrupt cache, compress photos before local save, and deploy execution roadmap.
 - [x] A2 Draft Apply Safety: active-project draft lookup, enum validation, regression tests, and production deploy.
+- [x] A3 Number Input Safety: shared integer input behavior, iOS numeric keyboard hints, leading-zero fix, and production deploy.

@@ -63,7 +63,7 @@ Every near-term change should serve that loop.
 - Unit-boundary parser behavior that splits punctuation-free captures by unit, parses simple crew movement, and requires confirmation for conflicting same-unit drafts
 - Number input safety that fixes setup/count-field leading-zero editing behavior
 - Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
-- In-app report preview with a restrained field-report layout, summary line, section subtitles, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks
+- Editable in-app report document with a restrained field-report layout, custom title/summary/section text, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks
 - Issue status safety that stops issue creation from changing unit status unless Los explicitly marks it blocking
 - Project archive safety that hides duplicate/test Real Turn projects without deleting their units, issues, notes, or cloud rows
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup

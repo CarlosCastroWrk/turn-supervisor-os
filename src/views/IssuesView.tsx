@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
+import { motionSafeScrollBehavior } from '../lib/accessibility';
 import { addIssueWithOptionalUnitBlock, closeIssueFromBoard, resolveIssue, updateIssue } from '../lib/actions';
 import { createId, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, ISSUE_STATUSES } from '../lib/constants';
@@ -81,7 +82,7 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
       return;
     }
 
-    focusedIssueRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    focusedIssueRef.current.scrollIntoView({ behavior: motionSafeScrollBehavior(), block: 'start' });
     focusedIssueRef.current.focus({ preventScroll: true });
   }, [focusedIssueId, visibleIssues]);
 

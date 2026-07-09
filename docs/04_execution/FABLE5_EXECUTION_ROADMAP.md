@@ -504,9 +504,19 @@ Scope:
 
 ### G4. Accessibility And Field Contrast
 
+Status: implemented in the G4 release slice; physical outdoor and iOS VoiceOver acceptance remains open.
+
 Scope:
 
 - Strengthen focus rings, touch targets, progressbar semantics, and outdoor legibility.
+- Add skip navigation, active-page semantics, descriptive repeated-action names, focus-safe modal behavior, and reduced-motion support.
+
+Acceptance:
+
+- Visible controls meet a 44px minimum target in rendered mobile and desktop audits.
+- Automated scans find no unnamed controls, unlabeled fields, measured contrast failures, horizontal overflow, or console errors on the tested core views.
+- Voice Capture traps keyboard focus, closes on Escape, and restores focus to its trigger.
+- Physical bright-light and iOS VoiceOver checks remain part of the Phase 1 device gate.
 
 ## Phase H: Later Intelligence
 
@@ -548,5 +558,7 @@ Only after the field-safe deterministic version is trusted.
 25. C5 Capture Field-Speed Cleanup
 26. F1 IndexedDB Photo Store
 27. F2 Supabase Storage Photo Sync
+28. G3 PWA Install And Offline Startup
+29. G4 Accessibility And Field Contrast
 
 This order can change if real-device testing finds a higher-risk failure.

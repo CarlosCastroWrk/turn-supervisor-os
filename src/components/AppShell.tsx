@@ -11,7 +11,7 @@ import {
   Truck,
   Users,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppView } from '../types';
 
 interface AppShellProps {
@@ -43,6 +43,21 @@ const sidebarGroups: { label: string; items: { view: AppView; label: string; ico
 
 const SIDEBAR_COLLAPSED_KEY = 'turn-supervisor-os:sidebar-collapsed';
 
+const viewTitles: Record<AppView, string> = {
+  assignments: 'Assignments',
+  copilot: 'Capture',
+  crews: 'Crews',
+  daily: 'Daily Log',
+  dashboard: 'Dashboard',
+  export: 'Export',
+  issues: 'Issues',
+  reports: 'Reports',
+  setup: 'Setup',
+  training: 'Training Questions',
+  unitDetail: 'Unit Detail',
+  units: 'Units',
+};
+
 const getStoredSidebarState = () => {
   if (typeof window === 'undefined') {
     return false;
@@ -57,6 +72,9 @@ const getStoredSidebarState = () => {
 
 export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarState);
+  const mainRef = useRef<HTMLElement | null>(null);
+  const previousViewRef = useRef(activeView);
+  const activeNavView = activeView === 'unitDetail' ? 'units' : activeView;
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -70,8 +88,24 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
     }
   }, [sidebarCollapsed]);
 
+  useEffect(() => {
+    document.title = `${viewTitles[activeView]} | Turn Supervisor OS`;
+    if (previousViewRef.current !== activeView) {
+      mainRef.current?.focus({ preventScroll: true });
+      previousViewRef.current = activeView;
+    }
+  }, [activeView]);
+
+  const focusMainContent = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    mainRef.current?.focus({ preventScroll: true });
+  };
+
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}>
+      <a className="skip-link" href="#main-content" onClick={focusMainContent}>
+        Skip to main content
+      </a>
       <header className="app-header">
         <div className="header-main">
           <button className="brand-button" type="button" onClick={() => onNavigate('dashboard')}>
@@ -90,9 +124,10 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
             return (
               <button
                 key={item.view}
-                className={`secondary-nav__item ${activeView === item.view ? 'is-active' : ''}`}
+                className={`secondary-nav__item ${activeNavView === item.view ? 'is-active' : ''}`}
                 type="button"
                 onClick={() => onNavigate(item.view)}
+                aria-current={activeNavView === item.view ? 'page' : undefined}
               >
                 <Icon size={16} aria-hidden="true" />
                 <span>{item.label}</span>
@@ -102,13 +137,16 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
         </nav>
       </header>
 
-      <main className="app-main">{children}</main>
+      <main className="app-main" id="main-content" ref={mainRef} tabIndex={-1}>
+        {children}
+      </main>
 
       <button
         className={`floating-capture ${activeView === 'copilot' ? 'is-active' : ''}`}
         type="button"
         onClick={() => onNavigate('copilot')}
         aria-label="Open Capture"
+        aria-current={activeView === 'copilot' ? 'page' : undefined}
       >
         <Mic size={24} aria-hidden="true" />
         <span>Capture</span>
@@ -120,9 +158,10 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
           return (
             <button
               key={item.view}
-              className={`bottom-nav__item ${activeView === item.view ? 'is-active' : ''}`}
+              className={`bottom-nav__item ${activeNavView === item.view ? 'is-active' : ''}`}
               type="button"
               onClick={() => onNavigate(item.view)}
+              aria-current={activeNavView === item.view ? 'page' : undefined}
             >
               <Icon size={21} aria-hidden="true" />
               <span>{item.label}</span>
@@ -131,7 +170,7 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
         })}
       </nav>
 
-      <aside className={`side-nav ${sidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="Workspace navigation">
+      <nav className={`side-nav ${sidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="Workspace navigation">
         <button
           className="side-nav__toggle"
           type="button"
@@ -152,9 +191,10 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
               return (
                 <button
                   key={item.view}
-                  className={`side-nav__item ${activeView === item.view ? 'is-active' : ''}`}
+                  className={`side-nav__item ${activeNavView === item.view ? 'is-active' : ''}`}
                   type="button"
                   onClick={() => onNavigate(item.view)}
+                  aria-current={activeNavView === item.view ? 'page' : undefined}
                   aria-label={item.label}
                   title={item.label}
                 >
@@ -165,7 +205,7 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
             })}
           </div>
         ))}
-      </aside>
+      </nav>
     </div>
   );
 }

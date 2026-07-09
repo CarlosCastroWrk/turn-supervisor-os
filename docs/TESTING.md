@@ -219,6 +219,11 @@ Pass:
 - [ ] Confirm no horizontal overflow.
 - [ ] Confirm bottom navigation and secondary navigation are reachable.
 - [ ] Confirm primary buttons have usable touch targets.
+- [ ] In direct sunlight or a bright room, confirm secondary text, status chips, and focus/tap states remain readable.
+- [ ] With a hardware keyboard on iPad or Mac, press Tab from page start, use `Skip to main content`, and confirm focus remains visible through navigation and forms.
+- [ ] Enable VoiceOver on iPhone/iPad and confirm Dashboard stats, Units navigation, progress, Voice Capture controls, and Unit quick actions have understandable names and values.
+- [ ] In Voice Capture, confirm focus starts on Close, remains inside the sheet, Escape closes it with a keyboard, and focus returns to Voice Mode.
+- [ ] Enable Reduce Motion and confirm route/issue navigation does not use smooth scrolling.
 - [ ] Time a unit update.
 - [ ] Time an issue log.
 - [ ] Time a report generation.

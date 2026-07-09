@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through F2 Supabase Storage Photo Sync and G3 PWA Install/Offline Startup
+A2 Draft Apply Safety through F2 Supabase Storage Photo Sync, G3 PWA Install/Offline Startup, and G4 Accessibility/Field Contrast
 ```
 
 Production:
@@ -46,6 +46,7 @@ Every near-term change should serve that loop.
 - Units page scan upgrades with needs-attention sorting, counted status filter chips, larger tappable unit cards, compact quick status actions, and visible blocker/crew/last-activity context
 - Issue flow simplification with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board
 - Responsive app frame with a page-attached desktop/sidebar layout, persisted collapsed sidebar state, compact tablet Capture behavior, and mobile bottom-nav spacing
+- Field-accessibility hardening with 44px touch targets, high-contrast focus rings, a keyboard skip link, active-page navigation semantics, announced progress values, motion-safe scrolling, stronger secondary text contrast, and a focus-contained Voice Capture dialog
 - Lightweight URL hash routing for top-level views, unit detail links, issue-focused links, dashboard deep links, reload, and browser back behavior
 - Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and deterministic smart suggestions
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
@@ -98,6 +99,7 @@ Every near-term change should serve that loop.
 - Real-device verification that one captured photo reaches Los's other signed-in devices
 - Cloud object deletion/cleanup when a photo record is removed
 - Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
+- Physical iPhone/iPad verification in bright light and with VoiceOver enabled
 - Multi-user mode
 - Automated browser regression suite
 - Server-side AI provider route
@@ -131,6 +133,7 @@ Real-device Phase 1 QA:
 7. Demo data stays separate from Real Turn data.
 8. Export/backup works before any destructive reset.
 9. One work-safe Real Turn photo captured on one device appears on the other two after sync, then remains visible after reload.
+10. Core navigation, Capture, and Unit updates remain understandable in bright light and with iOS VoiceOver enabled.
 
 Current immediate field check:
 
@@ -141,6 +144,7 @@ Current immediate field check:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 7. Add one work-safe QA photo, sync, and confirm the thumbnail appears on Mac and iPad.
+8. In bright light, confirm secondary text and focus/tap states remain readable; enable VoiceOver briefly and confirm Dashboard, Units, and Voice Capture are announced coherently.
 
 ## GitHub Workflow
 
@@ -160,4 +164,4 @@ Run the B3 real-device offline/reconnect and F2 photo checks before entering rea
 6. Confirm Mac and iPad receive the updates after reconnect.
 7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 
-While those physical-device checks are pending, the next code slice should harden accessibility, outdoor contrast, focus visibility, and touch targets without changing product scope.
+While those physical-device checks are pending, the next code slice should implement G2 error recovery and nonblocking feedback without weakening confirmations around destructive actions.

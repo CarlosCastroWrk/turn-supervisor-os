@@ -267,6 +267,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const voiceModeButtonRef = useRef<HTMLButtonElement | null>(null);
   const voiceSheetTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const keepListeningRef = useRef(false);
@@ -587,6 +588,34 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     if (quickInput.trim()) {
       setVoiceStatus('Voice note saved to the text box. Review it, then create drafts.');
     }
+    window.requestAnimationFrame(() => voiceModeButtonRef.current?.focus({ preventScroll: true }));
+  };
+
+  const handleVoiceSheetKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeVoiceSheet();
+      return;
+    }
+    if (event.key !== 'Tab') {
+      return;
+    }
+
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), textarea:not([disabled])'),
+    ).filter((element) => element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) {
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   };
 
   const parseQuickCapture = async () => {
@@ -814,6 +843,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
             <div className="form-card copilot-card">
               <div className={`voice-memo voice-memo--${activeVoiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}>
                 <button
+                  ref={voiceModeButtonRef}
                   className="voice-record-button"
                   type="button"
                   onClick={openVoiceSheet}
@@ -884,6 +914,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="voice-sheet-title"
+                onKeyDown={handleVoiceSheetKeyDown}
               >
                 <div className="voice-sheet__handle" aria-hidden="true" />
                 <div className="voice-sheet__topline">
@@ -891,7 +922,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                     <span className="quiet-label">Voice capture</span>
                     <h2 id="voice-sheet-title">{canUseBrowserSpeech ? 'Listening mode' : 'Dictation mode'}</h2>
                   </div>
-                  <button className="icon-button" type="button" onClick={closeVoiceSheet} aria-label="Close voice mode">
+                  <button autoFocus className="icon-button" type="button" onClick={closeVoiceSheet} aria-label="Close voice mode">
                     <X size={20} aria-hidden="true" />
                   </button>
                 </div>

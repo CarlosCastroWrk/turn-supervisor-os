@@ -53,4 +53,5 @@ Complete the real-device offline/reconnect gate before entering real field data:
 - New photos save into IndexedDB first; signed-in sync uploads available files and other devices lazy-download/cache them.
 - Cloud photo object deletion is not implemented.
 - PWA install/offline startup is hardened and passes persistent-browser restart tests; physical iPhone/iPad Home Screen icon, rotation, and offline restart acceptance remains pending.
+- Accessibility/field contrast is hardened in automated and rendered QA; physical bright-light and iOS VoiceOver acceptance remains pending.
 - Simultaneous same-row edits still use whole-row timestamp conflict behavior.

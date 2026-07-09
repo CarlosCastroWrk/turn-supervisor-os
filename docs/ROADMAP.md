@@ -117,7 +117,7 @@ Slices:
 - Activity log pruning
 - Undo/toast feedback
 - PWA install and offline startup (implemented; physical iPhone/iPad acceptance pending)
-- Accessibility and field contrast
+- Accessibility and field contrast (implemented; physical outdoor/VoiceOver acceptance pending)
 
 Success gate:
 

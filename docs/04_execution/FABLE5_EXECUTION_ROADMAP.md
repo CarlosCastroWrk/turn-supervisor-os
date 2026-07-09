@@ -395,6 +395,8 @@ Acceptance:
 
 ### E3. Daily Log Auto-Draft
 
+Status: implemented in the E3 Daily Log Auto-Draft release slice.
+
 Scope:
 
 - Pre-fill daily log sections from that day's activity.
@@ -404,6 +406,7 @@ Scope:
 Acceptance:
 
 - Los does not need to retype facts already captured during the day.
+- Auto-drafted text fills empty sections only and does not become saved field truth until Los presses Save Daily Log.
 
 ### E4. Memory Consumption
 

@@ -16,10 +16,10 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Move editable report drafts into AppData so reports export with JSON backups.
   - [x] Add dirty/reset behavior per report section.
   - [x] Add approved `report_drafts` Supabase table migration and sync mapping.
-- [ ] E3 Daily Log Auto-Draft is the next code slice after the report-drafts migration deploys.
-  - [ ] Draft Daily Log sections from selected-date activity and field captures.
-  - [ ] Keep auto-drafted content editable and review-first.
-  - [ ] Avoid treating generated text as confirmed field truth until Los saves it.
+- [x] E3 Daily Log Auto-Draft.
+  - [x] Draft Daily Log sections from selected-date activity and field captures.
+  - [x] Keep auto-drafted content editable and review-first.
+  - [x] Avoid treating generated text as confirmed field truth until Los saves it.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -52,7 +52,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## P2: Can Wait Until After Turn Starts If P0/P1 Are Stable
 
 - [x] E1 Daily Activity Snapshot.
-- [ ] E3 Daily Log Auto-Draft.
+- [x] E3 Daily Log Auto-Draft.
 - [ ] E4 Memory Consumption and project scoping.
 - [ ] F1 IndexedDB Photo Store.
 - [ ] F2 Supabase Storage Photo Sync.
@@ -122,3 +122,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] P0 Sync Trust / Pull Pagination: Supabase pull reads paginate past 1000 rows, `Pull cloud` is pull-only, `Upload needed` appears when local changes remain after pull, upload flows check cloud before pushing, and sync internals have regression coverage for stale-local upload prevention.
 - [x] P0 Report Thaw / Backup: editable report drafts now live in AppData, JSON backups include report edits, untouched generated sections keep updating, and edited sections can be reset individually.
 - [x] P0 Report Draft Supabase Sync: approved `report_drafts` migration, realtime publication, owner-scoped RLS, sync mapping, and demo-boundary coverage.
+- [x] E3 Daily Log Auto-Draft: Daily Log can draft empty sections from grounded activity, blockers, issues, assignments, and current board signals while still requiring Los to review and save.

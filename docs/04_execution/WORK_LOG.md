@@ -87,3 +87,6 @@
 - Started P0 Report Draft Supabase Sync after Los explicitly approved the report-drafts migration.
 - Added the `report_drafts` Supabase table with owner-scoped RLS, authenticated grants, client-timestamp preserving trigger behavior, and Realtime publication.
 - Wired report drafts into the Supabase sync table map and demo sync boundary so real report edits sync across devices while demo report drafts stay local.
+- Opened draft PR #30 for P0 Report Draft Supabase Sync after local verification, but did not merge or deploy because `supabase db push` and linked schema lint are blocked by missing/stale Supabase Postgres password auth.
+- Applied the approved `report_drafts` Supabase migration after Los provided the database password through local Keychain; post-push dry-run, migration list, and schema lint all passed.
+- Completed E3 Daily Log Auto-Draft by adding a review-first Daily Log action that drafts empty sections from selected-date activity, blockers, issues, assignments, and current board signals without saving until Los confirms.

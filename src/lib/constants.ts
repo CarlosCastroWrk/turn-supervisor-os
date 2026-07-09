@@ -88,6 +88,10 @@ const toISODate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export const todayISO = () => toISODate(new Date());
+export const localISODateFromDateTime = (dateTime: string) => {
+  const parsed = new Date(dateTime);
+  return Number.isNaN(parsed.getTime()) ? dateTime.slice(0, 10) : toISODate(parsed);
+};
 export const tomorrowISO = () => {
   const date = new Date();
   date.setDate(date.getDate() + 1);
@@ -116,4 +120,3 @@ export const formatTime = (dateTime: string) => {
     new Date(dateTime),
   );
 };
-

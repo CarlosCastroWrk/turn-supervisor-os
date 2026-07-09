@@ -399,7 +399,7 @@ small {
   left: 0;
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 2px;
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
@@ -2047,6 +2047,28 @@ small {
   min-height: 50px;
 }
 
+.capture-more-actions,
+.draft-advanced,
+.draft-history {
+  display: grid;
+  gap: 10px;
+}
+
+.capture-more-actions summary,
+.draft-advanced summary,
+.draft-history summary {
+  width: max-content;
+  color: #475569;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.capture-more-actions .button,
+.draft-advanced .button {
+  width: max-content;
+}
+
 .draft-card .button-row .button {
   flex: 1 1 96px;
 }
@@ -2101,6 +2123,27 @@ small {
   gap: 10px;
 }
 
+.draft-result-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  background: #f0fdf4;
+  padding: 12px;
+}
+
+.draft-result-banner p {
+  color: #166534;
+  font-weight: 800;
+}
+
+.draft-result-banner .button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
 .draft-card,
 .memory-card,
 .answer-card,
@@ -2140,6 +2183,11 @@ small {
   color: #334155;
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.draft-history {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
 
 .error-text {
@@ -2474,6 +2522,11 @@ small {
   select,
   textarea {
     font-size: 16px;
+  }
+
+  .draft-result-banner {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .report-preview {

@@ -252,6 +252,25 @@ Acceptance:
 - Capture does not stop unexpectedly after a short pause when the browser allows restart.
 - Keyboard dictation remains usable.
 
+### C5. Capture Field-Speed Cleanup
+
+Status: implemented in the C5 Capture Field-Speed Cleanup release slice.
+
+Scope:
+
+- Make the global Capture button open a focused capture flow, not a multi-mode console.
+- Hide Ask/Memory from the visible Capture page until those belong in Settings/Profile.
+- Keep older Draft Actions recoverable but collapsed by default.
+- Hide raw JSON draft editing behind an advanced control.
+- Show where an approved draft went.
+- Compare draft staleness against Los's local field date.
+
+Acceptance:
+
+- After capturing `unit 103 is done`, the current draft card is the main thing Los sees.
+- Older/stale drafts do not dominate the default Capture view.
+- Applied drafts clearly offer a path to open the affected unit/target.
+
 ## Phase D: Field Command Center UX
 
 These slices turn the app from display-first into action-first.
@@ -520,7 +539,8 @@ Only after the field-safe deterministic version is trusted.
 22. P0 Report Thaw
 23. P0 Report Draft Supabase Sync
 24. E3 Daily Log Auto-Draft
-25. F1 IndexedDB Photo Store
-26. F2 Supabase Storage Photo Sync
+25. C5 Capture Field-Speed Cleanup
+26. F1 IndexedDB Photo Store
+27. F2 Supabase Storage Photo Sync
 
 This order can change if real-device testing finds a higher-risk failure.

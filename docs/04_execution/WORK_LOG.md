@@ -90,3 +90,5 @@
 - Opened draft PR #30 for P0 Report Draft Supabase Sync after local verification, but did not merge or deploy because `supabase db push` and linked schema lint are blocked by missing/stale Supabase Postgres password auth.
 - Applied the approved `report_drafts` Supabase migration after Los provided the database password through local Keychain; post-push dry-run, migration list, and schema lint all passed.
 - Completed E3 Daily Log Auto-Draft by adding a review-first Daily Log action that drafts empty sections from selected-date activity, blockers, issues, assignments, and current board signals without saving until Los confirms.
+- Started C5 Capture Field-Speed Cleanup after Los reported that Capture felt too busy in the field flow.
+- Simplified the visible Capture surface by hiding Ask/Memory modes, moving older draft review into collapsed history, hiding raw draft JSON behind advanced edit, adding applied-target feedback, removing Daily Log/Training from primary navigation, and fixing local-date stale draft warnings for late-evening captures.

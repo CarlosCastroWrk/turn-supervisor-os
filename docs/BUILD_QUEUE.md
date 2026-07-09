@@ -44,6 +44,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D5 Sidebar And Responsive Frame.
 - [x] D6 Hash Routing and deep links.
 - [x] C4 Voice Reliability.
+- [x] C5 Capture Field-Speed Cleanup.
 - [x] E2 Report Preview And Print/PDF.
 - [ ] Run field test on iPhone Safari or installed PWA.
 - [ ] Run field test on iPad Safari or installed PWA.
@@ -116,6 +117,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D5 Sidebar And Responsive Frame: desktop sidebar is attached to the page frame, collapsed state persists, iPad landscape uses compact Capture, and mobile/desktop rendered smokes have no horizontal overflow.
 - [x] D6 Hash Routing and deep links: URL hashes preserve top-level views, unit detail routes, unit status filters, issue-focused routes, reload state, and browser back behavior.
 - [x] C4 Voice Reliability: Capture explains browser speech support, opens a mobile/iPad voice sheet without auto-opening the keyboard, falls back to keyboard dictation when speech recognition is unavailable, restarts after ordinary browser pauses where supported, and keeps draft-first confirmation.
+- [x] C5 Capture Field-Speed Cleanup: Capture opens as a focused field workflow, Ask/Memory are removed from the visible Capture modes, older draft history is collapsed, draft JSON editing is advanced-only, applied drafts show where they went, and late-evening draft staleness uses local field date.
 - [x] E2 Report Preview And Print/PDF: Reports now show an in-app review surface, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks.
 - [x] E1 Daily Activity Snapshot: Reports now include selected-date operational activity from synced activity logs, label progress metrics as current board state, preserve old edited report drafts when generated sections change, and download edited report text.
 - [x] P0 Parser And Stale Unit Safety: parser-generated Ready drafts no longer carry explicit ready confirmation or inferred trade completion, negated completion notes fall back to raw-note capture, and stale unit detail links show a no-unit state instead of opening the first unit.

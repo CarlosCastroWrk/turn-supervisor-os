@@ -9,4 +9,6 @@ All notable project changes should be recorded here.
 - Added global bottom-right Capture, organized/collapsible sidebar, and Draft Action status clarity.
 - Fixed sync change fingerprinting for equivalent Supabase timestamp and JSON shapes.
 - Added Phase 1 operating docs: roadmap, testing gate, risks, decisions, Fable review prompt, and PR workflow.
-- Upgraded local Vercel CLI to `54.21.1`.
+- Applied the approved E4 project-scoped Memory migration and released the active-Turn boundary, field-scale, persistence, commit-on-blur, and three-device convergence train.
+- Added deterministic Daily Log project/date identity, legacy cloud-row reconciliation, and a signed-out JSON restore guard.
+- Upgraded local Vercel CLI to `55.0.0`.

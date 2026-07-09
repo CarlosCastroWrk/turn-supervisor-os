@@ -16,11 +16,11 @@ Make Turn Field Copilot safe enough for Los's real two-week Turn operation befor
 
 ## Current Immediate Task
 
-Release the verified E4 Project-Scoped Memory candidate, then complete the real-device offline/reconnect gate before entering real field data:
+Release the verified Daily Log Identity And Restore Safety candidate, then complete the real-device offline/reconnect gate before entering real field data:
 
-1. Obtain fresh explicit approval for `20260709195302_add_memory_project_scope.sql`.
-2. Apply the additive migration, confirm migration parity/schema lint, merge the E4 PR, and deploy production.
-3. Run the focused project-scoped Memory check on two devices.
+1. Review and merge the Daily Log/restore PR after all deterministic and rendered checks pass.
+2. Deploy production and confirm one Daily Log can save, reload, and update without creating a second project/date row.
+3. While signed in, open Export and confirm restore is blocked with a clear sign-out instruction.
 4. Open production on iPhone, turn on airplane mode, update 2-3 obvious QA units/issues, and confirm they remain visible locally.
 5. Turn airplane mode off and confirm Mac and iPad receive the updates after reconnect.
 
@@ -56,5 +56,7 @@ Release the verified E4 Project-Scoped Memory candidate, then complete the real-
 - Accessibility/field contrast is hardened in automated and rendered QA; physical bright-light and iOS VoiceOver acceptance remains pending.
 - Routine field outcomes use accessible toasts; Unit quick-status actions support timestamp-guarded Undo, while destructive/recovery confirmations remain blocking.
 - Simultaneous same-row edits still use whole-row timestamp conflict behavior.
-- E4 code/local QA is complete, but production must not deploy it before the pending Memory project-scope migration is explicitly approved and applied.
+- E4 project-scoped Memory, the active-Turn boundary, field-scale gate, coalesced writes, commit-on-blur fields, and deterministic sync convergence are deployed.
+- New Daily Logs use deterministic project/date IDs; legacy cloud IDs are preserved during reconciliation. The current candidate still needs production release and physical-device acceptance.
+- JSON restore requires sign-out. Review/export recovered data before signing in again because a later sync can merge newer cloud rows.
 - Legacy unscoped operational Memory is intentionally inactive until Los assigns it to the current Turn in Setup.

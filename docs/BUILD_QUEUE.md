@@ -4,14 +4,21 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] P0 Active Project Boundary release candidate.
+- [ ] P0 Daily Log Identity And Restore Safety release candidate.
+  - [x] Give every new project/date Daily Log one deterministic ID across devices.
+  - [x] Collapse duplicate local project/date logs and preserve an existing legacy cloud row ID during pull-before-upload.
+  - [x] Verify all six Mac/iPhone/iPad reconnect orders converge to one Daily Log.
+  - [x] Wait for Supabase auth state and require sign-out before local JSON restore.
+  - [x] Verify save/reload/update at iPhone size, 5,000-log reconciliation, overflow, and console health.
+  - [ ] Merge, deploy, and run focused production smoke checks.
+- [x] P0 Active Project Boundary release.
   - [x] Stamp new Capture drafts, agent runs, conversations, and generic follow-ups with active-Turn provenance.
   - [x] Hide other-Turn draft history and fail cross-project or unverifiable Draft approvals closed.
   - [x] Scope Daily Log, Copilot/Memory, Follow-Up, Unit, and Issue human-readable exports to the selected Turn.
   - [x] Make report builders honor the requested project instead of ambient active-project state.
   - [x] Keep Demo and unverifiable drafts/follow-ups local during Supabase sync.
   - [x] Verify identical Demo/Real unit numbers, conflicting links, backup round-trip, and 10,000-draft performance.
-  - [ ] Merge after E4, deploy, and run production smoke checks.
+  - [x] Merge after E4, deploy, and run production smoke checks.
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [x] Simulate disjoint Mac/iPhone/iPad edits after twelve offline hours and verify convergence without duplicate Units, Issues, or activity rows.
   - [x] Verify newest-row convergence across all six three-device reconnect orders.
@@ -63,7 +70,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Refuse stale Undo after a later Unit edit and record successful Undo as a newer activity event.
   - [x] Ignore repeated no-op taps and prevent paint/clean/repair quick actions from clearing harder Unit blockers.
   - [x] Explain Issue create/status/remove outcomes without deleting issue history.
-- [ ] E4 Project-Scoped Memory release candidate.
+- [x] E4 Project-Scoped Memory release.
   - [x] Scope new candidates and approved memories to the active Turn.
   - [x] Consume only approved, current-project, live-source typed Memory.
   - [x] Move Memory review into Setup without adding another field screen.
@@ -71,8 +78,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep Demo/unscoped Memory local and preserve it during cloud pulls.
   - [x] Add duplicate-candidate and double-approval protection.
   - [x] Verify Capture, Setup review, Daily Log lessons, Crew facts, project switching, mobile/iPad layout, and offline restart.
-  - [ ] Apply `20260709195302_add_memory_project_scope.sql` after fresh explicit approval.
-  - [ ] Merge, deploy, and run focused production sync acceptance.
+  - [x] Apply `20260709195302_add_memory_project_scope.sql` after fresh explicit approval.
+  - [x] Merge, deploy, and run focused production sync smoke checks.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -88,6 +95,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Coalesce full AppData browser writes so rapid large-state edits persist the latest state at bounded intervals and flush on background/close.
 - [x] Move keystroke-bound existing-record text fields to session-backed commit-on-blur behavior so typing creates one operational activity entry instead of one per character.
 - [x] Move existing-record Project estimate and Unit bed/bath number fields to session-backed commit-on-blur behavior without breaking multi-field Setup creation.
+- [x] Prevent same-day Daily Logs created offline on multiple devices from violating the Supabase project/date uniqueness boundary.
+- [x] Block local JSON restore until sync auth is resolved and signed out.
 - [x] C1 Dictation Parser Eval Suite.
 - [x] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [x] C3 Draft Batch Safety: visible/current batch approval only.
@@ -114,7 +123,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 - [x] E1 Daily Activity Snapshot.
 - [x] E3 Daily Log Auto-Draft.
-- [ ] E4 Memory Consumption and project scoping. Implementation and local QA are complete; migration/release remain pending.
+- [x] E4 Memory Consumption and project scoping. Migration, release, and production smoke checks are complete.
 - [x] F1 IndexedDB Photo Store.
 - [x] F2 Supabase Storage Photo Sync. Real-device photo acceptance remains in the active gate.
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
@@ -156,7 +165,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Add organized/collapsible sidebar.
 - [x] Add Draft Action status tabs and clearer approve/reject feedback.
 - [x] Fix sync change fingerprinting for equivalent Supabase timestamp/JSON shapes.
-- [x] Upgrade Vercel CLI to `54.21.1`.
+- [x] Upgrade Vercel CLI to `55.0.0`.
 - [x] Document PR workflow for non-emergency slices.
 - [x] Add sync status diagnostics showing trigger reason, table activity, upload count, queued state, and last error.
 - [x] Confirm deployed sync diagnostics settle on `Synced` across Los's Mac, iPhone, and iPad.
@@ -190,3 +199,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] G3 PWA Install And Offline Startup: install-safe PNG icons, rotation support, atomic shell updates, bounded flaky-network fallback, and automated persistent-browser offline restart coverage.
 - [x] P0 Backup Restore Safety: strict full-device backup validation, duplicate/invalid-photo protection, legacy normalization, accurate private-backup labeling, and rendered replacement/reload QA.
 - [x] P0 Active Project Boundary implementation: project-proven Capture, fail-closed draft approval, current-Turn human-readable exports, explicit-project reports, and local-only ambiguous/Demo Copilot rows.
+- [x] Field-Scale Regression Gate: rendered 300-unit desktop/iPad/iPhone coverage plus 1,000 units and 10,000 events under throttling.
+- [x] Coalesced Persistence and text/numeric Commit-On-Blur: bounded full-state writes, lifecycle flushes, guarded draft recovery, and one-event commits.
+- [x] Three-Device Sync Regression: all reconnect orders, deterministic timestamp ties, duplicate prevention, and overlapping-upload recovery.
+- [ ] Daily Log Identity And Restore Safety: deterministic project/date IDs, legacy cloud reconciliation, signed-out restore guard, and rendered save/reload QA; release pending.

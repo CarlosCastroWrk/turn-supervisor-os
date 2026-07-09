@@ -83,8 +83,8 @@ Production remains:
 https://turn-supervisor-os.vercel.app
 ```
 
-Vercel CLI version verified on 2026-07-07:
+Vercel CLI version verified on 2026-07-09:
 
 ```text
-54.21.1
+55.0.0
 ```

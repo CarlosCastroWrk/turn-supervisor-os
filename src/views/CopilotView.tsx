@@ -24,12 +24,13 @@ import {
 import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
-import { createId, localISODateFromDateTime, nowISO, todayISO } from '../lib/constants';
+import { createId, localISODateFromDateTime, todayISO } from '../lib/constants';
+import { createEmptyDailyLog, findDailyLog } from '../lib/dailyLogs';
 import { getActiveProjectMemoryCandidates, prepareMemoryCandidatesForActiveProject } from '../lib/memory';
 import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
-import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
+import type { AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
 
 interface CopilotViewProps {
   data: AppData;
@@ -102,24 +103,6 @@ const draftTargetLabel = (draft: DraftAction) => {
   if (draft.targetEntityType === 'assignment' || draft.targetEntityType === 'crew') return 'Assignments';
   if (draft.targetEntityType === 'dailyLog') return 'Daily Log';
   return draft.targetEntityType;
-};
-
-const emptyDailyLog = (projectId: string, date: string): DailyLog => {
-  const now = nowISO();
-  return {
-    id: createId('daily'),
-    projectId,
-    date,
-    morningPlan: '',
-    middayUpdate: '',
-    endOfDayReflection: '',
-    completedSummary: '',
-    blockers: '',
-    lessons: '',
-    tomorrowPriorities: '',
-    createdAt: now,
-    updatedAt: now,
-  };
 };
 
 function DraftActionCard({
@@ -784,8 +767,8 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
 
     setData((current) => {
       const existing =
-        current.dailyLogs.find((log) => log.projectId === current.activeProjectId && log.date === todayISO()) ??
-        emptyDailyLog(current.activeProjectId, todayISO());
+        findDailyLog(current.dailyLogs, current.activeProjectId, todayISO()) ??
+        createEmptyDailyLog(current.activeProjectId, todayISO());
       return upsertDailyLog(current, {
         ...existing,
         middayUpdate: [existing.middayUpdate, `Raw Copilot note: ${quickInput.trim()}`].filter(Boolean).join('\n'),
@@ -844,8 +827,8 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
 
     setData((current) => {
       const existing =
-        current.dailyLogs.find((log) => log.projectId === current.activeProjectId && log.date === todayISO()) ??
-        emptyDailyLog(current.activeProjectId, todayISO());
+        findDailyLog(current.dailyLogs, current.activeProjectId, todayISO()) ??
+        createEmptyDailyLog(current.activeProjectId, todayISO());
       return upsertDailyLog(current, {
         ...existing,
         endOfDayReflection: [existing.endOfDayReflection, briefingText].filter(Boolean).join('\n\n'),

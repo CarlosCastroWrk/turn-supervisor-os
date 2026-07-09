@@ -16,14 +16,17 @@ import {
 import { getActiveProject, getIssuesForProject, getUnitsForProject } from '../lib/metrics';
 import { buildJsonBackupWithLocalPhotos } from '../lib/photoBackup';
 import { getProjectDailyLogs, getProjectFollowUpTasks } from '../lib/projectScope';
+import { restoreBlockReason } from '../lib/restoreSafety';
 import type { AppData } from '../types';
 
 interface ExportViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
+  syncAuthReady: boolean;
+  syncSignedIn: boolean;
 }
 
-export function ExportView({ data, setData }: ExportViewProps) {
+export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: ExportViewProps) {
   const { notify } = useToast();
   const date = new Date().toISOString().slice(0, 10);
   const project = getActiveProject(data);
@@ -34,6 +37,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
   const [backupMessage, setBackupMessage] = useState('');
   const [restoreMessage, setRestoreMessage] = useState('');
   const restoreInputRef = useRef<HTMLInputElement>(null);
+  const restoreGuardMessage = restoreBlockReason({ authReady: syncAuthReady, signedIn: syncSignedIn });
 
   const backup = async () => {
     setIsBackingUp(true);
@@ -82,6 +86,11 @@ export function ExportView({ data, setData }: ExportViewProps) {
   };
 
   const restoreBackup = async (file: File) => {
+    if (restoreGuardMessage) {
+      notify(restoreGuardMessage, { tone: 'error' });
+      return;
+    }
+
     if (!backupTaken) {
       const needsBackup = window.confirm('Download a JSON backup of this device before restoring another backup? Choose OK to backup first.');
       if (needsBackup) {
@@ -109,6 +118,15 @@ export function ExportView({ data, setData }: ExportViewProps) {
       setRestoreMessage(message);
       notify(message, { tone: 'error' });
     }
+  };
+
+  const requestRestore = () => {
+    if (restoreGuardMessage) {
+      notify(restoreGuardMessage, { tone: 'error' });
+      return;
+    }
+
+    restoreInputRef.current?.click();
   };
 
   const onRestoreSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,7 +208,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
               <Download size={18} aria-hidden="true" />
               {isBackingUp ? 'Building Backup...' : 'Backup Before Reset'}
             </Button>
-            <Button onClick={() => restoreInputRef.current?.click()}>
+            <Button aria-describedby={restoreGuardMessage ? 'restore-sync-guard' : undefined} onClick={requestRestore}>
               <Upload size={18} aria-hidden="true" />
               Restore JSON Backup
             </Button>
@@ -205,12 +223,18 @@ export function ExportView({ data, setData }: ExportViewProps) {
             className="visually-hidden"
             type="file"
             accept="application/json,.json"
+            disabled={Boolean(restoreGuardMessage)}
             onChange={onRestoreSelected}
           />
-          {restoreMessage ? <p className="muted">{restoreMessage}</p> : null}
+          {restoreGuardMessage ? (
+            <p id="restore-sync-guard" className="restore-warning" role="status">
+              {restoreGuardMessage}
+            </p>
+          ) : null}
+          {restoreMessage ? <p className="muted" aria-live="polite">{restoreMessage}</p> : null}
           <p className="muted">
-            If Supabase sync is signed in, cloud records can pull back after reload. Start Real Turn Mode in Setup to keep sample data
-            separate from real field data. Reset clears local photo files on this device after confirmation.
+            Restore is available only while Supabase sync is signed out. Start Real Turn Mode in Setup to keep sample data separate
+            from real field data. Reset clears local photo files on this device after confirmation.
           </p>
         </div>
       </Section>

@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'vite';
 import { seedData } from '../src/data/seed.ts';
 import { createRealTurnProject } from '../src/lib/actions.ts';
+import { buildDailyLogId } from '../src/lib/dailyLogs.ts';
 
 const storageKey = 'turn-supervisor-os:v0.1';
 const host = '127.0.0.1';
@@ -210,6 +211,71 @@ try {
     responsive[target.name] = await verifyUnitBoard({ browser, storedState: stored300, ...target });
   }
 
+  const dailyContext = await loadStoredContext(browser, { width: 390, height: 844 }, stored300);
+  const dailyPage = await dailyContext.newPage();
+  const dailyConsoleFindings = attachConsoleChecks(dailyPage);
+  await dailyPage.goto(`${baseUrl}/#/daily`, { waitUntil: 'networkidle' });
+  await dailyPage.getByRole('heading', { name: 'Daily Log', exact: true }).waitFor();
+  const dailyDate = await dailyPage.getByLabel('Date', { exact: true }).inputValue();
+  const completedSummary = dailyPage.getByLabel('Completed Summary', { exact: true });
+  await completedSummary.fill('QA Daily Log first save');
+  await dailyPage.getByRole('button', { name: 'Save Daily Log', exact: true }).click();
+  await dailyPage.waitForFunction(
+    ({ date, key, summary }) => {
+      const stored = JSON.parse(window.localStorage.getItem(key));
+      const matching = stored.dailyLogs.filter(
+        (log) => log.projectId === stored.activeProjectId && log.date === date,
+      );
+      return matching.length === 1 && matching[0].completedSummary === summary;
+    },
+    { date: dailyDate, key: storageKey, summary: 'QA Daily Log first save' },
+  );
+
+  await dailyPage.reload({ waitUntil: 'networkidle' });
+  await dailyPage.getByRole('heading', { name: 'Daily Log', exact: true }).waitFor();
+  const reloadedSummary = dailyPage.getByLabel('Completed Summary');
+  const reloadedSummaryCount = await reloadedSummary.count();
+  assert.equal(
+    reloadedSummaryCount,
+    1,
+    `Expected one reloaded Completed Summary field at ${dailyPage.url()}. Main text: ${await dailyPage.locator('main').innerText()}`,
+  );
+  assert.equal(await reloadedSummary.inputValue(), 'QA Daily Log first save');
+  await reloadedSummary.fill('QA Daily Log updated after reload');
+  await dailyPage.getByRole('button', { name: 'Save Daily Log', exact: true }).click();
+  await dailyPage.waitForFunction(
+    ({ date, key, summary }) => {
+      const stored = JSON.parse(window.localStorage.getItem(key));
+      const matching = stored.dailyLogs.filter(
+        (log) => log.projectId === stored.activeProjectId && log.date === date,
+      );
+      return matching.length === 1 && matching[0].completedSummary === summary;
+    },
+    { date: dailyDate, key: storageKey, summary: 'QA Daily Log updated after reload' },
+  );
+  const dailyLogResult = await dailyPage.evaluate(
+    ({ date, key }) => {
+      const stored = JSON.parse(window.localStorage.getItem(key));
+      const matching = stored.dailyLogs.filter(
+        (log) => log.projectId === stored.activeProjectId && log.date === date,
+      );
+      return { activeProjectId: stored.activeProjectId, ids: matching.map((log) => log.id), rowCount: matching.length };
+    },
+    { date: dailyDate, key: storageKey },
+  );
+  assert.equal(dailyLogResult.rowCount, 1);
+  assert.deepEqual(dailyLogResult.ids, [buildDailyLogId(dailyLogResult.activeProjectId, dailyDate)]);
+  await assertNoHorizontalOverflow(dailyPage, 'iphone-daily-log');
+  const dailyLogScreenshot = path.join(screenshotDirectory, 'iphone-daily-log.png');
+  await dailyPage.screenshot({ path: dailyLogScreenshot, fullPage: false });
+
+  await dailyPage.goto(`${baseUrl}/#/export`, { waitUntil: 'networkidle' });
+  await dailyPage.getByRole('heading', { name: 'Export / Backup', exact: true }).waitFor();
+  assert.equal(await dailyPage.getByRole('button', { name: 'Restore JSON Backup', exact: true }).isEnabled(), true);
+  assert.equal(await dailyPage.locator('.restore-warning').count(), 0);
+  assert.deepEqual(dailyConsoleFindings, [], `Daily Log console findings:\n${dailyConsoleFindings.join('\n')}`);
+  await dailyContext.close();
+
   const largeState = JSON.stringify(scaleState(20, 50, 10_000));
   const largeContext = await loadStoredContext(browser, { width: 390, height: 844 }, largeState, true);
   const largePage = await largeContext.newPage();
@@ -389,6 +455,7 @@ try {
   const recoveredEstimatedUnitsInput = numericTurnProjectSection.getByLabel('Estimated units');
   assert.equal(await recoveredEstimatedUnitsInput.count(), 1);
   assert.equal(await recoveredEstimatedUnitsInput.inputValue(), '1250');
+  await largePage.waitForTimeout(600);
   await largePage.evaluate(() => {
     window.__pdsStorageWriteCount = 0;
   });
@@ -417,6 +484,11 @@ try {
     `${JSON.stringify({
       largeLoadMs: Math.round(largeLoadMs),
       largeStateCharacters: largeState.length,
+      dailyLogSafety: {
+        id: dailyLogResult.ids[0],
+        rowCount: dailyLogResult.rowCount,
+        screenshot: dailyLogScreenshot,
+      },
       quickCreation: quickCreationResult,
       numericPersistence: {
         activityEntriesAdded: numericCommitResult.activityCount - activityBeforeNumericTyping,

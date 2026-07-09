@@ -31,6 +31,7 @@ import {
   nowISO,
   todayISO,
 } from './constants';
+import { createEmptyDailyLog, findDailyLog } from './dailyLogs';
 import { memoryAppliesToActiveProject, prepareMemoryCandidatesForActiveProject } from './memory';
 import { getDraftActionProjectId } from './projectScope';
 
@@ -476,13 +477,30 @@ export const updateAssignment = (data: AppData, assignmentId: EntityId, patch: P
 };
 
 export const upsertDailyLog = (data: AppData, dailyLog: DailyLog): AppData => {
-  const exists = data.dailyLogs.some((log) => log.id === dailyLog.id);
+  const savedAt = nowISO();
+  const existing = findDailyLog(data.dailyLogs, dailyLog.projectId, dailyLog.date);
+  const savedDailyLog: DailyLog = {
+    ...dailyLog,
+    id: existing?.id ?? dailyLog.id,
+    createdAt: existing?.createdAt || dailyLog.createdAt || savedAt,
+    updatedAt: savedAt,
+  };
+
   return {
     ...data,
-    dailyLogs: exists
-      ? data.dailyLogs.map((log) => (log.id === dailyLog.id ? { ...dailyLog, updatedAt: nowISO() } : log))
-      : [{ ...dailyLog, createdAt: nowISO(), updatedAt: nowISO() }, ...data.dailyLogs],
-    activityLogs: [activity(dailyLog.projectId, 'DailyLog', dailyLog.id, 'Saved daily log', dailyLog.date), ...data.activityLogs],
+    dailyLogs: [
+      savedDailyLog,
+      ...data.dailyLogs.filter(
+        (log) =>
+          log.id !== dailyLog.id &&
+          log.id !== savedDailyLog.id &&
+          (log.projectId !== savedDailyLog.projectId || log.date !== savedDailyLog.date),
+      ),
+    ],
+    activityLogs: [
+      activity(savedDailyLog.projectId, 'DailyLog', savedDailyLog.id, 'Saved daily log', savedDailyLog.date),
+      ...data.activityLogs,
+    ],
   };
 };
 
@@ -995,22 +1013,7 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
     const date = payloadString(draft.payload, 'date') || todayISO();
     const section = payloadString(draft.payload, 'section') || 'middayUpdate';
     const text = payloadString(draft.payload, 'text') || draft.summary;
-    const existing =
-      next.dailyLogs.find((log) => log.projectId === next.activeProjectId && log.date === date) ??
-      ({
-        id: createId('daily'),
-        projectId: next.activeProjectId,
-        date,
-        morningPlan: '',
-        middayUpdate: '',
-        endOfDayReflection: '',
-        completedSummary: '',
-        blockers: '',
-        lessons: '',
-        tomorrowPriorities: '',
-        createdAt: nowISO(),
-        updatedAt: nowISO(),
-      } satisfies DailyLog);
+    const existing = findDailyLog(next.dailyLogs, next.activeProjectId, date) ?? createEmptyDailyLog(next.activeProjectId, date);
 
     const patch = { ...existing };
     if (section in patch && typeof patch[section as keyof DailyLog] === 'string') {

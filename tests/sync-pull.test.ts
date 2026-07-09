@@ -9,7 +9,8 @@ import {
   syncedTables,
   uploadLocalData,
 } from '../src/lib/supabase/sync.ts';
-import type { AppData, Memory, MemoryCandidate, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
+import { buildDailyLogId, createEmptyDailyLog } from '../src/lib/dailyLogs.ts';
+import type { AppData, DailyLog, Memory, MemoryCandidate, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
 
 type RemoteRow = Record<string, unknown>;
 type RangeCall = { from: number; table: string; to: number };
@@ -75,6 +76,13 @@ const reportDraft = (updatedAt = stamp): ReportDocumentDraft => ({
     },
   ],
   createdAt: stamp,
+  updatedAt,
+});
+
+const dailyLog = (id: string, updatedAt: string, completedSummary: string): DailyLog => ({
+  ...createEmptyDailyLog('project_sync_pull', '2026-07-08', stamp),
+  id,
+  completedSummary,
   updatedAt,
 });
 
@@ -199,6 +207,21 @@ const reportDraftRow = (updatedAt = stamp): RemoteRow => ({
       bodyEdited: true,
     },
   ],
+  created_at: stamp,
+  updated_at: updatedAt,
+});
+
+const dailyLogRow = (id: string, updatedAt: string, completedSummary: string): RemoteRow => ({
+  id,
+  project_id: 'project_sync_pull',
+  date: '2026-07-08',
+  morning_plan: '',
+  midday_update: '',
+  end_of_day_reflection: '',
+  completed_summary: completedSummary,
+  blockers: '',
+  lessons: '',
+  tomorrow_priorities: '',
   created_at: stamp,
   updated_at: updatedAt,
 });
@@ -431,4 +454,38 @@ test('pull-before-upload keeps a newer cloud row from being re-overwritten by a 
   assert.equal(merged.units.find((item) => item.id === 'unit_sync_pull_104')?.notes, 'cloud newer note');
   assert.equal(uploadResult.uploadedRows, 0);
   assert.deepEqual(upsertCalls, []);
+});
+
+test('pull-before-upload updates a legacy cloud Daily Log instead of inserting a conflicting tuple', async () => {
+  const legacyCloudId = 'daily_legacy_cloud';
+  const pull = await fetchRemoteData(
+    asSupabaseClient(
+      fakeClient(
+        rowsByTable({
+          projects: [projectRow()],
+          units: [unitRow(stamp, 'local stale note')],
+          daily_logs: [dailyLogRow(legacyCloudId, '2026-07-08T12:00:00.000Z', 'Older cloud summary')],
+        }),
+      ),
+    ),
+  );
+  const local = {
+    ...appData(),
+    dailyLogs: [
+      dailyLog(buildDailyLogId('project_sync_pull', '2026-07-08'), '2026-07-08T12:05:00.000Z', 'Newer iPad summary'),
+    ],
+  };
+  const merged = mergeRemoteData(local, pull.remote);
+  const upsertCalls: UpsertCall[] = [];
+
+  const uploadResult = await uploadLocalData(asSupabaseClient(fakeClient(rowsByTable(), [], upsertCalls)), merged, pull.baseline);
+  const dailyLogUpsert = upsertCalls.find((call) => call.table === 'daily_logs');
+
+  assert.equal(merged.dailyLogs.length, 1);
+  assert.equal(merged.dailyLogs[0]?.id, legacyCloudId);
+  assert.equal(merged.dailyLogs[0]?.completedSummary, 'Newer iPad summary');
+  assert.equal(uploadResult.uploadedRows, 1);
+  assert.equal(dailyLogUpsert?.rows.length, 1);
+  assert.equal(dailyLogUpsert?.rows[0]?.id, legacyCloudId);
+  assert.equal(dailyLogUpsert?.rows[0]?.completed_summary, 'Newer iPad summary');
 });

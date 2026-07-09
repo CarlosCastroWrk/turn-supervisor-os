@@ -38,6 +38,7 @@ The gate uses disposable local QA data only. It verifies:
 - desktop, iPad-landscape, and iPhone layouts without horizontal overflow or console errors;
 - a 1,000-unit state with 10,000 activity events under 4x CPU throttling;
 - large-state Report rendering and an honest missing-Daily-Log warning.
+- iPhone-size Daily Log save, reload, and update with exactly one deterministic project/date row.
 
 Baseline recorded July 9, 2026:
 
@@ -50,6 +51,7 @@ Baseline recorded July 9, 2026:
 - Changing an existing Project estimate from 1,000 to 1,250 produced no activity or full-state write while focused, then exactly one activity event and one write on Enter.
 - The rendered Start Real Turn path still generated 300 units from ten floors and thirty units per floor, guarding the blur-then-submit ordering used by transient numeric forms.
 - The rendered Quick Unit Creation path generated twelve Units with four beds and three baths, including the final number committed by clicking Create Units directly.
+- A Daily Log saved, survived reload, updated in place, and retained one deterministic project/date ID without overflow or console findings.
 
 These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
 
@@ -63,6 +65,7 @@ These timings are regression signals, not physical iPhone/iPad acceptance. B3 of
 - applied, rejected, and failed Draft Actions cannot be replaced by a stale pending copy during a timestamp tie.
 - overlapping stale uploads recover the newest timestamp on the next cloud pass and then stop uploading.
 - 10,000 existing equal-timestamp rows complete deterministic comparison within a two-second regression ceiling.
+- same-day Daily Logs converge to one row across all six three-device reconnect orders, including an existing legacy cloud ID.
 
 This remains whole-row last-write-wins. Supabase upserts are not timestamp-conditional, so two truly overlapping uploads can briefly leave an older row in cloud state until the newer device receives or initiates another sync pass. The gate does not merge independent fields from simultaneous edits to the same record, correct a device clock that is far ahead, prove Realtime delivery, or replace the physical airplane-mode checklist below.
 
@@ -283,6 +286,23 @@ Pass:
 - Switching Turns immediately changes visible Capture history.
 - Human-readable files are current-Turn only; full-device backup remains intentionally complete.
 - Demo or unverifiable drafts and follow-ups are not uploaded as Real Turn cloud work.
+
+### 5F. Daily Log And Restore Safety
+
+- [ ] On Mac, iPhone, and iPad, open the same Real Turn and select the same Daily Log date.
+- [ ] Put all three devices offline, add clearly labeled QA text on each, then reconnect them one at a time.
+- [ ] Confirm one Daily Log remains for that date and the newest timestamped whole-row content settles on all devices.
+- [ ] While signed into Supabase, open Export and tap Restore JSON Backup.
+- [ ] Confirm the file picker does not open and the app instructs Los to sign out first.
+- [ ] Sign out, confirm restore becomes available, then cancel without replacing field data.
+- [ ] For an actual QA restore, review/export the recovered local data before signing in again.
+
+Pass:
+
+- One project/date produces one Daily Log across devices without a cloud uniqueness error.
+- Existing legacy Daily Logs update in place.
+- Restore cannot begin until auth is resolved and signed out.
+- The UI explains that signing in later can merge newer cloud rows.
 
 ### 6. Reset / Delete Safety
 

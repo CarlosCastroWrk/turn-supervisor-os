@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { markMemoriesUsed, upsertDailyLog } from '../lib/actions';
-import { createId, nowISO, todayISO } from '../lib/constants';
+import { todayISO } from '../lib/constants';
 import { buildDailyLogAutoDraft } from '../lib/dailyLogAutoDraft';
+import { createEmptyDailyLog, findDailyLog, reconcileDailyLogs } from '../lib/dailyLogs';
 import { getActiveProject } from '../lib/metrics';
 import type { AppData, DailyLog } from '../types';
 
@@ -13,34 +14,18 @@ interface DailyLogViewProps {
   setData: React.Dispatch<React.SetStateAction<AppData>>;
 }
 
-const emptyLog = (projectId: string, date: string): DailyLog => {
-  const now = nowISO();
-  return {
-    id: createId('daily'),
-    projectId,
-    date,
-    morningPlan: '',
-    middayUpdate: '',
-    endOfDayReflection: '',
-    completedSummary: '',
-    blockers: '',
-    lessons: '',
-    tomorrowPriorities: '',
-    createdAt: now,
-    updatedAt: now,
-  };
-};
-
 export function DailyLogView({ data, setData }: DailyLogViewProps) {
   const project = getActiveProject(data);
   const projectLogs = useMemo(
-    () => data.dailyLogs.filter((log) => log.projectId === project.id),
+    () => reconcileDailyLogs(data.dailyLogs.filter((log) => log.projectId === project.id), []),
     [data.dailyLogs, project.id],
   );
   const [date, setDate] = useState(todayISO());
   const [dirty, setDirty] = useState(false);
   const [autoDraftMessage, setAutoDraftMessage] = useState('');
-  const [draft, setDraft] = useState<DailyLog>(() => data.dailyLogs.find((log) => log.projectId === project.id && log.date === todayISO()) ?? emptyLog(project.id, todayISO()));
+  const [draft, setDraft] = useState<DailyLog>(
+    () => findDailyLog(projectLogs, project.id, todayISO()) ?? createEmptyDailyLog(project.id, todayISO()),
+  );
   const autoDraftPreview = useMemo(
     () => buildDailyLogAutoDraft(data, project, date, draft),
     [data, date, draft, project],
@@ -50,13 +35,13 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
     if (draft.projectId !== project.id) {
       setDirty(false);
       setAutoDraftMessage('');
-      setDraft(projectLogs.find((log) => log.date === date) ?? emptyLog(project.id, date));
+      setDraft(findDailyLog(projectLogs, project.id, date) ?? createEmptyDailyLog(project.id, date));
       return;
     }
     if (dirty) {
       return;
     }
-    setDraft(projectLogs.find((log) => log.date === date) ?? emptyLog(project.id, date));
+    setDraft(findDailyLog(projectLogs, project.id, date) ?? createEmptyDailyLog(project.id, date));
   }, [date, dirty, draft.projectId, project.id, projectLogs]);
 
   const updateDraft = (patch: Partial<DailyLog>) => {

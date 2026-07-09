@@ -91,7 +91,7 @@ Rationale:
 
 ### 2026-07-07: Vercel CLI upgrade approved and completed
 
-Los approved upgrading the local Vercel CLI. The installed version is now `54.21.1`.
+Los approved upgrading the local Vercel CLI to `54.21.1`, then approved the next upgrade to `55.0.0` on 2026-07-09.
 
 Rationale:
 
@@ -179,6 +179,29 @@ Rationale:
 - Whole-row resolution can still lose an independent field from simultaneous same-record edits; physical conflict QA and a future conflict-review design remain required.
 - Device clocks remain authoritative for now, so a clock far in the future is a known limitation rather than something the client silently rewrites.
 - Concurrent clients can still interleave after both pull the same baseline; the next pass recovers the newest timestamp, while atomic stale-write rejection remains a future server/schema decision.
+
+### 2026-07-09: Daily Log identity is project plus local date
+
+Create every new Daily Log with one deterministic ID derived from its project and `YYYY-MM-DD` date. During sync, reconcile by project/date as well as ID. If the cloud already has a legacy random ID for that tuple, preserve the cloud ID and apply the newest whole-row content to it.
+
+Rationale:
+
+- Supabase already enforces one Daily Log per user, project, and date.
+- Random offline IDs let two devices attempt separate inserts for the same unique tuple.
+- Preserving the existing cloud ID avoids a destructive ID rewrite and lets pull-before-upload update that row in place.
+- Newer timestamps remain authoritative; exact-time conflicts use the existing canonical whole-row rule.
+- True field-level merge remains deferred, so Los should still avoid editing the same Daily Log on multiple devices at the same time.
+
+### 2026-07-09: JSON restore requires a confirmed signed-out state
+
+Do not allow local JSON replacement until Supabase auth state has resolved and the device is signed out. Restore remains a local recovery workflow; it does not force-delete or overwrite cloud rows.
+
+Rationale:
+
+- Restoring while signed in lets startup, Realtime, or local-edit sync immediately merge cloud records over the recovered copy.
+- A force-cloud-restore action would be destructive production-data behavior and needs a separate design and explicit approval.
+- Los can safely inspect and export recovered data while signed out.
+- Signing in later may still merge newer cloud rows, so recovered data should be reviewed/exported first.
 
 ## Deferred Decisions
 

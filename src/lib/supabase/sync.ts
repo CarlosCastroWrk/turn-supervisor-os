@@ -19,6 +19,7 @@ import type {
 } from '../../types';
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
+import { reconcileDailyLogs } from '../dailyLogs';
 import { getSupabaseClient, isSupabaseConfigured, isSyncFeatureEnabled } from './client';
 import {
   createDemoSyncBoundary,
@@ -73,6 +74,8 @@ interface SyncTable<T extends { id: string }> {
 export interface SyncController {
   enabled: boolean;
   configured: boolean;
+  authReady: boolean;
+  signedIn: boolean;
   status: SyncStatus;
   message: string;
   diagnostics: SyncDiagnostics;
@@ -711,7 +714,7 @@ export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData
     assignments: mergeRows(local.assignments, (remote.assignments ?? []) as Assignment[]),
     issues: mergeRows(local.issues, (remote.issues ?? []) as Issue[]),
     photoNotes: mergePhotoNotes(local.photoNotes, (remote.photoNotes ?? []) as PhotoNote[]),
-    dailyLogs: mergeRows(local.dailyLogs, (remote.dailyLogs ?? []) as DailyLog[]),
+    dailyLogs: reconcileDailyLogs(local.dailyLogs, (remote.dailyLogs ?? []) as DailyLog[]),
     reportDrafts: mergeRows(local.reportDrafts, (remote.reportDrafts ?? []) as ReportDocumentDraft[]),
     trainingQuestions: mergeRows(local.trainingQuestions, (remote.trainingQuestions ?? []) as TrainingQuestion[]),
     activityLogs: mergeRows(local.activityLogs, (remote.activityLogs ?? []) as ActivityLog[]),
@@ -903,7 +906,7 @@ export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppDa
     assignments: (remoteWithLocalDemo.assignments ?? local.assignments) as Assignment[],
     issues: (remoteWithLocalDemo.issues ?? local.issues) as Issue[],
     photoNotes: (remoteWithLocalDemo.photoNotes ?? local.photoNotes) as PhotoNote[],
-    dailyLogs: (remoteWithLocalDemo.dailyLogs ?? local.dailyLogs) as DailyLog[],
+    dailyLogs: reconcileDailyLogs([], (remoteWithLocalDemo.dailyLogs ?? local.dailyLogs) as DailyLog[]),
     reportDrafts: (remoteWithLocalDemo.reportDrafts ?? local.reportDrafts) as ReportDocumentDraft[],
     trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
     activityLogs: (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
@@ -922,6 +925,7 @@ export const useSupabaseSync = (
   const enabled = isSyncFeatureEnabled;
   const configured = isSupabaseConfigured;
   const client = useMemo(() => getSupabaseClient(), []);
+  const [authReady, setAuthReady] = useState(() => !enabled || !configured);
   const [session, setSession] = useState<Session | null>(null);
   const [status, setStatus] = useState<SyncStatus>(() => {
     if (!enabled) return 'disabled';
@@ -1262,10 +1266,12 @@ export const useSupabaseSync = (
   const signIn = useCallback(
     async (email: string, password: string) => {
       if (!client) return;
+      setAuthReady(false);
       setStatus('syncing');
       setMessage('Signing in...');
       const { data: authData, error } = await client.auth.signInWithPassword({ email, password });
       if (error) {
+        setAuthReady(true);
         setStatus('error');
         setMessage(
           error.message.toLowerCase().includes('email logins')
@@ -1275,6 +1281,7 @@ export const useSupabaseSync = (
         return;
       }
       setSession(authData.session);
+      setAuthReady(true);
       setMessage('Signed in. Starting sync...');
     },
     [client],
@@ -1282,8 +1289,16 @@ export const useSupabaseSync = (
 
   const signOut = useCallback(async () => {
     if (!client) return;
-    await client.auth.signOut();
+    setAuthReady(false);
+    const { error } = await client.auth.signOut();
+    if (error) {
+      setAuthReady(true);
+      setStatus('error');
+      setMessage(`Could not sign out: ${error.message}`);
+      return;
+    }
     setSession(null);
+    setAuthReady(true);
     initializedRef.current = false;
     setStatus('signed_out');
     setMessage('Signed out. This device still keeps its local cache.');
@@ -1291,27 +1306,46 @@ export const useSupabaseSync = (
 
   useEffect(() => {
     if (!enabled) {
+      setAuthReady(true);
       setStatus('disabled');
       setMessage('Sync is off. Local data is still saved on this device.');
       return;
     }
 
     if (!configured || !client) {
+      setAuthReady(true);
       setStatus('not_configured');
       setMessage('Sync is enabled but Supabase environment variables are missing.');
       return;
     }
 
-    client.auth.getSession().then(({ data: authData }) => {
-      setSession(authData.session);
-      setStatus(authData.session ? 'syncing' : 'signed_out');
-      setMessage(authData.session ? 'Restoring Supabase session...' : 'Sign in to sync this device.');
-    });
+    let active = true;
+    setAuthReady(false);
+    void client.auth
+      .getSession()
+      .then(({ data: authData, error }) => {
+        if (!active) return;
+        if (error) {
+          setStatus('error');
+          setMessage('Could not verify the Supabase session. Backup restore remains locked for safety.');
+          return;
+        }
+        setSession(authData.session);
+        setAuthReady(true);
+        setStatus(authData.session ? 'syncing' : 'signed_out');
+        setMessage(authData.session ? 'Restoring Supabase session...' : 'Sign in to sync this device.');
+      })
+      .catch(() => {
+        if (!active) return;
+        setStatus('error');
+        setMessage('Could not verify the Supabase session. Backup restore remains locked for safety.');
+      });
 
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
+      setAuthReady(true);
       setDiagnostics((current) => ({
         ...current,
         lastEvent: event,
@@ -1333,7 +1367,10 @@ export const useSupabaseSync = (
       setMessage('Supabase session active. Starting sync...');
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [client, configured, enabled]);
 
   useEffect(() => {
@@ -1426,6 +1463,8 @@ export const useSupabaseSync = (
   return {
     enabled,
     configured,
+    authReady,
+    signedIn: Boolean(session),
     status,
     message,
     diagnostics,

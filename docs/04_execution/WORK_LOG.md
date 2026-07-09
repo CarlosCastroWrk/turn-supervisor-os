@@ -168,3 +168,12 @@
 - Changed exact-timestamp conflict resolution to select one canonical whole-row winner on every device, while keeping newer timestamps authoritative and preserving applied/rejected/failed Draft Actions over stale pending copies.
 - Verified disjoint edits converge without duplicate Units, Issues, or activity rows; newest same-row edits win in every reconnect order; and repeated tied-row reconnects produce zero follow-up uploads.
 - Added a 10,000-row equal-timestamp merge ceiling so deterministic convergence cannot silently create an unbounded large-history slowdown.
+- Los explicitly approved the E4 migration; applied `20260709195302_add_memory_project_scope.sql`, confirmed local/remote migration parity, reran a clean dry-run, and passed linked schema lint with no errors.
+- Reviewed and merged PRs #39, #41, #42, #43, #44, #45, and #46 in dependency order, retargeting each stacked PR to `main` and rechecking its isolated diff and green Vercel preview before merge.
+- Upgraded the local Vercel CLI from `54.21.1` to `55.0.0` after Los explicitly approved.
+- Re-ran 154/154 deterministic tests, field-scale browser QA, lint, OS checks, normal and production-environment builds, then deployed production as `dpl_88mAY5RFZTxaDgos9R7qykC4tHy1` and confirmed the canonical URL, PWA manifest, service worker, deep-link navigation, Capture, and console health.
+- Started P0 Daily Log Identity And Restore Safety on `codex/daily-log-restore-safety` after the release train shipped.
+- Replaced random new Daily Log IDs with deterministic project/date IDs across Daily Log, Capture raw-note/briefing save, and Draft Action apply paths.
+- Added project/date reconciliation that collapses duplicates, preserves an existing legacy cloud row ID, and uploads newer offline content as an update instead of a uniqueness-conflicting insert.
+- Added auth-resolution state and a signed-out restore guard; force-overwriting cloud data remains deliberately out of scope.
+- Verified all six three-device Daily Log reconnect orders, 5,000-log reconciliation, pull-before-upload legacy behavior, and rendered iPhone save/reload/update with one row, no overflow, and no console findings. The full deterministic suite now passes 165/165 before final release verification.

@@ -526,7 +526,7 @@ Acceptance:
 
 ### E4. Memory Consumption
 
-Status: release candidate implemented and locally verified; production migration/release pending explicit approval.
+Status: implemented, migrated, merged, and deployed after explicit approval.
 
 Scope:
 
@@ -543,6 +543,26 @@ Acceptance:
 - Deleted/archived records do not keep driving current recommendations.
 - Demo and another Real Turn's Memory do not appear in the active project or Daily Log history.
 - Auto-drafted lessons remain unsaved until Los presses Save Daily Log.
+
+### P0. Daily Log Identity And Restore Safety
+
+Status: implementation and local QA complete; PR/production release pending.
+
+Scope:
+
+- Use one deterministic Daily Log ID for each project/date on every device.
+- Reconcile legacy random IDs by project/date while preserving the existing cloud row identity.
+- Collapse local duplicates before save and keep newest whole-row content authoritative.
+- Require Supabase auth resolution and sign-out before local JSON restore.
+- Keep restore local-only; do not add a force-overwrite-cloud action.
+
+Acceptance:
+
+- Mac, iPhone, and iPad cannot create separate cloud rows for the same project/date.
+- Every three-device reconnect order settles on one row and the newest timestamped content.
+- Existing legacy cloud Daily Logs update in place instead of violating the database uniqueness boundary.
+- Signed-in restore is blocked with a visible sign-out instruction.
+- A restored local copy can be reviewed/exported before any later cloud merge.
 
 ## Phase F: Photo Durability
 
@@ -683,5 +703,11 @@ Only after the field-safe deterministic version is trusted.
 31. E4 Project-Scoped Memory
 32. P0 Backup Restore Safety
 33. P0 Active Project Boundary
+34. Field-Scale Regression Gate
+35. P0 Storage Write Coalescing
+36. P0 Text Commit-On-Blur
+37. P0 Numeric Commit-On-Blur
+38. P0 Three-Device Sync Regression
+39. P0 Daily Log Identity And Restore Safety
 
 This order can change if real-device testing finds a higher-risk failure.

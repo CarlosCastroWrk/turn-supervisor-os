@@ -98,9 +98,11 @@ Safety notes:
 - Sync comparison normalizes equivalent timestamp formats and JSON object key order to reduce false local-change upload loops.
 - Demo and real Turn projects are separated by project mode. Start Real Turn Mode before entering real field records.
 - Important Copilot mutations are still draft-first.
-- Project-scoped operational Memory sync requires the additive E4 migration before the E4 client is deployed; legacy unscoped operational Memory remains inactive until assigned in Setup.
+- Project-scoped operational Memory is deployed with the approved E4 migration; legacy unscoped operational Memory remains inactive until assigned in Setup.
+- New Daily Logs use one deterministic project/date identity. Sync preserves an existing legacy cloud ID and updates that row instead of inserting a conflicting second log.
 - Real Turn photos save locally first, then upload to Los's private Supabase Storage folder when signed in and online. Other devices lazy-download and cache thumbnails; Demo Mode photos stay local.
 - Deletes are not propagated yet; avoid deleting browser data unless you exported a backup.
+- JSON restore is available only after sync auth resolves and the device is signed out. Review/export recovered data before signing in again because newer cloud rows can later merge back.
 
 ## Start A Real Turn Safely
 
@@ -225,6 +227,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - PWA offline cold start and deep-link reload pass automated persistent-browser tests; installed iPhone/iPad Home Screen acceptance still must be run on the physical devices.
 - Cross-device sync is new and must be field-tested before Turn.
 - Visible sync diagnostics now identify trigger, table, row counts, queued work, and the last error; true same-row conflict review is still not implemented.
+- Same-date Daily Log creation now converges to one row, but simultaneous edits still use whole-row timestamp resolution rather than field-level merge.
 - Delete propagation and conflict review UI are not implemented yet.
 - No CSV import yet.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.

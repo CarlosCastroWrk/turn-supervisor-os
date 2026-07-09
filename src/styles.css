@@ -1896,6 +1896,16 @@ small {
   display: block;
 }
 
+.restore-warning {
+  border: 1px solid #fbbf24;
+  border-radius: var(--radius);
+  background: #fffbeb;
+  color: #92400e;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  font-weight: 720;
+}
+
 .empty-state {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);

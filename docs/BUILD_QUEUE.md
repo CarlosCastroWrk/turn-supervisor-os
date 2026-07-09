@@ -31,6 +31,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Lazy-download and cache cloud thumbnails on another device.
   - [x] Keep upload failures retryable and visible in Sync details.
   - [ ] Verify one work-safe photo across Mac, iPhone, and iPad.
+- [x] G3 PWA Install And Offline Startup implementation.
+  - [x] Add 192/512 PNG install icons, a maskable icon, and a 180px iOS touch icon.
+  - [x] Remove the portrait-only manifest lock so iPad can rotate.
+  - [x] Fall back to the cached shell after a four-second navigation timeout.
+  - [x] Reject incomplete shell installs and avoid refetching assets for the unchanged build.
+  - [x] Verify persistent-browser offline cold start, deep-link reload, cached assets, mobile/tablet overflow, and console health.
+  - [ ] Verify Home Screen icon, rotation, and fully closed offline restart on physical iPhone/iPad.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -70,7 +77,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] F2 Supabase Storage Photo Sync. Real-device photo acceptance remains in the active gate.
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
 - [ ] G2 Undo And Toast System.
-- [ ] G3 PWA Install And Offline Startup.
+- [x] G3 PWA Install And Offline Startup. Physical iPhone/iPad acceptance remains in the active gate.
 - [ ] G4 Accessibility And Field Contrast.
 - [ ] Add CSV unit import.
 - [ ] Add bulk unit update workflow.
@@ -138,3 +145,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] E3 Daily Log Auto-Draft: Daily Log can draft empty sections from grounded activity, blockers, issues, assignments, and current board signals while still requiring Los to review and save.
 - [x] F1 IndexedDB Photo Store: compressed photo files save locally outside the main app record, migrate safely, and remain included in device-available JSON backups.
 - [x] F2 Supabase Storage Photo Sync: Real Turn files upload privately, metadata paths sync after successful upload, other devices lazy-download/cache thumbnails, and failures remain retryable.
+- [x] G3 PWA Install And Offline Startup: install-safe PNG icons, rotation support, atomic shell updates, bounded flaky-network fallback, and automated persistent-browser offline restart coverage.

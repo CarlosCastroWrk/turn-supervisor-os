@@ -22,7 +22,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Copy-ready daily report generator
 - Training questions with status, answer, and follow-up fields
 - Export / backup for photo-complete JSON, units CSV, issues CSV, daily report text, daily logs Markdown, Copilot/Memory Markdown, and Follow-Ups CSV
-- PWA manifest and service worker for add-to-home-screen and basic app shell caching
+- PWA manifest and service worker with iOS PNG icons, rotation support, atomic app-shell updates, bounded navigation fallback, and offline deep-link startup
 - Local-first persistence using browser localStorage for operational records and IndexedDB for compressed photo files
 - Rule-based no-API-key copilot parser that creates draft actions before changing data
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
@@ -215,7 +215,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - A newly captured photo remains device-local until a successful signed-in sync records its private cloud path; reinstalling or clearing site data before that can remove it unless it was included in a JSON backup.
 - Cross-device photo sync is implemented but still requires Los's one-photo Mac/iPhone/iPad acceptance check.
 - Cloud photo object deletion is not implemented yet.
-- PWA offline support caches the app shell, but full offline production hardening is not complete.
+- PWA offline cold start and deep-link reload pass automated persistent-browser tests; installed iPhone/iPad Home Screen acceptance still must be run on the physical devices.
 - Cross-device sync is new and must be field-tested before Turn.
 - If sync still cycles after the latest deployed fingerprinting fix, the next slice should add visible sync diagnostics.
 - Delete propagation and conflict review UI are not implemented yet.
@@ -245,7 +245,7 @@ The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal n
 ### Version 0.2
 
 - Supabase Storage photo sync physical-device acceptance and cleanup lifecycle
-- Better offline PWA support
+- Physical iPhone/iPad PWA install, rotation, and offline-restart acceptance
 - Import units from CSV
 - Voice notes
 - Faster bulk unit updates

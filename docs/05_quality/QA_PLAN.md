@@ -162,4 +162,5 @@ After production deploy:
 - Confirm production URL returns HTTP 200.
 - Run mobile boot smoke.
 - Run the real-device check if the slice changes sync/offline/storage/PWA behavior.
+- For PWA releases, install/reopen online once, fully close, enable airplane mode, reopen from the Home Screen, and rotate iPad in both directions.
 - Update docs/current state only with verified facts.

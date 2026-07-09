@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through E3 Daily Log Auto-Draft and F2 Supabase Storage Photo Sync
+A2 Draft Apply Safety through F2 Supabase Storage Photo Sync and G3 PWA Install/Offline Startup
 ```
 
 Production:
@@ -49,7 +49,7 @@ Every near-term change should serve that loop.
 - Lightweight URL hash routing for top-level views, unit detail links, issue-focused links, dashboard deep links, reload, and browser back behavior
 - Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and deterministic smart suggestions
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
-- PWA manifest and service worker
+- PWA manifest and service worker with 192/512 PNG install icons, a dedicated maskable icon, an iOS touch icon, unrestricted orientation, atomic app-shell install/update behavior, a four-second navigation timeout, cached offline deep-link startup, and a static-only cache allowlist that excludes future app-data endpoints
 - Supabase cloud project `jgplalexkmjzldczouih`
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
@@ -97,6 +97,7 @@ Every near-term change should serve that loop.
 - Delete propagation / tombstones for synced rows
 - Real-device verification that one captured photo reaches Los's other signed-in devices
 - Cloud object deletion/cleanup when a photo record is removed
+- Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
 - Multi-user mode
 - Automated browser regression suite
 - Server-side AI provider route
@@ -112,6 +113,7 @@ Every near-term change should serve that loop.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
 - Compressed photos save locally first. When Los is signed in and online, available Real Turn photo files upload to private Supabase Storage; other devices fetch them only when a thumbnail is needed.
 - Demo Mode photos remain local and are excluded from cloud upload.
+- Offline startup can use the cached app shell and local records; Supabase and uncached cloud photos still require connectivity.
 - Copilot output must remain draft-first; important mutations require explicit approval.
 - Memory candidates must be approved before use.
 - Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
@@ -158,4 +160,4 @@ Run the B3 real-device offline/reconnect and F2 photo checks before entering rea
 6. Confirm Mac and iPad receive the updates after reconnect.
 7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 
-While those physical-device checks are pending, the next code slice should harden PWA install/offline startup without changing product scope.
+While those physical-device checks are pending, the next code slice should harden accessibility, outdoor contrast, focus visibility, and touch targets without changing product scope.

@@ -205,6 +205,11 @@ Pass:
 
 - [ ] Add production app to iPhone Home Screen.
 - [ ] Add production app to iPad Home Screen.
+- [ ] Confirm the installed icon is the dark Turn checklist icon rather than a generic browser thumbnail.
+- [ ] Open each installed PWA online once and wait for the Dashboard to finish loading.
+- [ ] Enable airplane mode, fully close the PWA, reopen it from the Home Screen, and confirm the local Dashboard loads.
+- [ ] While still offline, open Units, one Unit, Capture, and Reports; close/reopen once more and confirm the current local data remains.
+- [ ] Rotate iPad between portrait and landscape and confirm the app follows the device instead of staying portrait-locked.
 - [ ] Check Dashboard, Units, Unit Detail, Capture, Reports, Setup, and Export.
 - [ ] Confirm the bottom-right Capture button is available across tabs.
 - [ ] Confirm Capture is not duplicated in the bottom nav.
@@ -224,6 +229,7 @@ Pass:
 - Issue log under 20 seconds.
 - Capture note under 15 seconds.
 - Report generation under 30 seconds.
+- A fully closed installed PWA reopens with the cached shell and local field records while offline.
 
 ## Phase 1 Exit Criteria
 

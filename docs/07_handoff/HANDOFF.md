@@ -52,4 +52,5 @@ Complete the real-device offline/reconnect gate before entering real field data:
 - Supabase Storage photo sync is implemented for private Real Turn files, but the one-photo Mac/iPhone/iPad acceptance check is still pending.
 - New photos save into IndexedDB first; signed-in sync uploads available files and other devices lazy-download/cache them.
 - Cloud photo object deletion is not implemented.
+- PWA install/offline startup is hardened and passes persistent-browser restart tests; physical iPhone/iPad Home Screen icon, rotation, and offline restart acceptance remains pending.
 - Simultaneous same-row edits still use whole-row timestamp conflict behavior.

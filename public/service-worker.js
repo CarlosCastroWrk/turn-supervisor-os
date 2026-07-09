@@ -1,11 +1,26 @@
-const CACHE_NAME = 'turn-supervisor-os-v0-3';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
+const CACHE_NAME = 'turn-supervisor-os-v0-4';
+const NAVIGATION_TIMEOUT_MS = 4_000;
+const APP_SHELL = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+  '/apple-touch-icon-180.png',
+];
 
 const isSameOrigin = (request) => new URL(request.url).origin === self.location.origin;
 
 const isBuildAsset = (request) => {
   const { pathname } = new URL(request.url);
   return pathname.startsWith('/assets/');
+};
+
+const isStaticAppAsset = (request) => {
+  const { pathname } = new URL(request.url);
+  return APP_SHELL.includes(pathname);
 };
 
 const assetUrlsFromHtml = (html) => {
@@ -15,7 +30,7 @@ const assetUrlsFromHtml = (html) => {
 
   while ((match = assetPattern.exec(html))) {
     const value = match[1];
-    if (value.startsWith('/assets/') || value === '/manifest.webmanifest' || value === '/icon.svg') {
+    if (value.startsWith('/assets/') || APP_SHELL.includes(value)) {
       urls.add(value);
     }
   }
@@ -23,13 +38,19 @@ const assetUrlsFromHtml = (html) => {
   return [...urls];
 };
 
-const fetchAndCache = async (cache, url) => {
+const fetchCacheable = async (cache, url) => {
+  if (url.startsWith('/assets/')) {
+    const cached = await cache.match(url);
+    if (cached) {
+      return { response: cached, url };
+    }
+  }
+
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error(`Failed to cache ${url}: ${response.status}`);
   }
-
-  await cache.put(url, response);
+  return { response, url };
 };
 
 const matchCached = async (requestOrUrl) => {
@@ -44,28 +65,52 @@ const matchCached = async (requestOrUrl) => {
 
 const offlineMiss = () => new Response('', { status: 504, statusText: 'Offline cache miss' });
 
-const cacheCurrentAppShell = async () => {
-  const cache = await caches.open(CACHE_NAME);
-  const indexResponse = await fetch('/index.html', { cache: 'no-store' });
+const offlineDocument = () =>
+  new Response(
+    '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Turn OS offline</title><body><main><h1>Turn OS is offline</h1><p>Reconnect once so this device can restore the app shell.</p></main></body></html>',
+    {
+      status: 503,
+      statusText: 'Offline app shell unavailable',
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    },
+  );
 
+const cacheShellResponse = async (indexResponse) => {
+  const html = await indexResponse.clone().text();
+  const cache = await caches.open(CACHE_NAME);
+  const cachedIndex = await cache.match('/index.html');
+  if (cachedIndex && (await cachedIndex.text()) === html) {
+    return;
+  }
+
+  const urls = assetUrlsFromHtml(html).filter((url) => url !== '/' && url !== '/index.html');
+  const resources = await Promise.all(urls.map((url) => fetchCacheable(cache, url)));
+
+  await Promise.all(resources.map(({ response, url }) => cache.put(url, response)));
+  await cache.put('/index.html', indexResponse.clone());
+  await cache.put('/', indexResponse);
+};
+
+const cacheCurrentAppShell = async () => {
+  const indexResponse = await fetch('/index.html', { cache: 'no-store' });
   if (!indexResponse.ok) {
     throw new Error(`Failed to cache app shell: ${indexResponse.status}`);
   }
+  await cacheShellResponse(indexResponse);
+};
 
-  const html = await indexResponse.clone().text();
-  await cache.put('/index.html', indexResponse.clone());
-  await cache.put('/', indexResponse);
-
-  const urls = assetUrlsFromHtml(html).filter((url) => url !== '/' && url !== '/index.html');
-  await Promise.allSettled(urls.map((url) => fetchAndCache(cache, url)));
+const fetchWithTimeout = async (request, timeoutMs) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(request, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    cacheCurrentAppShell()
-      .catch(() => caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(cacheCurrentAppShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -78,37 +123,27 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
+  if (event.request.method !== 'GET' || !isSameOrigin(event.request)) {
     return;
   }
 
-  if (!isSameOrigin(event.request)) {
-    return;
-  }
-
-  // Network-first for page navigations so new builds reach the device;
-  // fall back to the cached shell when offline.
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
+    const networkResponse = fetchWithTimeout(event.request, NAVIGATION_TIMEOUT_MS).then((response) => {
+      if (!response.ok) {
+        throw new Error(`Navigation failed: ${response.status}`);
+      }
+      return response;
+    });
+    event.waitUntil(
+      networkResponse
         .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put('/index.html', clone);
-            cache.put('/', response.clone());
-          });
-          response
-            .clone()
-            .text()
-            .then((html) => {
-              caches.open(CACHE_NAME).then((cache) => {
-                assetUrlsFromHtml(html).forEach((url) => fetchAndCache(cache, url).catch(() => undefined));
-              });
-            })
-            .catch(() => undefined);
-          return response;
+          const contentType = response.headers.get('content-type') ?? '';
+          return contentType.includes('text/html') ? cacheShellResponse(response.clone()) : undefined;
         })
-        .catch(() => matchCached('/index.html')),
+        .catch(() => undefined),
+    );
+    event.respondWith(
+      networkResponse.catch(async () => (await matchCached('/index.html')) ?? offlineDocument()),
     );
     return;
   }
@@ -120,13 +155,23 @@ self.addEventListener('fetch', (event) => {
           return cached;
         }
 
-        return fetch(event.request).then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        }).catch(() => offlineMiss());
+        return fetch(event.request)
+          .then(async (response) => {
+            if (!response.ok) {
+              return response;
+            }
+            const clone = response.clone();
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, clone);
+            return response;
+          })
+          .catch(() => offlineMiss());
       }),
     );
+    return;
+  }
+
+  if (!isStaticAppAsset(event.request)) {
     return;
   }
 
@@ -137,9 +182,13 @@ self.addEventListener('fetch', (event) => {
       }
 
       return fetch(event.request)
-        .then((response) => {
+        .then(async (response) => {
+          if (!response.ok) {
+            return response;
+          }
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(event.request, clone);
           return response;
         })
         .catch(() => offlineMiss());

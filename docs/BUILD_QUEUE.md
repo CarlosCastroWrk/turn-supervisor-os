@@ -98,7 +98,10 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] E2 Report Preview And Print/PDF.
 - [ ] Run field test on iPhone Safari or installed PWA.
 - [ ] Run field test on iPad Safari or installed PWA.
-- [ ] Verify or repeat the previously reported 200-300 unit Start Real Turn stress test.
+- [x] Verify or repeat the previously reported 200-300 unit Start Real Turn stress test.
+  - [x] Create 300 units through the rendered Setup flow and preserve Demo data separately.
+  - [x] Verify 100-at-a-time Unit rendering, search, Capture access, and no horizontal overflow at desktop, iPad, and iPhone sizes.
+  - [x] Verify a 1,000-unit / 10,000-event state under 4x CPU throttling, including Reports and local backup validation.
 
 ## P2: Can Wait Until After Turn Starts If P0/P1 Are Stable
 

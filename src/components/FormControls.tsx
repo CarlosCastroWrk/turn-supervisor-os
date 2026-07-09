@@ -1,11 +1,15 @@
 import {
   useEffect,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type FocusEvent,
   type InputHTMLAttributes,
+  type KeyboardEvent,
   type ReactNode,
+  type TextareaHTMLAttributes,
 } from 'react';
+import { createFieldDraftStore } from '../lib/fieldDraft';
 import { canonicalIntegerDraft, integerValueFromDraft, sanitizeIntegerDraft } from '../lib/numberInput';
 
 interface FieldProps {
@@ -28,6 +32,160 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 export function Button({ variant = 'secondary', className = '', ...props }: ButtonProps) {
   return <button className={`button button--${variant} ${className}`.trim()} type="button" {...props} />;
+}
+
+type SessionDraftStore = ReturnType<typeof createFieldDraftStore>;
+let cachedSessionDraftStore: SessionDraftStore | undefined;
+let sessionDraftStoreChecked = false;
+
+const getSessionDraftStore = () => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  if (sessionDraftStoreChecked) {
+    return cachedSessionDraftStore;
+  }
+  sessionDraftStoreChecked = true;
+  try {
+    cachedSessionDraftStore = createFieldDraftStore(window.sessionStorage);
+  } catch {
+    cachedSessionDraftStore = undefined;
+  }
+  return cachedSessionDraftStore;
+};
+
+const readSessionDraft = (draftKey: string, value: string) => {
+  return getSessionDraftStore()?.read(draftKey, value) ?? value;
+};
+
+const useCommittedTextDraft = (draftKey: string, value: string, onCommit: (value: string) => void) => {
+  const [draft, setDraft] = useState(() => readSessionDraft(draftKey, value));
+  const draftRef = useRef(draft);
+  const valueRef = useRef(value);
+  const baseValueRef = useRef(value);
+  const draftKeyRef = useRef(draftKey);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    const keyChanged = draftKeyRef.current !== draftKey;
+    draftKeyRef.current = draftKey;
+    valueRef.current = value;
+
+    if (keyChanged || !focusedRef.current) {
+      const nextDraft = readSessionDraft(draftKey, value);
+      baseValueRef.current = value;
+      draftRef.current = nextDraft;
+      setDraft(nextDraft);
+    }
+  }, [draftKey, value]);
+
+  const updateDraft = (nextDraft: string) => {
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+
+    const store = getSessionDraftStore();
+    if (!store) return;
+    if (nextDraft === valueRef.current) {
+      store.clear(draftKeyRef.current);
+      return;
+    }
+    store.write(draftKeyRef.current, baseValueRef.current, nextDraft);
+  };
+
+  const focus = () => {
+    focusedRef.current = true;
+    baseValueRef.current = valueRef.current;
+  };
+
+  const commit = () => {
+    focusedRef.current = false;
+    getSessionDraftStore()?.clear(draftKeyRef.current);
+
+    const nextValue = draftRef.current;
+    if (nextValue !== valueRef.current) {
+      onCommit(nextValue);
+    }
+    baseValueRef.current = nextValue;
+  };
+
+  return { commit, draft, focus, updateDraft };
+};
+
+interface CommittedInputProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'defaultValue' | 'onChange' | 'value'> {
+  draftKey: string;
+  value: string;
+  onCommit: (value: string) => void;
+}
+
+export function CommittedInput({
+  draftKey,
+  value,
+  onCommit,
+  onBlur,
+  onFocus,
+  onKeyDown,
+  ...props
+}: CommittedInputProps) {
+  const committed = useCommittedTextDraft(draftKey, value, onCommit);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    onKeyDown?.(event);
+    if (!event.defaultPrevented && event.key === 'Enter') {
+      event.currentTarget.blur();
+    }
+  };
+
+  return (
+    <input
+      {...props}
+      value={committed.draft}
+      onBlur={(event) => {
+        committed.commit();
+        onBlur?.(event);
+      }}
+      onChange={(event) => committed.updateDraft(event.target.value)}
+      onFocus={(event) => {
+        committed.focus();
+        onFocus?.(event);
+      }}
+      onKeyDown={handleKeyDown}
+    />
+  );
+}
+
+interface CommittedTextareaProps
+  extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'defaultValue' | 'onChange' | 'value'> {
+  draftKey: string;
+  value: string;
+  onCommit: (value: string) => void;
+}
+
+export function CommittedTextarea({
+  draftKey,
+  value,
+  onCommit,
+  onBlur,
+  onFocus,
+  ...props
+}: CommittedTextareaProps) {
+  const committed = useCommittedTextDraft(draftKey, value, onCommit);
+
+  return (
+    <textarea
+      {...props}
+      value={committed.draft}
+      onBlur={(event) => {
+        committed.commit();
+        onBlur?.(event);
+      }}
+      onChange={(event) => committed.updateDraft(event.target.value)}
+      onFocus={(event) => {
+        committed.focus();
+        onFocus?.(event);
+      }}
+    />
+  );
 }
 
 interface NumberInputProps

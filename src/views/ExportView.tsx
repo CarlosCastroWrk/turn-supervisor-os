@@ -4,7 +4,7 @@ import { Button } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
 import { parseJsonBackup } from '../lib/backups';
-import { clearAppData } from '../lib/storage';
+import { clearAppData, clearInFlightFieldDrafts } from '../lib/storage';
 import {
   buildCopilotMarkdown,
   buildDailyLogsMarkdown,
@@ -99,6 +99,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
         return;
       }
 
+      clearInFlightFieldDrafts();
       setData(restored);
       setRestoreMessage(`Restored ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s).`);
       setBackupTaken(true);

@@ -1,6 +1,6 @@
 import { Bot, Check, ClipboardCopy, FileText, Lightbulb, Mic, RotateCcw, Save, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, CommittedTextarea, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
 import { StatusBadge } from '../components/StatusBadge';
@@ -1255,10 +1255,11 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 <article className="memory-card" key={memory.id}>
                   <span className="quiet-label">{memory.memoryType}</span>
                   <Field label="Memory">
-                    <textarea
+                    <CommittedTextarea
+                      draftKey={`memory:${memory.id}:content`}
                       rows={3}
                       value={memory.content}
-                      onChange={(event) => setData((current) => updateMemory(current, memory.id, { content: event.target.value }))}
+                      onCommit={(content) => setData((current) => updateMemory(current, memory.id, { content }))}
                     />
                   </Field>
                   <small>Source: {memory.source}</small>

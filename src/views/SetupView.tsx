@@ -1,6 +1,6 @@
-import { Archive, Download, PlayCircle, RotateCcw, Save } from 'lucide-react';
+import { Archive, Download, PlayCircle, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Button, Field, NumberInput } from '../components/FormControls';
+import { Button, CommittedInput, CommittedTextarea, Field, NumberInput } from '../components/FormControls';
 import { MemorySettings } from '../components/MemorySettings';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
@@ -277,19 +277,35 @@ export function SetupView({ data, setData }: SetupViewProps) {
         <div className="form-card">
           <div className="grid two">
             <Field label="Project name">
-              <input value={project.name} onChange={(event) => saveField({ name: event.target.value })} />
+              <CommittedInput draftKey={`project:${project.id}:name`} value={project.name} onCommit={(name) => saveField({ name })} />
             </Field>
             <Field label="Property name">
-              <input value={project.propertyName} onChange={(event) => saveField({ propertyName: event.target.value })} />
+              <CommittedInput
+                draftKey={`project:${project.id}:propertyName`}
+                value={project.propertyName}
+                onCommit={(propertyName) => saveField({ propertyName })}
+              />
             </Field>
             <Field label="Location">
-              <input value={project.location} onChange={(event) => saveField({ location: event.target.value })} />
+              <CommittedInput
+                draftKey={`project:${project.id}:location`}
+                value={project.location}
+                onCommit={(location) => saveField({ location })}
+              />
             </Field>
             <Field label="Supervisor">
-              <input value={project.supervisorName} onChange={(event) => saveField({ supervisorName: event.target.value })} />
+              <CommittedInput
+                draftKey={`project:${project.id}:supervisorName`}
+                value={project.supervisorName}
+                onCommit={(supervisorName) => saveField({ supervisorName })}
+              />
             </Field>
             <Field label="Project manager">
-              <input value={project.projectManagerName} onChange={(event) => saveField({ projectManagerName: event.target.value })} />
+              <CommittedInput
+                draftKey={`project:${project.id}:projectManagerName`}
+                value={project.projectManagerName}
+                onCommit={(projectManagerName) => saveField({ projectManagerName })}
+              />
             </Field>
             <Field label="Start date">
               <input type="date" value={project.startDate} onChange={(event) => saveField({ startDate: event.target.value })} />
@@ -313,12 +329,13 @@ export function SetupView({ data, setData }: SetupViewProps) {
             </Field>
           </div>
           <Field label="Notes">
-            <textarea value={project.notes} rows={5} onChange={(event) => saveField({ notes: event.target.value })} />
+            <CommittedTextarea
+              draftKey={`project:${project.id}:notes`}
+              value={project.notes}
+              rows={5}
+              onCommit={(notes) => saveField({ notes })}
+            />
           </Field>
-          <Button variant="primary" onClick={() => saveField({})}>
-            <Save size={18} aria-hidden="true" />
-            Saved Automatically
-          </Button>
         </div>
       </Section>
 

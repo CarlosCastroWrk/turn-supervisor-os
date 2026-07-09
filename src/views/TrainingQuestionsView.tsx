@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, CommittedTextarea, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { updateTrainingQuestion } from '../lib/actions';
@@ -80,17 +80,23 @@ export function TrainingQuestionsView({ data, setData }: TrainingQuestionsViewPr
               </div>
               <div className="grid two">
                 <Field label="Answer">
-                  <textarea
+                  <CommittedTextarea
+                    draftKey={`training-question:${question.id}:answer`}
                     rows={3}
                     value={question.answer}
-                    onChange={(event) => setData((current) => updateTrainingQuestion(current, question.id, { answer: event.target.value }))}
+                    onCommit={(answer) =>
+                      setData((current) => updateTrainingQuestion(current, question.id, { answer }))
+                    }
                   />
                 </Field>
                 <Field label="Follow-up">
-                  <textarea
+                  <CommittedTextarea
+                    draftKey={`training-question:${question.id}:followUp`}
                     rows={3}
                     value={question.followUp}
-                    onChange={(event) => setData((current) => updateTrainingQuestion(current, question.id, { followUp: event.target.value }))}
+                    onCommit={(followUp) =>
+                      setData((current) => updateTrainingQuestion(current, question.id, { followUp }))
+                    }
                   />
                 </Field>
               </div>
@@ -101,4 +107,3 @@ export function TrainingQuestionsView({ data, setData }: TrainingQuestionsViewPr
     </div>
   );
 }
-

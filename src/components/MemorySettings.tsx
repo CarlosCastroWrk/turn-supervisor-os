@@ -14,7 +14,7 @@ import {
   memoryScopeLabel,
 } from '../lib/memory';
 import type { AppData, MemoryCandidate } from '../types';
-import { Button, Field } from './FormControls';
+import { Button, CommittedTextarea, Field } from './FormControls';
 import { Section } from './Section';
 import { useToast } from './toast-context';
 
@@ -59,12 +59,13 @@ export function MemorySettings({ data, setData }: MemorySettingsProps) {
                   <span>{Math.round(candidate.confidence * 100)}% confidence</span>
                 </div>
                 <Field label="Candidate memory">
-                  <textarea
+                  <CommittedTextarea
                     aria-label={`${candidate.memoryType} candidate for ${memoryScopeLabel(data, candidate)}`}
+                    draftKey={`memory-candidate:${candidate.id}:content`}
                     rows={3}
                     value={candidate.content}
-                    onChange={(event) =>
-                      setData((current) => updateMemoryCandidate(current, candidate.id, { content: event.target.value }))
+                    onCommit={(content) =>
+                      setData((current) => updateMemoryCandidate(current, candidate.id, { content }))
                     }
                   />
                 </Field>
@@ -109,12 +110,13 @@ export function MemorySettings({ data, setData }: MemorySettingsProps) {
                   <span>{activeHere ? 'Active' : 'Inactive'}</span>
                 </div>
                 <Field label="Memory">
-                  <textarea
+                  <CommittedTextarea
                     aria-label={`${memory.memoryType} memory for ${scopeLabel}`}
+                    draftKey={`memory:${memory.id}:content`}
                     rows={3}
                     value={memory.content}
-                    onChange={(event) =>
-                      setData((current) => updateMemory(current, memory.id, { content: event.target.value }))
+                    onCommit={(content) =>
+                      setData((current) => updateMemory(current, memory.id, { content }))
                     }
                   />
                 </Field>

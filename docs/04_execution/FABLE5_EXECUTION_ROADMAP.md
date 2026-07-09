@@ -159,6 +159,26 @@ Acceptance:
 - Reset cannot be followed by a stale queued write.
 - Commit-on-blur activity-log cleanup remains a separate follow-up slice.
 
+### A8. Commit-On-Blur Field Drafts
+
+Status: implemented in the P0 Commit-On-Blur Fields release candidate.
+
+Scope:
+
+- Keep existing-record text edits local to the focused field instead of mutating AppData per character.
+- Store a lightweight session draft keyed by entity and field for interruption recovery.
+- Commit once on blur or Enter for single-line inputs.
+- Reject stale session drafts when the authoritative record value changed underneath them.
+- Clear only Turn Field Copilot session drafts during confirmed device reset or backup restore.
+- Remove the fake Setup `Saved Automatically` action that created an empty activity event.
+
+Acceptance:
+
+- A 26-character large-state edit creates zero AppData activity while focused and exactly one activity event on commit.
+- The committed value reaches localStorage in one bounded write.
+- A same-session reload restores an interrupted draft without treating it as saved field truth.
+- Project, Unit, Issue, Crew, Assignment, training, and Memory text editors use the shared behavior.
+
 ## Phase B: Real Turn Cleanup And Sync Boundaries
 
 These slices clean up test noise and reduce resurrection/duplication risks.

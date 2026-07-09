@@ -104,7 +104,11 @@ const loadStoredContext = async (browser, viewport, storedState, trackStorageWri
     }, storageKey);
   }
   await context.addInitScript(
-    ({ key, value }) => window.localStorage.setItem(key, value),
+    ({ key, value }) => {
+      if (window.localStorage.getItem(key) === null) {
+        window.localStorage.setItem(key, value);
+      }
+    },
     { key: storageKey, value: storedState },
   );
   return context;
@@ -225,13 +229,33 @@ try {
   const activityBeforeTyping = await largePage.evaluate((key) =>
     JSON.parse(window.localStorage.getItem(key)).activityLogs.length,
   storageKey);
-  const replacementProjectName = 'QA Coalesced Storage Turn';
+  const originalProjectName = await projectNameInput.inputValue();
+  const replacementProjectName = 'QA Commit Once Turn';
   const typingStartedAt = performance.now();
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await projectNameInput.fill('');
   await projectNameInput.type(replacementProjectName, { delay: 5 });
-  await largePage.waitForTimeout(1_000);
   const typingMs = performance.now() - typingStartedAt;
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  await largePage.waitForTimeout(600);
+  const beforeCommit = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const project = stored.projects.find((item) => item.id === stored.activeProjectId);
+    return {
+      activityCount: stored.activityLogs.length,
+      projectName: project?.name,
+      storageWrites: window.__pdsStorageWriteCount,
+    };
+  }, storageKey);
+
+  assert.equal(await projectNameInput.inputValue(), replacementProjectName);
+  assert.equal(beforeCommit.projectName, originalProjectName);
+  assert.equal(beforeCommit.activityCount, activityBeforeTyping);
+  assert.equal(beforeCommit.storageWrites, 0);
+  assert.ok(typingMs < 4_000, `Expected local-draft typing under 4s at 4x CPU; received ${typingMs.toFixed(1)}ms.`);
+
+  await projectNameInput.press('Tab');
+  await largePage.waitForTimeout(700);
   const persistenceResult = await largePage.evaluate((key) => {
     const stored = JSON.parse(window.localStorage.getItem(key));
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
@@ -241,29 +265,71 @@ try {
       storageWrites: window.__pdsStorageWriteCount,
     };
   }, storageKey);
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-
-  assert.equal(persistenceResult.projectName, replacementProjectName);
   const activityEntriesAdded = persistenceResult.activityCount - activityBeforeTyping;
-  assert.ok(
-    persistenceResult.storageWrites <= Math.ceil(activityEntriesAdded / 2),
-    `Expected at least a 50% rapid-write reduction; received ${persistenceResult.storageWrites} writes for ${activityEntriesAdded} field updates over ${typingMs.toFixed(1)}ms.`,
-  );
+  assert.equal(persistenceResult.projectName, replacementProjectName);
+  assert.equal(activityEntriesAdded, 1);
+  assert.equal(persistenceResult.storageWrites, 1);
+
   await largePage.evaluate(() => {
     window.__pdsStorageWriteCount = 0;
   });
-  const pagehideProjectName = 'QA Pagehide Flush Turn';
-  await projectNameInput.fill(pagehideProjectName);
+  const startDateInput = turnProjectSection.getByLabel('Start date');
+  assert.equal(await startDateInput.count(), 1);
+  await startDateInput.fill('2026-07-10');
   await largePage.evaluate(() => {
     window.dispatchEvent(new Event('pagehide'));
   });
   const pagehideResult = await largePage.evaluate((key) => {
     const stored = JSON.parse(window.localStorage.getItem(key));
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
-    return { projectName: project?.name, storageWrites: window.__pdsStorageWriteCount };
+    return { startDate: project?.startDate, storageWrites: window.__pdsStorageWriteCount };
   }, storageKey);
-  assert.equal(pagehideResult.projectName, pagehideProjectName);
+  assert.equal(pagehideResult.startDate, '2026-07-10');
   assert.equal(pagehideResult.storageWrites, 1);
+
+  await largePage.evaluate(() => {
+    window.__pdsStorageWriteCount = 0;
+  });
+  const interruptedProjectName = 'QA Interrupted Draft Turn';
+  await projectNameInput.fill(interruptedProjectName);
+  await largePage.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'));
+  });
+  const storedBeforeReload = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    return stored.projects.find((item) => item.id === stored.activeProjectId)?.name;
+  }, storageKey);
+  assert.equal(storedBeforeReload, replacementProjectName);
+
+  await largePage.reload({ waitUntil: 'networkidle' });
+  await largePage.getByRole('heading', { name: 'Project Setup' }).waitFor();
+  const recoveredTurnProjectHeading = largePage.getByRole('heading', { name: 'Turn Project', exact: true });
+  const recoveredTurnProjectSection = largePage.locator('.section').filter({ has: recoveredTurnProjectHeading });
+  const recoveredProjectNameInput = recoveredTurnProjectSection.getByLabel('Project name');
+  assert.equal(await recoveredProjectNameInput.count(), 1);
+  assert.equal(await recoveredProjectNameInput.inputValue(), interruptedProjectName);
+  await largePage.waitForTimeout(600);
+  await largePage.evaluate(() => {
+    window.__pdsStorageWriteCount = 0;
+  });
+  await recoveredProjectNameInput.focus();
+  await recoveredProjectNameInput.press('Tab');
+  await largePage.waitForTimeout(700);
+  const recoveryResult = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const project = stored.projects.find((item) => item.id === stored.activeProjectId);
+    return {
+      activityCount: stored.activityLogs.length,
+      projectName: project?.name,
+      storageWrites: window.__pdsStorageWriteCount,
+    };
+  }, storageKey);
+  assert.equal(recoveryResult.projectName, interruptedProjectName);
+  assert.equal(recoveryResult.activityCount, activityBeforeTyping + 3);
+  assert.equal(recoveryResult.storageWrites, 1);
+  await assertNoHorizontalOverflow(largePage, 'iphone-commit-on-blur');
+  const committedFieldScreenshot = path.join(screenshotDirectory, 'iphone-commit-on-blur.png');
+  await recoveredProjectNameInput.screenshot({ path: committedFieldScreenshot });
   assert.deepEqual(largeConsoleFindings, [], `Large-state console findings:\n${largeConsoleFindings.join('\n')}`);
   await largeContext.close();
 
@@ -274,11 +340,13 @@ try {
       persistence: {
         activityEntriesAdded,
         pagehideWrites: pagehideResult.storageWrites,
+        recoveredDraft: recoveryResult.projectName === interruptedProjectName,
+        recoveryWrites: recoveryResult.storageWrites,
         storageWrites: persistenceResult.storageWrites,
         typingMs: Math.round(typingMs),
       },
       responsive,
-      screenshots: { large: largeScreenshot, setup: setupScreenshot },
+      screenshots: { committedField: committedFieldScreenshot, large: largeScreenshot, setup: setupScreenshot },
     })}\n`,
   );
 } finally {

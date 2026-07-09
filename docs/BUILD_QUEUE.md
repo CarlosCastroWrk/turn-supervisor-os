@@ -82,7 +82,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Stop editable reports from freezing untouched generated sections and include report drafts in AppData JSON backups.
 - [x] Sync editable report drafts through Supabase after Los approved the report-drafts migration.
 - [x] Coalesce full AppData browser writes so rapid large-state edits persist the latest state at bounded intervals and flush on background/close.
-- [ ] Move keystroke-bound record fields to commit-on-blur/draft behavior so typing creates one operational activity entry instead of one per character.
+- [x] Move keystroke-bound existing-record text fields to session-backed commit-on-blur behavior so typing creates one operational activity entry instead of one per character.
 - [x] C1 Dictation Parser Eval Suite.
 - [x] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [x] C3 Draft Batch Safety: visible/current batch approval only.

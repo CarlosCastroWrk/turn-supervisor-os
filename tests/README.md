@@ -22,6 +22,7 @@ Covered categories:
 - 1,000 units, 100 blockers, 500 ready units, 10,000 activity events, Reports, CSV, backup restore, and large-board Capture targeting
 - Coalesced full-state persistence, immediate lifecycle flush, and reset-safe pending-write cancellation
 - Session-backed commit-on-blur text fields, stale-draft rejection, one-event commits, and interrupted-draft reload recovery
+- Session-backed numeric commit-on-blur behavior, one-event/one-write commits, and transient Setup blur-then-submit safety
 
 Use parser evals for Quick Capture regressions before changing the deterministic Copilot parser.
 Use the field-scale gate after changing Setup, Units, Capture, Reports, exports, backups, storage, or large-list behavior.

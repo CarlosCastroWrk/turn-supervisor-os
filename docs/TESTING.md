@@ -47,6 +47,9 @@ Baseline recorded July 9, 2026:
 - Under 4x CPU throttling, 26 rapid project-field updates produced 7 full-state storage writes instead of 26, and a synthetic `pagehide` flushed the latest pending value in one write.
 - With session-backed commit-on-blur fields enabled, the same 26-character edit took about 0.22 seconds under 4x CPU throttling, produced no AppData mutation while focused, then committed as one activity event and one full-state write on blur.
 - An interrupted focused text edit survived a same-session reload, remained separate from authoritative AppData until review, and committed once after focus/blur.
+- Changing an existing Project estimate from 1,000 to 1,250 produced no activity or full-state write while focused, then exactly one activity event and one write on Enter.
+- The rendered Start Real Turn path still generated 300 units from ten floors and thirty units per floor, guarding the blur-then-submit ordering used by transient numeric forms.
+- The rendered Quick Unit Creation path generated twelve Units with four beds and three baths, including the final number committed by clicking Create Units directly.
 
 These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
 

@@ -157,3 +157,8 @@
 - Applied the shared field behavior to existing Project, Unit, Issue, Crew, Assignment, training, and Memory text editors and removed Setup's fake `Saved Automatically` activity action.
 - Re-ran the 1,000-unit / 10,000-event stress: the 26-character Project edit fell from about 7.6 seconds to about 0.22 seconds under 4x CPU throttling, with one activity event and one full-state write after blur; interrupted-draft reload recovery also passed.
 - Added reset/restore cleanup for only Turn Field Copilot session-draft keys so an obsolete in-flight draft cannot reappear after a confirmed recovery operation.
+- Started P0 Numeric Commit-On-Blur on `codex/numeric-commit-on-blur`, stacked on the verified text-field commit slice.
+- Extended the shared number input so existing Project estimates and Unit bed/bath counts keep multi-digit edits out of AppData until blur or Enter, reuse guarded session recovery, and suppress unchanged commits.
+- Re-ran the rendered field-scale gate: changing Estimated units from 1,000 to 1,250 produced zero activity and zero full writes while focused, then exactly one activity event and one full write on Enter.
+- Confirmed the transient Setup flow still creates 300 units from ten floors and thirty units per floor when the submit click follows numeric editing directly.
+- Confirmed Quick Unit Creation commits multi-digit Unit, bed, and bath counts before the submit click and creates the expected twelve Units with the selected counts.

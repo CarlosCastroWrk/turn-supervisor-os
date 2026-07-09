@@ -48,6 +48,7 @@ Every near-term change should serve that loop.
 - Local-first persistence with operational records in browser `localStorage` under `turn-supervisor-os:v0.1` and compressed photo files in IndexedDB
 - Coalesced AppData persistence that writes the latest rapid-edit state at most once per 500 ms window, flushes immediately when the app backgrounds/closes, and cancels pending writes before device reset
 - Session-backed commit-on-blur text fields for Project setup, Unit notes, Issue resolution, Crew observations, Assignment notes, training answers, and Memory edits; interrupted drafts restore only while the underlying record value is unchanged
+- Session-backed commit-on-blur numeric fields for existing Project estimates and Unit bed/bath counts; multi-digit edits remain local until blur or Enter and commit as one operational change
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
@@ -121,7 +122,6 @@ Every near-term change should serve that loop.
 - Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
 - Physical iPhone/iPad verification in bright light and with VoiceOver enabled
 - General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
-- Commit-on-blur behavior for numeric existing-record fields; multi-digit bed/bath and project estimate edits still update AppData as each valid number is typed
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
 - Server-side AI provider route

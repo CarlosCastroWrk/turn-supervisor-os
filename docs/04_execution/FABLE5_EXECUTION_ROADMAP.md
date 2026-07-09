@@ -126,7 +126,7 @@ Acceptance:
 
 ### A6. Backup Restore Safety
 
-Status: implemented in the P0 Backup Restore Safety release candidate.
+Status: implemented and deployed.
 
 Scope:
 
@@ -143,7 +143,7 @@ Acceptance:
 
 ### A7. Coalesced Local Persistence
 
-Status: implemented in the P0 Storage Write Coalescing release candidate.
+Status: implemented and deployed.
 
 Scope:
 
@@ -161,7 +161,7 @@ Acceptance:
 
 ### A8. Commit-On-Blur Field Drafts
 
-Status: implemented in the P0 Commit-On-Blur Fields release candidate.
+Status: implemented and deployed.
 
 Scope:
 
@@ -181,7 +181,7 @@ Acceptance:
 
 ### A9. Numeric Commit-On-Blur Fields
 
-Status: implemented in the P0 Numeric Commit-On-Blur release candidate.
+Status: implemented and deployed.
 
 Scope:
 
@@ -263,7 +263,7 @@ Acceptance:
 
 ### B4. Active Project Boundary
 
-Status: release candidate implemented and locally verified; stacked release pending E4.
+Status: implemented and deployed after E4.
 
 Scope:
 
@@ -546,7 +546,7 @@ Acceptance:
 
 ### P0. Daily Log Identity And Restore Safety
 
-Status: implementation and local QA complete; PR/production release pending.
+Status: implemented, merged, deployed, and production-smoke verified.
 
 Scope:
 

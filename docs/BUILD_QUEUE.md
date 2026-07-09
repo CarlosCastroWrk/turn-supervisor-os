@@ -4,13 +4,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] P0 Daily Log Identity And Restore Safety release candidate.
+- [x] P0 Daily Log Identity And Restore Safety release.
   - [x] Give every new project/date Daily Log one deterministic ID across devices.
   - [x] Collapse duplicate local project/date logs and preserve an existing legacy cloud row ID during pull-before-upload.
   - [x] Verify all six Mac/iPhone/iPad reconnect orders converge to one Daily Log.
   - [x] Wait for Supabase auth state and require sign-out before local JSON restore.
   - [x] Verify save/reload/update at iPhone size, 5,000-log reconciliation, overflow, and console health.
-  - [ ] Merge, deploy, and run focused production smoke checks.
+  - [x] Merge, deploy, and run focused production smoke checks.
 - [x] P0 Active Project Boundary release.
   - [x] Stamp new Capture drafts, agent runs, conversations, and generic follow-ups with active-Turn provenance.
   - [x] Hide other-Turn draft history and fail cross-project or unverifiable Draft approvals closed.
@@ -202,4 +202,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Field-Scale Regression Gate: rendered 300-unit desktop/iPad/iPhone coverage plus 1,000 units and 10,000 events under throttling.
 - [x] Coalesced Persistence and text/numeric Commit-On-Blur: bounded full-state writes, lifecycle flushes, guarded draft recovery, and one-event commits.
 - [x] Three-Device Sync Regression: all reconnect orders, deterministic timestamp ties, duplicate prevention, and overlapping-upload recovery.
-- [ ] Daily Log Identity And Restore Safety: deterministic project/date IDs, legacy cloud reconciliation, signed-out restore guard, and rendered save/reload QA; release pending.
+- [x] Daily Log Identity And Restore Safety: deterministic project/date IDs, legacy cloud reconciliation, signed-out restore guard, rendered save/reload QA, and production deployment.

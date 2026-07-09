@@ -3,7 +3,7 @@ import { useRef, useState } from 'react';
 import { Button } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
-import { normalizeAppData } from '../lib/dataMigrations';
+import { parseJsonBackup } from '../lib/backups';
 import { clearAppData } from '../lib/storage';
 import {
   buildCopilotMarkdown,
@@ -21,20 +21,6 @@ interface ExportViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
 }
-
-const parseBackup = (text: string): AppData => {
-  const parsed = JSON.parse(text) as unknown;
-  const candidate =
-    parsed && typeof parsed === 'object' && 'data' in parsed && parsed.data && typeof parsed.data === 'object'
-      ? parsed.data
-      : parsed;
-
-  if (!candidate || typeof candidate !== 'object' || !('projects' in candidate) || !Array.isArray(candidate.projects)) {
-    throw new Error('That file does not look like a Turn Field Copilot JSON backup.');
-  }
-
-  return normalizeAppData(candidate as AppData);
-};
 
 export function ExportView({ data, setData }: ExportViewProps) {
   const { notify } = useToast();
@@ -102,7 +88,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
     }
 
     try {
-      const restored = parseBackup(await file.text());
+      const restored = parseJsonBackup(await file.text());
       const confirmed = window.confirm(
         `Restore "${file.name}" now? This replaces local browser data on this device with ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s). It does not delete Supabase cloud records.`,
       );
@@ -145,8 +131,8 @@ export function ExportView({ data, setData }: ExportViewProps) {
           <button className="export-card" disabled={isBackingUp} type="button" onClick={() => void backup()}>
             <FileJson size={26} aria-hidden="true" />
             <span>
-              <strong>{isBackingUp ? 'Building Backup...' : 'Project JSON Backup'}</strong>
-              <small>Records plus local photos; keep private</small>
+              <strong>{isBackingUp ? 'Building Backup...' : 'Full Device JSON Backup'}</strong>
+              <small>All projects plus local photos; keep private</small>
             </span>
           </button>
           <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-units-${date}.csv`, buildUnitsCsv(getProjectUnits(data)), 'text/csv')}>

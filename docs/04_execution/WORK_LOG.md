@@ -123,3 +123,8 @@
 - Centralized paint, cleaning, and maintenance shortcut transitions so repeated taps create no activity and trade completion cannot clear harder access, hold, maintenance, rework, punch-list, inspection, or Ready state.
 - Added nonblocking outcome feedback for Issue creation, status changes, reopen, and confirmed soft removal, including where removed issues remain available.
 - Added deterministic Undo/staleness/clock-skew tests and rendered mobile/desktop checks for persistence, stale protection, 44px actions, blocking-confirmation retention, overflow, and console health.
+- Started P0 Backup Restore Safety on `codex/backup-restore-safety` while E4 waits at its explicit Supabase migration gate.
+- Extracted JSON restore parsing into a strict Zod boundary that preserves supported legacy defaults but rejects malformed collections, incomplete runtime records, duplicate IDs, invalid photo payloads, empty projects, and excessive record counts before local replacement.
+- Renamed the recovery export to `Full Device JSON Backup` so it is clear that every project and available local photo is included and must remain private.
+- Added seven backup regression cases; the full deterministic suite passes 110/110, and a 10,000-activity / 2 MB backup validated in about 31 ms.
+- Verified corrupted-state preservation, valid replacement confirmation, reload persistence, desktop/mobile rendering, 390px overflow, and console health in an isolated browser profile. Physical photo-complete restore remains open.

@@ -77,6 +77,9 @@ test('mergePhotoNotes preserves local image data when cloud only has metadata', 
       projectId: 'project_real',
       unitId: 'unit_204',
       imageData: 'data:image/jpeg;base64,local',
+      localImageAvailable: true,
+      imageMimeType: 'image/jpeg',
+      imageByteSize: 12345,
       category: 'Problem' as const,
       caption: 'before upload',
       createdAt: '2026-07-06T15:00:00.000Z',
@@ -99,4 +102,7 @@ test('mergePhotoNotes preserves local image data when cloud only has metadata', 
 
   assert.equal(merged.caption, 'cloud caption');
   assert.equal(merged.imageData, 'data:image/jpeg;base64,local');
+  assert.equal(merged.localImageAvailable, true);
+  assert.equal(merged.imageMimeType, 'image/jpeg');
+  assert.equal(merged.imageByteSize, 12345);
 });

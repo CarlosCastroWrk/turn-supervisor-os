@@ -156,16 +156,20 @@ Pass:
 
 - [ ] Open a QA unit.
 - [ ] Add one work-safe test photo.
-- [ ] Confirm the app shows a photo compression/saved message.
+- [ ] Confirm the app says the photo was saved offline on this device.
 - [ ] Reload the app.
 - [ ] Confirm the photo thumbnail and caption remain visible on that unit.
 - [ ] Confirm normal unit edits still save after the photo is added.
+- [ ] Export Project JSON Backup and confirm the completion message reports local photo files included or missing.
+- [ ] Restore only into an expendable QA browser/device and confirm restored thumbnails return after migration.
 
 Pass:
 
 - Photo capture does not freeze the app.
 - The photo is compressed before saving.
+- Normal photo bytes live in IndexedDB instead of the main `localStorage` app record.
 - A reload does not lose the photo or nearby unit data.
+- JSON backup includes every photo file available on that device and reports unavailable files.
 
 ### 6. Reset / Delete Safety
 

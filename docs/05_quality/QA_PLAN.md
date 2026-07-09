@@ -81,6 +81,9 @@ git diff --check
 - Confirm compression/saved message appears.
 - Reload and confirm thumbnail/caption persist.
 - Confirm normal edits still save after adding the photo.
+- Confirm photo bytes are in IndexedDB and not the main localStorage record.
+- Export a photo-complete JSON backup and verify included/missing photo counts.
+- Stress at least 200 photo records and confirm the unit page remains bounded to six rendered thumbnails.
 - Inject corrupt local cache and confirm bad payload is preserved.
 - Confirm app still boots after fallback.
 

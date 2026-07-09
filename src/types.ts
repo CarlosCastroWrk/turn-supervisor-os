@@ -232,7 +232,11 @@ export interface PhotoNote {
   floorId?: EntityId;
   unitId?: EntityId;
   issueId?: EntityId;
+  /** Legacy/emergency fallback payload. Normal photo bytes live in IndexedDB. */
   imageData?: string;
+  localImageAvailable?: boolean;
+  imageMimeType?: string;
+  imageByteSize?: number;
   category: PhotoCategory;
   caption: string;
   createdAt: string;

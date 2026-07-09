@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
 import { normalizeAppData } from './dataMigrations';
+import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
@@ -41,19 +42,62 @@ export const saveAppData = (data: AppData) => {
     if (!storageFailureWarned) {
       storageFailureWarned = true;
       window.alert(
-        'Saving failed — browser storage is likely full. Export a JSON backup now (Export tab) and remove old photos, or new changes will be lost.',
+        'Saving failed — browser record storage is likely full. Export a JSON backup now from Export before making more changes.',
       );
     }
   }
 };
 
-export const clearAppData = () => {
+export const clearAppData = async () => {
   window.localStorage.removeItem(STORAGE_KEY);
+  try {
+    await clearPhotoBlobs();
+    return true;
+  } catch (error) {
+    console.warn('Failed to clear local photo files during device reset.', error);
+    return false;
+  }
 };
 
 export const usePersistentAppData = () => {
   const [hasStoredData, setHasStoredData] = useState(() => hasStoredAppData());
   const [data, setData] = useState<AppData>(() => loadAppData());
+  const migrationInFlight = useRef(false);
+  const attemptedLegacyPhotoIds = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (migrationInFlight.current) {
+      return;
+    }
+
+    const legacyPhotos = data.photoNotes.filter(
+      (photo) => Boolean(photo.imageData) && !attemptedLegacyPhotoIds.current.has(photo.id),
+    );
+    if (legacyPhotos.length === 0) {
+      return;
+    }
+
+    legacyPhotos.forEach((photo) => attemptedLegacyPhotoIds.current.add(photo.id));
+    migrationInFlight.current = true;
+
+    void migrateLegacyPhotoPayloads(legacyPhotos)
+      .then((result) => {
+        if (result.migrated.length > 0) {
+          setData((current) => ({
+            ...current,
+            photoNotes: applyLegacyPhotoMigration(current.photoNotes, result.migrated),
+          }));
+        }
+        if (result.failedIds.length > 0) {
+          console.warn(
+            `Kept ${result.failedIds.length} legacy photo payload(s) in fallback browser storage because IndexedDB migration failed.`,
+          );
+        }
+      })
+      .finally(() => {
+        migrationInFlight.current = false;
+      });
+  }, [data.photoNotes]);
 
   useEffect(() => {
     saveAppData(data);

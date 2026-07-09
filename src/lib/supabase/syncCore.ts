@@ -81,4 +81,7 @@ export const mergePhotoNotes = (localRows: PhotoNote[], remoteRows: PhotoNote[])
   mergeRows(localRows, remoteRows, (local, remote) => ({
     ...remote,
     imageData: remote.imageData ?? local.imageData,
+    localImageAvailable: remote.localImageAvailable ?? local.localImageAvailable,
+    imageMimeType: remote.imageMimeType ?? local.imageMimeType,
+    imageByteSize: remote.imageByteSize ?? local.imageByteSize,
   }));

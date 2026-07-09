@@ -25,7 +25,22 @@ export const downloadTextFile = (filename: string, text: string, type = 'text/pl
   URL.revokeObjectURL(url);
 };
 
-export const buildJsonBackup = (data: AppData) => JSON.stringify({ exportedAt: new Date().toISOString(), data }, null, 2);
+interface JsonBackupPhotoSummary {
+  includedLocalPhotoFiles: number;
+  missingLocalPhotoFiles: number;
+  totalPhotoRecords: number;
+}
+
+export const buildJsonBackup = (data: AppData, photoFiles?: JsonBackupPhotoSummary) =>
+  JSON.stringify(
+    {
+      exportedAt: new Date().toISOString(),
+      ...(photoFiles ? { photoFiles } : {}),
+      data,
+    },
+    null,
+    2,
+  );
 
 export const buildUnitsCsv = (units: Unit[]) =>
   toCsv(

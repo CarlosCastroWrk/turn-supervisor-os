@@ -9,11 +9,11 @@ import {
   buildDailyLogsMarkdown,
   buildFollowUpsCsv,
   buildIssuesCsv,
-  buildJsonBackup,
   buildUnitsCsv,
   downloadTextFile,
 } from '../lib/exporters';
 import { getActiveProject, getProjectIssues, getProjectUnits } from '../lib/metrics';
+import { buildJsonBackupWithLocalPhotos } from '../lib/photoBackup';
 import type { AppData } from '../types';
 
 interface ExportViewProps {
@@ -39,19 +39,37 @@ export function ExportView({ data, setData }: ExportViewProps) {
   const date = new Date().toISOString().slice(0, 10);
   const project = getActiveProject(data);
   const [backupTaken, setBackupTaken] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupMessage, setBackupMessage] = useState('');
   const [restoreMessage, setRestoreMessage] = useState('');
   const restoreInputRef = useRef<HTMLInputElement>(null);
 
-  const backup = () => {
-    downloadTextFile(`turn-supervisor-backup-${date}.json`, buildJsonBackup(data), 'application/json');
-    setBackupTaken(true);
+  const backup = async () => {
+    setIsBackingUp(true);
+    setBackupMessage('Gathering local records and photo files...');
+    try {
+      const result = await buildJsonBackupWithLocalPhotos(data);
+      downloadTextFile(`turn-supervisor-backup-${date}.json`, result.text, 'application/json');
+      setBackupTaken(true);
+      setBackupMessage(
+        result.missingPhotoFiles > 0
+          ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device.`
+          : `Backup saved with all ${result.includedPhotoFiles} local photo file(s).`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Backup could not be created.';
+      setBackupMessage(message);
+      window.alert(message);
+    } finally {
+      setIsBackingUp(false);
+    }
   };
 
-  const resetLocalData = () => {
+  const resetLocalData = async () => {
     if (!backupTaken) {
       const needsBackup = window.confirm('Download a JSON backup before resetting this device? Choose OK to backup first.');
       if (needsBackup) {
-        backup();
+        await backup();
         return;
       }
     }
@@ -63,7 +81,12 @@ export function ExportView({ data, setData }: ExportViewProps) {
       return;
     }
 
-    clearAppData();
+    const photoFilesCleared = await clearAppData();
+    if (!photoFilesCleared) {
+      window.alert(
+        'The app records were reset, but local photo-file cleanup could not be confirmed. Clear this site/app data in browser settings before handing the device to someone else.',
+      );
+    }
     window.location.reload();
   };
 
@@ -71,7 +94,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
     if (!backupTaken) {
       const needsBackup = window.confirm('Download a JSON backup of this device before restoring another backup? Choose OK to backup first.');
       if (needsBackup) {
-        backup();
+        await backup();
         return;
       }
     }
@@ -116,11 +139,11 @@ export function ExportView({ data, setData }: ExportViewProps) {
 
       <Section title="Export Data" kicker="Local files">
         <div className="export-grid">
-          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-supervisor-backup-${date}.json`, buildJsonBackup(data), 'application/json')}>
+          <button className="export-card" disabled={isBackingUp} type="button" onClick={() => void backup()}>
             <FileJson size={26} aria-hidden="true" />
             <span>
-              <strong>Project JSON Backup</strong>
-              <small>Everything in local app state</small>
+              <strong>{isBackingUp ? 'Building Backup...' : 'Project JSON Backup'}</strong>
+              <small>Records plus local photos; keep private</small>
             </span>
           </button>
           <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-units-${date}.csv`, buildUnitsCsv(getProjectUnits(data)), 'text/csv')}>
@@ -159,24 +182,26 @@ export function ExportView({ data, setData }: ExportViewProps) {
             </span>
           </button>
         </div>
+        {backupMessage ? <p className="muted" aria-live="polite">{backupMessage}</p> : null}
       </Section>
 
       <Section title="Device Storage" kicker="Privacy guardrail">
         <div className="form-card">
           <p>
             The app keeps a local browser cache first. If Supabase sync is enabled and you are signed in, supported records also
-            sync across your devices. No automatic messaging or server-side AI is included.
+            sync across your devices. JSON backups can contain work photos from this device, so store them privately. No automatic
+            messaging or server-side AI is included.
           </p>
           <div className="button-row">
-            <Button onClick={backup}>
+            <Button disabled={isBackingUp} onClick={() => void backup()}>
               <Download size={18} aria-hidden="true" />
-              Backup Before Reset
+              {isBackingUp ? 'Building Backup...' : 'Backup Before Reset'}
             </Button>
             <Button onClick={() => restoreInputRef.current?.click()}>
               <Upload size={18} aria-hidden="true" />
               Restore JSON Backup
             </Button>
-            <Button variant="danger" onClick={resetLocalData}>
+            <Button variant="danger" onClick={() => void resetLocalData()}>
               <RotateCcw size={18} aria-hidden="true" />
               Reset This Device to Demo
             </Button>
@@ -192,7 +217,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
           {restoreMessage ? <p className="muted">{restoreMessage}</p> : null}
           <p className="muted">
             If Supabase sync is signed in, cloud records can pull back after reload. Start Real Turn Mode in Setup to keep sample data
-            separate from real field data.
+            separate from real field data. Reset clears local photo files on this device after confirmation.
           </p>
         </div>
       </Section>

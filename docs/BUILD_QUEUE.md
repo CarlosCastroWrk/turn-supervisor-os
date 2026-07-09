@@ -20,6 +20,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Draft Daily Log sections from selected-date activity and field captures.
   - [x] Keep auto-drafted content editable and review-first.
   - [x] Avoid treating generated text as confirmed field truth until Los saves it.
+- [x] F1 IndexedDB Photo Store.
+  - [x] Move normal compressed photo files out of the main `localStorage` app record.
+  - [x] Migrate legacy embedded photos only after each IndexedDB write succeeds.
+  - [x] Keep JSON backups photo-complete for files available on the current device.
+  - [x] Verify reload, fallback, backup, and a 202-photo browser stress case.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -55,7 +60,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] E1 Daily Activity Snapshot.
 - [x] E3 Daily Log Auto-Draft.
 - [ ] E4 Memory Consumption and project scoping.
-- [ ] F1 IndexedDB Photo Store.
+- [x] F1 IndexedDB Photo Store.
 - [ ] F2 Supabase Storage Photo Sync.
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
 - [ ] G2 Undo And Toast System.

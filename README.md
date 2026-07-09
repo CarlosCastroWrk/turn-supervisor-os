@@ -21,9 +21,9 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Daily log for morning plan, midday update, end-of-day reflection, blockers, lessons, and tomorrow priorities
 - Copy-ready daily report generator
 - Training questions with status, answer, and follow-up fields
-- Export / backup for JSON, units CSV, issues CSV, daily report text, daily logs Markdown, Copilot/Memory Markdown, and Follow-Ups CSV
+- Export / backup for photo-complete JSON, units CSV, issues CSV, daily report text, daily logs Markdown, Copilot/Memory Markdown, and Follow-Ups CSV
 - PWA manifest and service worker for add-to-home-screen and basic app shell caching
-- Local-only data persistence using browser localStorage
+- Local-first persistence using browser localStorage for operational records and IndexedDB for compressed photo files
 - Rule-based no-API-key copilot parser that creates draft actions before changing data
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
 - Mobile-accessible secondary navigation for Setup, Assignments, Reports, Training Questions, and Export
@@ -78,7 +78,7 @@ npm run lint
 3. Tap Share.
 4. Tap Add to Home Screen.
 
-The app stores data locally in that browser on that device. When Supabase sync is enabled and you are signed in, supported records also sync to your private Supabase project. Export JSON backups regularly if using it for real field notes.
+The app stores data locally in that browser on that device. Operational records use localStorage and normal compressed photo files use IndexedDB. When Supabase sync is enabled and you are signed in, supported records also sync to your private Supabase project. Export JSON backups regularly; the backup gathers photo files available on that device and reports any missing files.
 
 ## Supabase Sync
 
@@ -96,7 +96,7 @@ Safety notes:
 - Sync comparison normalizes equivalent timestamp formats and JSON object key order to reduce false local-change upload loops.
 - Demo and real Turn projects are separated by project mode. Start Real Turn Mode before entering real field records.
 - Important Copilot mutations are still draft-first.
-- Photo metadata syncs, but base64 photo files stay local until the Storage/photo-compression slice is implemented.
+- Photo metadata syncs, but IndexedDB photo files stay on the capture device until Supabase Storage photo sync is implemented.
 - Deletes are not propagated yet; avoid deleting browser data unless you exported a backup.
 
 ## Start A Real Turn Safely
@@ -212,8 +212,8 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 
 ## Known V0.1 Limitations
 
-- localStorage is simple and offline-friendly, but not ideal for many large photos.
-- Photo data is stored as base64 data URLs and can grow browser storage quickly.
+- IndexedDB photo files are still device-local; reinstalling or clearing site data can remove them unless they were included in a JSON backup.
+- Cross-device photo files are not available until Supabase Storage photo sync is implemented.
 - PWA offline support caches the app shell, but full offline production hardening is not complete.
 - Cross-device sync is new and must be field-tested before Turn.
 - If sync still cycles after the latest deployed fingerprinting fix, the next slice should add visible sync diagnostics.
@@ -243,7 +243,7 @@ The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal n
 
 ### Version 0.2
 
-- Better photo compression/storage
+- Supabase Storage photo sync across Los's devices
 - Better offline PWA support
 - Import units from CSV
 - Voice notes

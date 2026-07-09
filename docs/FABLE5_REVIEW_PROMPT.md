@@ -32,7 +32,7 @@ Make Real Turn Mode safe across Mac, iPhone, and iPad before adding more AI or f
 ## Current Implementation
 
 - React + TypeScript + Vite PWA
-- Local-first persistence via browser `localStorage`
+- Local-first persistence via browser `localStorage` for operational records and IndexedDB for compressed photo files
 - Optional Supabase sync with sign-in panel and Realtime subscriptions
 - Vercel production deployment
 - Demo Mode vs Real Turn Mode
@@ -45,7 +45,8 @@ Make Real Turn Mode safe across Mac, iPhone, and iPad before adding more AI or f
 - Dashboard, Setup, Units, Issues, Crews, Assignments, Daily Log, Reports, Training Questions, Export
 - Rule-based Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and smart suggestions
 - No browser API keys
-- Photo metadata sync only; actual base64 photo data remains local-only
+- Photo metadata sync only; IndexedDB photo files remain on the capture device until Supabase Storage sync
+- Photo-complete JSON backup and in-app restore for files available on the current device
 
 ## Recently Changed Areas
 

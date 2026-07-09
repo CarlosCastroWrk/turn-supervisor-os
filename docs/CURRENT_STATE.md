@@ -37,7 +37,7 @@ Every near-term change should serve that loop.
 
 - React + TypeScript + Vite runtime
 - Mobile-first PWA shell with bottom navigation
-- Local persistence via browser `localStorage` under `turn-supervisor-os:v0.1`
+- Local-first persistence with operational records in browser `localStorage` under `turn-supervisor-os:v0.1` and compressed photo files in IndexedDB
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
@@ -57,7 +57,7 @@ Every near-term change should serve that loop.
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
 - Sync pull hardening that reads Supabase rows in ordered pages, keeps `Pull cloud` pull-only, shows `Upload needed` when a pull leaves unsent local changes, and checks cloud before local upload flows push changed rows
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
-- Storage/photo safety that preserves corrupt local cache payloads and compresses photos before saving them locally
+- Storage/photo safety that preserves corrupt local cache payloads, compresses photos, stores normal photo files outside the main app record in IndexedDB, and migrates legacy embedded photos only after durable writes succeed
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
 - Draft batch safety that scopes bulk approval/rejection to visible drafts, flags stale pending drafts, and opens applied unit targets
 - Parser eval coverage for punctuation-free field notes and deterministic draft targets
@@ -76,7 +76,7 @@ Every near-term change should serve that loop.
 - Voice-mode Capture UI with a mobile/iPad sheet, browser speech-recognition support where available, installed iPhone/iPad PWA keyboard-dictation fallback, no-transcript timeout fallback, short-pause restart handling, and no auto-opening keyboard on sheet open
 - Focused Capture field workflow that hides Ask/Memory modes from the visible Capture page, collapses older draft history, keeps raw JSON draft editing advanced-only, and shows where an approved draft was applied
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
-- Export/backup tools for JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
+- Export/backup tools for photo-complete JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
 
 ## What Real Turn Mode Currently Does
 
@@ -94,7 +94,6 @@ Every near-term change should serve that loop.
 - True conflict review for simultaneous same-row edits across devices
 - Delete propagation / tombstones for synced rows
 - Photo binary sync through Supabase Storage
-- Restore-from-JSON import flow in the app
 - Multi-user mode
 - Automated browser regression suite
 - Server-side AI provider route
@@ -106,9 +105,9 @@ Every near-term change should serve that loop.
 - This remains Los's personal field copilot until real field validation and explicit leadership approval.
 - Seed data is sample-only and should not appear in Real Turn reports, Copilot answers, or testing conclusions.
 - Real field records should live in Real Turn Mode.
-- `localStorage` is still the hot/offline cache even when Supabase sync is enabled.
+- `localStorage` is still the hot/offline cache for operational records even when Supabase sync is enabled; normal photo bytes live in IndexedDB.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
-- Compressed photo payloads remain local-only until the Supabase Storage/IndexedDB photo slice.
+- Compressed photo files remain device-local until the Supabase Storage photo-sync slice.
 - Copilot output must remain draft-first; important mutations require explicit approval.
 - Memory candidates must be approved before use.
 - Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
@@ -152,4 +151,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, the next code slice should come from the highest remaining field risk: either real-device offline/reconnect trust, photo durability, or memory consumption depending on what Los sees in training.
+While that physical-device check is pending, the next code slice should come from the highest remaining field risk: Supabase Storage photo sync, project-scoped memory consumption, or PWA offline startup depending on what Los sees in training.

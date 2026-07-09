@@ -98,10 +98,19 @@ Rationale:
 - Keeping CLI tooling current reduces deployment friction.
 - This was a tooling change only and did not alter app code or production data.
 
+### 2026-07-09: Photo files use IndexedDB before Turn
+
+Keep lightweight photo metadata in the main app state and store normal compressed photo files in versioned IndexedDB on the capture device.
+
+Rationale:
+
+- Large base64 photo payloads can fill or slow the synchronous `localStorage` record that protects every other field update.
+- IndexedDB preserves local-first/offline photo capture without adding a new service or browser secret.
+- Existing embedded photos migrate only after their durable write succeeds.
+- Project JSON backup gathers photo files available on the current device so this storage change does not silently weaken recovery.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.
 - Whether to implement CSV unit import before training clarifies the actual unit list format.
-- Whether photo storage/compression must happen before Turn or can wait until after initial field use.
 - Which server-side AI provider/model to use, if any, after Phase 1 stabilizes.
-- Whether to add a restore-from-JSON UI or keep restore as a developer-assisted recovery path for now.

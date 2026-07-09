@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, ClipboardPlus, PenLine, Plus, ShieldCheck, Wrench } from 'lucide-react';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { PhotoCapture } from '../components/PhotoCapture';
+import { PhotoThumbnail } from '../components/PhotoThumbnail';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addIssueWithOptionalUnitBlock, addPhotoNote, unitTradesComplete, updateUnit } from '../lib/actions';
@@ -381,7 +382,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           </div>
         </Section>
 
-        <Section title="Photos / Notes" kicker={`${photos.length} local`}>
+        <Section title="Photos / Notes" kicker={`${photos.length} photo record${photos.length === 1 ? '' : 's'}`}>
           <PhotoCapture
             projectId={unit.projectId}
             unitId={unit.id}
@@ -389,10 +390,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           />
           <div className="photo-grid">
             {photos.slice(0, 6).map((photo) => (
-              <figure className="photo-thumb" key={photo.id}>
-                {photo.imageData ? <img alt={photo.caption || photo.category} src={photo.imageData} /> : null}
-                <figcaption>{photo.caption || photo.category}</figcaption>
-              </figure>
+              <PhotoThumbnail key={photo.id} photo={photo} />
             ))}
           </div>
         </Section>

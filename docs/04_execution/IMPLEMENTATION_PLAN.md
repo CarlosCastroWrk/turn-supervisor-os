@@ -345,8 +345,10 @@ supabase db lint --linked --fail-on error
 Storage/photo:
 
 - Add a generated test photo in browser.
-- Confirm compression feedback.
+- Confirm offline IndexedDB save feedback.
 - Reload and confirm thumbnail/caption persist.
+- Export and restore a photo-complete JSON backup.
+- Stress at least 200 photo records without localStorage payload growth.
 - Inject corrupt localStorage and confirm recovery key preservation.
 
 Sync/offline:

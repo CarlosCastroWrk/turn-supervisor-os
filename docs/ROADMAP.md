@@ -101,7 +101,7 @@ Goal: make photos durable without breaking local-first behavior.
 
 Slices:
 
-- IndexedDB photo store
+- IndexedDB photo store (implemented)
 - Supabase Storage photo sync
 
 Success gate:

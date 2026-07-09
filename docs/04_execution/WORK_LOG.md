@@ -93,3 +93,11 @@
 - Started C5 Capture Field-Speed Cleanup after Los reported that Capture felt too busy in the field flow.
 - Simplified the visible Capture surface by hiding Ask/Memory modes, moving older draft review into collapsed history, hiding raw draft JSON behind advanced edit, adding applied-target feedback, removing Daily Log/Training from primary navigation, and fixing local-date stale draft warnings for late-evening captures.
 - Added a C4 voice fallback hardening patch after Los reported talking in Capture produced no transcript; installed iPhone/iPad PWAs now use keyboard dictation fallback even if the speech API exists, and browser speech auto-falls back when no transcript arrives.
+
+## 2026-07-09
+
+- Started F1 IndexedDB Photo Store after Los approved the full pre-Turn P0/P1/P2 build program.
+- Moved normal compressed photo files out of the synchronous main app record and into versioned IndexedDB while keeping lightweight metadata in AppData.
+- Added safe legacy photo migration, local thumbnail loading with object URL cleanup, capped emergency fallback storage, and device reset cleanup.
+- Kept JSON backup photo-complete for files available on the current device and added included/missing photo counts.
+- Added focused storage/backup tests and a browser stress run covering capture, reload, legacy migration, backup, emergency fallback, 202 photo records, mobile overflow, and console health.

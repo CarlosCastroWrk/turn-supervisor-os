@@ -139,7 +139,7 @@ Pass:
 
 ### 5. Backup / Export
 
-- [ ] Export JSON.
+- [ ] Export Full Device JSON Backup.
 - [ ] Export units CSV.
 - [ ] Export issues CSV.
 - [ ] Export daily report text.
@@ -151,8 +151,23 @@ Pass:
 - Downloads complete.
 - File contents contain only expected project/test records for the chosen export.
 - Reports do not invent counts.
+- The full-device recovery backup is kept private and is not mistaken for a project report.
 
-### 5A. Photo Storage Safety
+### 5A. JSON Restore Safety
+
+- [ ] Use only an expendable browser profile/device with obvious QA data.
+- [ ] Select an invalid JSON file and confirm the app says no local data changed.
+- [ ] Select a structurally corrupt backup such as one with no projects and confirm existing project/unit counts remain unchanged.
+- [ ] Select a known valid backup, read the replacement count confirmation, and cancel once.
+- [ ] Repeat, approve the valid restore, reload, and confirm project/unit/issue counts persist exactly.
+
+Pass:
+
+- Invalid or unsafe files never replace local state.
+- A valid current or supported legacy backup restores only after explicit confirmation.
+- Restored state survives reload without console errors or horizontal overflow.
+
+### 5B. Photo Storage Safety
 
 - [ ] Open a QA unit.
 - [ ] Add one work-safe test photo.
@@ -160,7 +175,7 @@ Pass:
 - [ ] Reload the app.
 - [ ] Confirm the photo thumbnail and caption remain visible on that unit.
 - [ ] Confirm normal unit edits still save after the photo is added.
-- [ ] Export Project JSON Backup and confirm the completion message reports local photo files included or missing.
+- [ ] Export Full Device JSON Backup and confirm the completion message reports local photo files included or missing.
 - [ ] Restore only into an expendable QA browser/device and confirm restored thumbnails return after migration.
 
 Pass:
@@ -171,7 +186,7 @@ Pass:
 - A reload does not lose the photo or nearby unit data.
 - JSON backup includes every photo file available on that device and reports unavailable files.
 
-### 5B. Cross-Device Photo Sync
+### 5C. Cross-Device Photo Sync
 
 - [ ] Use a work-safe Real Turn QA unit; do not use Demo Mode or tenant/private content.
 - [ ] On iPhone or iPad, add one small photo with an obvious QA caption.

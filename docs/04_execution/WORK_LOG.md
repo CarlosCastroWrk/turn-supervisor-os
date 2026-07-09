@@ -112,3 +112,8 @@
 - Reworked app-shell caching so incomplete updates do not activate, unchanged builds do not refetch all assets, and slow navigation falls back to the cached shell after four seconds.
 - Added deterministic PWA tests for manifest/icon integrity, timeout fallback, partial-install rejection, same-build request suppression, and exclusion of future same-origin private API/data responses from the cache.
 - Verified a persistent browser profile can fully restart offline, reload a Unit deep link, open Reports at iPad size, serve cached icons/manifest, and remain free of overflow and console errors.
+- Started G4 Accessibility And Field Contrast on `codex/accessibility-field-contrast` after G3 shipped.
+- Raised visible field controls and compact Unit actions to a 44px minimum target, strengthened muted-text contrast, and added consistent high-contrast focus rings.
+- Added skip navigation, route-specific document titles, active-page navigation semantics, announced progress values, and descriptive Unit quick-action names.
+- Made app and issue navigation honor reduced-motion preferences and contained Voice Capture keyboard focus with Escape close and trigger-focus restoration.
+- Verified 96 deterministic tests, rendered labels/landmarks/target sizes, measured contrast, keyboard flow, reduced-motion preference, zero horizontal overflow, and zero console errors across mobile and desktop core views.

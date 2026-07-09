@@ -409,6 +409,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                 <div className="quick-status-row">
                   <Button
                     className="button--compact"
+                    aria-label={`Mark paint complete for Unit ${unit.unitNumber}`}
                     onClick={() =>
                       setData((current) =>
                         updateUnit(
@@ -425,6 +426,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                   </Button>
                   <Button
                     className="button--compact"
+                    aria-label={`Mark cleaning complete for Unit ${unit.unitNumber}`}
                     onClick={() =>
                       setData((current) =>
                         updateUnit(
@@ -443,6 +445,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                   </Button>
                   <Button
                     className="button--compact"
+                    aria-label={`Mark maintenance needed for Unit ${unit.unitNumber}`}
                     onClick={() =>
                       setData((current) =>
                         updateUnit(

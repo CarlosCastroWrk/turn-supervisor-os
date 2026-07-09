@@ -133,6 +133,17 @@ Rationale:
 - PNG and maskable install assets are more dependable across iPhone/iPad/Android launchers than an SVG-only manifest.
 - The service worker must cache only known static shell assets, never future same-origin API/data responses.
 
+### 2026-07-09: Field controls must work by touch, keyboard, and assistive technology
+
+Use a 44px minimum target for visible field controls, preserve strong focus visibility, announce navigation/progress state semantically, honor reduced-motion preferences, and keep modal focus contained and restorable.
+
+Rationale:
+
+- Los may use an iPhone, iPad, or Mac while moving quickly, interrupted, or working in bright light.
+- Repeated controls need target context so assistive technology does not announce ambiguous actions such as only `Paint` or `Repair`.
+- Programmatic route focus helps keyboard and screen-reader users understand that the page changed without adding another screen.
+- Physical iOS VoiceOver and sunlight checks remain required because browser automation cannot prove real-device usability.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

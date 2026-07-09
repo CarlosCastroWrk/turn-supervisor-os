@@ -38,6 +38,12 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Reject incomplete shell installs and avoid refetching assets for the unchanged build.
   - [x] Verify persistent-browser offline cold start, deep-link reload, cached assets, mobile/tablet overflow, and console health.
   - [ ] Verify Home Screen icon, rotation, and fully closed offline restart on physical iPhone/iPad.
+- [x] G4 Accessibility And Field Contrast implementation.
+  - [x] Enforce 44px minimum targets across field controls and status actions.
+  - [x] Add strong focus visibility, skip navigation, active-page semantics, progressbar values, and route titles.
+  - [x] Trap and restore focus in Voice Capture and honor reduced-motion preferences.
+  - [x] Verify labels, target sizes, contrast, keyboard flow, mobile overflow, and console health in rendered browser QA.
+  - [ ] Verify outdoor legibility and iOS VoiceOver behavior on physical iPhone/iPad.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -78,7 +84,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
 - [ ] G2 Undo And Toast System.
 - [x] G3 PWA Install And Offline Startup. Physical iPhone/iPad acceptance remains in the active gate.
-- [ ] G4 Accessibility And Field Contrast.
+- [x] G4 Accessibility And Field Contrast. Physical outdoor/VoiceOver acceptance remains open.
 - [ ] Add CSV unit import.
 - [ ] Add bulk unit update workflow.
 

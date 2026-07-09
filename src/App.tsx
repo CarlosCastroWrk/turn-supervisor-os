@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
+import { motionSafeScrollBehavior } from './lib/accessibility';
 import { buildAppHash, parseAppHash, routeForNavigation } from './lib/routing';
 import type { AppNavigate } from './lib/routing';
 import { usePersistentAppData } from './lib/storage';
@@ -47,7 +48,7 @@ function App() {
     }
 
     setRoute(nextRoute);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
   }, []);
 
   return (

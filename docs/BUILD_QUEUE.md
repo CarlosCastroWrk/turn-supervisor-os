@@ -4,6 +4,14 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [ ] P0 Active Project Boundary release candidate.
+  - [x] Stamp new Capture drafts, agent runs, conversations, and generic follow-ups with active-Turn provenance.
+  - [x] Hide other-Turn draft history and fail cross-project or unverifiable Draft approvals closed.
+  - [x] Scope Daily Log, Copilot/Memory, Follow-Up, Unit, and Issue human-readable exports to the selected Turn.
+  - [x] Make report builders honor the requested project instead of ambient active-project state.
+  - [x] Keep Demo and unverifiable drafts/follow-ups local during Supabase sync.
+  - [x] Verify identical Demo/Real unit numbers, conflicting links, backup round-trip, and 10,000-draft performance.
+  - [ ] Merge after E4, deploy, and run production smoke checks.
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
   - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
@@ -66,7 +74,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
-- [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
+- [x] Guard Real Turn reports, Copilot answers, Capture history, sync uploads, and human-readable exports against Demo/other-Turn contamination. Production release remains in the active boundary slice.
 - [x] Reject corrupted or structurally unsafe JSON backups before replacing local device state.
 - [x] Stop parser-created Ready drafts from bypassing Ready safety, inventing trade completion, and block negated completion notes from becoming Ready updates.
 - [x] Stop stale unit detail routes from editing the wrong fallback unit.
@@ -171,3 +179,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] F2 Supabase Storage Photo Sync: Real Turn files upload privately, metadata paths sync after successful upload, other devices lazy-download/cache thumbnails, and failures remain retryable.
 - [x] G3 PWA Install And Offline Startup: install-safe PNG icons, rotation support, atomic shell updates, bounded flaky-network fallback, and automated persistent-browser offline restart coverage.
 - [x] P0 Backup Restore Safety: strict full-device backup validation, duplicate/invalid-photo protection, legacy normalization, accurate private-backup labeling, and rendered replacement/reload QA.
+- [x] P0 Active Project Boundary implementation: project-proven Capture, fail-closed draft approval, current-Turn human-readable exports, explicit-project reports, and local-only ambiguous/Demo Copilot rows.

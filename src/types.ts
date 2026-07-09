@@ -359,6 +359,7 @@ export interface MemoryCandidate {
 
 export interface AgentRun {
   id: EntityId;
+  projectId?: EntityId;
   mode: AgentRunMode;
   input: string;
   output: unknown;
@@ -369,6 +370,7 @@ export interface AgentRun {
 
 export interface CopilotConversation {
   id: EntityId;
+  projectId?: EntityId;
   role: CopilotRole;
   content: string;
   supportingRecords: string[];

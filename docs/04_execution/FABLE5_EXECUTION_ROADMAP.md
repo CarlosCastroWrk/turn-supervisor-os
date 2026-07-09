@@ -200,6 +200,25 @@ Acceptance:
 - The sync pill does not claim `Synced` when local changes still need upload after pull.
 - Upload flows do not blindly overwrite newer cloud rows without first checking cloud state.
 
+### B4. Active Project Boundary
+
+Status: release candidate implemented and locally verified; stacked release pending E4.
+
+Scope:
+
+- Stamp new Capture and local Copilot history with the active Turn.
+- Resolve legacy draft/follow-up provenance from linked records and activity batches.
+- Hide other-Turn draft history and refuse ambiguous or cross-Turn approvals.
+- Keep Demo and unverifiable Copilot rows local during sync.
+- Scope human-readable exports and report builders to an explicit project while preserving full-device recovery backups.
+
+Acceptance:
+
+- A Demo draft for Unit 203 cannot mutate Real Turn Unit 203.
+- Human-readable Real Turn exports contain no Demo sentinel records.
+- Full-device JSON backups still contain every project for recovery.
+- Project-boundary selection remains bounded across 10,000 Draft Actions.
+
 ## Phase C: Capture Trust
 
 These slices make the core Copilot loop reliable enough for walking.
@@ -600,5 +619,6 @@ Only after the field-safe deterministic version is trusted.
 30. G2 Undo And Toast System
 31. E4 Project-Scoped Memory
 32. P0 Backup Restore Safety
+33. P0 Active Project Boundary
 
 This order can change if real-device testing finds a higher-risk failure.

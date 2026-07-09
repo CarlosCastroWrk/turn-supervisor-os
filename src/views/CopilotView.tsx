@@ -25,7 +25,8 @@ import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, localISODateFromDateTime, nowISO, todayISO } from '../lib/constants';
-import { prepareMemoryCandidatesForActiveProject } from '../lib/memory';
+import { getActiveProjectMemoryCandidates, prepareMemoryCandidatesForActiveProject } from '../lib/memory';
+import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
@@ -295,15 +296,19 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const [briefingText, setBriefingText] = useState('');
   const [copied, setCopied] = useState(false);
   const smartSuggestions = useMemo(() => generateSmartSuggestions(data), [data]);
+  const projectDraftActions = useMemo(
+    () => getProjectDraftActions(data, data.activeProjectId),
+    [data],
+  );
   const draftCounts = useMemo(
     () => ({
-      pending: data.draftActions.filter((draft) => draft.status === 'pending').length,
-      applied: data.draftActions.filter((draft) => draft.status === 'applied').length,
-      rejected: data.draftActions.filter((draft) => draft.status === 'rejected').length,
-      failed: data.draftActions.filter((draft) => draft.status === 'failed').length,
-      all: data.draftActions.length,
+      pending: projectDraftActions.filter((draft) => draft.status === 'pending').length,
+      applied: projectDraftActions.filter((draft) => draft.status === 'applied').length,
+      rejected: projectDraftActions.filter((draft) => draft.status === 'rejected').length,
+      failed: projectDraftActions.filter((draft) => draft.status === 'failed').length,
+      all: projectDraftActions.length,
     }),
-    [data.draftActions],
+    [projectDraftActions],
   );
   const selectedPendingBatchId = activeDraftBatchId;
   const currentCaptureDrafts = useMemo(() => {
@@ -311,15 +316,15 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       return [];
     }
 
-    return data.draftActions.filter((draft) => captureBatchId(draft) === selectedPendingBatchId).slice(0, 20);
-  }, [data.draftActions, selectedPendingBatchId]);
+    return projectDraftActions.filter((draft) => captureBatchId(draft) === selectedPendingBatchId).slice(0, 20);
+  }, [projectDraftActions, selectedPendingBatchId]);
   const currentCapturePendingDraftIds = useMemo(
     () => currentCaptureDrafts.filter((draft) => draft.status === 'pending').map((draft) => draft.id),
     [currentCaptureDrafts],
   );
   const olderDrafts = useMemo(
-    () => data.draftActions.filter((draft) => !selectedPendingBatchId || captureBatchId(draft) !== selectedPendingBatchId).slice(0, 10),
-    [data.draftActions, selectedPendingBatchId],
+    () => projectDraftActions.filter((draft) => !selectedPendingBatchId || captureBatchId(draft) !== selectedPendingBatchId).slice(0, 10),
+    [projectDraftActions, selectedPendingBatchId],
   );
   const visibleDrafts = useMemo(() => {
     if (draftFilter === 'all') {
@@ -329,10 +334,10 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     return byStatus.slice(0, 20);
   }, [draftFilter, olderDrafts]);
   const lastChangedDraft = useMemo(
-    () => data.draftActions.find((draft) => draft.id === lastChangedDraftId),
-    [data.draftActions, lastChangedDraftId],
+    () => projectDraftActions.find((draft) => draft.id === lastChangedDraftId),
+    [lastChangedDraftId, projectDraftActions],
   );
-  const pendingMemory = data.memoryCandidates.filter((candidate) => candidate.status === 'pending');
+  const pendingMemory = getActiveProjectMemoryCandidates(data, 'pending');
   const quickInputReady = quickInput.trim().length > 0;
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
   const deviceCaptureContext = useMemo(
@@ -359,6 +364,12 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       }),
     [deviceCaptureContext, speechSupported],
   );
+
+  useEffect(() => {
+    setActiveDraftBatchId('');
+    setDraftNotice('');
+    setLastChangedDraftId('');
+  }, [data.activeProjectId]);
   const fallbackVoiceGuidance = useMemo(
     () =>
       getVoiceCaptureGuidance({
@@ -1068,9 +1079,9 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
               ) : null}
             </div>
 
-            {data.draftActions.length > currentCaptureDrafts.length ? (
+            {projectDraftActions.length > currentCaptureDrafts.length ? (
               <details className="draft-history">
-                <summary>Older draft history ({data.draftActions.length - currentCaptureDrafts.length})</summary>
+                <summary>Older draft history ({projectDraftActions.length - currentCaptureDrafts.length})</summary>
                 <div className="draft-filter-row" role="tablist" aria-label="Draft action status">
                   {(['pending', 'applied', 'rejected', 'failed', 'all'] as DraftFilter[]).map((filter) => (
                     <button

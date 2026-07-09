@@ -11,11 +11,11 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Start recording a source-grounded daily summary from activity logs.
   - [x] Distinguish current state from historical day state.
   - [x] Prepare stronger report preview data.
-- [ ] Current code slice is P0 Report Thaw / Backup.
+- [x] Current code slice is P0 Report Thaw / Backup + Supabase Report Draft Sync.
   - [x] Keep untouched report sections regenerated as the day changes.
   - [x] Move editable report drafts into AppData so reports export with JSON backups.
   - [x] Add dirty/reset behavior per report section.
-  - [ ] Supabase sync for report drafts is in draft PR #30 and is blocked until the Supabase DB password credential is refreshed.
+  - [x] Add approved `report_drafts` Supabase table migration and sync mapping.
 - [x] E3 Daily Log Auto-Draft.
   - [x] Draft Daily Log sections from selected-date activity and field captures.
   - [x] Keep auto-drafted content editable and review-first.
@@ -30,6 +30,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Stop stale unit detail routes from editing the wrong fallback unit.
 - [x] Paginate Supabase pull reads, make `Pull cloud` pull-only, and make upload flows pull before push to reduce stale cloud clobber risk.
 - [x] Stop editable reports from freezing untouched generated sections and include report drafts in AppData JSON backups.
+- [x] Sync editable report drafts through Supabase after Los approved the report-drafts migration.
 - [x] C1 Dictation Parser Eval Suite.
 - [x] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [x] C3 Draft Batch Safety: visible/current batch approval only.
@@ -76,7 +77,6 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 - Real Property Doctor Services workflow details remain partially blocked until training clarifies what Los actually supervises day to day.
 - Supabase one-time cleanup for duplicate/demo cloud records requires explicit approval before any data-changing command.
-- Report-draft Supabase sync PR #30 is blocked until the Supabase Postgres password is available to `supabase db push`.
 
 ## Done
 
@@ -121,4 +121,5 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] P0 Parser And Stale Unit Safety: parser-generated Ready drafts no longer carry explicit ready confirmation or inferred trade completion, negated completion notes fall back to raw-note capture, and stale unit detail links show a no-unit state instead of opening the first unit.
 - [x] P0 Sync Trust / Pull Pagination: Supabase pull reads paginate past 1000 rows, `Pull cloud` is pull-only, `Upload needed` appears when local changes remain after pull, upload flows check cloud before pushing, and sync internals have regression coverage for stale-local upload prevention.
 - [x] P0 Report Thaw / Backup: editable report drafts now live in AppData, JSON backups include report edits, untouched generated sections keep updating, and edited sections can be reset individually.
+- [x] P0 Report Draft Supabase Sync: approved `report_drafts` migration, realtime publication, owner-scoped RLS, sync mapping, and demo-boundary coverage.
 - [x] E3 Daily Log Auto-Draft: Daily Log can draft empty sections from grounded activity, blockers, issues, assignments, and current board signals while still requiring Los to review and save.

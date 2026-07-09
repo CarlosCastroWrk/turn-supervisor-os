@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through D6 Hash Routing and deep links, plus C4 Voice Reliability and E2 Report Preview/Print
+A2 Draft Apply Safety through E2 Report Preview/Print, E1 Daily Activity Snapshot, and P0 sync/report safety slices
 ```
 
 Production:
@@ -66,6 +66,7 @@ Every near-term change should serve that loop.
 - Number input safety that fixes setup/count-field leading-zero editing behavior
 - Report date safety that makes selected-date reports explicit and labels missing Daily Log reports as draft/missing-data
 - Editable in-app report document with a restrained field-report layout, custom title/summary/section text, selected-date activity snapshot, current-state progress labeling, generated-section thaw behavior, per-section reset, AppData/JSON-backup persistence, print styling for Save as PDF/share as PDF, and preserved copy/download text fallbacks
+- Supabase `report_drafts` sync support for edited report titles, summaries, and section text after the approved report-drafts migration
 - Daily Log auto-draft that fills empty log sections from selected-date activity, blockers, issues, assignments, and current board signals while requiring Los to review and save
 - Issue status safety that stops issue creation from changing unit status unless Los explicitly marks it blocking
 - Project archive safety that hides duplicate/test Real Turn projects without deleting their units, issues, notes, or cloud rows
@@ -90,7 +91,6 @@ Every near-term change should serve that loop.
 
 - Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
 - True conflict review for simultaneous same-row edits across devices
-- Supabase sync table for editable report drafts
 - Delete propagation / tombstones for synced rows
 - Photo binary sync through Supabase Storage
 - Restore-from-JSON import flow in the app
@@ -151,4 +151,4 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
 
-While that physical-device check is pending, report-draft Supabase sync is in draft PR #30 and remains blocked until the Supabase Postgres password credential is refreshed for `supabase db push`.
+While that physical-device check is pending, the next code slice should come from the highest remaining field risk: either real-device offline/reconnect trust, photo durability, or memory consumption depending on what Los sees in training.

@@ -84,5 +84,9 @@
 - Completed P0 Parser And Stale Unit Safety by removing parser-granted Ready confirmation and inferred trade completion, treating negated completion captures as raw notes, preventing parser-created Ready drafts from bypassing work-complete checks, and stopping stale unit detail routes from opening the first unit.
 - Completed P0 Sync Trust / Pull Pagination by reading Supabase tables in ordered pages, making `Pull cloud` pull-only, showing `Upload needed` when local changes remain after pull, checking cloud before local upload flows push changed rows, adding sync-pull regression tests, and documenting that true same-row conflict review remains open.
 - Completed P0 Report Thaw / Backup by moving editable report drafts into AppData, adding generated-vs-edited section dirty tracking, adding per-section reset, preserving legacy report drafts, and covering report thaw plus backup inclusion with tests.
+- Started P0 Report Draft Supabase Sync after Los explicitly approved the report-drafts migration.
+- Added the `report_drafts` Supabase table with owner-scoped RLS, authenticated grants, client-timestamp preserving trigger behavior, and Realtime publication.
+- Wired report drafts into the Supabase sync table map and demo sync boundary so real report edits sync across devices while demo report drafts stay local.
 - Opened draft PR #30 for P0 Report Draft Supabase Sync after local verification, but did not merge or deploy because `supabase db push` and linked schema lint are blocked by missing/stale Supabase Postgres password auth.
+- Applied the approved `report_drafts` Supabase migration after Los provided the database password through local Keychain; post-push dry-run, migration list, and schema lint all passed.
 - Completed E3 Daily Log Auto-Draft by adding a review-first Daily Log action that drafts empty sections from selected-date activity, blockers, issues, assignments, and current board signals without saving until Los confirms.

@@ -2,7 +2,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
 import { filterUploadableSyncItems, withLocalDemoRows } from '../src/lib/supabase/syncBoundary.ts';
-import type { ActivityLog, AppData, Assignment, Building, CrewMember, DailyLog, Floor, Issue, PhotoNote, Project, Unit } from '../src/types.ts';
+import type {
+  ActivityLog,
+  AppData,
+  Assignment,
+  Building,
+  CrewMember,
+  DailyLog,
+  Floor,
+  Issue,
+  PhotoNote,
+  Project,
+  ReportDocumentDraft,
+  Unit,
+} from '../src/types.ts';
 
 const cloneSeed = (): AppData => JSON.parse(JSON.stringify(seedData)) as AppData;
 
@@ -147,6 +160,26 @@ const realDailyLog = (projectId: string): DailyLog => ({
   updatedAt: stamp,
 });
 
+const reportDraft = (projectId: string, id = 'report_real_boundary'): ReportDocumentDraft => ({
+  id,
+  projectId,
+  date: '2026-07-08',
+  title: 'Edited Turn Report',
+  titleEdited: true,
+  summary: 'Edited field summary',
+  summaryEdited: true,
+  sections: [
+    {
+      title: 'Open Issues',
+      subtitle: 'Needs attention',
+      body: 'Unit 203 waiting on paint',
+      bodyEdited: true,
+    },
+  ],
+  createdAt: stamp,
+  updatedAt: stamp,
+});
+
 const realActivity = (projectId: string): ActivityLog => ({
   id: 'activity_real_boundary',
   projectId,
@@ -176,6 +209,7 @@ const withRealTree = () => {
     issues: [realIssue(project.id, unit.id), ...data.issues],
     photoNotes: [realPhoto(project.id, unit.id), ...data.photoNotes],
     dailyLogs: [realDailyLog(project.id), ...data.dailyLogs],
+    reportDrafts: [reportDraft(project.id), ...data.reportDrafts],
     activityLogs: [realActivity(project.id), ...data.activityLogs],
   } satisfies AppData;
 };
@@ -199,15 +233,19 @@ test('filterUploadableSyncItems skips demo-scoped child records and keeps real c
   assert.deepEqual(filterUploadableSyncItems(data, 'issues', data.issues).map((item) => item.id), ['issue_real_boundary']);
   assert.deepEqual(filterUploadableSyncItems(data, 'photoNotes', data.photoNotes).map((item) => item.id), ['photo_real_boundary']);
   assert.deepEqual(filterUploadableSyncItems(data, 'dailyLogs', data.dailyLogs).map((item) => item.id), ['daily_real_boundary']);
+  assert.deepEqual(filterUploadableSyncItems(data, 'reportDrafts', data.reportDrafts).map((item) => item.id), ['report_real_boundary']);
   assert.deepEqual(filterUploadableSyncItems(data, 'activityLogs', data.activityLogs).map((item) => item.id), ['activity_real_boundary']);
 });
 
 test('withLocalDemoRows preserves local demo rows when a fresh device pulls real cloud rows', () => {
   const local = cloneSeed();
+  const demoReportDraft = reportDraft(local.projects[0].id, 'report_demo_boundary');
+  local.reportDrafts = [demoReportDraft];
   const project = realProject();
   const remote = {
     projects: [project],
     units: [realUnit(project.id, 'building_real_boundary', 'floor_real_boundary')],
+    reportDrafts: [reportDraft(project.id)],
   };
 
   const next = withLocalDemoRows(local, remote);
@@ -215,6 +253,7 @@ test('withLocalDemoRows preserves local demo rows when a fresh device pulls real
   assert.equal((next.projects as Project[]).some((item) => item.id === project.id), true);
   assert.equal((next.projects as Project[]).some((item) => item.mode === 'demo'), true);
   assert.equal((next.units as Unit[]).some((item) => item.projectId === local.projects[0].id), true);
+  assert.equal((next.reportDrafts as ReportDocumentDraft[]).some((item) => item.id === demoReportDraft.id), true);
 });
 
 test('withLocalDemoRows does not duplicate a demo row that already exists remotely', () => {

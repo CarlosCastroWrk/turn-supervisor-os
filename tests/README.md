@@ -20,6 +20,7 @@ Covered categories:
 - Parser evals for punctuation-free field notes
 - 300-unit Real Turn generation and responsive rendered Unit-board behavior
 - 1,000 units, 100 blockers, 500 ready units, 10,000 activity events, Reports, CSV, backup restore, and large-board Capture targeting
+- Coalesced full-state persistence, immediate lifecycle flush, and reset-safe pending-write cancellation
 
 Use parser evals for Quick Capture regressions before changing the deterministic Copilot parser.
 Use the field-scale gate after changing Setup, Units, Capture, Reports, exports, backups, storage, or large-list behavior.

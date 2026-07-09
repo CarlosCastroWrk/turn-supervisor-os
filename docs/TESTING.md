@@ -44,6 +44,7 @@ Baseline recorded July 9, 2026:
 - 300-unit Unit boards loaded in about 0.6 seconds in local Chromium at all three viewports.
 - The 1,000-unit board loaded in about 1.2 seconds under 4x CPU throttling.
 - The 1,000-unit / 10,000-event AppData payload was 3,046,822 JSON characters before photo files.
+- Under 4x CPU throttling, 26 rapid project-field updates produced 7 full-state storage writes instead of 26, and a synthetic `pagehide` flushed the latest pending value in one write.
 
 These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
 

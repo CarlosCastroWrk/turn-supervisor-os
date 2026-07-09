@@ -177,3 +177,4 @@
 - Added project/date reconciliation that collapses duplicates, preserves an existing legacy cloud row ID, and uploads newer offline content as an update instead of a uniqueness-conflicting insert.
 - Added auth-resolution state and a signed-out restore guard; force-overwriting cloud data remains deliberately out of scope.
 - Verified all six three-device Daily Log reconnect orders, 5,000-log reconciliation, pull-before-upload legacy behavior, and rendered iPhone save/reload/update with one row, no overflow, and no console findings. The full deterministic suite now passes 165/165 before final release verification.
+- Merged PR #47, deployed `dpl_GZrUyPo2V7nxV5MYCsKoM4xva5eL`, confirmed the canonical URL and new production bundle/service worker return `200`, and passed read-only Daily Log/Export route plus console smoke checks. Physical signed-in restore and three-device Daily Log acceptance remain open.

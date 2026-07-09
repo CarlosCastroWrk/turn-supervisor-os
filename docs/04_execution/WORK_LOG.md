@@ -117,3 +117,9 @@
 - Added skip navigation, route-specific document titles, active-page navigation semantics, announced progress values, and descriptive Unit quick-action names.
 - Made app and issue navigation honor reduced-motion preferences and contained Voice Capture keyboard focus with Escape close and trigger-focus restoration.
 - Verified 96 deterministic tests, rendered labels/landmarks/target sizes, measured contrast, keyboard flow, reduced-motion preference, zero horizontal overflow, and zero console errors across mobile and desktop core views.
+- Started G2 Undo And Toast System on `codex/undo-toast-feedback` after G4 shipped.
+- Added a bounded accessible toast layer for routine field feedback while retaining browser confirmations for destructive, recovery, and unsafe Ready actions.
+- Added 10-second Unit quick-status Undo on Units and Unit Detail with exact-timestamp staleness guards, monotonic update timestamps, and explicit Undo activity history.
+- Centralized paint, cleaning, and maintenance shortcut transitions so repeated taps create no activity and trade completion cannot clear harder access, hold, maintenance, rework, punch-list, inspection, or Ready state.
+- Added nonblocking outcome feedback for Issue creation, status changes, reopen, and confirmed soft removal, including where removed issues remain available.
+- Added deterministic Undo/staleness/clock-skew tests and rendered mobile/desktop checks for persistence, stale protection, 44px actions, blocking-confirmation retention, overflow, and console health.

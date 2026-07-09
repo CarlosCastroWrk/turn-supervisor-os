@@ -2,6 +2,7 @@ import { Download, FileArchive, FileJson, FileSpreadsheet, RotateCcw, Upload } f
 import { useRef, useState } from 'react';
 import { Button } from '../components/FormControls';
 import { Section } from '../components/Section';
+import { useToast } from '../components/toast-context';
 import { normalizeAppData } from '../lib/dataMigrations';
 import { clearAppData } from '../lib/storage';
 import {
@@ -36,6 +37,7 @@ const parseBackup = (text: string): AppData => {
 };
 
 export function ExportView({ data, setData }: ExportViewProps) {
+  const { notify } = useToast();
   const date = new Date().toISOString().slice(0, 10);
   const project = getActiveProject(data);
   const [backupTaken, setBackupTaken] = useState(false);
@@ -59,7 +61,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Backup could not be created.';
       setBackupMessage(message);
-      window.alert(message);
+      notify(message, { tone: 'error' });
     } finally {
       setIsBackingUp(false);
     }
@@ -111,10 +113,11 @@ export function ExportView({ data, setData }: ExportViewProps) {
       setData(restored);
       setRestoreMessage(`Restored ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s).`);
       setBackupTaken(true);
+      notify(`Backup restored with ${restored.units.length} Unit${restored.units.length === 1 ? '' : 's'}.`, { tone: 'success' });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not restore that backup file.';
       setRestoreMessage(message);
-      window.alert(message);
+      notify(message, { tone: 'error' });
     }
   };
 

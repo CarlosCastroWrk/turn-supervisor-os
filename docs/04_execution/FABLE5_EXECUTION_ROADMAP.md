@@ -487,10 +487,23 @@ Scope:
 
 ### G2. Undo And Toast System
 
+Status: implemented in the G2 release slice with guarded Unit quick-status Undo.
+
 Scope:
 
 - Replace blocking alerts/confirms for common field actions.
 - Add aria-live feedback.
+- Keep destructive, compound, and data-recovery confirmations blocking.
+- Bind Unit Undo to the exact update timestamp and reject stale Undo after any later Unit edit.
+
+Acceptance:
+
+- Routine validation and copy/backup errors do not interrupt the field flow with browser alerts.
+- Unit quick-status actions expose a reachable 10-second Undo on Units and Unit Detail.
+- Successful Undo restores only the prior status patch as a newer activity event.
+- Stale Undo cannot overwrite a newer local, Realtime, or manual Unit edit.
+- Repeated taps create no fake activity, and trade shortcuts cannot erase harder access/maintenance/hold/rework state.
+- Reset, restore, project lifecycle, unsaved-change, unsafe Ready, and storage-failure guardrails remain explicit.
 
 ### G3. PWA Install And Offline Startup
 
@@ -560,5 +573,6 @@ Only after the field-safe deterministic version is trusted.
 27. F2 Supabase Storage Photo Sync
 28. G3 PWA Install And Offline Startup
 29. G4 Accessibility And Field Contrast
+30. G2 Undo And Toast System
 
 This order can change if real-device testing finds a higher-risk failure.

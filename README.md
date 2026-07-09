@@ -24,6 +24,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Export / backup for photo-complete JSON, units CSV, issues CSV, daily report text, daily logs Markdown, Copilot/Memory Markdown, and Follow-Ups CSV
 - PWA manifest and service worker with iOS PNG icons, rotation support, atomic app-shell updates, bounded navigation fallback, and offline deep-link startup
 - Field-accessible navigation and Capture behavior with 44px targets, visible focus, semantic progress/navigation state, reduced-motion support, and a keyboard-contained Voice dialog
+- Nonblocking field feedback plus timestamp-guarded Undo for Unit quick-status taps; destructive and recovery actions retain explicit confirmation
 - Local-first persistence using browser localStorage for operational records and IndexedDB for compressed photo files
 - Rule-based no-API-key copilot parser that creates draft actions before changing data
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All

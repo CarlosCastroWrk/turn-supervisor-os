@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
+import { useToast } from '../components/toast-context';
 import { motionSafeScrollBehavior } from '../lib/accessibility';
 import { addIssueWithOptionalUnitBlock, closeIssueFromBoard, resolveIssue, updateIssue } from '../lib/actions';
 import { createId, nowISO } from '../lib/constants';
@@ -37,6 +38,7 @@ const issueStatusSortWeight: Record<IssueStatus, number> = {
 };
 
 export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
+  const { notify } = useToast();
   const activeProject = getActiveProject(data);
   const units = getProjectUnits(data);
   const issues = getProjectIssues(data);
@@ -87,7 +89,9 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
   }, [focusedIssueId, visibleIssues]);
 
   const createIssue = () => {
-    if (!title.trim()) {
+    const issueTitle = title.trim();
+    if (!issueTitle) {
+      notify('Add a short issue title before saving.', { tone: 'error' });
       return;
     }
 
@@ -101,7 +105,7 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
         buildingId: linkedUnit?.buildingId,
         floorId: linkedUnit?.floorId,
         unitId: linkedUnit?.id,
-        title: title.trim(),
+        title: issueTitle,
         category,
         priority: defaultManualIssuePriority,
         owner: owner.trim() || defaultOwner,
@@ -122,6 +126,16 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
     setNotes('');
     setBlocksUnit(false);
     setPendingRemoveIssueId(undefined);
+    notify(`${issueTitle} added${linkedUnit ? ` to Unit ${linkedUnit.unitNumber}` : ''}.`, { tone: 'success' });
+  };
+
+  const setIssueStatus = (issue: Issue, status: IssueStatus) => {
+    if (issue.status === status) {
+      notify(`${issue.title} is already ${status}. Nothing new was recorded.`);
+      return;
+    }
+    setData((current) => (status === 'Resolved' ? resolveIssue(current, issue.id) : updateIssue(current, issue.id, { status })));
+    notify(`${issue.title} marked ${status}.`, { tone: 'success' });
   };
 
   return (
@@ -216,7 +230,7 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
                 </div>
                 <div className="quick-status-row">
                   {['Resolved', 'Closed'].includes(issue.status) ? (
-                    <Button onClick={() => setData((current) => updateIssue(current, issue.id, { status: 'Open' }))}>
+                    <Button onClick={() => setIssueStatus(issue, 'Open')}>
                       <TimerReset size={16} aria-hidden="true" />
                       Reopen
                     </Button>
@@ -224,19 +238,19 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
                     <>
                       <Button
                         className={issue.status === 'In Progress' ? 'is-selected' : ''}
-                        onClick={() => setData((current) => updateIssue(current, issue.id, { status: 'In Progress' }))}
+                        onClick={() => setIssueStatus(issue, 'In Progress')}
                       >
                         <PlayCircle size={16} aria-hidden="true" />
                         Start
                       </Button>
                       <Button
                         className={issue.status === 'Waiting' ? 'is-selected' : ''}
-                        onClick={() => setData((current) => updateIssue(current, issue.id, { status: 'Waiting' }))}
+                        onClick={() => setIssueStatus(issue, 'Waiting')}
                       >
                         <TimerReset size={16} aria-hidden="true" />
                         Waiting
                       </Button>
-                      <Button onClick={() => setData((current) => resolveIssue(current, issue.id))}>
+                      <Button onClick={() => setIssueStatus(issue, 'Resolved')}>
                         <CheckCircle2 size={16} aria-hidden="true" />
                         Resolve
                       </Button>
@@ -256,6 +270,9 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
                         onClick={() => {
                           setData((current) => closeIssueFromBoard(current, issue.id));
                           setPendingRemoveIssueId(undefined);
+                          notify(`${issue.title} removed from the normal board. It remains available under Closed or All.`, {
+                            tone: 'success',
+                          });
                         }}
                       >
                         Confirm remove

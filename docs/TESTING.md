@@ -224,6 +224,13 @@ Pass:
 - [ ] Enable VoiceOver on iPhone/iPad and confirm Dashboard stats, Units navigation, progress, Voice Capture controls, and Unit quick actions have understandable names and values.
 - [ ] In Voice Capture, confirm focus starts on Close, remains inside the sheet, Escape closes it with a keyboard, and focus returns to Voice Mode.
 - [ ] Enable Reduce Motion and confirm route/issue navigation does not use smooth scrolling.
+- [ ] Tap a Unit quick-status action, confirm the board changes immediately, then tap Undo and confirm the previous status returns.
+- [ ] Tap a Unit quick-status action, change the same Unit again, then use the older Undo and confirm it refuses to overwrite the newer edit.
+- [ ] On an Access Blocked or Maintenance Needed Unit, tap Paint/Clean/Repair and confirm the harder overall blocker is not silently cleared.
+- [ ] Repeat a quick status that is already set and confirm no new activity is recorded.
+- [ ] Confirm Undo remains available while its button has keyboard focus and that Undo/Dismiss targets are at least 44px.
+- [ ] Trigger an empty Issue title or invalid Quick Unit Creation and confirm feedback appears without a blocking browser popup.
+- [ ] Confirm reset/restore, project archive/start, unsaved Daily Log changes, and unsafe Ready override still require confirmation.
 - [ ] Time a unit update.
 - [ ] Time an issue log.
 - [ ] Time a report generation.

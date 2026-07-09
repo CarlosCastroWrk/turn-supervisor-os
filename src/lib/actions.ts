@@ -53,6 +53,44 @@ export interface RealTurnSetupInput {
 
 type ActivityEntity = ActivityLog['entityType'];
 
+export type ReversibleUnitPatch = Partial<
+  Pick<
+    Unit,
+    | 'overallStatus'
+    | 'paintStatus'
+    | 'cleanStatus'
+    | 'repairStatus'
+    | 'flooringStatus'
+    | 'trashStatus'
+    | 'inspectionStatus'
+  >
+>;
+
+export interface UnitUpdateUndoToken {
+  unitId: EntityId;
+  unitNumber: string;
+  expectedUpdatedAt: string;
+  previousPatch: ReversibleUnitPatch;
+  note: string;
+}
+
+export interface UnitUpdateWithUndoResult {
+  data: AppData;
+  status: 'applied' | 'unchanged' | 'missing';
+  undoToken?: UnitUpdateUndoToken;
+}
+
+export interface UnitUndoResult {
+  data: AppData;
+  status: 'applied' | 'stale' | 'missing';
+}
+
+const nextEntityTimestamp = (previousUpdatedAt: string) => {
+  const now = Date.now();
+  const previous = Date.parse(previousUpdatedAt);
+  return new Date(Number.isFinite(previous) ? Math.max(now, previous + 1) : now).toISOString();
+};
+
 const activity = (
   projectId: EntityId,
   entityType: ActivityEntity,
@@ -264,10 +302,65 @@ export const updateUnit = (data: AppData, unitId: EntityId, patch: Partial<Unit>
     return data;
   }
 
+  const updatedAt = nextEntityTimestamp(existing.updatedAt);
+
   return {
     ...data,
-    units: data.units.map((unit) => (unit.id === unitId ? { ...unit, ...patch, updatedAt: nowISO() } : unit)),
+    units: data.units.map((unit) => (unit.id === unitId ? { ...unit, ...patch, updatedAt } : unit)),
     activityLogs: [activity(existing.projectId, 'Unit', unitId, 'Updated unit', note), ...data.activityLogs],
+  };
+};
+
+export const updateUnitWithUndo = (
+  data: AppData,
+  unitId: EntityId,
+  patch: ReversibleUnitPatch,
+  note: string,
+): UnitUpdateWithUndoResult => {
+  const existing = data.units.find((unit) => unit.id === unitId);
+  if (!existing) {
+    return { data, status: 'missing' };
+  }
+
+  const fields = Object.keys(patch) as (keyof ReversibleUnitPatch)[];
+  if (fields.length === 0 || fields.every((field) => Object.is(existing[field], patch[field]))) {
+    return { data, status: 'unchanged' };
+  }
+  const previousPatch = fields.reduce<ReversibleUnitPatch>((previous, field) => {
+    Object.assign(previous, { [field]: existing[field] });
+    return previous;
+  }, {});
+  const nextData = updateUnit(data, unitId, patch, note);
+  const updatedUnit = nextData.units.find((unit) => unit.id === unitId);
+  if (!updatedUnit) {
+    return { data: nextData, status: 'missing' };
+  }
+
+  return {
+    data: nextData,
+    status: 'applied',
+    undoToken: {
+      unitId,
+      unitNumber: existing.unitNumber,
+      expectedUpdatedAt: updatedUnit.updatedAt,
+      previousPatch,
+      note,
+    },
+  };
+};
+
+export const undoUnitUpdate = (data: AppData, token: UnitUpdateUndoToken): UnitUndoResult => {
+  const current = data.units.find((unit) => unit.id === token.unitId);
+  if (!current) {
+    return { data, status: 'missing' };
+  }
+  if (current.updatedAt !== token.expectedUpdatedAt) {
+    return { data, status: 'stale' };
+  }
+
+  return {
+    data: updateUnit(data, token.unitId, token.previousPatch, `Undo: ${token.note}`),
+    status: 'applied',
   };
 };
 
@@ -617,6 +710,69 @@ const workDone = (status: Unit['paintStatus']) => status === 'Complete' || statu
 
 export const unitTradesComplete = (unit: Unit) =>
   workDone(unit.paintStatus) && workDone(unit.cleanStatus) && workDone(unit.repairStatus);
+
+const tradeCompletionProtectedStatuses = new Set<UnitWorkflowStatus>([
+  'Access Blocked',
+  'Trash Out Needed',
+  'Maintenance Needed',
+  'Maintenance In Progress',
+  'Punch List',
+  'Inspection Needed',
+  'Ready',
+  'Rework Needed',
+  'Hold / Blocked',
+]);
+
+const paintCompletionProtectedStatuses = new Set<UnitWorkflowStatus>([
+  ...tradeCompletionProtectedStatuses,
+  'Cleaning',
+  'Cleaning Complete',
+]);
+
+const maintenanceProtectedStatuses = new Set<UnitWorkflowStatus>([
+  'Access Blocked',
+  'Trash Out Needed',
+  'Maintenance In Progress',
+  'Punch List',
+  'Rework Needed',
+  'Hold / Blocked',
+]);
+
+const activeTradeBlocker = (status: WorkStatus) =>
+  status === 'Needed' || status === 'Blocked' || status === 'Rework Needed' || status === 'In Progress';
+
+export const paintCompletionPatch = (unit: Unit): ReversibleUnitPatch => {
+  const patch: ReversibleUnitPatch = { paintStatus: 'Complete' };
+  if (
+    paintCompletionProtectedStatuses.has(unit.overallStatus) ||
+    activeTradeBlocker(unit.cleanStatus) ||
+    activeTradeBlocker(unit.repairStatus) ||
+    activeTradeBlocker(unit.trashStatus)
+  ) {
+    return patch;
+  }
+
+  const next = { ...unit, paintStatus: 'Complete' as const };
+  return unitTradesComplete(next)
+    ? { ...patch, overallStatus: 'Inspection Needed', inspectionStatus: 'Ready' }
+    : { ...patch, overallStatus: 'Cleaning Ready' };
+};
+
+export const cleanCompletionPatch = (unit: Unit): ReversibleUnitPatch => {
+  const patch: ReversibleUnitPatch = { cleanStatus: 'Complete' };
+  if (tradeCompletionProtectedStatuses.has(unit.overallStatus)) {
+    return patch;
+  }
+
+  return unitTradesComplete({ ...unit, cleanStatus: 'Complete' })
+    ? { ...patch, overallStatus: 'Inspection Needed', inspectionStatus: 'Ready' }
+    : patch;
+};
+
+export const maintenanceNeededPatch = (unit: Unit): ReversibleUnitPatch => ({
+  repairStatus: 'Needed',
+  ...(maintenanceProtectedStatuses.has(unit.overallStatus) ? {} : { overallStatus: 'Maintenance Needed' }),
+});
 
 const unitCanBeReady = (unit: Unit, patch: Partial<Unit>) => {
   const next = { ...unit, ...patch };

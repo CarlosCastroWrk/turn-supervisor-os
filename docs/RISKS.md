@@ -13,6 +13,8 @@
 | Cloud photo objects are not deleted automatically | Medium | Open | Photo upload is additive and retryable. Avoid treating soft-removed metadata as secure erasure; object cleanup must wait for the delete/tombstone design and explicit production-data approval. |
 | Installed iPhone/iPad PWA behavior differs from desktop browser emulation | Medium | Guarded | Persistent Chromium restart, offline deep links, shell cache, icon metadata, and rotation policy pass automated tests. Los still must verify Home Screen icon, portrait/landscape rotation, and a fully closed airplane-mode restart on physical devices. |
 | Outdoor and assistive-technology behavior differs from browser automation | Medium | Guarded | Automated checks now cover 44px targets, contrast, labels, landmarks, progress semantics, route focus, and the Voice dialog keyboard trap. Los still must verify bright-light legibility and iOS VoiceOver on physical devices. |
+| An old Undo could overwrite a newer Unit edit | High | Guarded | Unit Undo tokens are bound to the exact post-update timestamp. Undo refuses to run if that Unit changed again, and a successful Undo is a new timestamped activity event rather than history deletion. |
+| A trade-completion shortcut could clear a harder Unit blocker | High | Closed | Shared paint/clean/maintenance transition helpers preserve access, hold, maintenance, rework, punch-list, and advanced inspection/ready states as appropriate. Repeated status taps are ignored without activity or sync churn. |
 | `localStorage` can fill up with large photo payloads | Medium | Closed | Normal compressed photo files now live in IndexedDB, legacy payloads migrate after confirmed writes, and only a capped emergency fallback can embed a small photo in the main app record. |
 | Corrupt local cache can hide field data | Medium | Guarded | Corrupt cache payloads are preserved under a recovery key before the app falls back to seed data. JSON backups remain the recovery path Los can use directly. |
 | Editable report drafts do not sync across devices | Medium | Closed | Los approved the `report_drafts` migration; report drafts now have a Supabase table, owner-scoped RLS, Realtime publication, and sync mapping. Same-row conflict review remains covered by the broader sync conflict risk. |
@@ -20,6 +22,7 @@
 | Restore-from-JSON could replace the wrong local device state | Medium | Guarded | In-app restore exists with backup-first and replacement confirmations. Photo payloads restored from JSON migrate into IndexedDB after load. |
 | Parser has no formal eval suite | Medium | Open | Add realistic field-note parser tests after device sync is no longer blocking. |
 | Sync status lacks enough field diagnostics | Medium | Closed | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error, and Los confirmed production devices settle on `Synced`. |
+| Users may assume every action can be undone | Low | Guarded | Only high-frequency Unit quick-status toasts expose Undo. Destructive and compound actions keep explicit confirmations or review-first flows. |
 | Vercel CLI was outdated locally | Low | Closed | Upgraded to `54.21.1` on 2026-07-07 after Los approved. |
 
 ## Product Scope Risks

@@ -5,7 +5,17 @@ import { PhotoCapture } from '../components/PhotoCapture';
 import { PhotoThumbnail } from '../components/PhotoThumbnail';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
-import { addIssueWithOptionalUnitBlock, addPhotoNote, unitTradesComplete, updateUnit } from '../lib/actions';
+import { useToast } from '../components/toast-context';
+import { useUndoableUnitUpdate } from '../hooks/useUndoableUnitUpdate';
+import {
+  addIssueWithOptionalUnitBlock,
+  addPhotoNote,
+  cleanCompletionPatch,
+  maintenanceNeededPatch,
+  paintCompletionPatch,
+  updateUnit,
+  type ReversibleUnitPatch,
+} from '../lib/actions';
 import { createId, formatTime, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, ISSUE_PRIORITIES, WORK_STATUSES } from '../lib/constants';
 import type { AppData, AppView, Issue, IssueCategory, IssuePriority, UnitWorkflowStatus, WorkStatus } from '../types';
@@ -18,6 +28,8 @@ interface UnitDetailViewProps {
 }
 
 export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetailViewProps) {
+  const { notify } = useToast();
+  const applyUnitUpdate = useUndoableUnitUpdate(setData);
   const unit = data.units.find((item) => item.id === unitId);
   const [quickNote, setQuickNote] = useState('');
   const [issueTitle, setIssueTitle] = useState('');
@@ -45,6 +57,10 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
     setData((current) => updateUnit(current, unit.id, patch, note));
   };
 
+  const updateStatusWithUndo = (patch: ReversibleUnitPatch, note: string, confirmation: string) => {
+    applyUnitUpdate(unit.id, patch, note, confirmation);
+  };
+
   const markReady = () => {
     const incompleteItems = [
       unit.paintStatus !== 'Complete' && unit.paintStatus !== 'Not Applicable' ? `paint: ${unit.paintStatus}` : '',
@@ -66,16 +82,18 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
         return;
       }
     }
-    updateStatus({ overallStatus: 'Ready', inspectionStatus: 'Complete' }, 'Marked unit ready.');
+    updateStatusWithUndo(
+      { overallStatus: 'Ready', inspectionStatus: 'Complete' },
+      'Marked unit ready.',
+      `Unit ${unit.unitNumber}: marked Ready.`,
+    );
   };
 
   const markCleanComplete = () => {
-    const readyForInspection = unitTradesComplete({ ...unit, cleanStatus: 'Complete' });
-    updateStatus(
-      readyForInspection
-        ? { cleanStatus: 'Complete', overallStatus: 'Inspection Needed', inspectionStatus: 'Ready' }
-        : { cleanStatus: 'Complete' },
+    updateStatusWithUndo(
+      cleanCompletionPatch(unit),
       'Marked clean complete.',
+      `Unit ${unit.unitNumber}: cleaning marked complete.`,
     );
   };
 
@@ -89,6 +107,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
     const nextNote = [unit.notes.trim(), `${timestamp} - ${note}`].filter(Boolean).join('\n');
     updateStatus({ notes: nextNote }, 'Added unit note.');
     setQuickNote('');
+    notify(`Note saved to Unit ${unit.unitNumber}.`, { tone: 'success' });
   };
 
   const logQuickIssue = () => {
@@ -123,6 +142,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
     setIssueTitle('');
     setIssueNotes('');
     setIssueBlocksUnit(false);
+    notify(`Issue added to Unit ${unit.unitNumber}.`, { tone: 'success' });
   };
 
   return (
@@ -147,9 +167,10 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
             className="quick-action"
             type="button"
             onClick={() =>
-              updateStatus(
-                { paintStatus: 'Complete', overallStatus: unit.cleanStatus === 'Complete' ? 'Inspection Needed' : 'Cleaning Ready' },
+              updateStatusWithUndo(
+                paintCompletionPatch(unit),
                 'Marked paint complete.',
+                `Unit ${unit.unitNumber}: paint marked complete.`,
               )
             }
           >
@@ -173,7 +194,13 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           <button
             className="quick-action"
             type="button"
-            onClick={() => updateStatus({ repairStatus: 'Needed', overallStatus: 'Maintenance Needed' }, 'Marked maintenance needed.')}
+            onClick={() =>
+              updateStatusWithUndo(
+                maintenanceNeededPatch(unit),
+                'Marked maintenance needed.',
+                `Unit ${unit.unitNumber}: maintenance marked needed.`,
+              )
+            }
           >
             <Wrench size={22} aria-hidden="true" />
             <span>

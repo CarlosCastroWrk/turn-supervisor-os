@@ -44,6 +44,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Trap and restore focus in Voice Capture and honor reduced-motion preferences.
   - [x] Verify labels, target sizes, contrast, keyboard flow, mobile overflow, and console health in rendered browser QA.
   - [ ] Verify outdoor legibility and iOS VoiceOver behavior on physical iPhone/iPad.
+- [x] G2 Undo And Toast System implementation.
+  - [x] Replace routine validation/copy/backup errors with nonblocking accessible feedback.
+  - [x] Keep reset, restore, archive/start, unsaved-change, Ready-override, and storage-failure confirmations blocking.
+  - [x] Add guarded Undo for Unit quick-status actions on the Units and Unit Detail views.
+  - [x] Refuse stale Undo after a later Unit edit and record successful Undo as a newer activity event.
+  - [x] Ignore repeated no-op taps and prevent paint/clean/repair quick actions from clearing harder Unit blockers.
+  - [x] Explain Issue create/status/remove outcomes without deleting issue history.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -82,7 +89,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] F1 IndexedDB Photo Store.
 - [x] F2 Supabase Storage Photo Sync. Real-device photo acceptance remains in the active gate.
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
-- [ ] G2 Undo And Toast System.
+- [x] G2 Undo And Toast System. Guarded Undo is intentionally limited to Unit quick-status changes.
 - [x] G3 PWA Install And Offline Startup. Physical iPhone/iPad acceptance remains in the active gate.
 - [x] G4 Accessibility And Field Contrast. Physical outdoor/VoiceOver acceptance remains open.
 - [ ] Add CSV unit import.

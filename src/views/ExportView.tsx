@@ -13,8 +13,9 @@ import {
   buildUnitsCsv,
   downloadTextFile,
 } from '../lib/exporters';
-import { getActiveProject, getProjectIssues, getProjectUnits } from '../lib/metrics';
+import { getActiveProject, getIssuesForProject, getUnitsForProject } from '../lib/metrics';
 import { buildJsonBackupWithLocalPhotos } from '../lib/photoBackup';
+import { getProjectDailyLogs, getProjectFollowUpTasks } from '../lib/projectScope';
 import type { AppData } from '../types';
 
 interface ExportViewProps {
@@ -26,6 +27,8 @@ export function ExportView({ data, setData }: ExportViewProps) {
   const { notify } = useToast();
   const date = new Date().toISOString().slice(0, 10);
   const project = getActiveProject(data);
+  const projectDailyLogs = getProjectDailyLogs(data, project.id);
+  const projectFollowUps = getProjectFollowUpTasks(data, project.id);
   const [backupTaken, setBackupTaken] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
@@ -121,7 +124,7 @@ export function ExportView({ data, setData }: ExportViewProps) {
     <div className="page">
       <div className="page-title">
         <div>
-          <span className="quiet-label">{project.mode === 'real' ? 'Real Turn backup' : 'Demo backup'}</span>
+          <span className="quiet-label">Current Turn exports + full backup</span>
           <h1>Export / Backup</h1>
         </div>
       </div>
@@ -135,39 +138,39 @@ export function ExportView({ data, setData }: ExportViewProps) {
               <small>All projects plus local photos; keep private</small>
             </span>
           </button>
-          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-units-${date}.csv`, buildUnitsCsv(getProjectUnits(data)), 'text/csv')}>
+          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-units-${date}.csv`, buildUnitsCsv(getUnitsForProject(data, project.id)), 'text/csv')}>
             <FileSpreadsheet size={26} aria-hidden="true" />
             <span>
               <strong>Units CSV</strong>
               <small>Status board export</small>
             </span>
           </button>
-          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-issues-${date}.csv`, buildIssuesCsv(getProjectIssues(data)), 'text/csv')}>
+          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-issues-${date}.csv`, buildIssuesCsv(getIssuesForProject(data, project.id)), 'text/csv')}>
             <FileSpreadsheet size={26} aria-hidden="true" />
             <span>
               <strong>Issues CSV</strong>
               <small>Open and closed issue tracker</small>
             </span>
           </button>
-          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-daily-logs-${date}.md`, buildDailyLogsMarkdown(data.dailyLogs), 'text/markdown')}>
+          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-daily-logs-${date}.md`, buildDailyLogsMarkdown(projectDailyLogs), 'text/markdown')}>
             <FileArchive size={26} aria-hidden="true" />
             <span>
-              <strong>Daily Logs Markdown</strong>
-              <small>Learning and reflection notes</small>
+              <strong>Current Turn Daily Logs</strong>
+              <small>{project.name} only</small>
             </span>
           </button>
-          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-copilot-memory-${date}.md`, buildCopilotMarkdown(data), 'text/markdown')}>
+          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-copilot-memory-${date}.md`, buildCopilotMarkdown(data, project.id), 'text/markdown')}>
             <FileArchive size={26} aria-hidden="true" />
             <span>
-              <strong>Copilot / Memory Markdown</strong>
-              <small>Drafts, memory, agent runs, conversations</small>
+              <strong>Current Turn Copilot / Memory</strong>
+              <small>{project.name} only</small>
             </span>
           </button>
-          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-follow-ups-${date}.csv`, buildFollowUpsCsv(data.followUpTasks), 'text/csv')}>
+          <button className="export-card" type="button" onClick={() => downloadTextFile(`turn-follow-ups-${date}.csv`, buildFollowUpsCsv(projectFollowUps), 'text/csv')}>
             <FileSpreadsheet size={26} aria-hidden="true" />
             <span>
-              <strong>Follow-Ups CSV</strong>
-              <small>Tasks created by Copilot or manually</small>
+              <strong>Current Turn Follow-Ups</strong>
+              <small>{project.name} only</small>
             </span>
           </button>
         </div>

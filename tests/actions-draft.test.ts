@@ -12,13 +12,13 @@ const baseDraft = (patch: Partial<DraftAction> = {}): DraftAction => ({
   title: 'Test draft',
   summary: 'Test draft summary',
   targetEntityType: 'unit',
-  payload: {},
   confidence: 0.9,
   why: 'Test',
   sourceText: 'Test source',
   status: 'pending',
   createdAt: '2026-07-07T12:00:00.000Z',
   ...patch,
+  payload: { captureProjectId: 'project_real', ...patch.payload },
 });
 
 const realUnit203 = (): Unit => ({
@@ -133,6 +133,8 @@ test('addDraftActions stamps a capture batch onto every draft payload', () => {
 
   assert.equal(next.draftActions[0].payload.captureBatchId, 'capture_batch_test');
   assert.equal(next.draftActions[1].payload.captureBatchId, 'capture_batch_test');
+  assert.equal(next.draftActions[0].payload.captureProjectId, 'project_real');
+  assert.equal(next.draftActions[1].payload.captureProjectId, 'project_real');
   assert.equal(next.draftActions[0].payload.captureSourceNote, '203 paint and clean done');
   assert.equal(typeof next.draftActions[0].payload.captureCreatedAt, 'string');
 });

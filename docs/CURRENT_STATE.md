@@ -16,6 +16,7 @@ Current release candidate:
 
 ```text
 E4 Project-Scoped Memory - code and local QA complete; production Supabase migration approval pending
+P0 Active Project Boundary - stacked on E4; code and local QA complete
 ```
 
 Production:
@@ -89,7 +90,9 @@ Every near-term change should serve that loop.
 - Voice-mode Capture UI with a mobile/iPad sheet, browser speech-recognition support where available, installed iPhone/iPad PWA keyboard-dictation fallback, no-transcript timeout fallback, short-pause restart handling, and no auto-opening keyboard on sheet open
 - Focused Capture field workflow that hides Ask/Memory modes from the visible Capture page, collapses older draft history, keeps raw JSON draft editing advanced-only, and shows where an approved draft was applied
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
+- Active-Turn Draft Action provenance that hides other-Turn history, refuses ambiguous/cross-project approvals, and prevents same-number Demo/Real Unit collisions
 - Export/backup tools for photo-complete JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
+- Current-Turn human-readable exports for Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups; the separately labeled full-device JSON backup intentionally keeps every project
 - Full-device JSON restore validation that rejects malformed collections, unsafe records, duplicate IDs, invalid photo payloads, empty projects, and pathological record counts before replacing local state
 
 ## What Real Turn Mode Currently Does
@@ -106,6 +109,7 @@ Every near-term change should serve that loop.
 
 - Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
 - Production activation of E4 project-scoped Memory until `20260709195302_add_memory_project_scope.sql` is explicitly approved and applied
+- Production activation of the stacked P0 Active Project Boundary release until E4 clears its migration gate
 - True conflict review for simultaneous same-row edits across devices
 - Delete propagation / tombstones for synced rows
 - Real-device verification that one captured photo reaches Los's other signed-in devices
@@ -179,4 +183,4 @@ Run the B3 real-device offline/reconnect and F2 photo checks before entering rea
 6. Confirm Mac and iPad receive the updates after reconnect.
 7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 
-While those physical-device checks are pending, the immediate release action is to obtain explicit approval for the additive E4 Supabase migration, apply it, merge the verified PR, deploy production, and run a focused cross-device Memory sync check.
+While those physical-device checks are pending, the immediate release action is to obtain explicit approval for the additive E4 Supabase migration, apply it, merge/deploy E4, then rebase and release the verified Active Project Boundary slice with focused Capture/export production smoke checks.

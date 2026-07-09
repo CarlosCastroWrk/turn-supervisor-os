@@ -32,6 +32,7 @@ import {
   todayISO,
 } from './constants';
 import { memoryAppliesToActiveProject, prepareMemoryCandidatesForActiveProject } from './memory';
+import { getDraftActionProjectId } from './projectScope';
 
 export interface RealTurnSetupInput {
   projectName: string;
@@ -511,6 +512,7 @@ export const addDraftActions = (data: AppData, draftActions: DraftAction[], sour
     ...draft,
     payload: {
       ...draft.payload,
+      captureProjectId: data.activeProjectId,
       captureBatchId: typeof draft.payload.captureBatchId === 'string' ? draft.payload.captureBatchId : batchId,
       captureCreatedAt,
       captureSourceNote: sourceNote,
@@ -667,6 +669,7 @@ export const addAgentRun = (data: AppData, mode: AppData['agentRuns'][number]['m
   agentRuns: [
     {
       id: createId('agent_run'),
+      projectId: data.activeProjectId,
       mode,
       input,
       output,
@@ -688,6 +691,7 @@ export const addCopilotConversation = (
   copilotConversations: [
     {
       id: createId('conversation_user'),
+      projectId: data.activeProjectId,
       role: 'user',
       content: question,
       supportingRecords: [],
@@ -696,6 +700,7 @@ export const addCopilotConversation = (
     },
     {
       id: createId('conversation_assistant'),
+      projectId: data.activeProjectId,
       role: 'assistant',
       content: answer,
       supportingRecords,
@@ -853,6 +858,19 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
     return data;
   }
 
+  const draftProjectId = getDraftActionProjectId(data, draft);
+  if (!draftProjectId) {
+    return failDraft(
+      data,
+      draft,
+      'This draft has no verifiable Turn or has conflicting project links. Reject it and capture the update again.',
+    );
+  }
+  if (draftProjectId !== data.activeProjectId) {
+    const projectName = data.projects.find((project) => project.id === draftProjectId)?.name ?? 'another Turn';
+    return failDraft(data, draft, `This draft belongs to ${projectName}. Switch to that Turn before approving it.`);
+  }
+
   let next: AppData = updateDraftAction(data, draft.id, { status: 'approved', error: undefined });
 
   if (draft.payload.requiresConflictConfirmation === true && draft.payload.explicitConflictConfirmation !== true) {
@@ -1006,6 +1024,8 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
   }
 
   if (draft.type === 'CREATE_FOLLOW_UP_TASK') {
+    const requestedRelatedEntityId = draft.targetEntityId || payloadString(draft.payload, 'relatedEntityId');
+    const requestedRelatedEntityType = payloadString(draft.payload, 'relatedEntityType') || draft.targetEntityType;
     const task: FollowUpTask = {
       id: createId('follow_up'),
       title: payloadString(draft.payload, 'title') || draft.title,
@@ -1013,8 +1033,8 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
       priority: (payloadString(draft.payload, 'priority') || 'Medium') as FollowUpTask['priority'],
       dueAt: payloadString(draft.payload, 'dueAt'),
       owner: payloadString(draft.payload, 'owner') || 'Los',
-      relatedEntityType: (payloadString(draft.payload, 'relatedEntityType') || draft.targetEntityType) as FollowUpTask['relatedEntityType'],
-      relatedEntityId: draft.targetEntityId,
+      relatedEntityType: (requestedRelatedEntityId ? requestedRelatedEntityType : 'project') as FollowUpTask['relatedEntityType'],
+      relatedEntityId: requestedRelatedEntityId || next.activeProjectId,
       status: 'open',
       createdAt: nowISO(),
     };

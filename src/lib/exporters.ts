@@ -1,6 +1,19 @@
 import type { ActivityLog, AppData, DailyLog, FollowUpTask, Issue, Project, Unit } from '../types';
 import { formatDate, todayISO } from './constants';
-import { getPriorityIssues, getProjectAssignments, getProjectIssues, getProjectUnits, getUnitSummary } from './metrics';
+import { isExplicitGlobalMemory } from './memory';
+import {
+  getAssignmentsForProject,
+  getIssuesForProject,
+  getPriorityIssues,
+  getUnitsForProject,
+  getUnitSummary,
+} from './metrics';
+import {
+  getProjectAgentRuns,
+  getProjectCopilotConversations,
+  getProjectDraftActions,
+  getProjectFollowUpTasks,
+} from './projectScope';
 
 const escapeCsv = (value: unknown) => {
   const raw = String(value ?? '');
@@ -92,15 +105,28 @@ export const buildFollowUpsCsv = (tasks: FollowUpTask[]) =>
     ],
   );
 
-export const buildCopilotMarkdown = (data: AppData) => `# Turn Supervisor OS Copilot Export
+export const buildCopilotMarkdown = (data: AppData, projectId = data.activeProjectId) => {
+  const project = data.projects.find((item) => item.id === projectId);
+  const draftActions = getProjectDraftActions(data, projectId);
+  const memoryCandidates = data.memoryCandidates.filter((candidate) => candidate.projectId === projectId);
+  const memories = data.memories.filter(
+    (memory) => memory.projectId === projectId || isExplicitGlobalMemory(memory),
+  );
+  const followUpTasks = getProjectFollowUpTasks(data, projectId);
+  const conversations = getProjectCopilotConversations(data, projectId);
+  const agentRuns = getProjectAgentRuns(data, projectId);
+
+  return `# Turn Supervisor OS Copilot Export
 
 Exported: ${new Date().toISOString()}
+Project: ${project?.name ?? projectId}
+Scope: Current Turn only. Use Full Device JSON Backup for complete recovery data.
 
 ## Draft Actions
 
 ${
-  data.draftActions.length > 0
-    ? data.draftActions
+  draftActions.length > 0
+    ? draftActions
         .map(
           (draft) => `### ${draft.title}
 
@@ -127,8 +153,8 @@ ${JSON.stringify(draft.payload, null, 2)}
 ## Memory Candidates
 
 ${
-  data.memoryCandidates.length > 0
-    ? data.memoryCandidates
+  memoryCandidates.length > 0
+    ? memoryCandidates
         .map(
           (candidate) => `- [${candidate.status}] ${candidate.memoryType}: ${candidate.content}
   - Source: ${candidate.source}
@@ -142,8 +168,8 @@ ${
 ## Approved Memories
 
 ${
-  data.memories.length > 0
-    ? data.memories
+  memories.length > 0
+    ? memories
         .map(
           (memory) => `- [${memory.approved ? 'active' : 'inactive'}] ${memory.memoryType}: ${memory.content}
   - Source: ${memory.source}
@@ -158,8 +184,8 @@ ${
 ## Follow-Up Tasks
 
 ${
-  data.followUpTasks.length > 0
-    ? data.followUpTasks
+  followUpTasks.length > 0
+    ? followUpTasks
         .map(
           (task) => `- [${task.status}] ${task.priority}: ${task.title}
   - Owner: ${task.owner || '-'}
@@ -174,8 +200,8 @@ ${
 ## Ask The OS Conversations
 
 ${
-  data.copilotConversations.length > 0
-    ? data.copilotConversations
+  conversations.length > 0
+    ? conversations
         .map(
           (message) => `### ${message.role} - ${message.createdAt}
 
@@ -195,13 +221,14 @@ ${message.suggestedNextActions.length > 0 ? message.suggestedNextActions.map((ac
 ## Agent Runs
 
 ${
-  data.agentRuns.length > 0
-    ? data.agentRuns
+  agentRuns.length > 0
+    ? agentRuns
         .map((run) => `- [${run.status}] ${run.mode} at ${run.createdAt}${run.error ? ` - ${run.error}` : ''}`)
         .join('\n')
     : '- No agent runs recorded.'
 }
 `;
+};
 
 export const buildDailyLogsMarkdown = (logs: DailyLog[]) =>
   logs
@@ -333,9 +360,10 @@ export interface DailyReportPreview {
 }
 
 export const buildDailyReportPreview = (data: AppData, project: Project, reportDate = todayISO(), dailyLog?: DailyLog): DailyReportPreview => {
-  const units = getProjectUnits(data);
-  const issues = getPriorityIssues(getProjectIssues(data));
-  const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === reportDate);
+  const scopedDailyLog = dailyLog?.projectId === project.id ? dailyLog : undefined;
+  const units = getUnitsForProject(data, project.id);
+  const issues = getPriorityIssues(getIssuesForProject(data, project.id));
+  const assignments = getAssignmentsForProject(data, project.id).filter((assignment) => assignment.date === reportDate);
   const summary = getUnitSummary(units);
   const activitySnapshot = buildDailyActivitySnapshot(data, project, reportDate);
   const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
@@ -348,14 +376,14 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
 
   return {
     title: 'Turn Supervisor Daily Report',
-    summary: dailyLog
+    summary: scopedDailyLog
       ? `${progressSummary} ${issueCount > 0 ? `${issueCount} priority issue${issueCount === 1 ? '' : 's'} still need follow-up.` : 'No high-priority open issues are logged.'}`
       : `Draft shell for ${formatDate(reportDate)}. ${progressSummary} Add a Daily Log before treating this as the final field report.`,
     reportDateLabel: formatDate(reportDate),
-    status: dailyLog
+    status: scopedDailyLog
       ? 'DRAFT - Saved daily log found for this date. Review before sending.'
       : 'DRAFT - Missing Daily Log for selected date. Do not send as a completed field report until this date has a saved Daily Log.',
-    isMissingDailyLog: !dailyLog,
+    isMissingDailyLog: !scopedDailyLog,
     propertyName: project.propertyName,
     projectName: project.name,
     supervisorName: project.supervisorName,
@@ -377,7 +405,7 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
       {
         title: 'Completed Today',
         subtitle: 'Progress recorded for this date',
-        items: reportLinesOrMissing(dailyLog?.completedSummary, 'completed summary'),
+        items: reportLinesOrMissing(scopedDailyLog?.completedSummary, 'completed summary'),
       },
       {
         title: 'Open Issues',
@@ -400,26 +428,27 @@ export const buildDailyReportPreview = (data: AppData, project: Project, reportD
       {
         title: 'Tomorrow Priorities',
         subtitle: 'Next-shift priorities',
-        items: reportLinesOrMissing(dailyLog?.tomorrowPriorities, 'tomorrow priorities'),
+        items: reportLinesOrMissing(scopedDailyLog?.tomorrowPriorities, 'tomorrow priorities'),
       },
       {
         title: 'Questions / Needs',
         subtitle: 'Blockers, decisions, or asks',
-        items: reportLinesOrMissing(dailyLog?.blockers, 'blockers or questions'),
+        items: reportLinesOrMissing(scopedDailyLog?.blockers, 'blockers or questions'),
       },
     ],
   };
 };
 
 export const buildDailyReport = (data: AppData, project: Project, reportDate = todayISO(), dailyLog?: DailyLog) => {
-  const units = getProjectUnits(data);
-  const issues = getPriorityIssues(getProjectIssues(data));
-  const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === reportDate);
+  const scopedDailyLog = dailyLog?.projectId === project.id ? dailyLog : undefined;
+  const units = getUnitsForProject(data, project.id);
+  const issues = getPriorityIssues(getIssuesForProject(data, project.id));
+  const assignments = getAssignmentsForProject(data, project.id).filter((assignment) => assignment.date === reportDate);
   const summary = getUnitSummary(units);
   const activitySnapshot = buildDailyActivitySnapshot(data, project, reportDate);
   const checkedIn = assignments.filter((assignment) => ['Checked In', 'In Progress', 'Complete'].includes(assignment.status));
   const missing = assignments.filter((assignment) => ['No Show', 'Delayed'].includes(assignment.status));
-  const reportStatus = dailyLog
+  const reportStatus = scopedDailyLog
     ? 'DRAFT - Saved daily log found for this date. Review before sending.'
     : 'DRAFT - Missing Daily Log for selected date. Do not send as a completed field report until this date has a saved Daily Log.';
 
@@ -441,7 +470,7 @@ Activity Snapshot (${formatDate(reportDate)}):
 ${activitySnapshot.items.map((item) => `- ${item}`).join('\n')}
 
 Completed Today:
-${reportFieldOrMissing(dailyLog?.completedSummary, 'completed summary')}
+${reportFieldOrMissing(scopedDailyLog?.completedSummary, 'completed summary')}
 
 Open Issues:
 ${
@@ -460,9 +489,9 @@ Crew Notes:
 - Reassigned: ${assignments.filter((assignment) => assignment.status === 'Reassigned').length}
 
 Tomorrow Priorities:
-${reportFieldOrMissing(dailyLog?.tomorrowPriorities, 'tomorrow priorities')}
+${reportFieldOrMissing(scopedDailyLog?.tomorrowPriorities, 'tomorrow priorities')}
 
 Questions / Needs:
-${reportFieldOrMissing(dailyLog?.blockers, 'blockers or questions')}
+${reportFieldOrMissing(scopedDailyLog?.blockers, 'blockers or questions')}
 `;
 };

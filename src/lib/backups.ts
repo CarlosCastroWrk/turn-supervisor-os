@@ -280,6 +280,7 @@ const memoryCandidateSchema = recordSchema.extend({
   updatedAt: text,
 });
 const agentRunSchema = recordSchema.extend({
+  projectId: nonEmptyText.optional(),
   mode: knownText(['quick_capture', 'ask_os', 'briefing', 'report', 'memory_extraction'], 'agent run mode'),
   input: text,
   output: z.unknown().optional(),
@@ -288,6 +289,7 @@ const agentRunSchema = recordSchema.extend({
   error: text.optional(),
 });
 const conversationSchema = recordSchema.extend({
+  projectId: nonEmptyText.optional(),
   role: knownText(['user', 'assistant'], 'conversation role'),
   content: text,
   supportingRecords: stringList,

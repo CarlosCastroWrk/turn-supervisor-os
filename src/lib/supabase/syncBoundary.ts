@@ -16,6 +16,7 @@ import type {
   Unit,
 } from '../../types';
 import { isExplicitGlobalMemory } from '../memory';
+import { createProjectScopeResolver } from '../projectScope';
 
 export type SyncBoundaryKey =
   | 'projects'
@@ -49,6 +50,8 @@ interface DemoSyncBoundary {
   demoDailyLogIds: Set<string>;
   demoReportDraftIds: Set<string>;
   demoActivityLogIds: Set<string>;
+  localOnlyDraftActionIds: Set<string>;
+  localOnlyFollowUpTaskIds: Set<string>;
 }
 
 const appendMissingRows = <T extends { id: string }>(remoteRows: T[] | undefined, localRows: T[]) => {
@@ -63,15 +66,21 @@ const isDemoEntityId = (boundary: DemoSyncBoundary, id: string | undefined) => {
   }
 
   return (
+    boundary.demoProjectIds.has(id) ||
     boundary.demoUnitIds.has(id) ||
     boundary.demoIssueIds.has(id) ||
     boundary.demoCrewMemberIds.has(id) ||
     boundary.demoBuildingIds.has(id) ||
-    boundary.demoFloorIds.has(id)
+    boundary.demoFloorIds.has(id) ||
+    boundary.demoAssignmentIds.has(id) ||
+    boundary.demoPhotoNoteIds.has(id) ||
+    boundary.demoDailyLogIds.has(id) ||
+    boundary.demoReportDraftIds.has(id)
   );
 };
 
 export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
+  const projectScope = createProjectScopeResolver(data);
   const demoProjectIds = new Set(data.projects.filter((project) => project.mode === 'demo').map((project) => project.id));
   const demoBuildingIds = new Set(
     data.buildings.filter((building) => demoProjectIds.has(building.projectId)).map((building) => building.id),
@@ -97,6 +106,22 @@ export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
   const demoActivityLogIds = new Set(
     data.activityLogs.filter((log) => demoProjectIds.has(log.projectId)).map((log) => log.id),
   );
+  const localOnlyDraftActionIds = new Set(
+    data.draftActions
+      .filter((draft) => {
+        const projectId = projectScope.draftActionProjectId(draft);
+        return !projectId || demoProjectIds.has(projectId);
+      })
+      .map((draft) => draft.id),
+  );
+  const localOnlyFollowUpTaskIds = new Set(
+    data.followUpTasks
+      .filter((task) => {
+        const projectId = projectScope.followUpTaskProjectId(task);
+        return !projectId || demoProjectIds.has(projectId);
+      })
+      .map((task) => task.id),
+  );
 
   return {
     demoProjectIds,
@@ -110,6 +135,8 @@ export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
     demoDailyLogIds,
     demoReportDraftIds,
     demoActivityLogIds,
+    localOnlyDraftActionIds,
+    localOnlyFollowUpTaskIds,
   };
 };
 
@@ -142,8 +169,7 @@ export const isDemoScopedSyncItem = (
     case 'activityLogs':
       return boundary.demoActivityLogIds.has(item.id);
     case 'draftActions': {
-      const draft = item as DraftAction;
-      return isDemoEntityId(boundary, draft.targetEntityId);
+      return boundary.localOnlyDraftActionIds.has(item.id);
     }
     case 'memories': {
       const memory = item as Memory;
@@ -160,8 +186,7 @@ export const isDemoScopedSyncItem = (
       return !candidate.projectId || boundary.demoProjectIds.has(candidate.projectId);
     }
     case 'followUpTasks': {
-      const task = item as FollowUpTask;
-      return isDemoEntityId(boundary, task.relatedEntityId);
+      return boundary.localOnlyFollowUpTaskIds.has(item.id);
     }
     case 'trainingQuestions':
       return false;

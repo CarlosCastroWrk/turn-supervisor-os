@@ -205,7 +205,7 @@ Pass:
 - A failed upload stays retryable and does not block ordinary record sync.
 - No duplicate photo record appears after repeated `Sync now` taps.
 
-### 5C. Project-Scoped Memory
+### 5D. Project-Scoped Memory
 
 - [ ] In Demo Mode, Capture an obvious QA lesson and confirm Setup shows it under `Needs approval` for the Demo project.
 - [ ] Approve it, switch to a Real Turn, and confirm the Demo lesson is absent while explicit `All Turns` personal/safety rules remain.
@@ -221,6 +221,23 @@ Pass:
 - Only approved current-project Memory and explicit global personal/safety rules affect output.
 - Demo, archived, unapproved, rejected, missing-source, other-project, and legacy unscoped operational Memory do not affect the active Turn.
 - Repeating the same captured fact does not create a duplicate candidate or duplicate approved Memory.
+
+### 5E. Active Project Boundary
+
+- [ ] Create or use obvious Demo and Real Turn QA records with the same Unit number.
+- [ ] In Demo Mode, Capture one pending Unit draft and one generic follow-up, then switch to the Real Turn.
+- [ ] Confirm the Demo drafts are absent from Real Turn Capture history.
+- [ ] Capture and approve the same Unit number in Real Turn; confirm only the Real Turn Unit changes.
+- [ ] Export Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups from Real Turn using obvious `REAL_`/`DEMO_` sentinel text.
+- [ ] Confirm every human-readable export contains only `REAL_` records.
+- [ ] Export Full Device JSON Backup and confirm both `REAL_` and `DEMO_` records remain present for recovery.
+
+Pass:
+
+- Same-number Demo and Real Turn Units cannot be crossed by Draft approval.
+- Switching Turns immediately changes visible Capture history.
+- Human-readable files are current-Turn only; full-device backup remains intentionally complete.
+- Demo or unverifiable drafts and follow-ups are not uploaded as Real Turn cloud work.
 
 ### 6. Reset / Delete Safety
 

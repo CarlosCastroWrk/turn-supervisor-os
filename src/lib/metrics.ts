@@ -10,14 +10,22 @@ export const getActiveProject = (data: AppData): Project => {
   return project ?? visibleProjects[0] ?? data.projects[0];
 };
 
-export const getProjectUnits = (data: AppData) => data.units.filter((unit) => unit.projectId === data.activeProjectId);
-export const getProjectBuildings = (data: AppData) =>
-  data.buildings.filter((building) => building.projectId === data.activeProjectId);
-export const getProjectIssues = (data: AppData) => data.issues.filter((issue) => issue.projectId === data.activeProjectId);
-export const getProjectAssignments = (data: AppData) =>
-  data.assignments.filter((assignment) => assignment.projectId === data.activeProjectId);
-export const getProjectCrewMembers = (data: AppData) =>
-  data.crewMembers.filter((crew) => crew.projectId === data.activeProjectId);
+export const getUnitsForProject = (data: AppData, projectId: string) =>
+  data.units.filter((unit) => unit.projectId === projectId);
+export const getBuildingsForProject = (data: AppData, projectId: string) =>
+  data.buildings.filter((building) => building.projectId === projectId);
+export const getIssuesForProject = (data: AppData, projectId: string) =>
+  data.issues.filter((issue) => issue.projectId === projectId);
+export const getAssignmentsForProject = (data: AppData, projectId: string) =>
+  data.assignments.filter((assignment) => assignment.projectId === projectId);
+export const getCrewMembersForProject = (data: AppData, projectId: string) =>
+  data.crewMembers.filter((crew) => crew.projectId === projectId);
+
+export const getProjectUnits = (data: AppData) => getUnitsForProject(data, data.activeProjectId);
+export const getProjectBuildings = (data: AppData) => getBuildingsForProject(data, data.activeProjectId);
+export const getProjectIssues = (data: AppData) => getIssuesForProject(data, data.activeProjectId);
+export const getProjectAssignments = (data: AppData) => getAssignmentsForProject(data, data.activeProjectId);
+export const getProjectCrewMembers = (data: AppData) => getCrewMembersForProject(data, data.activeProjectId);
 
 export const isBlockedUnit = (unit: Unit) =>
   unit.overallStatus.includes('Blocked') ||

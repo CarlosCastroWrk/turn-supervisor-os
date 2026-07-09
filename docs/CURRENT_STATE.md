@@ -73,7 +73,7 @@ Every near-term change should serve that loop.
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
-- Voice-mode Capture UI with a mobile/iPad sheet, browser speech-recognition support where available, short-pause restart handling, and clear iPhone/iPad keyboard dictation fallback without auto-opening the keyboard on sheet open
+- Voice-mode Capture UI with a mobile/iPad sheet, browser speech-recognition support where available, installed iPhone/iPad PWA keyboard-dictation fallback, no-transcript timeout fallback, short-pause restart handling, and no auto-opening keyboard on sheet open
 - Focused Capture field workflow that hides Ask/Memory modes from the visible Capture page, collapses older draft history, keeps raw JSON draft editing advanced-only, and shows where an approved draft was applied
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
 - Export/backup tools for JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV

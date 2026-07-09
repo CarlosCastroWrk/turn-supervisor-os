@@ -186,6 +186,7 @@ Pass:
 - [ ] Confirm the bottom-right Capture button is available across tabs.
 - [ ] Confirm Capture is not duplicated in the bottom nav.
 - [ ] Confirm Capture opens as a focused capture/review flow, with older draft history collapsed by default.
+- [ ] In installed iPhone/iPad PWA mode, open Voice Mode and confirm it offers keyboard mic fallback instead of waiting on a blank browser transcript.
 - [ ] Confirm iPad sidebar opens/closes cleanly.
 - [ ] Confirm no horizontal overflow.
 - [ ] Confirm bottom navigation and secondary navigation are reachable.

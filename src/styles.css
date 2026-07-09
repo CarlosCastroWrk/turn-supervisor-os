@@ -1950,6 +1950,10 @@ small {
   animation-play-state: paused;
 }
 
+.voice-sheet:not(.is-recording) .voice-orb-wrap > span {
+  display: none;
+}
+
 .voice-session-meta {
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -2563,7 +2567,37 @@ small {
   }
 
   .voice-sheet {
+    max-height: calc(100dvh - 72px);
+    gap: 10px;
     border-radius: 22px 22px 0 0;
+    padding: 8px 14px 14px;
+  }
+
+  .voice-orb-wrap {
+    width: 92px;
+    height: 92px;
+  }
+
+  .voice-orb {
+    width: 58px;
+    height: 58px;
+  }
+
+  .voice-session-meta {
+    padding: 7px 10px;
+  }
+
+  .voice-sheet-meter {
+    min-height: 26px;
+  }
+
+  .voice-transcript-panel {
+    min-height: 118px;
+    padding: 12px;
+  }
+
+  .voice-transcript-panel textarea {
+    min-height: 118px;
   }
 
   .voice-sheet-actions {

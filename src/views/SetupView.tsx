@@ -316,16 +316,36 @@ export function SetupView({ data, setData }: SetupViewProps) {
           </div>
           <div className="grid four">
             <Field label="Estimated buildings">
-              <NumberInput min={0} value={project.estimatedBuildings} onValueChange={(estimatedBuildings) => saveField({ estimatedBuildings })} />
+              <NumberInput
+                draftKey={`project:${project.id}:estimatedBuildings`}
+                min={0}
+                value={project.estimatedBuildings}
+                onValueChange={(estimatedBuildings) => saveField({ estimatedBuildings })}
+              />
             </Field>
             <Field label="Estimated units">
-              <NumberInput min={0} value={project.estimatedUnits} onValueChange={(estimatedUnits) => saveField({ estimatedUnits })} />
+              <NumberInput
+                draftKey={`project:${project.id}:estimatedUnits`}
+                min={0}
+                value={project.estimatedUnits}
+                onValueChange={(estimatedUnits) => saveField({ estimatedUnits })}
+              />
             </Field>
             <Field label="Estimated beds">
-              <NumberInput min={0} value={project.estimatedBeds} onValueChange={(estimatedBeds) => saveField({ estimatedBeds })} />
+              <NumberInput
+                draftKey={`project:${project.id}:estimatedBeds`}
+                min={0}
+                value={project.estimatedBeds}
+                onValueChange={(estimatedBeds) => saveField({ estimatedBeds })}
+              />
             </Field>
             <Field label="Estimated common areas">
-              <NumberInput min={0} value={project.estimatedCommonAreas} onValueChange={(estimatedCommonAreas) => saveField({ estimatedCommonAreas })} />
+              <NumberInput
+                draftKey={`project:${project.id}:estimatedCommonAreas`}
+                min={0}
+                value={project.estimatedCommonAreas}
+                onValueChange={(estimatedCommonAreas) => saveField({ estimatedCommonAreas })}
+              />
             </Field>
           </div>
           <Field label="Notes">

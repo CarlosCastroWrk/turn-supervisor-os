@@ -192,30 +192,76 @@ interface NumberInputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange' | 'inputMode' | 'pattern'> {
   value: number;
   onValueChange: (value: number) => void;
+  draftKey?: string;
   min?: number;
   max?: number;
 }
 
-export function NumberInput({ value, onValueChange, min = 0, max, onBlur, onFocus, ...props }: NumberInputProps) {
-  const [draft, setDraft] = useState(String(value));
-  const [focused, setFocused] = useState(false);
+export function NumberInput({
+  value,
+  onValueChange,
+  draftKey,
+  min = 0,
+  max,
+  onBlur,
+  onFocus,
+  onKeyDown,
+  ...props
+}: NumberInputProps) {
+  const [draft, setDraft] = useState(() => (draftKey ? readSessionDraft(draftKey, String(value)) : String(value)));
+  const draftRef = useRef(draft);
+  const valueRef = useRef(value);
+  const baseValueRef = useRef(String(value));
+  const draftKeyRef = useRef(draftKey);
+  const focusedRef = useRef(false);
 
   useEffect(() => {
-    if (!focused) {
-      setDraft(String(value));
+    const keyChanged = draftKeyRef.current !== draftKey;
+    draftKeyRef.current = draftKey;
+    valueRef.current = value;
+
+    if (keyChanged || !focusedRef.current) {
+      const currentValue = String(value);
+      const nextDraft = draftKey ? readSessionDraft(draftKey, currentValue) : currentValue;
+      baseValueRef.current = currentValue;
+      draftRef.current = nextDraft;
+      setDraft(nextDraft);
     }
-  }, [focused, value]);
+  }, [draftKey, value]);
 
   const commitDraft = () => {
-    const nextDraft = canonicalIntegerDraft(draft, { min, max });
+    const currentValue = String(valueRef.current);
+    if (currentValue !== baseValueRef.current) {
+      if (draftKeyRef.current) {
+        getSessionDraftStore()?.clear(draftKeyRef.current);
+      }
+      baseValueRef.current = currentValue;
+      draftRef.current = currentValue;
+      setDraft(currentValue);
+      return;
+    }
+
+    const nextDraft = canonicalIntegerDraft(draftRef.current, { min, max });
     const nextValue = integerValueFromDraft(nextDraft, { min, max });
+    draftRef.current = nextDraft;
     setDraft(nextDraft);
-    onValueChange(nextValue);
+    if (draftKeyRef.current) {
+      getSessionDraftStore()?.clear(draftKeyRef.current);
+    }
+    if (nextValue !== valueRef.current) {
+      onValueChange(nextValue);
+    }
+    valueRef.current = nextValue;
+    baseValueRef.current = nextDraft;
   };
 
   const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
-    setFocused(true);
-    if (value === 0) {
+    focusedRef.current = true;
+    baseValueRef.current = String(valueRef.current);
+    if (draftRef.current !== String(valueRef.current)) {
+      event.currentTarget.select();
+    } else if (valueRef.current === 0) {
+      draftRef.current = '';
       setDraft('');
     } else {
       event.currentTarget.select();
@@ -224,9 +270,16 @@ export function NumberInput({ value, onValueChange, min = 0, max, onBlur, onFocu
   };
 
   const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
-    setFocused(false);
+    focusedRef.current = false;
     commitDraft();
     onBlur?.(event);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    onKeyDown?.(event);
+    if (!event.defaultPrevented && event.key === 'Enter') {
+      event.currentTarget.blur();
+    }
   };
 
   return (
@@ -241,12 +294,19 @@ export function NumberInput({ value, onValueChange, min = 0, max, onBlur, onFocu
       onBlur={handleBlur}
       onChange={(event) => {
         const nextDraft = sanitizeIntegerDraft(event.target.value);
+        draftRef.current = nextDraft;
         setDraft(nextDraft);
-        if (nextDraft) {
-          onValueChange(integerValueFromDraft(nextDraft, { min, max }));
+        if (draftKeyRef.current) {
+          const store = getSessionDraftStore();
+          if (nextDraft === String(valueRef.current)) {
+            store?.clear(draftKeyRef.current);
+          } else {
+            store?.write(draftKeyRef.current, baseValueRef.current, nextDraft);
+          }
         }
       }}
       onFocus={handleFocus}
+      onKeyDown={handleKeyDown}
     />
   );
 }

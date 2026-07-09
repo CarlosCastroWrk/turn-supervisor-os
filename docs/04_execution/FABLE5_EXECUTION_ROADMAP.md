@@ -179,6 +179,24 @@ Acceptance:
 - A same-session reload restores an interrupted draft without treating it as saved field truth.
 - Project, Unit, Issue, Crew, Assignment, training, and Memory text editors use the shared behavior.
 
+### A9. Numeric Commit-On-Blur Fields
+
+Status: implemented in the P0 Numeric Commit-On-Blur release candidate.
+
+Scope:
+
+- Keep existing-record Project estimate and Unit bed/bath edits local to the focused number field.
+- Reuse the session-draft safety boundary so an interrupted multi-digit edit can be recovered only while its authoritative value remains unchanged.
+- Canonicalize and commit once on blur or Enter without creating an activity event for an unchanged value.
+- Preserve transient Setup and quick-creation number behavior when the user moves directly from a field to its submit button.
+
+Acceptance:
+
+- A multi-digit existing-record edit creates zero AppData activity while focused and exactly one activity event and one full-state write on commit.
+- Enter commits the canonical number and clears its session draft.
+- The rendered Setup flow still creates the expected 300-unit project after multi-field numeric entry.
+- Existing leading-zero, blank-draft, minimum, maximum, and pasted-number safety tests remain green.
+
 ## Phase B: Real Turn Cleanup And Sync Boundaries
 
 These slices clean up test noise and reduce resurrection/duplication risks.

@@ -176,6 +176,28 @@ try {
   await assertNoHorizontalOverflow(setupPage, 'desktop-setup');
   const setupScreenshot = path.join(screenshotDirectory, 'desktop-setup.png');
   await setupPage.screenshot({ path: setupScreenshot, fullPage: false });
+
+  await setupPage.getByLabel('Building name').fill('QA Quick Annex');
+  await setupPage.getByLabel('Floors', { exact: true }).fill('11');
+  await setupPage.getByLabel('First unit').fill('1101');
+  await setupPage.getByLabel('Units per floor').fill('12');
+  await setupPage.getByLabel('Beds per unit').fill('4');
+  await setupPage.getByLabel('Baths per unit').fill('3');
+  await setupPage.getByRole('button', { name: 'Create Units', exact: true }).click();
+  await waitForStoredUnitCount(setupPage, 312);
+  const quickCreationResult = await setupPage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const building = stored.buildings.find(
+      (item) => item.projectId === stored.activeProjectId && item.name === 'QA Quick Annex',
+    );
+    const units = stored.units.filter((item) => item.buildingId === building?.id);
+    return {
+      bathroomCounts: [...new Set(units.map((item) => item.bathroomCount))],
+      bedCounts: [...new Set(units.map((item) => item.bedCount))],
+      unitCount: units.length,
+    };
+  }, storageKey);
+  assert.deepEqual(quickCreationResult, { bathroomCounts: [3], bedCounts: [4], unitCount: 12 });
   assert.deepEqual(setupConsoleFindings, [], `Setup console findings:\n${setupConsoleFindings.join('\n')}`);
   await setupContext.close();
 
@@ -327,6 +349,64 @@ try {
   assert.equal(recoveryResult.projectName, interruptedProjectName);
   assert.equal(recoveryResult.activityCount, activityBeforeTyping + 3);
   assert.equal(recoveryResult.storageWrites, 1);
+
+  const estimatedUnitsInput = recoveredTurnProjectSection.getByLabel('Estimated units');
+  assert.equal(await estimatedUnitsInput.count(), 1);
+  await largePage.evaluate(() => {
+    window.__pdsStorageWriteCount = 0;
+  });
+  const activityBeforeNumericTyping = recoveryResult.activityCount;
+  await estimatedUnitsInput.fill('1250');
+  await largePage.waitForTimeout(600);
+  const beforeNumericCommit = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const project = stored.projects.find((item) => item.id === stored.activeProjectId);
+    return {
+      activityCount: stored.activityLogs.length,
+      estimatedUnits: project?.estimatedUnits,
+      storageWrites: window.__pdsStorageWriteCount,
+    };
+  }, storageKey);
+  assert.equal(await estimatedUnitsInput.inputValue(), '1250');
+  assert.equal(beforeNumericCommit.estimatedUnits, 1000);
+  assert.equal(beforeNumericCommit.activityCount, activityBeforeNumericTyping);
+  assert.equal(beforeNumericCommit.storageWrites, 0);
+
+  await largePage.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'));
+  });
+  const storedBeforeNumericReload = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    return stored.projects.find((item) => item.id === stored.activeProjectId)?.estimatedUnits;
+  }, storageKey);
+  assert.equal(storedBeforeNumericReload, 1000);
+
+  await largePage.reload({ waitUntil: 'networkidle' });
+  await largePage.getByRole('heading', { name: 'Project Setup' }).waitFor();
+  const numericTurnProjectSection = largePage
+    .locator('.section')
+    .filter({ has: largePage.getByRole('heading', { name: 'Turn Project', exact: true }) });
+  const recoveredEstimatedUnitsInput = numericTurnProjectSection.getByLabel('Estimated units');
+  assert.equal(await recoveredEstimatedUnitsInput.count(), 1);
+  assert.equal(await recoveredEstimatedUnitsInput.inputValue(), '1250');
+  await largePage.evaluate(() => {
+    window.__pdsStorageWriteCount = 0;
+  });
+  await recoveredEstimatedUnitsInput.focus();
+  await recoveredEstimatedUnitsInput.press('Enter');
+  await largePage.waitForTimeout(700);
+  const numericCommitResult = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const project = stored.projects.find((item) => item.id === stored.activeProjectId);
+    return {
+      activityCount: stored.activityLogs.length,
+      estimatedUnits: project?.estimatedUnits,
+      storageWrites: window.__pdsStorageWriteCount,
+    };
+  }, storageKey);
+  assert.equal(numericCommitResult.estimatedUnits, 1250);
+  assert.equal(numericCommitResult.activityCount, activityBeforeNumericTyping + 1);
+  assert.equal(numericCommitResult.storageWrites, 1);
   await assertNoHorizontalOverflow(largePage, 'iphone-commit-on-blur');
   const committedFieldScreenshot = path.join(screenshotDirectory, 'iphone-commit-on-blur.png');
   await recoveredProjectNameInput.screenshot({ path: committedFieldScreenshot });
@@ -337,6 +417,12 @@ try {
     `${JSON.stringify({
       largeLoadMs: Math.round(largeLoadMs),
       largeStateCharacters: largeState.length,
+      quickCreation: quickCreationResult,
+      numericPersistence: {
+        activityEntriesAdded: numericCommitResult.activityCount - activityBeforeNumericTyping,
+        recoveredDraft: true,
+        storageWrites: numericCommitResult.storageWrites,
+      },
       persistence: {
         activityEntriesAdded,
         pagehideWrites: pagehideResult.storageWrites,

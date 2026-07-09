@@ -368,10 +368,16 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
 
           <div className="grid two">
             <Field label="Beds">
-              <NumberInput min={0} value={unit.bedCount} onValueChange={(bedCount) => updateStatus({ bedCount }, 'Changed bed count.')} />
+              <NumberInput
+                draftKey={`unit:${unit.id}:bedCount`}
+                min={0}
+                value={unit.bedCount}
+                onValueChange={(bedCount) => updateStatus({ bedCount }, 'Changed bed count.')}
+              />
             </Field>
             <Field label="Bathrooms">
               <NumberInput
+                draftKey={`unit:${unit.id}:bathroomCount`}
                 min={0}
                 value={unit.bathroomCount}
                 onValueChange={(bathroomCount) => updateStatus({ bathroomCount }, 'Changed bathroom count.')}

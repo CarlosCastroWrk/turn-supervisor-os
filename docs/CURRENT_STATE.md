@@ -17,6 +17,7 @@ Current release candidate:
 ```text
 E4 Project-Scoped Memory - code and local QA complete; production Supabase migration approval pending
 P0 Active Project Boundary - stacked on E4; code and local QA complete
+Field-Scale Regression Gate - stacked on the project boundary; 300-unit rendered and 1,000-unit/10,000-event deterministic QA complete
 ```
 
 Production:
@@ -94,6 +95,7 @@ Every near-term change should serve that loop.
 - Export/backup tools for photo-complete JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
 - Current-Turn human-readable exports for Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups; the separately labeled full-device JSON backup intentionally keeps every project
 - Full-device JSON restore validation that rejects malformed collections, unsafe records, duplicate IDs, invalid photo payloads, empty projects, and pathological record counts before replacing local state
+- A repeatable field-scale gate that creates 300 units through Setup, renders 100 units at a time across desktop/iPad/iPhone layouts, and validates Capture, Reports, export, backup restore, 1,000 units, 100 blockers, 500 ready units, and 10,000 activity events
 
 ## What Real Turn Mode Currently Does
 
@@ -118,7 +120,7 @@ Every near-term change should serve that loop.
 - Physical iPhone/iPad verification in bright light and with VoiceOver enabled
 - General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
 - Multi-user mode
-- Automated browser regression suite
+- A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
 - Server-side AI provider route
 - Durable recorded-audio transcription pipeline
 - Company product features

@@ -16,10 +16,36 @@ Run before reporting a code or release slice as verified:
 
 ```bash
 npm run test:sync
+npm run test:field-scale
 npm run lint
 npm run check:os
 npm run build
 ```
+
+## Automated Field-Scale Gate
+
+Run after changes to Setup, Units, Capture, Reports, exports, backups, storage, or large-list behavior:
+
+```bash
+npm run test:field-scale
+```
+
+The gate uses disposable local QA data only. It verifies:
+
+- a 300-unit Real Turn created through the rendered Setup flow;
+- Demo/Real separation and 100-at-a-time Unit rendering;
+- Unit search and global Capture access;
+- desktop, iPad-landscape, and iPhone layouts without horizontal overflow or console errors;
+- a 1,000-unit state with 10,000 activity events under 4x CPU throttling;
+- large-state Report rendering and an honest missing-Daily-Log warning.
+
+Baseline recorded July 9, 2026:
+
+- 300-unit Unit boards loaded in about 0.6 seconds in local Chromium at all three viewports.
+- The 1,000-unit board loaded in about 1.2 seconds under 4x CPU throttling.
+- The 1,000-unit / 10,000-event AppData payload was 3,046,822 JSON characters before photo files.
+
+These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
 
 Use Supabase checks only when working on migrations or sync setup:
 

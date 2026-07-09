@@ -523,6 +523,8 @@ These slices harden the app once core field use is stable.
 
 ### G1. Activity Log Pruning And Pull Pagination
 
+Status: pull pagination is implemented; bounded activity retention remains open. The automated field-scale baseline validates 10,000 events but records a 3,046,822-character AppData payload before photo files.
+
 Scope:
 
 - Avoid Supabase 1000-row pull caps.

@@ -148,3 +148,7 @@
 - Added deterministic coverage for 300-unit Real Turn generation plus a 1,000-unit state containing 500 ready units, 100 blocked units/issues, 200 active units, 100 inspection units, 100 not-started units, and 10,000 activity events.
 - Added a rendered browser gate that creates the 300-unit Turn through Setup, verifies the 100-at-a-time Unit board and search across desktop/iPad/iPhone, and loads the 1,000-unit/10,000-event board under 4x CPU throttling.
 - Measured about 0.6 seconds for the 300-unit board at each viewport and about 1.2 seconds for the throttled 1,000-unit board; the large AppData payload was 3,046,822 JSON characters. Reports, Capture targeting, CSV, backup restore, overflow, and console checks passed.
+- Started P0 Storage Write Coalescing on `codex/storage-write-coalescing`, stacked on the field-scale regression gate.
+- Added a reusable latest-value persistence queue with a 500 ms bounded write interval, immediate background/pagehide/unmount flushes, and pending-write cancellation before local device reset.
+- Under 4x CPU throttling with a 3,046,822-character state, 26 rapid project-field updates produced 7 full localStorage writes instead of 26; a synthetic pagehide persisted the newest pending value in one immediate write.
+- Kept commit-on-blur activity cleanup open as the next slice because the same stress pass still recorded 26 activity entries for 26 project-name field updates.

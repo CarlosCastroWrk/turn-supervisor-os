@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
+import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
 import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
+export const APP_DATA_SAVE_INTERVAL_MS = 500;
 
 export const hasStoredAppData = () => Boolean(window.localStorage.getItem(STORAGE_KEY));
 
@@ -48,7 +50,10 @@ export const saveAppData = (data: AppData) => {
   }
 };
 
+const appDataWriter = createCoalescedWriter(saveAppData, APP_DATA_SAVE_INTERVAL_MS);
+
 export const clearAppData = async () => {
+  appDataWriter.cancel();
   window.localStorage.removeItem(STORAGE_KEY);
   try {
     await clearPhotoBlobs();
@@ -100,9 +105,29 @@ export const usePersistentAppData = () => {
   }, [data.photoNotes]);
 
   useEffect(() => {
-    saveAppData(data);
+    appDataWriter.schedule(data);
     setHasStoredData(true);
   }, [data]);
+
+  useEffect(() => {
+    const flushPendingData = () => {
+      appDataWriter.flush();
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingData();
+      }
+    };
+
+    window.addEventListener('pagehide', flushPendingData);
+    document.addEventListener('visibilitychange', flushWhenHidden);
+
+    return () => {
+      window.removeEventListener('pagehide', flushPendingData);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+      flushPendingData();
+    };
+  }, []);
 
   return useMemo(() => ({ data, setData, hasStoredData }), [data, hasStoredData]);
 };

@@ -89,8 +89,20 @@ const waitForStoredUnitCount = (page, expected) =>
     { key: storageKey, unitCount: expected },
   );
 
-const loadStoredContext = async (browser, viewport, storedState) => {
+const loadStoredContext = async (browser, viewport, storedState, trackStorageWrites = false) => {
   const context = await browser.newContext({ viewport });
+  if (trackStorageWrites) {
+    await context.addInitScript((key) => {
+      const setItem = Storage.prototype.setItem;
+      window.__pdsStorageWriteCount = 0;
+      Storage.prototype.setItem = function instrumentedSetItem(storageKey, value) {
+        if (storageKey === key) {
+          window.__pdsStorageWriteCount += 1;
+        }
+        return setItem.call(this, storageKey, value);
+      };
+    }, storageKey);
+  }
   await context.addInitScript(
     ({ key, value }) => window.localStorage.setItem(key, value),
     { key: storageKey, value: storedState },
@@ -173,7 +185,7 @@ try {
   }
 
   const largeState = JSON.stringify(scaleState(20, 50, 10_000));
-  const largeContext = await loadStoredContext(browser, { width: 390, height: 844 }, largeState);
+  const largeContext = await loadStoredContext(browser, { width: 390, height: 844 }, largeState, true);
   const largePage = await largeContext.newPage();
   const cdp = await largeContext.newCDPSession(largePage);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
@@ -200,6 +212,58 @@ try {
   await largePage.waitForTimeout(500);
   const largeScreenshot = path.join(screenshotDirectory, 'iphone-1000-report.png');
   await largePage.screenshot({ path: largeScreenshot, fullPage: false });
+
+  await largePage.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  await largePage.getByRole('heading', { name: 'Project Setup' }).waitFor();
+  const turnProjectHeading = largePage.getByRole('heading', { name: 'Turn Project', exact: true });
+  const turnProjectSection = largePage.locator('.section').filter({ has: turnProjectHeading });
+  const projectNameInput = turnProjectSection.getByLabel('Project name');
+  assert.equal(await projectNameInput.count(), 1);
+  await largePage.evaluate(() => {
+    window.__pdsStorageWriteCount = 0;
+  });
+  const activityBeforeTyping = await largePage.evaluate((key) =>
+    JSON.parse(window.localStorage.getItem(key)).activityLogs.length,
+  storageKey);
+  const replacementProjectName = 'QA Coalesced Storage Turn';
+  const typingStartedAt = performance.now();
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await projectNameInput.fill('');
+  await projectNameInput.type(replacementProjectName, { delay: 5 });
+  await largePage.waitForTimeout(1_000);
+  const typingMs = performance.now() - typingStartedAt;
+  const persistenceResult = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const project = stored.projects.find((item) => item.id === stored.activeProjectId);
+    return {
+      activityCount: stored.activityLogs.length,
+      projectName: project?.name,
+      storageWrites: window.__pdsStorageWriteCount,
+    };
+  }, storageKey);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+
+  assert.equal(persistenceResult.projectName, replacementProjectName);
+  const activityEntriesAdded = persistenceResult.activityCount - activityBeforeTyping;
+  assert.ok(
+    persistenceResult.storageWrites <= Math.ceil(activityEntriesAdded / 2),
+    `Expected at least a 50% rapid-write reduction; received ${persistenceResult.storageWrites} writes for ${activityEntriesAdded} field updates over ${typingMs.toFixed(1)}ms.`,
+  );
+  await largePage.evaluate(() => {
+    window.__pdsStorageWriteCount = 0;
+  });
+  const pagehideProjectName = 'QA Pagehide Flush Turn';
+  await projectNameInput.fill(pagehideProjectName);
+  await largePage.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'));
+  });
+  const pagehideResult = await largePage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const project = stored.projects.find((item) => item.id === stored.activeProjectId);
+    return { projectName: project?.name, storageWrites: window.__pdsStorageWriteCount };
+  }, storageKey);
+  assert.equal(pagehideResult.projectName, pagehideProjectName);
+  assert.equal(pagehideResult.storageWrites, 1);
   assert.deepEqual(largeConsoleFindings, [], `Large-state console findings:\n${largeConsoleFindings.join('\n')}`);
   await largeContext.close();
 
@@ -207,6 +271,12 @@ try {
     `${JSON.stringify({
       largeLoadMs: Math.round(largeLoadMs),
       largeStateCharacters: largeState.length,
+      persistence: {
+        activityEntriesAdded,
+        pagehideWrites: pagehideResult.storageWrites,
+        storageWrites: persistenceResult.storageWrites,
+        typingMs: Math.round(typingMs),
+      },
       responsive,
       screenshots: { large: largeScreenshot, setup: setupScreenshot },
     })}\n`,

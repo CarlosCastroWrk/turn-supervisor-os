@@ -46,6 +46,7 @@ Every near-term change should serve that loop.
 - React + TypeScript + Vite runtime
 - Mobile-first PWA shell with bottom navigation
 - Local-first persistence with operational records in browser `localStorage` under `turn-supervisor-os:v0.1` and compressed photo files in IndexedDB
+- Coalesced AppData persistence that writes the latest rapid-edit state at most once per 500 ms window, flushes immediately when the app backgrounds/closes, and cancels pending writes before device reset
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
@@ -119,6 +120,7 @@ Every near-term change should serve that loop.
 - Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
 - Physical iPhone/iPad verification in bright light and with VoiceOver enabled
 - General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
+- Commit-on-blur/draft behavior for existing record fields; some editable record fields still create one in-memory activity event per keystroke even though disk writes are now coalesced
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
 - Server-side AI provider route

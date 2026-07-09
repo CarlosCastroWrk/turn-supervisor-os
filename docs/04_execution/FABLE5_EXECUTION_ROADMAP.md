@@ -141,6 +141,24 @@ Acceptance:
 - A valid backup restores after confirmation and survives reload.
 - A 10,000-activity backup validates without field-visible delay.
 
+### A7. Coalesced Local Persistence
+
+Status: implemented in the P0 Storage Write Coalescing release candidate.
+
+Scope:
+
+- Keep the latest AppData state in memory while rapid edits are in progress.
+- Persist at most once per 500 ms window instead of serializing the full app record on every keystroke.
+- Flush pending data immediately on `visibilitychange`/`pagehide` and component cleanup.
+- Cancel pending writes before device reset so old state cannot be restored accidentally.
+
+Acceptance:
+
+- A 1,000-unit / 10,000-event state shows at least a 50% full-storage-write reduction during throttled rapid typing.
+- The newest pending value survives an immediate background/close signal.
+- Reset cannot be followed by a stale queued write.
+- Commit-on-blur activity-log cleanup remains a separate follow-up slice.
+
 ## Phase B: Real Turn Cleanup And Sync Boundaries
 
 These slices clean up test noise and reduce resurrection/duplication risks.

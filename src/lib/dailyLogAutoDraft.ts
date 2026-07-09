@@ -1,5 +1,6 @@
 import type { AppData, DailyLog, Project } from '../types';
 import { buildDailyActivitySnapshot } from './exporters';
+import { getApplicableMemoriesForProject } from './memory';
 import { getUnitSummary, isBlockedUnit, isInProgressUnit, isInspectionUnit } from './metrics';
 
 type DailyLogTextField =
@@ -15,6 +16,7 @@ export interface DailyLogAutoDraftResult {
   changedFields: DailyLogTextField[];
   dailyLog: DailyLog;
   sourceCount: number;
+  usedMemoryIds: string[];
 }
 
 const activeIssueStatuses = new Set(['Open', 'In Progress', 'Waiting']);
@@ -41,6 +43,7 @@ export const buildDailyLogAutoDraft = (
   const blockedUnits = projectUnits.filter(isBlockedUnit);
   const inProgressUnits = projectUnits.filter(isInProgressUnit);
   const inspectionUnits = projectUnits.filter(isInspectionUnit);
+  const lessonMemories = getApplicableMemoriesForProject(data, project.id, ['Lesson Learned']).slice(0, 5);
   const previousLog = data.dailyLogs
     .filter((log) => log.projectId === project.id && log.date < date)
     .sort((left, right) => right.date.localeCompare(left.date))[0];
@@ -93,7 +96,11 @@ export const buildDailyLogAutoDraft = (
     endOfDayReflection: '',
     completedSummary: activityItems.length > 0 ? `Recorded today:\n${bullets(firstLines(activityItems, 8))}` : '',
     blockers: [...blockedUnitLines, ...issueLines].length > 0 ? bullets([...blockedUnitLines, ...issueLines]) : '',
-    lessons: '',
+    lessons:
+      lessonMemories.length > 0
+        ? `Approved lessons:
+${bullets(lessonMemories.map((memory) => memory.content))}`
+        : '',
     tomorrowPriorities: tomorrowLines.length > 0 ? `Suggested from current board:\n${bullets(tomorrowLines)}` : '',
   };
 
@@ -113,7 +120,13 @@ export const buildDailyLogAutoDraft = (
   return {
     changedFields,
     dailyLog: nextDailyLog,
+    usedMemoryIds: changedFields.includes('lessons') ? lessonMemories.map((memory) => memory.id) : [],
     sourceCount:
-      activitySnapshot.total + assignments.length + activeIssues.length + blockedUnits.length + (projectUnits.length > 0 ? 1 : 0),
+      activitySnapshot.total +
+      assignments.length +
+      activeIssues.length +
+      blockedUnits.length +
+      lessonMemories.length +
+      (projectUnits.length > 0 ? 1 : 0),
   };
 };

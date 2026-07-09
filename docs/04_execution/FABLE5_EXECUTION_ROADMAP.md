@@ -429,16 +429,23 @@ Acceptance:
 
 ### E4. Memory Consumption
 
+Status: release candidate implemented and locally verified; production migration/release pending explicit approval.
+
 Scope:
 
 - Project-scope memories.
 - Use typed memories for report preference and crew facts.
 - Drop source-removed memories from active use after archive/delete.
+- Review, edit, approve, reject, and deactivate Memory from Setup rather than adding another primary field screen.
+- Keep unscoped legacy operational Memory inactive until Los deliberately assigns it to the current Turn.
+- Prevent duplicate candidate facts and repeated approval from creating duplicate saved memories.
 
 Acceptance:
 
 - Memory affects only grounded, relevant outputs.
 - Deleted/archived records do not keep driving current recommendations.
+- Demo and another Real Turn's Memory do not appear in the active project or Daily Log history.
+- Auto-drafted lessons remain unsaved until Los presses Save Daily Log.
 
 ## Phase F: Photo Durability
 
@@ -574,5 +581,6 @@ Only after the field-safe deterministic version is trusted.
 28. G3 PWA Install And Offline Startup
 29. G4 Accessibility And Field Contrast
 30. G2 Undo And Toast System
+31. E4 Project-Scoped Memory
 
 This order can change if real-device testing finds a higher-risk failure.

@@ -123,3 +123,12 @@
 - Centralized paint, cleaning, and maintenance shortcut transitions so repeated taps create no activity and trade completion cannot clear harder access, hold, maintenance, rework, punch-list, inspection, or Ready state.
 - Added nonblocking outcome feedback for Issue creation, status changes, reopen, and confirmed soft removal, including where removed issues remain available.
 - Added deterministic Undo/staleness/clock-skew tests and rendered mobile/desktop checks for persistence, stale protection, 44px actions, blocking-confirmation retention, overflow, and console health.
+- Started E4 Project-Scoped Memory on `codex/project-scoped-memory`.
+- Added active-project scope to Memory candidates and approved Memory, explicit global personal/safety rules, live-source/archive checks, exact duplicate suppression, and double-approval protection.
+- Moved reachable Memory review into Setup with source, scope, confidence, last-used, approve/reject, edit, activate/deactivate, and legacy scope-assignment controls.
+- Added grounded typed consumption for Crew facts, Daily Log lessons, Ask OS supporting records, and briefing/report preferences while preserving review-first operational mutations.
+- Added Supabase mapping and the pending additive `20260709195302_add_memory_project_scope.sql` migration; no production migration has been applied yet.
+- Added focused Memory, parser, Daily Log, sync-boundary, pull-preservation, and Supabase serialization tests. The suite passes 119/119.
+- Ran a local 10,000-activity/1,000-Memory source-validation stress pass; all 1,000 active memories resolved in about 53 ms without rebuilding combined record arrays.
+- Rendered Capture-to-Setup approval, Demo/Real switching, Crew Memory, Daily Log auto-draft, last-used state, iPhone/iPad layouts, offline restart, overflow, touch-size, and console checks.
+- Found and fixed two QA regressions before release: pull-only sync dropping local unscoped/Demo Memory candidates, and Real Turn Daily Log history displaying Demo logs.

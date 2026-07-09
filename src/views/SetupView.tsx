@@ -1,6 +1,7 @@
 import { Archive, Download, PlayCircle, RotateCcw, Save } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, Field, NumberInput } from '../components/FormControls';
+import { MemorySettings } from '../components/MemorySettings';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
 import { archiveProject, createRealTurnProject, restoreProject, switchActiveProject, updateProject } from '../lib/actions';
@@ -320,6 +321,8 @@ export function SetupView({ data, setData }: SetupViewProps) {
           </Button>
         </div>
       </Section>
+
+      <MemorySettings data={data} setData={setData} />
 
       <Section title="Current Structure" kicker="Generated from Units">
         <div className="setup-summary">

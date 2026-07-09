@@ -12,6 +12,7 @@ import {
   applyAllPendingDraftActions,
   applyDraftAction,
   approveMemoryCandidate,
+  markMemoriesUsed,
   rejectAllPendingDraftActions,
   rejectDraftAction,
   rejectMemoryCandidate,
@@ -24,6 +25,7 @@ import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
 import { createId, localISODateFromDateTime, nowISO, todayISO } from '../lib/constants';
+import { prepareMemoryCandidatesForActiveProject } from '../lib/memory';
 import type { AppNavigate } from '../lib/routing';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AppData, BriefingType, DailyLog, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
@@ -626,11 +628,30 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     }
 
     const result = await agentProvider.parseQuickCapture(quickInput, data);
-    setParseSummary(
-      result.draftActions.length > 0
-        ? `${result.summary} Review the draft card${result.draftActions.length === 1 ? '' : 's'} below, then approve what should update the board.`
-        : `${result.summary} No board change was detected.`,
-    );
+    const newMemoryCandidates = prepareMemoryCandidatesForActiveProject(data, result.memoryCandidates);
+    const duplicateMemoryCount = result.memoryCandidates.length - newMemoryCandidates.length;
+    const summaryParts: string[] = [];
+    if (result.draftActions.length > 0) {
+      summaryParts.push(
+        `Found ${result.draftActions.length} draft change${result.draftActions.length === 1 ? '' : 's'}. Review below before the board changes.`,
+      );
+    }
+    if (newMemoryCandidates.length > 0) {
+      summaryParts.push(
+        `Sent ${newMemoryCandidates.length} Memory suggestion${newMemoryCandidates.length === 1 ? '' : 's'} to Setup for approval.`,
+      );
+    }
+    if (duplicateMemoryCount > 0) {
+      summaryParts.push(
+        `Ignored ${duplicateMemoryCount} Memory suggestion${duplicateMemoryCount === 1 ? '' : 's'} already saved or reviewed for this Turn.`,
+      );
+    }
+    if (summaryParts.length === 0) {
+      summaryParts.push('No board change or new Memory suggestion was detected.');
+    }
+    const parseSummaryMessage = summaryParts.join(' ');
+    const reviewedResult = { ...result, memoryCandidates: newMemoryCandidates, summary: parseSummaryMessage };
+    setParseSummary(parseSummaryMessage);
     setDraftNotice('');
     setLastChangedDraftId('');
     setDraftFilter('pending');
@@ -640,8 +661,8 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     }
     setData((current) => {
       let next = addDraftActions(current, result.draftActions, quickInput, batchId);
-      next = addMemoryCandidates(next, result.memoryCandidates);
-      return addAgentRun(next, 'quick_capture', quickInput, result);
+      next = addMemoryCandidates(next, newMemoryCandidates);
+      return addAgentRun(next, 'quick_capture', quickInput, reviewedResult);
     });
   };
 
@@ -777,7 +798,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
         result.supportingRecords,
         result.suggestedNextActions,
       );
-      return addAgentRun(withConversation, 'ask_os', askInput, result);
+      return addAgentRun(markMemoriesUsed(withConversation, result.usedMemoryIds ?? []), 'ask_os', askInput, result);
     });
   };
 
@@ -785,7 +806,14 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     const result = await agentProvider.generateBriefing(type, data);
     setBriefing(result);
     setBriefingText(result.body);
-    setData((current) => addAgentRun(current, type === 'end_of_day' ? 'report' : 'briefing', type, result));
+    setData((current) =>
+      addAgentRun(
+        markMemoriesUsed(current, result.usedMemoryIds ?? []),
+        type === 'end_of_day' ? 'report' : 'briefing',
+        type,
+        result,
+      ),
+    );
   };
 
   const copyBriefing = async () => {

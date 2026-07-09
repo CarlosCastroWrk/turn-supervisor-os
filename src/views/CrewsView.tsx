@@ -5,6 +5,7 @@ import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addCrewMember, updateCrewMember } from '../lib/actions';
 import { CREW_TRADES, createId, nowISO } from '../lib/constants';
+import { getApplicableMemories } from '../lib/memory';
 import { getActiveProject, getProjectCrewMembers } from '../lib/metrics';
 import type { AppData, CrewTrade } from '../types';
 
@@ -16,6 +17,7 @@ interface CrewsViewProps {
 export function CrewsView({ data, setData }: CrewsViewProps) {
   const project = getActiveProject(data);
   const crewMembers = getProjectCrewMembers(data);
+  const crewMemories = getApplicableMemories(data, ['Crew Memory']);
   const [name, setName] = useState('');
   const [trade, setTrade] = useState<CrewTrade>('Painter');
   const [phone, setPhone] = useState('');
@@ -98,6 +100,20 @@ export function CrewsView({ data, setData }: CrewsViewProps) {
           </Button>
         </div>
       </Section>
+
+      {crewMemories.length > 0 ? (
+        <Section title="Approved Crew Memory" kicker={`${crewMemories.length} sourced fact${crewMemories.length === 1 ? '' : 's'}`}>
+          <div className="memory-grid">
+            {crewMemories.map((memory) => (
+              <article className="memory-card" key={memory.id}>
+                <span className="quiet-label">{memory.memoryType}</span>
+                <p>{memory.content}</p>
+                <small>Source: {memory.source}</small>
+              </article>
+            ))}
+          </div>
+        </Section>
+      ) : null}
 
       <Section title="Directory" kicker={`${crewMembers.length} ${project.mode === 'real' ? 'real Turn' : 'demo'} contacts`}>
         <div className="crew-grid">

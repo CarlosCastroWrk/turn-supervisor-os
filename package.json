@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test:sync": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/sync-core.test.ts tests/sync-pull.test.ts tests/sync-boundary.test.ts tests/actions-draft.test.ts tests/constants.test.ts tests/number-input.test.ts tests/reports.test.ts tests/daily-log-autodraft.test.ts tests/issues.test.ts tests/project-archive.test.ts tests/parser-evals.test.ts tests/routing.test.ts tests/voice-capture.test.ts tests/photo-storage.test.ts tests/photo-sync.test.ts tests/pwa.test.ts tests/accessibility.test.ts tests/undo-feedback.test.ts",
+    "test:sync": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs --test tests/sync-core.test.ts tests/sync-pull.test.ts tests/sync-boundary.test.ts tests/actions-draft.test.ts tests/constants.test.ts tests/number-input.test.ts tests/reports.test.ts tests/daily-log-autodraft.test.ts tests/issues.test.ts tests/project-archive.test.ts tests/parser-evals.test.ts tests/routing.test.ts tests/voice-capture.test.ts tests/photo-storage.test.ts tests/photo-sync.test.ts tests/pwa.test.ts tests/accessibility.test.ts tests/undo-feedback.test.ts tests/memory.test.ts",
     "preview": "vite preview --host 0.0.0.0",
     "check:os": "scripts/check_os.sh"
   },

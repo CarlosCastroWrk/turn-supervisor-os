@@ -16,13 +16,13 @@ Make Turn Field Copilot safe enough for Los's real two-week Turn operation befor
 
 ## Current Immediate Task
 
-Complete the real-device offline/reconnect gate before entering real field data:
+Release the verified E4 Project-Scoped Memory candidate, then complete the real-device offline/reconnect gate before entering real field data:
 
-1. Open production on iPhone and confirm it is synced.
-2. Turn on airplane mode.
-3. Update 2-3 obvious QA units/issues and confirm they remain visible locally.
-4. Turn airplane mode off.
-5. Confirm Mac and iPad receive the updates after reconnect.
+1. Obtain fresh explicit approval for `20260709195302_add_memory_project_scope.sql`.
+2. Apply the additive migration, confirm migration parity/schema lint, merge the E4 PR, and deploy production.
+3. Run the focused project-scoped Memory check on two devices.
+4. Open production on iPhone, turn on airplane mode, update 2-3 obvious QA units/issues, and confirm they remain visible locally.
+5. Turn airplane mode off and confirm Mac and iPad receive the updates after reconnect.
 
 ## Important Constraints
 
@@ -56,3 +56,5 @@ Complete the real-device offline/reconnect gate before entering real field data:
 - Accessibility/field contrast is hardened in automated and rendered QA; physical bright-light and iOS VoiceOver acceptance remains pending.
 - Routine field outcomes use accessible toasts; Unit quick-status actions support timestamp-guarded Undo, while destructive/recovery confirmations remain blocking.
 - Simultaneous same-row edits still use whole-row timestamp conflict behavior.
+- E4 code/local QA is complete, but production must not deploy it before the pending Memory project-scope migration is explicitly approved and applied.
+- Legacy unscoped operational Memory is intentionally inactive until Los assigns it to the current Turn in Setup.

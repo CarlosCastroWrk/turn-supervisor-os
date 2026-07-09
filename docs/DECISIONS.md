@@ -156,6 +156,18 @@ Rationale:
 - Trade shortcut transitions must preserve harder blockers and suppress no-op events instead of inferring that one completed trade makes the whole Unit advance.
 - Reset, restore, project lifecycle, unsaved edits, and unsafe Ready overrides need deliberate confirmation, not transient feedback.
 
+### 2026-07-09: Operational Memory is project-scoped and approval-first
+
+Capture may propose typed Memory, but every candidate belongs to the active Turn and remains inactive until Los approves it. Approved operational Memory applies only to its active, non-archived project and a live source when one is linked. Only explicit personal supervisor preferences and built-in safety rules may apply across Turns.
+
+Rationale:
+
+- A fact learned on one property or crew cannot safely become truth for another Turn.
+- Demo, archived, rejected, unapproved, missing-source, and legacy unscoped operational records must fail closed.
+- Exact duplicate candidates and repeated approval should not create duplicate saved Memory.
+- Memory may support Crew facts, Daily Log lessons, Ask OS records, and report preferences, but it must not mutate operational records or auto-save generated Daily Log text.
+- Legacy unscoped records remain visible for review in Setup and require deliberate assignment to the current Turn.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

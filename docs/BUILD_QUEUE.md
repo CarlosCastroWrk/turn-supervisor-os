@@ -51,6 +51,16 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Refuse stale Undo after a later Unit edit and record successful Undo as a newer activity event.
   - [x] Ignore repeated no-op taps and prevent paint/clean/repair quick actions from clearing harder Unit blockers.
   - [x] Explain Issue create/status/remove outcomes without deleting issue history.
+- [ ] E4 Project-Scoped Memory release candidate.
+  - [x] Scope new candidates and approved memories to the active Turn.
+  - [x] Consume only approved, current-project, live-source typed Memory.
+  - [x] Move Memory review into Setup without adding another field screen.
+  - [x] Keep legacy unscoped operational Memory inactive until Los assigns it.
+  - [x] Keep Demo/unscoped Memory local and preserve it during cloud pulls.
+  - [x] Add duplicate-candidate and double-approval protection.
+  - [x] Verify Capture, Setup review, Daily Log lessons, Crew facts, project switching, mobile/iPad layout, and offline restart.
+  - [ ] Apply `20260709195302_add_memory_project_scope.sql` after fresh explicit approval.
+  - [ ] Merge, deploy, and run focused production sync acceptance.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -85,7 +95,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 - [x] E1 Daily Activity Snapshot.
 - [x] E3 Daily Log Auto-Draft.
-- [ ] E4 Memory Consumption and project scoping.
+- [ ] E4 Memory Consumption and project scoping. Implementation and local QA are complete; migration/release remain pending.
 - [x] F1 IndexedDB Photo Store.
 - [x] F2 Supabase Storage Photo Sync. Real-device photo acceptance remains in the active gate.
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.

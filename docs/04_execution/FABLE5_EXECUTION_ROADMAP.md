@@ -461,6 +461,8 @@ Acceptance:
 
 ### F2. Supabase Storage Photo Sync
 
+Status: implemented in the F2 release slice; physical-device acceptance remains open.
+
 Scope:
 
 - Upload compressed photos to private Supabase Storage when signed in.

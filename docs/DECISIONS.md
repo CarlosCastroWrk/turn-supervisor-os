@@ -109,6 +109,18 @@ Rationale:
 - Existing embedded photos migrate only after their durable write succeeds.
 - Project JSON backup gathers photo files available on the current device so this storage change does not silently weaken recovery.
 
+### 2026-07-09: Photo sync stays local-first and private
+
+Save compressed files into IndexedDB before attempting cloud work. During a signed-in Real Turn sync, upload changed record rows first, upload available photo files into `{user_id}/{photo_id}.ext`, then persist successful `storage_path` values back to `photo_notes`. Other devices download private files only when rendering a thumbnail and cache them locally.
+
+Rationale:
+
+- A broken network must never block or erase field capture.
+- Row-first ordering keeps the field record recoverable even if Storage is unavailable.
+- Deterministic owner-scoped paths make retries idempotent and match the existing private bucket RLS policies.
+- Demo photos must not leak into cloud data.
+- Automatic cloud deletion is deferred until delete propagation/tombstones have an explicit, tested design.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

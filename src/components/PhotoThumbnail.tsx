@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ImageOff } from 'lucide-react';
-import { getPhotoBlob } from '../lib/photoStorage';
+import { ImageOff, RefreshCw } from 'lucide-react';
+import { resolvePhotoBlob, type ResolvedPhotoBlob } from '../lib/supabase/photoSync';
 import type { PhotoNote } from '../types';
 
 const formatPhotoSize = (bytes?: number) => {
@@ -13,11 +13,14 @@ const formatPhotoSize = (bytes?: number) => {
 export function PhotoThumbnail({ photo }: { photo: PhotoNote }) {
   const [source, setSource] = useState(photo.imageData ?? '');
   const [isLoading, setIsLoading] = useState(!photo.imageData);
+  const [loadSource, setLoadSource] = useState<ResolvedPhotoBlob['source']>(photo.imageData ? 'local' : 'missing');
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (photo.imageData) {
       setSource(photo.imageData);
       setIsLoading(false);
+      setLoadSource('local');
       return;
     }
 
@@ -26,15 +29,22 @@ export function PhotoThumbnail({ photo }: { photo: PhotoNote }) {
     setSource('');
     setIsLoading(true);
 
-    void getPhotoBlob(photo.id)
-      .then((blob) => {
-        if (!active || !blob) {
+    void resolvePhotoBlob(photo)
+      .then((result) => {
+        if (!active) {
           return;
         }
-        objectUrl = URL.createObjectURL(blob);
-        setSource(objectUrl);
+        setLoadSource(result.source);
+        if (result.blob) {
+          objectUrl = URL.createObjectURL(result.blob);
+          setSource(objectUrl);
+        }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (active) {
+          setLoadSource('missing');
+        }
+      })
       .finally(() => {
         if (active) {
           setIsLoading(false);
@@ -47,25 +57,48 @@ export function PhotoThumbnail({ photo }: { photo: PhotoNote }) {
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [photo.id, photo.imageData]);
+  }, [photo, photo.id, photo.imageData, photo.storagePath, retryKey]);
 
-  const unavailableMessage = photo.localImageAvailable
-    ? 'Local photo file is missing'
-    : 'Photo file is on its capture device';
+  const unavailableMessage = isLoading
+    ? photo.storagePath
+      ? 'Downloading photo...'
+      : 'Loading photo...'
+    : loadSource === 'offline'
+      ? 'Photo downloads when back online'
+      : loadSource === 'signed_out'
+        ? 'Sign in to load cloud photo'
+        : photo.storagePath
+          ? 'Cloud photo is unavailable'
+          : photo.localImageAvailable
+            ? 'Local photo file is missing'
+            : 'Photo file is on its capture device';
 
   return (
     <figure className="photo-thumb">
       {source ? (
         <img alt={photo.caption || photo.category} decoding="async" loading="lazy" src={source} />
       ) : (
-        <div className="photo-thumb__unavailable" role="img" aria-label={isLoading ? 'Loading photo' : unavailableMessage}>
+        <div className="photo-thumb__unavailable" role="status" aria-live="polite">
           <ImageOff size={22} aria-hidden="true" />
-          <span>{isLoading ? 'Loading photo...' : unavailableMessage}</span>
+          <span>{unavailableMessage}</span>
+          {photo.storagePath && !isLoading ? (
+            <button className="photo-thumb__retry" type="button" onClick={() => setRetryKey((value) => value + 1)}>
+              <RefreshCw size={14} aria-hidden="true" />
+              Retry
+            </button>
+          ) : null}
         </div>
       )}
       <figcaption>
         <span>{photo.caption || photo.category}</span>
-        {photo.imageByteSize ? <small>{formatPhotoSize(photo.imageByteSize)} on this device</small> : null}
+        <small>
+          {[
+            photo.imageByteSize ? formatPhotoSize(photo.imageByteSize) : '',
+            photo.storagePath ? 'Cloud copy ready' : loadSource === 'local' ? 'On this device' : 'Not uploaded',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </small>
       </figcaption>
     </figure>
   );

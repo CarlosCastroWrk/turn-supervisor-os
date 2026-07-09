@@ -77,11 +77,27 @@ export const mergeRows = <T extends SyncStampedRow>(
   });
 };
 
-export const mergePhotoNotes = (localRows: PhotoNote[], remoteRows: PhotoNote[]) =>
-  mergeRows(localRows, remoteRows, (local, remote) => ({
+export const mergePhotoNotes = (localRows: PhotoNote[], remoteRows: PhotoNote[]) => {
+  const localById = new Map(localRows.map((photo) => [photo.id, photo]));
+  const remoteById = new Map(remoteRows.map((photo) => [photo.id, photo]));
+
+  return mergeRows(localRows, remoteRows, (local, remote) => ({
     ...remote,
     imageData: remote.imageData ?? local.imageData,
     localImageAvailable: remote.localImageAvailable ?? local.localImageAvailable,
     imageMimeType: remote.imageMimeType ?? local.imageMimeType,
     imageByteSize: remote.imageByteSize ?? local.imageByteSize,
-  }));
+    storagePath: remote.storagePath ?? local.storagePath,
+  })).map((winner) => {
+    const local = localById.get(winner.id);
+    const remote = remoteById.get(winner.id);
+    return {
+      ...winner,
+      imageData: winner.imageData ?? local?.imageData,
+      localImageAvailable: winner.localImageAvailable ?? local?.localImageAvailable,
+      imageMimeType: winner.imageMimeType ?? local?.imageMimeType,
+      imageByteSize: winner.imageByteSize ?? local?.imageByteSize,
+      storagePath: winner.storagePath ?? remote?.storagePath ?? local?.storagePath,
+    };
+  });
+};

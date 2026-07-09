@@ -25,6 +25,12 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Migrate legacy embedded photos only after each IndexedDB write succeeds.
   - [x] Keep JSON backups photo-complete for files available on the current device.
   - [x] Verify reload, fallback, backup, and a 202-photo browser stress case.
+- [x] F2 Supabase Storage Photo Sync implementation.
+  - [x] Upload Real Turn photo files to Los's private Storage folder after record rows are safe.
+  - [x] Persist `storage_path` only after the private file upload succeeds.
+  - [x] Lazy-download and cache cloud thumbnails on another device.
+  - [x] Keep upload failures retryable and visible in Sync details.
+  - [ ] Verify one work-safe photo across Mac, iPhone, and iPad.
 
 ## P0: Must Clear Before Real Field Reliance
 
@@ -61,7 +67,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] E3 Daily Log Auto-Draft.
 - [ ] E4 Memory Consumption and project scoping.
 - [x] F1 IndexedDB Photo Store.
-- [ ] F2 Supabase Storage Photo Sync.
+- [x] F2 Supabase Storage Photo Sync. Real-device photo acceptance remains in the active gate.
 - [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
 - [ ] G2 Undo And Toast System.
 - [ ] G3 PWA Install And Offline Startup.
@@ -130,3 +136,5 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] P0 Report Thaw / Backup: editable report drafts now live in AppData, JSON backups include report edits, untouched generated sections keep updating, and edited sections can be reset individually.
 - [x] P0 Report Draft Supabase Sync: approved `report_drafts` migration, realtime publication, owner-scoped RLS, sync mapping, and demo-boundary coverage.
 - [x] E3 Daily Log Auto-Draft: Daily Log can draft empty sections from grounded activity, blockers, issues, assignments, and current board signals while still requiring Los to review and save.
+- [x] F1 IndexedDB Photo Store: compressed photo files save locally outside the main app record, migrate safely, and remain included in device-available JSON backups.
+- [x] F2 Supabase Storage Photo Sync: Real Turn files upload privately, metadata paths sync after successful upload, other devices lazy-download/cache thumbnails, and failures remain retryable.

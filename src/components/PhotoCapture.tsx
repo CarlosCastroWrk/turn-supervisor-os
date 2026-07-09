@@ -133,7 +133,7 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
         await putPhotoBlob(photoId, compressed.blob);
         onAdd(photo);
         setMessage(
-          `Photo saved offline on this device at ${bytesToKb(compressed.compressedBytes)} instead of ${bytesToKb(compressed.originalBytes)}.`,
+          `Photo saved offline on this device at ${bytesToKb(compressed.compressedBytes)} instead of ${bytesToKb(compressed.originalBytes)}. Real Turn photos can upload when signed in and online.`,
         );
       } catch {
         if (compressed.blob.size > MAX_EMBEDDED_PHOTO_FALLBACK_BYTES) {

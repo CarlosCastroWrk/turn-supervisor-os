@@ -101,3 +101,9 @@
 - Added safe legacy photo migration, local thumbnail loading with object URL cleanup, capped emergency fallback storage, and device reset cleanup.
 - Kept JSON backup photo-complete for files available on the current device and added included/missing photo counts.
 - Added focused storage/backup tests and a browser stress run covering capture, reload, legacy migration, backup, emergency fallback, 202 photo records, mobile overflow, and console health.
+- Started F2 Supabase Storage Photo Sync on `codex/supabase-photo-sync`.
+- Added private Real Turn photo upload with row-first ordering, deterministic owner-scoped paths, bounded concurrency, cloud timeouts, and retryable failure diagnostics.
+- Added `storage_path` sync mapping plus monotonic photo merge behavior so an offline caption edit cannot erase a known cloud path.
+- Added local-first lazy cloud thumbnail download/cache, signed-out/offline/retry states, and Sync details for uploaded, waiting, and unavailable photo files.
+- Added focused photo-sync tests and browser checks for the full IndexedDB lifecycle, 202-photo scale, cloud-only signed-out/offline UI, mobile overflow, and console health.
+- Confirmed existing local and remote Supabase migrations match, dry-run reports up to date, and linked schema lint has no errors; no migration or production data change was needed.

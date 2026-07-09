@@ -102,11 +102,11 @@ Goal: make photos durable without breaking local-first behavior.
 Slices:
 
 - IndexedDB photo store (implemented)
-- Supabase Storage photo sync
+- Supabase Storage photo sync (implemented; physical-device acceptance pending)
 
 Success gate:
 
-Photo sets no longer threaten the main app cache and can eventually sync across Los's devices.
+Photo sets no longer threaten the main app cache and can sync privately across Los's devices after the physical-device acceptance check passes.
 
 ## Phase G: Performance, Accessibility, And Polish
 

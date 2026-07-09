@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through E2 Report Preview/Print, E1 Daily Activity Snapshot, and P0 sync/report safety slices
+A2 Draft Apply Safety through E3 Daily Log Auto-Draft and F2 Supabase Storage Photo Sync
 ```
 
 Production:
@@ -58,6 +58,8 @@ Every near-term change should serve that loop.
 - Sync pull hardening that reads Supabase rows in ordered pages, keeps `Pull cloud` pull-only, shows `Upload needed` when a pull leaves unsent local changes, and checks cloud before local upload flows push changed rows
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
 - Storage/photo safety that preserves corrupt local cache payloads, compresses photos, stores normal photo files outside the main app record in IndexedDB, and migrates legacy embedded photos only after durable writes succeed
+- Private Supabase Storage photo sync for Real Turn records: row metadata uploads first, available local files upload into Los's authenticated folder, successful `storage_path` values sync back to `photo_notes`, and other devices lazy-download/cache thumbnails
+- Photo sync diagnostics for uploaded files, retryable pending files, files unavailable on the current device, and the latest photo error
 - Draft apply safety that scopes draft unit lookup to the active project and validates draft payload enums before mutation
 - Draft batch safety that scopes bulk approval/rejection to visible drafts, flags stale pending drafts, and opens applied unit targets
 - Parser eval coverage for punctuation-free field notes and deterministic draft targets
@@ -93,7 +95,8 @@ Every near-term change should serve that loop.
 - Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
 - True conflict review for simultaneous same-row edits across devices
 - Delete propagation / tombstones for synced rows
-- Photo binary sync through Supabase Storage
+- Real-device verification that one captured photo reaches Los's other signed-in devices
+- Cloud object deletion/cleanup when a photo record is removed
 - Multi-user mode
 - Automated browser regression suite
 - Server-side AI provider route
@@ -107,7 +110,8 @@ Every near-term change should serve that loop.
 - Real field records should live in Real Turn Mode.
 - `localStorage` is still the hot/offline cache for operational records even when Supabase sync is enabled; normal photo bytes live in IndexedDB.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
-- Compressed photo files remain device-local until the Supabase Storage photo-sync slice.
+- Compressed photos save locally first. When Los is signed in and online, available Real Turn photo files upload to private Supabase Storage; other devices fetch them only when a thumbnail is needed.
+- Demo Mode photos remain local and are excluded from cloud upload.
 - Copilot output must remain draft-first; important mutations require explicit approval.
 - Memory candidates must be approved before use.
 - Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
@@ -124,6 +128,7 @@ Real-device Phase 1 QA:
 6. Offline updates survive airplane mode and sync after reconnect.
 7. Demo data stays separate from Real Turn data.
 8. Export/backup works before any destructive reset.
+9. One work-safe Real Turn photo captured on one device appears on the other two after sync, then remains visible after reload.
 
 Current immediate field check:
 
@@ -133,6 +138,7 @@ Current immediate field check:
 4. Confirm the changes remain visible locally.
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
+7. Add one work-safe QA photo, sync, and confirm the thumbnail appears on Mac and iPad.
 
 ## GitHub Workflow
 
@@ -142,7 +148,7 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Run the B3 real-device offline/reconnect check before entering real field data:
+Run the B3 real-device offline/reconnect and F2 photo checks before entering real field data:
 
 1. Open production on iPhone.
 2. Turn on airplane mode.
@@ -150,5 +156,6 @@ Run the B3 real-device offline/reconnect check before entering real field data:
 4. Confirm the changes remain visible locally.
 5. Turn airplane mode off.
 6. Confirm Mac and iPad receive the updates after reconnect.
+7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 
-While that physical-device check is pending, the next code slice should come from the highest remaining field risk: Supabase Storage photo sync, project-scoped memory consumption, or PWA offline startup depending on what Los sees in training.
+While those physical-device checks are pending, the next code slice should harden PWA install/offline startup without changing product scope.

@@ -446,6 +446,8 @@ These slices finish the photo architecture after compression reduces the immedia
 
 ### F1. IndexedDB Photo Store
 
+Status: implemented in the F1 IndexedDB Photo Store release slice.
+
 Scope:
 
 - Move photo binary payloads out of the main `localStorage` app blob.
@@ -455,7 +457,7 @@ Scope:
 Acceptance:
 
 - Large photo sets do not cause full-state localStorage quota pressure.
-- JSON backup behavior is clearly documented.
+- JSON backup behavior is clearly documented and includes photo files available on the current device.
 
 ### F2. Supabase Storage Photo Sync
 

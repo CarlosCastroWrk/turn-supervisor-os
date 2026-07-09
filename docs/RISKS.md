@@ -9,12 +9,12 @@
 | Offline edits may not merge as expected | High | Open | Test airplane mode edits before Turn. Keep JSON backups before serious use. |
 | Demo data could contaminate Real Turn reports or Copilot answers | High | Open | Test Real Turn views, exports, reports, and Copilot answers with obvious demo vs real labels. |
 | Delete/reset behavior can be misunderstood | High | Open | Keep reset warnings explicit. Do not reset real data without backup. Document that cloud records can pull back after local reset. |
-| Photo image data is local-only | Medium | Open | Avoid relying on cross-device photos until Supabase Storage upload is implemented. Export backups if photos matter. |
-| `localStorage` can fill up with large photo payloads | Medium | Guarded | Captured photos are compressed before saving, but photos still belong in IndexedDB/Supabase Storage before heavy field use. |
+| Photo image data is local-only | Medium | Open | IndexedDB now keeps local photo files durable and photo-complete JSON backup is available, but avoid relying on cross-device photos until Supabase Storage upload is implemented. |
+| `localStorage` can fill up with large photo payloads | Medium | Closed | Normal compressed photo files now live in IndexedDB, legacy payloads migrate after confirmed writes, and only a capped emergency fallback can embed a small photo in the main app record. |
 | Corrupt local cache can hide field data | Medium | Guarded | Corrupt cache payloads are preserved under a recovery key before the app falls back to seed data. JSON backups remain the recovery path Los can use directly. |
 | Editable report drafts do not sync across devices | Medium | Closed | Los approved the `report_drafts` migration; report drafts now have a Supabase table, owner-scoped RLS, Realtime publication, and sync mapping. Same-row conflict review remains covered by the broader sync conflict risk. |
 | Reports may be treated as official company records | Medium | Open | Keep copy personal and factual. Do not use company branding or invented numbers. |
-| No restore-from-JSON flow in-app | Medium | Open | Backups are still useful for recovery evidence, but restore requires manual/developer help today. |
+| Restore-from-JSON could replace the wrong local device state | Medium | Guarded | In-app restore exists with backup-first and replacement confirmations. Photo payloads restored from JSON migrate into IndexedDB after load. |
 | Parser has no formal eval suite | Medium | Open | Add realistic field-note parser tests after device sync is no longer blocking. |
 | Sync status lacks enough field diagnostics | Medium | Closed | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error, and Los confirmed production devices settle on `Synced`. |
 | Vercel CLI was outdated locally | Low | Closed | Upgraded to `54.21.1` on 2026-07-07 after Los approved. |
@@ -28,6 +28,7 @@
 | AI mutating records without confirmation | High | Guarded | Keep Draft Actions as the approval boundary. |
 | Provider secrets leaking into browser code | High | Guarded | No OpenAI/Anthropic keys in Vite client code. Server-side API only if/when added. |
 | Tenant or private information entering notes/photos | High | Policy | Do not capture tenant PII, faces, or private documents. |
+| Exported JSON backup can contain work photos | High | Guarded | Export labels and storage copy state that backups can include local photo files and must be kept private. |
 
 ## Review Triggers
 

@@ -3,8 +3,9 @@ import { useMemo, useState } from 'react';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { archiveProject, createRealTurnProject, restoreProject, switchActiveProject, updateProject } from '../lib/actions';
-import { buildJsonBackup, downloadTextFile } from '../lib/exporters';
+import { downloadTextFile } from '../lib/exporters';
 import { getActiveProject, getProjectBuildings, getProjectUnits } from '../lib/metrics';
+import { buildJsonBackupWithLocalPhotos } from '../lib/photoBackup';
 import type { AppData, Project } from '../types';
 
 interface SetupViewProps {
@@ -23,6 +24,8 @@ export function SetupView({ data, setData }: SetupViewProps) {
   const activeFloors = data.floors.filter((floor) => activeBuildingIds.has(floor.buildingId));
   const activeUnits = getProjectUnits(data);
   const [backupTaken, setBackupTaken] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupMessage, setBackupMessage] = useState('');
   const [realProjectName, setRealProjectName] = useState('');
   const [propertyName, setPropertyName] = useState('');
   const [location, setLocation] = useState('');
@@ -42,9 +45,25 @@ export function SetupView({ data, setData }: SetupViewProps) {
 
   const saveField = (patch: Partial<Project>) => setData((current) => updateProject(current, project.id, patch));
 
-  const backup = () => {
-    downloadTextFile(`turn-supervisor-backup-${date}.json`, buildJsonBackup(data), 'application/json');
-    setBackupTaken(true);
+  const backup = async () => {
+    setIsBackingUp(true);
+    setBackupMessage('Gathering local records and photo files...');
+    try {
+      const result = await buildJsonBackupWithLocalPhotos(data);
+      downloadTextFile(`turn-supervisor-backup-${date}.json`, result.text, 'application/json');
+      setBackupTaken(true);
+      setBackupMessage(
+        result.missingPhotoFiles > 0
+          ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device.`
+          : `Backup saved with all ${result.includedPhotoFiles} local photo file(s).`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Backup could not be created.';
+      setBackupMessage(message);
+      window.alert(message);
+    } finally {
+      setIsBackingUp(false);
+    }
   };
 
   const startRealTurn = () => {
@@ -119,9 +138,9 @@ export function SetupView({ data, setData }: SetupViewProps) {
             </p>
           </div>
           <div className="button-row">
-            <Button onClick={backup}>
+            <Button disabled={isBackingUp} onClick={() => void backup()}>
               <Download size={18} aria-hidden="true" />
-              Backup JSON
+              {isBackingUp ? 'Building Backup...' : 'Backup JSON'}
             </Button>
             {demoProject ? (
               <Button onClick={() => setData((current) => switchActiveProject(current, demoProject.id))} variant={project.mode === 'demo' ? 'primary' : 'secondary'}>
@@ -130,6 +149,7 @@ export function SetupView({ data, setData }: SetupViewProps) {
               </Button>
             ) : null}
           </div>
+          {backupMessage ? <p className="muted" aria-live="polite">{backupMessage}</p> : null}
         </div>
 
         {realProjects.length > 0 ? (
@@ -236,9 +256,9 @@ export function SetupView({ data, setData }: SetupViewProps) {
             <textarea value={realNotes} rows={3} onChange={(event) => setRealNotes(event.target.value)} placeholder="What you know so far. Leave blanks if training has not clarified it yet." />
           </Field>
           <div className="button-row">
-            <Button onClick={backup}>
+            <Button disabled={isBackingUp} onClick={() => void backup()}>
               <Download size={18} aria-hidden="true" />
-              Backup First
+              {isBackingUp ? 'Building Backup...' : 'Backup First'}
             </Button>
             <Button variant="primary" onClick={startRealTurn}>
               <PlayCircle size={18} aria-hidden="true" />

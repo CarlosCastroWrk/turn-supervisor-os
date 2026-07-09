@@ -10,26 +10,19 @@ Production is live at:
 https://turn-supervisor-os.vercel.app
 ```
 
-Latest shipped app commit:
-
-```text
-822aa8e Fix sync change fingerprinting
-```
-
 ## Current Goal
 
 Make Turn Field Copilot safe enough for Los's real two-week Turn operation before relying on it with real field data.
 
 ## Current Immediate Task
 
-Verify the latest deployed sync fix on real devices:
+Complete the real-device offline/reconnect gate before entering real field data:
 
-1. Open or hard-refresh the PWA on Mac, iPhone, and iPad.
-2. Tap `Sync now` once.
-3. Wait 60-90 seconds.
-4. Confirm whether each device settles on `Synced` or keeps cycling.
-
-If sync still cycles, the next PR should be `sync status diagnostics`.
+1. Open production on iPhone and confirm it is synced.
+2. Turn on airplane mode.
+3. Update 2-3 obvious QA units/issues and confirm they remain visible locally.
+4. Turn airplane mode off.
+5. Confirm Mac and iPad receive the updates after reconnect.
 
 ## Important Constraints
 
@@ -54,8 +47,8 @@ If sync still cycles, the next PR should be `sync status diagnostics`.
 
 ## Known Risks
 
-- Real-device sync still needs final confirmation after the sync fingerprinting fix.
+- Real-device offline/reconnect behavior still needs final confirmation.
 - Delete propagation/tombstones are not implemented.
 - Photo binary sync through Supabase Storage is not implemented.
-- Restore-from-JSON UI is not implemented.
-- Parser tests are still thin.
+- IndexedDB keeps normal photo files out of the main app record, but those files remain device-local until Supabase Storage sync.
+- Simultaneous same-row edits still use whole-row timestamp conflict behavior.

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Camera, ShieldAlert } from 'lucide-react';
 import type { EntityId, PhotoCategory, PhotoNote } from '../types';
 import { PHOTO_CATEGORIES, createId, nowISO } from '../lib/constants';
+import { blobToDataUrl, putPhotoBlob } from '../lib/photoStorage';
 import { Field } from './FormControls';
 
 interface PhotoCaptureProps {
@@ -14,22 +15,9 @@ interface PhotoCaptureProps {
 const MAX_PHOTO_DIMENSION = 1600;
 const PHOTO_JPEG_QUALITY = 0.72;
 const MAX_UNCOMPRESSED_FALLBACK_BYTES = 500_000;
+const MAX_EMBEDDED_PHOTO_FALLBACK_BYTES = 450_000;
 
 const bytesToKb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
-
-const readFileAsDataUrl = (file: Blob) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Photo could not be read.'));
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') {
-        reject(new Error('Photo could not be read.'));
-        return;
-      }
-      resolve(reader.result);
-    };
-    reader.readAsDataURL(file);
-  });
 
 const loadImage = (file: File) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
@@ -85,14 +73,14 @@ const compressPhoto = async (file: File) => {
     const blob = await canvasToJpegBlob(canvas);
 
     return {
-      dataUrl: await readFileAsDataUrl(blob),
+      blob,
       originalBytes: file.size,
       compressedBytes: blob.size,
     };
   } catch (error) {
     if (file.size <= MAX_UNCOMPRESSED_FALLBACK_BYTES) {
       return {
-        dataUrl: await readFileAsDataUrl(file),
+        blob: file,
         originalBytes: file.size,
         compressedBytes: file.size,
       };
@@ -108,7 +96,8 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
   const [error, setError] = useState<string>();
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) {
       return;
     }
@@ -125,18 +114,39 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
     try {
       const compressed = await compressPhoto(file);
       const now = nowISO();
-      onAdd({
-        id: createId('photo'),
+      const photoId = createId('photo');
+      const photo: PhotoNote = {
+        id: photoId,
         projectId,
         unitId,
         issueId,
-        imageData: compressed.dataUrl,
+        localImageAvailable: true,
+        imageMimeType: compressed.blob.type,
+        imageByteSize: compressed.blob.size,
         category: category ?? 'Other',
         caption,
         createdAt: now,
         updatedAt: now,
-      });
-      setMessage(`Photo saved at ${bytesToKb(compressed.compressedBytes)} instead of ${bytesToKb(compressed.originalBytes)}.`);
+      };
+
+      try {
+        await putPhotoBlob(photoId, compressed.blob);
+        onAdd(photo);
+        setMessage(
+          `Photo saved offline on this device at ${bytesToKb(compressed.compressedBytes)} instead of ${bytesToKb(compressed.originalBytes)}.`,
+        );
+      } catch {
+        if (compressed.blob.size > MAX_EMBEDDED_PHOTO_FALLBACK_BYTES) {
+          throw new Error('Durable photo storage is unavailable and this photo is too large for the emergency fallback.');
+        }
+
+        onAdd({
+          ...photo,
+          imageData: await blobToDataUrl(compressed.blob),
+          localImageAvailable: false,
+        });
+        setMessage('Photo saved in limited fallback storage. Export a JSON backup before clearing or reinstalling the app.');
+      }
     } catch (compressError) {
       setError(
         compressError instanceof Error
@@ -145,7 +155,7 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
       );
     } finally {
       setIsCompressing(false);
-      event.target.value = '';
+      input.value = '';
     }
   };
 
@@ -174,7 +184,7 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
       </label>
       {message ? <p className="photo-capture__status" aria-live="polite">{message}</p> : null}
       {error ? <p className="photo-capture__error" aria-live="assertive">{error}</p> : null}
-      <p className="muted">Photo data is compressed before saving and stays local on this device.</p>
+      <p className="muted">Photo files are compressed and stored offline on this device. JSON backup includes files available here.</p>
     </form>
   );
 }

@@ -128,7 +128,8 @@
 - Moved reachable Memory review into Setup with source, scope, confidence, last-used, approve/reject, edit, activate/deactivate, and legacy scope-assignment controls.
 - Added grounded typed consumption for Crew facts, Daily Log lessons, Ask OS supporting records, and briefing/report preferences while preserving review-first operational mutations.
 - Added Supabase mapping and the pending additive `20260709195302_add_memory_project_scope.sql` migration; no production migration has been applied yet.
-- Added focused Memory, parser, Daily Log, sync-boundary, pull-preservation, recovery, and Supabase serialization tests. The suite passes 120/120.
+- Added focused Memory, parser, Daily Log, sync-boundary, pull-preservation, recovery, provenance, and Supabase serialization tests. The suite passes 121/121.
+- Tied each approved Memory record to its reviewed source candidate so a stale-device rejection or missing source fails closed instead of silently continuing to influence field output.
 - Ran a local 10,000-activity/1,000-Memory source-validation stress pass; all 1,000 active memories resolved in about 53 ms without rebuilding combined record arrays.
 - Rendered Capture-to-Setup approval, Demo/Real switching, Crew Memory, Daily Log auto-draft, last-used state, iPhone/iPad layouts, offline restart, overflow, touch-size, and console checks.
 - Found and fixed two QA regressions before release: pull-only sync dropping local unscoped/Demo Memory candidates, and Real Turn Daily Log history displaying Demo logs.

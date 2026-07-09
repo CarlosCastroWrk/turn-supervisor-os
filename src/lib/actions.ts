@@ -592,7 +592,7 @@ export const approveMemoryCandidate = (data: AppData, candidateId: EntityId): Ap
     memoryType: candidate.memoryType,
     content: candidate.content,
     source: candidate.source,
-    sourceEntityId: candidate.sourceEntityId,
+    sourceEntityId: candidate.id,
     confidence: candidate.confidence,
     approved: true,
     createdAt: now,

@@ -144,7 +144,28 @@ test('new candidates inherit active project scope and approval preserves it', ()
   const approved = approveMemoryCandidate(withCandidate, scopedCandidate.id);
   assert.equal(approved.memories[0]?.projectId, data.activeProjectId);
   assert.equal(approved.memories[0]?.content, scopedCandidate.content);
+  assert.equal(approved.memories[0]?.sourceEntityId, scopedCandidate.id);
   assert.equal(approved.memoryCandidates[0]?.status, 'approved');
+});
+
+test('an approved Memory fails closed if its source candidate is later rejected or removed', () => {
+  const data = withRealProject();
+  const pending = addMemoryCandidates(data, [candidate('candidate_source_guard')]);
+  const approved = approveMemoryCandidate(pending, 'candidate_source_guard');
+  const memoryId = approved.memories[0]?.id;
+  assert.ok(memoryId);
+  assert.deepEqual(getApplicableMemories(approved).map((item) => item.id), [memoryId]);
+
+  const rejectedSource = {
+    ...approved,
+    memoryCandidates: approved.memoryCandidates.map((item) =>
+      item.id === 'candidate_source_guard' ? { ...item, status: 'rejected' as const } : item,
+    ),
+  };
+  const removedSource = { ...approved, memoryCandidates: [] };
+
+  assert.deepEqual(getApplicableMemories(rejectedSource), []);
+  assert.deepEqual(getApplicableMemories(removedSource), []);
 });
 
 test('duplicate candidate facts are suppressed within the active Turn', () => {

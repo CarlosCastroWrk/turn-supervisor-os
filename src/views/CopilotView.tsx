@@ -272,8 +272,10 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const keepListeningRef = useRef(false);
   const lastSpeechErrorRef = useRef<string | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
+  const noTranscriptTimerRef = useRef<number | undefined>(undefined);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [voiceFallbackActive, setVoiceFallbackActive] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('');
   const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0);
@@ -329,11 +331,19 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const quickInputReady = quickInput.trim().length > 0;
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
   const deviceCaptureContext = useMemo(
-    () => ({
-      userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
-      platform: typeof navigator === 'undefined' ? '' : navigator.platform,
-      maxTouchPoints: typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints,
-    }),
+    () => {
+      const navigatorWithStandalone =
+        typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { standalone?: boolean });
+
+      return {
+        userAgent: navigatorWithStandalone?.userAgent ?? '',
+        platform: navigatorWithStandalone?.platform ?? '',
+        maxTouchPoints: navigatorWithStandalone?.maxTouchPoints ?? 0,
+        standaloneApp:
+          typeof window !== 'undefined' &&
+          (window.matchMedia('(display-mode: standalone)').matches || navigatorWithStandalone?.standalone === true),
+      };
+    },
     [],
   );
   const voiceGuidance = useMemo(
@@ -344,6 +354,16 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       }),
     [deviceCaptureContext, speechSupported],
   );
+  const fallbackVoiceGuidance = useMemo(
+    () =>
+      getVoiceCaptureGuidance({
+        speechRecognitionAvailable: false,
+        ...deviceCaptureContext,
+      }),
+    [deviceCaptureContext],
+  );
+  const activeVoiceGuidance = voiceFallbackActive ? fallbackVoiceGuidance : voiceGuidance;
+  const canUseBrowserSpeech = speechSupported && activeVoiceGuidance.mode === 'browserSpeech';
   const canAutoFocusCaptureText = useMemo(() => shouldAutoFocusCaptureText(deviceCaptureContext), [deviceCaptureContext]);
   const voiceDuration = formatVoiceDuration(voiceElapsedSeconds);
   const voiceTranscriptPreview = [quickInput.trim(), interimTranscript.trim()].filter(Boolean).join(' ');
@@ -362,6 +382,9 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       keepListeningRef.current = false;
       if (restartTimerRef.current) {
         window.clearTimeout(restartTimerRef.current);
+      }
+      if (noTranscriptTimerRef.current) {
+        window.clearTimeout(noTranscriptTimerRef.current);
       }
       recognitionRef.current?.abort();
     },
@@ -382,8 +405,31 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     return () => document.body.classList.remove('voice-sheet-open');
   }, [isVoiceSheetOpen]);
 
+  const clearNoTranscriptTimer = () => {
+    if (noTranscriptTimerRef.current) {
+      window.clearTimeout(noTranscriptTimerRef.current);
+      noTranscriptTimerRef.current = undefined;
+    }
+  };
+
+  const switchToDictationFallback = (message: string) => {
+    keepListeningRef.current = false;
+    clearNoTranscriptTimer();
+    if (restartTimerRef.current) {
+      window.clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = undefined;
+    }
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    setIsRecording(false);
+    setInterimTranscript('');
+    setVoiceFallbackActive(true);
+    setVoiceStatus(message);
+  };
+
   const stopVoiceCapture = () => {
     keepListeningRef.current = false;
+    clearNoTranscriptTimer();
     if (restartTimerRef.current) {
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = undefined;
@@ -396,9 +442,11 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
 
   const focusFallbackDictation = () => {
     keepListeningRef.current = false;
+    clearNoTranscriptTimer();
     setIsRecording(false);
     setInterimTranscript('');
-    setVoiceStatus(voiceGuidance.unavailableStatus);
+    setVoiceFallbackActive(true);
+    setVoiceStatus(activeVoiceGuidance.unavailableStatus);
     window.requestAnimationFrame(() => {
       const target = isVoiceSheetOpen ? voiceSheetTextareaRef.current : quickInputRef.current;
       target?.focus({ preventScroll: true });
@@ -408,15 +456,18 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const startVoiceCapture = () => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      setVoiceStatus(voiceGuidance.unavailableStatus);
+      setVoiceFallbackActive(true);
+      setVoiceStatus(fallbackVoiceGuidance.unavailableStatus);
       return;
     }
 
+    setVoiceFallbackActive(false);
     lastSpeechErrorRef.current = undefined;
     if (restartTimerRef.current) {
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = undefined;
     }
+    clearNoTranscriptTimer();
     if (recognitionRef.current) {
       keepListeningRef.current = false;
       recognitionRef.current.onend = null;
@@ -444,7 +495,11 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       }
 
       if (finalTranscript) {
+        clearNoTranscriptTimer();
         setQuickInput((current) => [current.trim(), finalTranscript].filter(Boolean).join(current.trim() ? ' ' : ''));
+      }
+      if (interim) {
+        clearNoTranscriptTimer();
       }
       setInterimTranscript(interim);
     };
@@ -456,6 +511,8 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       }
 
       keepListeningRef.current = false;
+      clearNoTranscriptTimer();
+      setVoiceFallbackActive(true);
       setVoiceStatus(voiceErrorStatus(event.error, event.message));
       setIsRecording(false);
     };
@@ -470,8 +527,10 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
             setVoiceStatus('Still listening. Pauses are okay.');
           } catch {
             keepListeningRef.current = false;
+            clearNoTranscriptTimer();
             setIsRecording(false);
-            setVoiceStatus('Voice capture paused by the browser. Use keyboard dictation or tap Record again.');
+            setVoiceFallbackActive(true);
+            setVoiceStatus('Voice capture paused by the browser. Tap Use keyboard mic, then talk.');
           }
         }, 250);
         return;
@@ -482,22 +541,36 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     recognitionRef.current = recognition;
     keepListeningRef.current = true;
     setVoiceElapsedSeconds(0);
+    noTranscriptTimerRef.current = window.setTimeout(() => {
+      if (!keepListeningRef.current) {
+        return;
+      }
+
+      switchToDictationFallback(
+        fallbackVoiceGuidance.mode === 'keyboardDictation'
+          ? 'No words came through from browser voice capture. Tap Use keyboard mic, then talk.'
+          : 'No words came through from browser voice capture. Type into the note box or use system dictation.',
+      );
+    }, 7000);
     setVoiceStatus('Listening. Speak naturally; short pauses are okay.');
     try {
       recognition.start();
       setIsRecording(true);
     } catch {
       keepListeningRef.current = false;
-      setVoiceStatus('Voice capture could not start. Use keyboard dictation or type into the note box.');
+      clearNoTranscriptTimer();
+      setVoiceFallbackActive(true);
+      setVoiceStatus('Voice capture could not start. Tap Use keyboard mic, then talk.');
     }
   };
 
   const openVoiceSheet = () => {
     setIsVoiceSheetOpen(true);
     setVoiceElapsedSeconds(0);
+    setVoiceFallbackActive(false);
     setInterimTranscript('');
     setVoiceStatus('');
-    if (speechSupported) {
+    if (voiceGuidance.mode === 'browserSpeech') {
       startVoiceCapture();
       return;
     }
@@ -739,7 +812,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
         <>
           <Section title="Field Capture" kicker="Draft-first">
             <div className="form-card copilot-card">
-              <div className={`voice-memo voice-memo--${voiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}>
+              <div className={`voice-memo voice-memo--${activeVoiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}>
                 <button
                   className="voice-record-button"
                   type="button"
@@ -749,7 +822,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                   aria-describedby="voice-capture-guidance"
                 >
                   <Mic size={18} aria-hidden="true" />
-                  <span>{voiceGuidance.idleButtonLabel}</span>
+                  <span>{activeVoiceGuidance.idleButtonLabel}</span>
                 </button>
                 <div className="voice-meter" aria-hidden="true">
                   <span />
@@ -759,9 +832,9 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                   <span />
                 </div>
                 <div>
-                  <strong>{voiceGuidance.title}</strong>
-                  <p id="voice-capture-guidance">{voiceGuidance.description}</p>
-                  <small>{voiceGuidance.privacyNote}</small>
+                  <strong>{activeVoiceGuidance.title}</strong>
+                  <p id="voice-capture-guidance">{activeVoiceGuidance.description}</p>
+                  <small>{activeVoiceGuidance.privacyNote}</small>
                 </div>
               </div>
               {interimTranscript ? <p className="voice-interim">{interimTranscript}</p> : null}
@@ -807,7 +880,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
           {isVoiceSheetOpen ? (
             <div className="voice-sheet-backdrop" role="presentation">
               <section
-                className={`voice-sheet voice-sheet--${voiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}
+                className={`voice-sheet voice-sheet--${activeVoiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="voice-sheet-title"
@@ -816,7 +889,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 <div className="voice-sheet__topline">
                   <div>
                     <span className="quiet-label">Voice capture</span>
-                    <h2 id="voice-sheet-title">{speechSupported ? 'Listening mode' : 'Dictation mode'}</h2>
+                    <h2 id="voice-sheet-title">{canUseBrowserSpeech ? 'Listening mode' : 'Dictation mode'}</h2>
                   </div>
                   <button className="icon-button" type="button" onClick={closeVoiceSheet} aria-label="Close voice mode">
                     <X size={20} aria-hidden="true" />
@@ -832,7 +905,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 </div>
 
                 <div className="voice-session-meta">
-                  <strong>{isRecording ? 'Recording' : speechSupported ? 'Ready' : 'Ready for keyboard mic'}</strong>
+                  <strong>{isRecording ? 'Recording' : canUseBrowserSpeech ? 'Ready' : 'Ready for keyboard mic'}</strong>
                   <span>{voiceDuration}</span>
                 </div>
 
@@ -847,7 +920,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 </div>
 
                 <div className="voice-transcript-panel" aria-live="polite">
-                  {speechSupported ? (
+                  {canUseBrowserSpeech ? (
                     <p>{voiceTranscriptPreview || 'Transcript will appear here as your browser returns words.'}</p>
                   ) : (
                     <textarea
@@ -868,7 +941,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                 ) : null}
 
                 <div className="voice-sheet-actions">
-                  {speechSupported ? (
+                  {canUseBrowserSpeech ? (
                     <Button variant={isRecording ? 'ghost' : 'primary'} onClick={isRecording ? stopVoiceCapture : startVoiceCapture}>
                       {isRecording ? <Square size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
                       {isRecording ? 'Stop' : 'Record'}
@@ -876,7 +949,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                   ) : (
                     <Button variant="primary" onClick={focusFallbackDictation}>
                       <Mic size={18} aria-hidden="true" />
-                      {voiceGuidance.sheetPrimaryAction}
+                      {activeVoiceGuidance.sheetPrimaryAction}
                     </Button>
                   )}
                   <Button onClick={closeVoiceSheet}>
@@ -884,7 +957,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
                     Done
                   </Button>
                 </div>
-                <small>{voiceGuidance.privacyNote}</small>
+                <small>{activeVoiceGuidance.privacyNote}</small>
               </section>
             </div>
           ) : null}

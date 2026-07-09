@@ -2,6 +2,7 @@ export type VoiceCaptureMode = 'browserSpeech' | 'keyboardDictation' | 'manualEn
 
 interface VoiceCaptureContext {
   speechRecognitionAvailable: boolean;
+  standaloneApp?: boolean;
   userAgent?: string;
   platform?: string;
   maxTouchPoints?: number;
@@ -21,6 +22,20 @@ export const isAppleTouchDevice = ({ userAgent = '', platform = '', maxTouchPoin
   /iPad|iPhone|iPod/i.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
 
 export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCaptureGuidance => {
+  const appleTouchDevice = isAppleTouchDevice(context);
+
+  if (appleTouchDevice && context.standaloneApp) {
+    return {
+      mode: 'keyboardDictation',
+      title: 'Keyboard dictation fallback',
+      description: 'Installed iPhone/iPad apps can block browser voice capture. Use the keyboard mic so your words appear here.',
+      privacyNote: 'Keyboard dictation is handled by iOS/iPadOS. This app only saves the text you leave in the note box.',
+      idleButtonLabel: 'Voice Mode',
+      unavailableStatus: 'Installed app voice capture needs keyboard dictation. Tap Use keyboard mic, then talk.',
+      sheetPrimaryAction: 'Use keyboard mic',
+    };
+  }
+
   if (context.speechRecognitionAvailable) {
     return {
       mode: 'browserSpeech',
@@ -33,7 +48,7 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
     };
   }
 
-  if (isAppleTouchDevice(context)) {
+  if (appleTouchDevice) {
     return {
       mode: 'keyboardDictation',
       title: 'Keyboard dictation fallback',

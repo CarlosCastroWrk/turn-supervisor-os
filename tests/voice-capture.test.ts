@@ -10,13 +10,33 @@ import {
 } from '../src/lib/voiceCapture.ts';
 
 test('getVoiceCaptureGuidance prefers browser speech when available', () => {
-  const guidance = getVoiceCaptureGuidance({ speechRecognitionAvailable: true, userAgent: 'iPhone' });
+  const guidance = getVoiceCaptureGuidance({ speechRecognitionAvailable: true, userAgent: 'Chrome', platform: 'MacIntel' });
 
   assert.equal(guidance.mode, 'browserSpeech');
   assert.equal(guidance.idleButtonLabel, 'Voice Mode');
   assert.equal(guidance.sheetPrimaryAction, 'Stop');
   assert.match(guidance.description, /Short pauses are okay/);
   assert.match(guidance.privacyNote, /browser\/OS/);
+});
+
+test('getVoiceCaptureGuidance avoids browser speech inside installed iPhone and iPad apps', () => {
+  const phone = getVoiceCaptureGuidance({
+    speechRecognitionAvailable: true,
+    standaloneApp: true,
+    userAgent: 'Mozilla/5.0 (iPhone)',
+  });
+  const ipad = getVoiceCaptureGuidance({
+    speechRecognitionAvailable: true,
+    standaloneApp: true,
+    userAgent: 'Mozilla/5.0 (Macintosh)',
+    platform: 'MacIntel',
+    maxTouchPoints: 5,
+  });
+
+  assert.equal(phone.mode, 'keyboardDictation');
+  assert.equal(ipad.mode, 'keyboardDictation');
+  assert.match(phone.description, /Installed iPhone\/iPad apps/);
+  assert.match(phone.unavailableStatus, /Use keyboard mic/);
 });
 
 test('getVoiceCaptureGuidance shows iPhone and iPad keyboard dictation fallback', () => {

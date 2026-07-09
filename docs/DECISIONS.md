@@ -168,6 +168,18 @@ Rationale:
 - Memory may support Crew facts, Daily Log lessons, Ask OS records, and report preferences, but it must not mutate operational records or auto-save generated Daily Log text.
 - Legacy unscoped records remain visible for review in Setup and require deliberate assignment to the current Turn.
 
+### 2026-07-09: Equal-timestamp sync conflicts must converge deterministically
+
+Keep newer-timestamp whole-row last-write-wins behavior. When two versions of the same row represent the same timestamp but contain different values, choose one canonical winner independent of which device is local. For Draft Actions, lifecycle timestamps and resolved states outrank stale pending copies.
+
+Rationale:
+
+- Preferring the local copy on every timestamp tie lets Mac, iPhone, and iPad alternately re-upload their own version forever.
+- A deterministic tie rule stops sync cycling and makes reconnect order irrelevant without introducing a new server or schema migration.
+- Whole-row resolution can still lose an independent field from simultaneous same-record edits; physical conflict QA and a future conflict-review design remain required.
+- Device clocks remain authoritative for now, so a clock far in the future is a known limitation rather than something the client silently rewrites.
+- Concurrent clients can still interleave after both pull the same baseline; the next pass recovers the newest timestamp, while atomic stale-write rejection remains a future server/schema decision.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

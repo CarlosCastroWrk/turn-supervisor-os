@@ -53,6 +53,19 @@ Baseline recorded July 9, 2026:
 
 These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
 
+## Automated Three-Device Sync Gate
+
+`npm run test:sync` includes a disposable in-memory cloud regression for Mac, iPhone, and iPad behavior. It does not read or change production Supabase data. The gate verifies:
+
+- disjoint Unit, Issue, and activity edits survive twelve simulated offline hours without duplicate rows;
+- the newest same-row edit wins in all six three-device reconnect orders;
+- exact-timestamp conflicts settle on the same whole-row winner instead of alternating uploads;
+- applied, rejected, and failed Draft Actions cannot be replaced by a stale pending copy during a timestamp tie.
+- overlapping stale uploads recover the newest timestamp on the next cloud pass and then stop uploading.
+- 10,000 existing equal-timestamp rows complete deterministic comparison within a two-second regression ceiling.
+
+This remains whole-row last-write-wins. Supabase upserts are not timestamp-conditional, so two truly overlapping uploads can briefly leave an older row in cloud state until the newer device receives or initiates another sync pass. The gate does not merge independent fields from simultaneous edits to the same record, correct a device clock that is far ahead, prove Realtime delivery, or replace the physical airplane-mode checklist below.
+
 Use Supabase checks only when working on migrations or sync setup:
 
 ```bash

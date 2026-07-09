@@ -236,6 +236,8 @@ Acceptance:
 
 ### B3. Offline/Reconnect Trust
 
+Status: deterministic three-device convergence coverage is implemented; physical Mac/iPhone/iPad airplane-mode acceptance remains open.
+
 Scope:
 
 - Run Mac/iPhone/iPad airplane-mode edit test.
@@ -245,6 +247,7 @@ Scope:
 - Pull and merge cloud state before upload flows push local changes.
 - Keep `Pull cloud` as a pull-only recovery action.
 - Show a clear pending-upload state when pull-only recovery leaves local changes unsent.
+- Resolve exact-timestamp row conflicts identically on every device so background sync cannot alternate between two tied copies.
 
 Acceptance:
 
@@ -255,6 +258,8 @@ Acceptance:
 - `Pull cloud` does not upload local rows.
 - The sync pill does not claim `Synced` when local changes still need upload after pull.
 - Upload flows do not blindly overwrite newer cloud rows without first checking cloud state.
+- Disjoint twelve-hour offline edits converge without duplicate rows in a disposable three-device cloud simulation.
+- Every reconnect order selects the newest same-row edit, and tied rows settle without later re-uploads.
 
 ### B4. Active Project Boundary
 

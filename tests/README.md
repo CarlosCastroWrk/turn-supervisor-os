@@ -10,6 +10,7 @@ npm run test:field-scale
 Covered categories:
 
 - Supabase sync row merge/fingerprint behavior
+- Disposable three-device offline/reconnect convergence, reconnect-order coverage, duplicate prevention, and equal-timestamp settling
 - Demo/real sync boundaries
 - Draft Action apply safety
 - Draft batch safety

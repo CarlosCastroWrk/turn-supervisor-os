@@ -1,14 +1,23 @@
 import type { PhotoNote } from '../../types';
 
 const TIMESTAMP_FIELDS = new Set([
+  'archivedAt',
   'archived_at',
+  'appliedAt',
   'applied_at',
+  'completedAt',
   'completed_at',
+  'createdAt',
   'created_at',
+  'lastUsedAt',
   'last_used_at',
+  'readAt',
   'read_at',
+  'scheduledFor',
   'scheduled_for',
+  'sentAt',
   'sent_at',
+  'updatedAt',
   'updated_at',
 ]);
 
@@ -16,10 +25,21 @@ export interface SyncStampedRow {
   id: string;
   createdAt?: string;
   updatedAt?: string;
+  appliedAt?: string;
   completedAt?: string;
+  status?: string;
 }
 
-export const comparableStamp = (item: SyncStampedRow) => item.updatedAt ?? item.completedAt ?? item.createdAt ?? '';
+const DRAFT_ACTION_STATUS_RANK: Record<string, number> = {
+  pending: 0,
+  approved: 1,
+  failed: 2,
+  rejected: 3,
+  applied: 4,
+};
+
+export const comparableStamp = (item: SyncStampedRow) =>
+  item.updatedAt ?? item.appliedAt ?? item.completedAt ?? item.createdAt ?? '';
 
 export const stampToTime = (stamp: string) => {
   const time = Date.parse(stamp);
@@ -52,6 +72,26 @@ const canonicalValue = (value: unknown, key?: string): unknown => {
 
 export const syncRowFingerprint = (row: Record<string, unknown>) => JSON.stringify(canonicalValue(row));
 
+export const compareSyncRows = <T extends SyncStampedRow>(a: T, b: T) => {
+  const stampDifference = compareSyncStamps(a, b);
+  if (stampDifference !== 0) {
+    return stampDifference;
+  }
+
+  const aDraftRank = a.status ? DRAFT_ACTION_STATUS_RANK[a.status] : undefined;
+  const bDraftRank = b.status ? DRAFT_ACTION_STATUS_RANK[b.status] : undefined;
+  if (aDraftRank !== undefined && bDraftRank !== undefined && aDraftRank !== bDraftRank) {
+    return aDraftRank - bDraftRank;
+  }
+
+  const aFingerprint = syncRowFingerprint(a as unknown as Record<string, unknown>);
+  const bFingerprint = syncRowFingerprint(b as unknown as Record<string, unknown>);
+  if (aFingerprint === bFingerprint) {
+    return 0;
+  }
+  return aFingerprint > bFingerprint ? 1 : -1;
+};
+
 export const mergeRows = <T extends SyncStampedRow>(
   localRows: T[],
   remoteRows: T[],
@@ -66,7 +106,7 @@ export const mergeRows = <T extends SyncStampedRow>(
       return;
     }
 
-    if (compareSyncStamps(remote, local) > 0) {
+    if (compareSyncRows(remote, local) > 0) {
       byId.set(remote.id, reconcileRemoteWinner(local, remote));
     }
   });

@@ -18,6 +18,8 @@ Current release candidate:
 E4 Project-Scoped Memory - code and local QA complete; production Supabase migration approval pending
 P0 Active Project Boundary - stacked on E4; code and local QA complete
 Field-Scale Regression Gate - stacked on the project boundary; 300-unit rendered and 1,000-unit/10,000-event deterministic QA complete
+Coalesced Persistence plus text/numeric Commit-On-Blur - stacked and fully verified
+Three-Device Sync Regression - stacked release candidate; deterministic tie convergence and disposable reconnect QA complete
 ```
 
 Production:
@@ -70,6 +72,7 @@ Every near-term change should serve that loop.
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
+- Deterministic equal-timestamp sync resolution that prevents same-row copies from re-uploading over each other indefinitely and preserves resolved Draft Action lifecycle states over stale pending copies
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
 - Sync pull hardening that reads Supabase rows in ordered pages, keeps `Pull cloud` pull-only, shows `Upload needed` when a pull leaves unsent local changes, and checks cloud before local upload flows push changed rows
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
@@ -99,6 +102,7 @@ Every near-term change should serve that loop.
 - Current-Turn human-readable exports for Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups; the separately labeled full-device JSON backup intentionally keeps every project
 - Full-device JSON restore validation that rejects malformed collections, unsafe records, duplicate IDs, invalid photo payloads, empty projects, and pathological record counts before replacing local state
 - A repeatable field-scale gate that creates 300 units through Setup, renders 100 units at a time across desktop/iPad/iPhone layouts, and validates Capture, Reports, export, backup restore, 1,000 units, 100 blockers, 500 ready units, and 10,000 activity events
+- A disposable three-device sync regression that preserves disjoint 12-hour offline edits, tests every reconnect order for same-row updates, rejects duplicate rows, and verifies equal-timestamp conflicts settle without repeated uploads
 
 ## What Real Turn Mode Currently Does
 

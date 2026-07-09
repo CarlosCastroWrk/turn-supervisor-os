@@ -12,6 +12,12 @@ Latest shipped release train:
 A2 Draft Apply Safety through F2 Supabase Storage Photo Sync and G2-G4 field hardening
 ```
 
+Current release candidate:
+
+```text
+E4 Project-Scoped Memory - code and local QA complete; production Supabase migration approval pending
+```
+
 Production:
 
 ```text
@@ -50,6 +56,9 @@ Every near-term change should serve that loop.
 - Nonblocking field feedback with accessible success/error toasts, explicit Issue-board outcomes, guarded Undo for high-frequency Unit quick-status taps, no-op suppression, and blocker-preserving trade transitions
 - Lightweight URL hash routing for top-level views, unit detail links, issue-focused links, dashboard deep links, reload, and browser back behavior
 - Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and deterministic smart suggestions
+- E4 release-candidate Memory behavior that scopes captured candidates and approved memories to the active project, keeps explicit personal/safety rules global, requires approval, rejects duplicate facts, and drops archived/missing-source records from active use
+- Setup-based Supervisor Memory review with editable candidates, approve/reject controls, active/inactive controls, source/scope visibility, last-used timestamps, and an explicit path for assigning legacy unscoped records
+- Typed Memory consumption for current-project Crew facts, Daily Log lessons, Ask OS supporting records, and briefing/report preferences without bypassing Draft Action or Daily Log confirmation
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
 - PWA manifest and service worker with 192/512 PNG install icons, a dedicated maskable icon, an iOS touch icon, unrestricted orientation, atomic app-shell install/update behavior, a four-second navigation timeout, cached offline deep-link startup, and a static-only cache allowlist that excludes future app-data endpoints
 - Supabase cloud project `jgplalexkmjzldczouih`
@@ -96,6 +105,7 @@ Every near-term change should serve that loop.
 ## What Does Not Exist Yet
 
 - Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
+- Production activation of E4 project-scoped Memory until `20260709195302_add_memory_project_scope.sql` is explicitly approved and applied
 - True conflict review for simultaneous same-row edits across devices
 - Delete propagation / tombstones for synced rows
 - Real-device verification that one captured photo reaches Los's other signed-in devices
@@ -121,6 +131,8 @@ Every near-term change should serve that loop.
 - Offline startup can use the cached app shell and local records; Supabase and uncached cloud photos still require connectivity.
 - Copilot output must remain draft-first; important mutations require explicit approval.
 - Memory candidates must be approved before use.
+- Approved project memories apply only to the active non-archived Turn. Only explicit personal supervisor preferences and built-in safety rules may remain global across Turns.
+- Legacy unscoped operational memories and candidates remain inactive/local until Los assigns them to the current Turn; Demo-scoped Memory stays local.
 - Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
 
 ## Current Testing Priority
@@ -167,4 +179,4 @@ Run the B3 real-device offline/reconnect and F2 photo checks before entering rea
 6. Confirm Mac and iPad receive the updates after reconnect.
 7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 
-While those physical-device checks are pending, the next code slice should implement E4 project-scoped Memory consumption without letting stale or unapproved memory affect current outputs.
+While those physical-device checks are pending, the immediate release action is to obtain explicit approval for the additive E4 Supabase migration, apply it, merge the verified PR, deploy production, and run a focused cross-device Memory sync check.

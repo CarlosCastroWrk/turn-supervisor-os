@@ -107,3 +107,42 @@ test('a stale active project id safely falls back to a project contained in the 
 
   assert.equal(restored.activeProjectId, restored.projects[0].id);
 });
+
+test('project-scoped Memory and candidate provenance survive backup validation', () => {
+  const data = cloneSeed();
+  data.memories = [
+    {
+      id: 'memory_scoped_backup',
+      projectId: data.activeProjectId,
+      memoryType: 'Crew Memory',
+      content: 'Jose crew handles painting.',
+      source: 'Approved Capture review',
+      sourceEntityId: 'candidate_scoped_backup',
+      confidence: 0.9,
+      approved: true,
+      createdAt: '2026-07-09T12:00:00.000Z',
+      updatedAt: '2026-07-09T12:00:00.000Z',
+    },
+  ];
+  data.memoryCandidates = [
+    {
+      id: 'candidate_scoped_backup',
+      projectId: data.activeProjectId,
+      memoryType: 'Crew Memory',
+      content: 'Jose crew handles painting.',
+      source: 'Capture',
+      sourceEntityId: 'activity_scoped_backup',
+      confidence: 0.9,
+      status: 'approved',
+      createdAt: '2026-07-09T12:00:00.000Z',
+      updatedAt: '2026-07-09T12:00:00.000Z',
+    },
+  ];
+
+  const restored = parseJsonBackup(buildJsonBackup(data));
+
+  assert.equal(restored.memories[0]?.projectId, data.activeProjectId);
+  assert.equal(restored.memories[0]?.sourceEntityId, 'candidate_scoped_backup');
+  assert.equal(restored.memoryCandidates[0]?.projectId, data.activeProjectId);
+  assert.equal(restored.memoryCandidates[0]?.sourceEntityId, 'activity_scoped_backup');
+});

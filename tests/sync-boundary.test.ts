@@ -11,6 +11,8 @@ import type {
   DailyLog,
   Floor,
   Issue,
+  Memory,
+  MemoryCandidate,
   PhotoNote,
   Project,
   ReportDocumentDraft,
@@ -190,6 +192,36 @@ const realActivity = (projectId: string): ActivityLog => ({
   createdAt: stamp,
 });
 
+const memory = (id: string, projectId: string | undefined, patch: Partial<Memory> = {}): Memory => ({
+  id,
+  projectId,
+  memoryType: 'Crew Memory',
+  content: id,
+  source: 'QA field source',
+  confidence: 0.9,
+  approved: true,
+  createdAt: stamp,
+  updatedAt: stamp,
+  ...patch,
+});
+
+const memoryCandidate = (
+  id: string,
+  projectId: string | undefined,
+  patch: Partial<MemoryCandidate> = {},
+): MemoryCandidate => ({
+  id,
+  projectId,
+  memoryType: 'Lesson Learned',
+  content: id,
+  source: 'QA field source',
+  confidence: 0.8,
+  status: 'pending',
+  createdAt: stamp,
+  updatedAt: stamp,
+  ...patch,
+});
+
 const withRealTree = () => {
   const data = cloneSeed();
   const project = realProject();
@@ -237,6 +269,39 @@ test('filterUploadableSyncItems skips demo-scoped child records and keeps real c
   assert.deepEqual(filterUploadableSyncItems(data, 'activityLogs', data.activityLogs).map((item) => item.id), ['activity_real_boundary']);
 });
 
+test('memory sync uploads real and explicit global records but keeps demo and legacy unscoped rows local', () => {
+  const data = withRealTree();
+  const demoProjectId = data.projects.find((project) => project.mode === 'demo')?.id;
+  assert.ok(demoProjectId);
+  const demoUnitId = data.units.find((unit) => unit.projectId === demoProjectId)?.id;
+  assert.ok(demoUnitId);
+  data.memories = [
+    memory('real_memory', 'project_real_boundary'),
+    memory('demo_memory', demoProjectId),
+    memory('legacy_unscoped', undefined),
+    memory('global_preference', undefined, { memoryType: 'Personal Supervisor Preference' }),
+    memory('global_safety', undefined, { source: 'Built-in safety rule', memoryType: 'Workflow Memory' }),
+    memory('global_but_demo_sourced', undefined, {
+      memoryType: 'Personal Supervisor Preference',
+      sourceEntityId: demoUnitId,
+    }),
+  ];
+  data.memoryCandidates = [
+    memoryCandidate('real_candidate', 'project_real_boundary'),
+    memoryCandidate('demo_candidate', demoProjectId),
+    memoryCandidate('legacy_candidate', undefined),
+  ];
+
+  assert.deepEqual(
+    filterUploadableSyncItems(data, 'memories', data.memories).map((item) => item.id),
+    ['real_memory', 'global_preference', 'global_safety'],
+  );
+  assert.deepEqual(
+    filterUploadableSyncItems(data, 'memoryCandidates', data.memoryCandidates).map((item) => item.id),
+    ['real_candidate'],
+  );
+});
+
 test('withLocalDemoRows preserves local demo rows when a fresh device pulls real cloud rows', () => {
   const local = cloneSeed();
   const demoReportDraft = reportDraft(local.projects[0].id, 'report_demo_boundary');
@@ -265,4 +330,20 @@ test('withLocalDemoRows does not duplicate a demo row that already exists remote
 
   assert.equal(demoProjects.length, 1);
   assert.equal(demoProjects[0].name, 'Cloud Demo Copy');
+});
+
+test('withLocalDemoRows preserves demo and unscoped Memory candidates during a pull', () => {
+  const local = withRealTree();
+  const demoProjectId = local.projects.find((project) => project.mode === 'demo')?.id;
+  assert.ok(demoProjectId);
+  local.memoryCandidates = [
+    memoryCandidate('demo_candidate', demoProjectId),
+    memoryCandidate('legacy_candidate', undefined),
+  ];
+  const remoteCandidate = memoryCandidate('remote_real_candidate', 'project_real_boundary');
+
+  const next = withLocalDemoRows(local, { memoryCandidates: [remoteCandidate] });
+  const ids = (next.memoryCandidates as MemoryCandidate[]).map((candidate) => candidate.id);
+
+  assert.deepEqual(ids, ['remote_real_candidate', 'demo_candidate', 'legacy_candidate']);
 });

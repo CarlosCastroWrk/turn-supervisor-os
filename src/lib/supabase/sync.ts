@@ -602,6 +602,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
       const memory = item as Memory;
       return {
         id: memory.id,
+        project_id: memory.projectId || null,
         memory_type: memory.memoryType,
         content: memory.content,
         source: memory.source,
@@ -616,6 +617,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
     fromRow: (row) =>
       ({
         id: stringValue(row, 'id'),
+        projectId: optionalString(row, 'project_id'),
         memoryType: stringValue(row, 'memory_type') as Memory['memoryType'],
         content: stringValue(row, 'content'),
         source: stringValue(row, 'source'),
@@ -634,9 +636,11 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
       const candidate = item as MemoryCandidate;
       return {
         id: candidate.id,
+        project_id: candidate.projectId || null,
         memory_type: candidate.memoryType,
         content: candidate.content,
         source: candidate.source,
+        source_entity_id: candidate.sourceEntityId || null,
         confidence: candidate.confidence,
         status: candidate.status,
         created_at: candidate.createdAt,
@@ -646,9 +650,11 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
     fromRow: (row) =>
       ({
         id: stringValue(row, 'id'),
+        projectId: optionalString(row, 'project_id'),
         memoryType: stringValue(row, 'memory_type') as MemoryCandidate['memoryType'],
         content: stringValue(row, 'content'),
         source: stringValue(row, 'source'),
+        sourceEntityId: optionalString(row, 'source_entity_id'),
         confidence: numberValue(row, 'confidence'),
         status: stringValue(row, 'status') as MemoryCandidate['status'],
         createdAt: stringValue(row, 'created_at', nowISO()),
@@ -884,7 +890,7 @@ export const uploadLocalDataWithPhotos = async (
   };
 };
 
-const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
+export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
   const remoteWithLocalDemo = withLocalDemoRows(local, remote);
 
   return normalizeAppData({
@@ -903,7 +909,7 @@ const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
     activityLogs: (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
     draftActions: (remoteWithLocalDemo.draftActions ?? local.draftActions) as DraftAction[],
     memories: (remoteWithLocalDemo.memories ?? local.memories) as Memory[],
-    memoryCandidates: (remote.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
+    memoryCandidates: (remoteWithLocalDemo.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
     followUpTasks: (remoteWithLocalDemo.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
   });
 };

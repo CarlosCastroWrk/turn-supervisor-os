@@ -7,7 +7,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 ## What V0.1 Includes
 
 - Mobile-first dashboard with Turn day, project progress, blockers, crews, priorities, and quick actions
-- Copilot section with Quick Capture, Ask the OS, Briefings, Draft Actions, Memory Inbox, and smart suggestions
+- Copilot section with focused Quick Capture, Draft Actions, deterministic Ask/Briefing internals, and Setup-based Supervisor Memory review
 - Editable project setup
 - Demo Mode vs Real Turn Mode with a Start Real Turn setup flow
 - Global bottom-right Capture button available across tabs
@@ -98,6 +98,7 @@ Safety notes:
 - Sync comparison normalizes equivalent timestamp formats and JSON object key order to reduce false local-change upload loops.
 - Demo and real Turn projects are separated by project mode. Start Real Turn Mode before entering real field records.
 - Important Copilot mutations are still draft-first.
+- Project-scoped operational Memory sync requires the additive E4 migration before the E4 client is deployed; legacy unscoped operational Memory remains inactive until assigned in Setup.
 - Real Turn photos save locally first, then upload to Los's private Supabase Storage folder when signed in and online. Other devices lazy-download and cache thumbnails; Demo Mode photos stay local.
 - Deletes are not propagated yet; avoid deleting browser data unless you exported a backup.
 
@@ -190,7 +191,11 @@ Memory helps the OS get smarter over time, but memory candidates require approva
 - Personal Supervisor Preference
 - Lesson Learned
 
-Rejected candidates are not used. Approved memories can guide reports and safety warnings.
+Capture scopes new candidates to the active Turn. Review and edit them in Setup under Supervisor Memory before approval. Rejected candidates are not used, and exact duplicate facts or repeated approval do not create duplicate saved Memory.
+
+Approved operational Memory applies only to the active non-archived project and a live linked source. Explicit personal supervisor preferences and built-in safety rules may apply across all Turns. Legacy unscoped operational Memory stays inactive until Los assigns it to the current Turn.
+
+Current typed consumption is deliberately narrow: sourced Crew facts, review-first Daily Log lessons, Ask OS supporting records, and briefing/report preferences. Memory never bypasses Draft Actions or automatically saves a Daily Log.
 
 ## AI / API Safety
 
@@ -219,7 +224,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - Cloud photo object deletion is not implemented yet.
 - PWA offline cold start and deep-link reload pass automated persistent-browser tests; installed iPhone/iPad Home Screen acceptance still must be run on the physical devices.
 - Cross-device sync is new and must be field-tested before Turn.
-- If sync still cycles after the latest deployed fingerprinting fix, the next slice should add visible sync diagnostics.
+- Visible sync diagnostics now identify trigger, table, row counts, queued work, and the last error; true same-row conflict review is still not implemented.
 - Delete propagation and conflict review UI are not implemented yet.
 - No CSV import yet.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.

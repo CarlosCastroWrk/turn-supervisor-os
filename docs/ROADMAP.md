@@ -89,7 +89,7 @@ Slices:
 - Daily activity snapshot
 - Report preview and print/PDF
 - Daily log auto-draft
-- Memory consumption and project scoping
+- Memory consumption and project scoping (release candidate; production migration pending)
 
 Success gate:
 

@@ -202,3 +202,12 @@ test('parser-created ready drafts cannot bypass ready safety checks', async () =
   assert.match(applied.draftActions[0].error ?? '', /Ready is blocked/);
   assert.equal(applied.units.find((item) => item.unitNumber === '104')?.overallStatus, 'Not Started');
 });
+
+test('parser-created memory candidates inherit the active Turn scope', async () => {
+  const result = await parse('Lesson learned: blocked units need an owner before lunch.');
+
+  assert.equal(result.memoryCandidates.length, 1);
+  assert.equal(result.memoryCandidates[0]?.memoryType, 'Lesson Learned');
+  assert.equal(result.memoryCandidates[0]?.projectId, project.id);
+  assert.equal(result.memoryCandidates[0]?.status, 'pending');
+});

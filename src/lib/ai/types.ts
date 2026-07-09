@@ -60,6 +60,7 @@ export const draftActionSchema = z.object({
 
 export const memoryCandidateSchema = z.object({
   id: z.string(),
+  projectId: z.string().optional(),
   memoryType: memoryTypeSchema,
   content: z.string(),
   source: z.string(),
@@ -95,6 +96,7 @@ export interface AskOsResult {
   supportingRecords: string[];
   uncertainty: string[];
   suggestedNextActions: string[];
+  usedMemoryIds?: string[];
   createdAt: string;
 }
 
@@ -104,6 +106,7 @@ export interface BriefingResult {
   body: string;
   supportingRecords: string[];
   suggestedNextActions: string[];
+  usedMemoryIds?: string[];
   createdAt: string;
 }
 
@@ -112,4 +115,3 @@ export interface AgentProvider {
   askOs(question: string, data: AppData): Promise<AskOsResult>;
   generateBriefing(type: BriefingType, data: AppData): Promise<BriefingResult>;
 }
-

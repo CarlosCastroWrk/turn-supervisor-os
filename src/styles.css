@@ -2299,6 +2299,47 @@ small {
   gap: 10px;
 }
 
+.memory-settings-group {
+  display: grid;
+  gap: 8px;
+}
+
+.memory-settings-group + .memory-settings-group,
+.memory-legacy {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.memory-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.memory-card__meta strong {
+  margin-right: auto;
+}
+
+.memory-card__meta span {
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.memory-legacy summary {
+  color: #334155;
+  font-weight: 820;
+}
+
+.memory-legacy .memory-grid {
+  margin-top: 10px;
+}
+
 .draft-result-banner {
   display: flex;
   align-items: center;

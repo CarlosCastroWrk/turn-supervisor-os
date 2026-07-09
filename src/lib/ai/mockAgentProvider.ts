@@ -10,6 +10,7 @@ import type {
 } from '../../types';
 import { buildDailyReport } from '../exporters';
 import { createId, formatTime, nowISO, todayISO, tomorrowISO } from '../constants';
+import { getApplicableMemories } from '../memory';
 import {
   getActiveProject,
   getPriorityIssues,
@@ -371,7 +372,7 @@ const assignmentDrafts = (data: AppData, text: string, sourceText: string): Draf
   return drafts;
 };
 
-const memoryCandidatesFromText = (text: string, sourceText: string): MemoryCandidate[] => {
+const memoryCandidatesFromText = (text: string, sourceText: string, projectId: string): MemoryCandidate[] => {
   const lower = text.toLowerCase();
   const candidates: MemoryCandidate[] = [];
 
@@ -432,7 +433,7 @@ const memoryCandidatesFromText = (text: string, sourceText: string): MemoryCandi
     );
   }
 
-  return candidates;
+  return candidates.map((candidate) => ({ ...candidate, projectId }));
 };
 
 const missingUnitFollowUps = (data: AppData, units: string[], sourceText: string): DraftAction[] =>
@@ -557,7 +558,7 @@ const parseQuickCapture = async (input: string, data: AppData): Promise<AgentPar
     }
 
     draftActions.push(...assignmentDrafts(data, sentence, rawInput));
-    memoryCandidates.push(...memoryCandidatesFromText(sentence, rawInput));
+    memoryCandidates.push(...memoryCandidatesFromText(sentence, rawInput, data.activeProjectId));
   });
 
   draftActions.push(...missingUnitFollowUps(data, units, rawInput));
@@ -620,6 +621,12 @@ const answerAskOs = (question: string, data: AppData): AskOsResult => {
   const assignments = getProjectAssignments(data);
   const summary = getUnitSummary(units);
   const suggestions = generateSmartSuggestions(data);
+  const applicableMemories = getApplicableMemories(data);
+  const usedMemoryIds = new Set<string>();
+  const memoryRecords = (memories: typeof applicableMemories) => {
+    memories.forEach((memory) => usedMemoryIds.add(memory.id));
+    return memories.map((memory) => `Approved ${memory.memoryType}: ${memory.content} (source: ${memory.source})`);
+  };
   const supportingRecords: string[] = [];
   const suggestedNextActions: string[] = [];
   const uncertainty: string[] = [];
@@ -634,6 +641,13 @@ const answerAskOs = (question: string, data: AppData): AskOsResult => {
     const inspection = units.filter(isInspectionUnit);
     conciseAnswer = inspection.length ? `${inspection.length} unit(s) need inspection: ${inspection.map((unit) => unit.unitNumber).join(', ')}.` : 'No units are currently marked as needing inspection.';
     supportingRecords.push(...inspection.map((unit) => `Unit ${unit.unitNumber}: inspection ${unit.inspectionStatus}`));
+    supportingRecords.push(
+      ...memoryRecords(
+        applicableMemories.filter(
+          (memory) => memory.memoryType === 'Workflow Memory' && /inspection|ready/i.test(memory.content),
+        ),
+      ),
+    );
     suggestedNextActions.push('Walk inspection-ready units before marking anything Ready.');
   } else if (/not been updated|stale|3 hours|three hours/.test(q)) {
     const stale = units.filter((unit) => Date.now() - new Date(unit.updatedAt).getTime() >= 3 * 3_600_000);
@@ -655,11 +669,19 @@ const answerAskOs = (question: string, data: AppData): AskOsResult => {
     supportingRecords.push(
       ...todayAssignments.map((assignment) => `${assignment.teamName}: ${assignment.status} - ${assignment.scope || 'No scope noted'}`),
     );
+    supportingRecords.push(...memoryRecords(applicableMemories.filter((memory) => memory.memoryType === 'Crew Memory')));
     suggestedNextActions.push('Check delayed/no-show assignments first.');
   } else if (/key|keys|access/.test(q)) {
     const keyIssues = issues.filter((issue) => ['Access', 'Keys'].includes(issue.category) || /key|access/i.test(`${issue.title} ${issue.notes}`));
     conciseAnswer = keyIssues.length ? `${keyIssues.length} open issue(s) involve keys/access.` : 'No open key/access issues recorded.';
     supportingRecords.push(...keyIssues.map((issue) => `${issue.priority}: ${issue.title} (${issue.status})`));
+    supportingRecords.push(
+      ...memoryRecords(
+        applicableMemories.filter(
+          (memory) => memory.memoryType === 'Workflow Memory' && /key|access/i.test(memory.content),
+        ),
+      ),
+    );
     suggestedNextActions.push('Batch key/access blockers into one concise update for Tony or property staff.');
   } else if (/waiting on cleaners|cleaners|cleaning/.test(q)) {
     const waiting = units.filter((unit) => ['Ready', 'Blocked', 'Not Started'].includes(unit.cleanStatus) && unit.overallStatus !== 'Ready');
@@ -670,15 +692,26 @@ const answerAskOs = (question: string, data: AppData): AskOsResult => {
     const priority = getPriorityIssues(issues).slice(0, 3);
     conciseAnswer = `Current status: ${summary.ready} ready, ${summary.inProgress} in progress, ${summary.blocked} blocked, ${summary.inspection} need inspection.`;
     supportingRecords.push(...priority.map((issue) => `${issue.priority}: ${issue.title}`));
+    supportingRecords.push(
+      ...memoryRecords(
+        applicableMemories.filter((memory) =>
+          ['Personal Supervisor Preference', 'Role Memory'].includes(memory.memoryType),
+        ),
+      ),
+    );
     suggestedNextActions.push(
       `Suggested message: Tony, current status: ${summary.ready} ready, ${summary.inProgress} in progress, ${summary.blocked} blocked, ${summary.inspection} need inspection. Biggest blockers: ${
         priority.map((issue) => issue.title).join('; ') || 'none recorded yet'
       }.`,
     );
   } else if (/learn|lesson/.test(q)) {
-    const lessons = data.dailyLogs.map((log) => log.lessons).filter(Boolean);
+    const lessons = data.dailyLogs
+      .filter((log) => log.projectId === data.activeProjectId)
+      .map((log) => log.lessons)
+      .filter(Boolean);
     conciseAnswer = lessons.length ? `Recent lesson: ${lessons[0]}` : 'Not enough lessons recorded yet.';
     supportingRecords.push(...lessons.slice(0, 5));
+    supportingRecords.push(...memoryRecords(applicableMemories.filter((memory) => memory.memoryType === 'Lesson Learned')));
     suggestedNextActions.push('Add one lesson in the Daily Log before end of day.');
   } else if (/training|questions/.test(q)) {
     const openQuestions = data.trainingQuestions.filter((item) => item.status !== 'Answered').slice(0, 8);
@@ -694,7 +727,15 @@ const answerAskOs = (question: string, data: AppData): AskOsResult => {
     uncertainty.push('No open issues are recorded yet.');
   }
 
-  return { question, conciseAnswer, supportingRecords, uncertainty, suggestedNextActions, createdAt: nowISO() };
+  return {
+    question,
+    conciseAnswer,
+    supportingRecords,
+    uncertainty,
+    suggestedNextActions,
+    usedMemoryIds: [...usedMemoryIds],
+    createdAt: nowISO(),
+  };
 };
 
 const generateBriefing = async (type: BriefingType, data: AppData): Promise<BriefingResult> => {
@@ -705,11 +746,18 @@ const generateBriefing = async (type: BriefingType, data: AppData): Promise<Brie
   const assignments = getProjectAssignments(data).filter((assignment) => assignment.date === todayISO());
   const suggestions = generateSmartSuggestions(data);
   const todayLog = data.dailyLogs.find((log) => log.projectId === project.id && log.date === todayISO());
-  const conciseMemory = data.memories.some((memory) => memory.approved && /concise|tony/i.test(memory.content));
+  const applicableMemories = getApplicableMemories(data);
+  const reportMemories = applicableMemories.filter(
+    (memory) =>
+      ['Personal Supervisor Preference', 'Role Memory'].includes(memory.memoryType) && /concise|short|tony|report/i.test(memory.content),
+  );
+  const crewMemories = applicableMemories.filter((memory) => memory.memoryType === 'Crew Memory').slice(0, 4);
+  const conciseMemory = reportMemories.some((memory) => /concise|short|tony/i.test(memory.content));
   const records = [
     `${summary.totalUnits} units, ${summary.ready} ready, ${summary.inProgress} in progress, ${summary.blocked} blocked`,
     ...issues.slice(0, 5).map((issue) => `${issue.priority}: ${issue.title}`),
     ...assignments.slice(0, 4).map((assignment) => `${assignment.teamName}: ${assignment.status}`),
+    ...crewMemories.map((memory) => `Approved Crew Memory: ${memory.content} (source: ${memory.source})`),
   ];
 
   const shortVersion = `Short version: ${summary.ready}/${summary.totalUnits} ready, ${summary.inProgress} in progress, ${summary.blocked} blocked, ${summary.inspection} need inspection. Biggest issue: ${
@@ -760,6 +808,7 @@ ${shortVersion}`,
     body: bodies[type],
     supportingRecords: records,
     suggestedNextActions: suggestions.slice(0, 4).map((suggestion) => suggestion.title),
+    usedMemoryIds: [...reportMemories, ...crewMemories].map((memory) => memory.id),
     createdAt: nowISO(),
   };
 };

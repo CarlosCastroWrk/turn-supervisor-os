@@ -31,6 +31,7 @@ import {
   nowISO,
   todayISO,
 } from './constants';
+import { memoryAppliesToActiveProject, prepareMemoryCandidatesForActiveProject } from './memory';
 
 export interface RealTurnSetupInput {
   projectName: string;
@@ -543,37 +544,55 @@ export const updateDraftAction = (data: AppData, draftActionId: EntityId, patch:
 export const rejectDraftAction = (data: AppData, draftActionId: EntityId): AppData =>
   updateDraftAction(data, draftActionId, { status: 'rejected' });
 
-export const addMemoryCandidates = (data: AppData, candidates: MemoryCandidate[]): AppData => ({
-  ...data,
-  memoryCandidates: [...candidates, ...data.memoryCandidates],
-  activityLogs:
-    candidates.length > 0
-      ? [
-          activity(
-            data.activeProjectId,
-            'Memory',
-            candidates[0].id,
-            'Created memory candidates',
-            `${candidates.length} memory candidate(s) require review.`,
-          ),
-          ...data.activityLogs,
-        ]
-      : data.activityLogs,
-});
+export const addMemoryCandidates = (data: AppData, candidates: MemoryCandidate[]): AppData => {
+  const scopedCandidates = prepareMemoryCandidatesForActiveProject(data, candidates);
+
+  if (scopedCandidates.length === 0) {
+    return data;
+  }
+
+  return {
+    ...data,
+    memoryCandidates: [...scopedCandidates, ...data.memoryCandidates],
+    activityLogs:
+      scopedCandidates.length > 0
+        ? [
+            activity(
+              scopedCandidates[0].projectId ?? data.activeProjectId,
+              'Memory',
+              scopedCandidates[0].id,
+              'Created memory candidates',
+              `${scopedCandidates.length} memory candidate(s) require review.`,
+            ),
+            ...data.activityLogs,
+          ]
+        : data.activityLogs,
+  };
+};
 
 export const approveMemoryCandidate = (data: AppData, candidateId: EntityId): AppData => {
   const candidate = data.memoryCandidates.find((item) => item.id === candidateId);
-  if (!candidate) {
+  const project = data.projects.find((item) => item.id === candidate?.projectId);
+  if (
+    !candidate ||
+    candidate.status !== 'pending' ||
+    !candidate.content.trim() ||
+    !candidate.projectId ||
+    candidate.projectId !== data.activeProjectId ||
+    !project ||
+    project.archivedAt
+  ) {
     return data;
   }
 
   const now = nowISO();
   const memory: Memory = {
     id: createId('memory'),
+    projectId: candidate.projectId,
     memoryType: candidate.memoryType,
     content: candidate.content,
     source: candidate.source,
-    sourceEntityId: candidate.sourceEntityId,
+    sourceEntityId: candidate.id,
     confidence: candidate.confidence,
     approved: true,
     createdAt: now,
@@ -586,16 +605,27 @@ export const approveMemoryCandidate = (data: AppData, candidateId: EntityId): Ap
     memoryCandidates: data.memoryCandidates.map((item) =>
       item.id === candidateId ? { ...item, status: 'approved', updatedAt: now } : item,
     ),
-    activityLogs: [activity(data.activeProjectId, 'Memory', memory.id, 'Approved memory', memory.content), ...data.activityLogs],
+    activityLogs: [activity(candidate.projectId, 'Memory', memory.id, 'Approved memory', memory.content), ...data.activityLogs],
   };
 };
 
-export const rejectMemoryCandidate = (data: AppData, candidateId: EntityId): AppData => ({
-  ...data,
-  memoryCandidates: data.memoryCandidates.map((candidate) =>
-    candidate.id === candidateId ? { ...candidate, status: 'rejected', updatedAt: nowISO() } : candidate,
-  ),
-});
+export const rejectMemoryCandidate = (data: AppData, candidateId: EntityId): AppData => {
+  const candidate = data.memoryCandidates.find((item) => item.id === candidateId);
+  if (
+    !candidate ||
+    candidate.status !== 'pending' ||
+    (candidate.projectId && candidate.projectId !== data.activeProjectId)
+  ) {
+    return data;
+  }
+
+  return {
+    ...data,
+    memoryCandidates: data.memoryCandidates.map((item) =>
+      item.id === candidateId ? { ...item, status: 'rejected', updatedAt: nowISO() } : item,
+    ),
+  };
+};
 
 export const updateMemoryCandidate = (data: AppData, candidateId: EntityId, patch: Partial<MemoryCandidate>): AppData => ({
   ...data,
@@ -608,6 +638,29 @@ export const updateMemory = (data: AppData, memoryId: EntityId, patch: Partial<M
   ...data,
   memories: data.memories.map((memory) => (memory.id === memoryId ? { ...memory, ...patch, updatedAt: nowISO() } : memory)),
 });
+
+export const markMemoriesUsed = (data: AppData, memoryIds: EntityId[]): AppData => {
+  if (memoryIds.length === 0) {
+    return data;
+  }
+
+  const requestedIds = new Set(memoryIds);
+  const ids = new Set(
+    data.memories
+      .filter((memory) => requestedIds.has(memory.id) && memoryAppliesToActiveProject(data, memory))
+      .map((memory) => memory.id),
+  );
+  if (ids.size === 0) {
+    return data;
+  }
+  const now = nowISO();
+  return {
+    ...data,
+    memories: data.memories.map((memory) =>
+      ids.has(memory.id) ? { ...memory, lastUsedAt: now, updatedAt: now } : memory,
+    ),
+  };
+};
 
 export const addAgentRun = (data: AppData, mode: AppData['agentRuns'][number]['mode'], input: string, output: unknown): AppData => ({
   ...data,
@@ -977,6 +1030,7 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
     next = addMemoryCandidates(next, [
       {
         id: createId('memory_candidate'),
+        projectId: next.activeProjectId,
         memoryType: (payloadString(draft.payload, 'memoryType') || 'Lesson Learned') as MemoryCandidate['memoryType'],
         content: payloadString(draft.payload, 'content') || draft.summary,
         source: draft.sourceText,

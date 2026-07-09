@@ -15,6 +15,7 @@ import type {
   TrainingQuestion,
   Unit,
 } from '../../types';
+import { isExplicitGlobalMemory } from '../memory';
 
 export type SyncBoundaryKey =
   | 'projects'
@@ -146,14 +147,23 @@ export const isDemoScopedSyncItem = (
     }
     case 'memories': {
       const memory = item as Memory;
-      return isDemoEntityId(boundary, memory.sourceEntityId);
+      if (memory.projectId) {
+        return boundary.demoProjectIds.has(memory.projectId);
+      }
+      if (isDemoEntityId(boundary, memory.sourceEntityId)) {
+        return true;
+      }
+      return !isExplicitGlobalMemory(memory);
+    }
+    case 'memoryCandidates': {
+      const candidate = item as MemoryCandidate;
+      return !candidate.projectId || boundary.demoProjectIds.has(candidate.projectId);
     }
     case 'followUpTasks': {
       const task = item as FollowUpTask;
       return isDemoEntityId(boundary, task.relatedEntityId);
     }
     case 'trainingQuestions':
-    case 'memoryCandidates':
       return false;
     default:
       return false;
@@ -217,7 +227,10 @@ export const withLocalDemoRows = (local: AppData, remote: SyncRemoteData): SyncR
       remote.memories as Memory[] | undefined,
       local.memories.filter((memory) => isDemoScopedSyncItem(boundary, 'memories', memory)),
     ),
-    memoryCandidates: remote.memoryCandidates as MemoryCandidate[] | undefined,
+    memoryCandidates: appendMissingRows(
+      remote.memoryCandidates as MemoryCandidate[] | undefined,
+      local.memoryCandidates.filter((candidate) => isDemoScopedSyncItem(boundary, 'memoryCandidates', candidate)),
+    ),
     followUpTasks: appendMissingRows(
       remote.followUpTasks as FollowUpTask[] | undefined,
       local.followUpTasks.filter((task) => isDemoScopedSyncItem(boundary, 'followUpTasks', task)),

@@ -2,7 +2,7 @@ import { Save, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
-import { upsertDailyLog } from '../lib/actions';
+import { markMemoriesUsed, upsertDailyLog } from '../lib/actions';
 import { createId, nowISO, todayISO } from '../lib/constants';
 import { buildDailyLogAutoDraft } from '../lib/dailyLogAutoDraft';
 import { getActiveProject } from '../lib/metrics';
@@ -33,6 +33,10 @@ const emptyLog = (projectId: string, date: string): DailyLog => {
 
 export function DailyLogView({ data, setData }: DailyLogViewProps) {
   const project = getActiveProject(data);
+  const projectLogs = useMemo(
+    () => data.dailyLogs.filter((log) => log.projectId === project.id),
+    [data.dailyLogs, project.id],
+  );
   const [date, setDate] = useState(todayISO());
   const [dirty, setDirty] = useState(false);
   const [autoDraftMessage, setAutoDraftMessage] = useState('');
@@ -43,11 +47,17 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
   );
 
   useEffect(() => {
+    if (draft.projectId !== project.id) {
+      setDirty(false);
+      setAutoDraftMessage('');
+      setDraft(projectLogs.find((log) => log.date === date) ?? emptyLog(project.id, date));
+      return;
+    }
     if (dirty) {
       return;
     }
-    setDraft(data.dailyLogs.find((log) => log.projectId === project.id && log.date === date) ?? emptyLog(project.id, date));
-  }, [data.dailyLogs, date, dirty, project.id]);
+    setDraft(projectLogs.find((log) => log.date === date) ?? emptyLog(project.id, date));
+  }, [date, dirty, draft.projectId, project.id, projectLogs]);
 
   const updateDraft = (patch: Partial<DailyLog>) => {
     setAutoDraftMessage('');
@@ -81,6 +91,7 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
     }
 
     setDraft(result.dailyLog);
+    setData((current) => markMemoriesUsed(current, result.usedMemoryIds));
     setDirty(true);
     setAutoDraftMessage(`Drafted ${result.changedFields.length} section${result.changedFields.length === 1 ? '' : 's'}. Review before saving.`);
   };
@@ -164,9 +175,9 @@ export function DailyLogView({ data, setData }: DailyLogViewProps) {
         </div>
       </Section>
 
-      <Section title="Past Logs" kicker={`${data.dailyLogs.length} saved`}>
+      <Section title="Past Logs" kicker={`${projectLogs.length} saved`}>
         <div className="stack">
-          {data.dailyLogs.map((log) => (
+          {projectLogs.map((log) => (
             <button className="list-card list-card--button" key={log.id} type="button" onClick={() => changeDate(log.date)}>
               <div>
                 <strong>{log.date}</strong>

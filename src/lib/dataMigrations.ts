@@ -1,4 +1,15 @@
-import type { AppData, Assignment, Building, CrewMember, Floor, PhotoNote, Project, ReportDocumentDraft } from '../types';
+import type {
+  AppData,
+  Assignment,
+  Building,
+  CrewMember,
+  Floor,
+  Memory,
+  MemoryCandidate,
+  PhotoNote,
+  Project,
+  ReportDocumentDraft,
+} from '../types';
 import { UNIT_WORKFLOW_STATUSES } from './constants';
 
 const DEMO_PROJECT_ID = 'project_west_campus_turn';
@@ -83,19 +94,68 @@ const normalizeCrew = (crew: CrewMember, demoProjectId: string | undefined, acti
   };
 };
 
+const optionalText = (value: unknown) => (typeof value === 'string' && value.length > 0 ? value : undefined);
+
+const projectIdForSource = (data: AppData, sourceEntityId: string | undefined) => {
+  if (!sourceEntityId) {
+    return undefined;
+  }
+
+  const directProject = data.projects.find((project) => project.id === sourceEntityId)?.id;
+  if (directProject) return directProject;
+  const building = data.buildings.find((item) => item.id === sourceEntityId);
+  if (building) return building.projectId;
+  const floor = data.floors.find((item) => item.id === sourceEntityId);
+  if (floor) return data.buildings.find((item) => item.id === floor.buildingId)?.projectId;
+  const crew = data.crewMembers.find((item) => item.id === sourceEntityId);
+  if (crew?.projectId) return crew.projectId;
+
+  return (
+    data.units.find((item) => item.id === sourceEntityId)?.projectId ??
+    data.assignments.find((item) => item.id === sourceEntityId)?.projectId ??
+    data.issues.find((item) => item.id === sourceEntityId)?.projectId ??
+    data.photoNotes.find((item) => item.id === sourceEntityId)?.projectId ??
+    data.dailyLogs.find((item) => item.id === sourceEntityId)?.projectId ??
+    data.reportDrafts.find((item) => item.id === sourceEntityId)?.projectId ??
+    data.activityLogs.find((item) => item.id === sourceEntityId)?.projectId
+  );
+};
+
+const normalizeMemory = (memory: Memory, data: AppData): Memory => {
+  const sourceEntityId = optionalText(memory.sourceEntityId);
+  return {
+    ...memory,
+    projectId: optionalText(memory.projectId) ?? projectIdForSource(data, sourceEntityId),
+    sourceEntityId,
+  };
+};
+
+const normalizeMemoryCandidate = (candidate: MemoryCandidate, data: AppData): MemoryCandidate => {
+  const sourceEntityId = optionalText(candidate.sourceEntityId);
+  return {
+    ...candidate,
+    projectId: optionalText(candidate.projectId) ?? projectIdForSource(data, sourceEntityId),
+    sourceEntityId,
+  };
+};
+
 export const normalizeAppData = (data: AppData): AppData => {
   const projects = arrayOrEmpty(data.projects).map(normalizeProject);
   const demoProject = projects.find((project) => project.mode === 'demo') ?? projects.find((project) => project.id === DEMO_PROJECT_ID);
   const activeProjectId = pickActiveProjectId(projects, data.activeProjectId);
+  const buildings = arrayOrEmpty(data.buildings).map(normalizeBuilding);
+  const floors = arrayOrEmpty(data.floors).map(normalizeFloor);
+  const crewMembers = arrayOrEmpty(data.crewMembers).map((crew) => normalizeCrew(crew, demoProject?.id, activeProjectId));
+  const scopeData = { ...data, projects, buildings, floors, crewMembers, activeProjectId };
 
   return {
     ...data,
     activeProjectId,
     projects,
-    buildings: arrayOrEmpty(data.buildings).map(normalizeBuilding),
-    floors: arrayOrEmpty(data.floors).map(normalizeFloor),
+    buildings,
+    floors,
     units: arrayOrEmpty(data.units),
-    crewMembers: arrayOrEmpty(data.crewMembers).map((crew) => normalizeCrew(crew, demoProject?.id, activeProjectId)),
+    crewMembers,
     assignments: arrayOrEmpty(data.assignments).map(normalizeAssignment),
     issues: arrayOrEmpty(data.issues),
     photoNotes: arrayOrEmpty(data.photoNotes).map(normalizePhotoNote),
@@ -104,8 +164,8 @@ export const normalizeAppData = (data: AppData): AppData => {
     trainingQuestions: arrayOrEmpty(data.trainingQuestions),
     activityLogs: arrayOrEmpty(data.activityLogs),
     draftActions: arrayOrEmpty(data.draftActions),
-    memories: arrayOrEmpty(data.memories),
-    memoryCandidates: arrayOrEmpty(data.memoryCandidates),
+    memories: arrayOrEmpty(data.memories).map((memory) => normalizeMemory(memory, scopeData)),
+    memoryCandidates: arrayOrEmpty(data.memoryCandidates).map((candidate) => normalizeMemoryCandidate(candidate, scopeData)),
     agentRuns: arrayOrEmpty(data.agentRuns),
     copilotConversations: arrayOrEmpty(data.copilotConversations),
     followUpTasks: arrayOrEmpty(data.followUpTasks),

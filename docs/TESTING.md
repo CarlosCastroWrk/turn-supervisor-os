@@ -205,6 +205,23 @@ Pass:
 - A failed upload stays retryable and does not block ordinary record sync.
 - No duplicate photo record appears after repeated `Sync now` taps.
 
+### 5C. Project-Scoped Memory
+
+- [ ] In Demo Mode, Capture an obvious QA lesson and confirm Setup shows it under `Needs approval` for the Demo project.
+- [ ] Approve it, switch to a Real Turn, and confirm the Demo lesson is absent while explicit `All Turns` personal/safety rules remain.
+- [ ] In the Real Turn, Capture and approve an obvious QA lesson and crew fact.
+- [ ] Confirm the crew fact appears in Crews and the lesson appears only after `Draft empty sections` in Daily Log.
+- [ ] Confirm the generated lesson remains unsaved until `Save Daily Log` is pressed.
+- [ ] Switch back to Demo Mode and confirm the Real Turn lesson/crew fact is absent.
+- [ ] On a second signed-in device, sync and confirm the same project boundaries and approval states remain.
+- [ ] If Setup shows `Needs project scope`, confirm the legacy record is inactive until `Use for current Turn` is pressed.
+
+Pass:
+
+- Only approved current-project Memory and explicit global personal/safety rules affect output.
+- Demo, archived, unapproved, rejected, missing-source, other-project, and legacy unscoped operational Memory do not affect the active Turn.
+- Repeating the same captured fact does not create a duplicate candidate or duplicate approved Memory.
+
 ### 6. Reset / Delete Safety
 
 - [ ] Export JSON before reset.
@@ -286,4 +303,4 @@ For normal non-emergency work:
 - [ ] Relevant checks pass.
 - [ ] Draft PR opened.
 - [ ] PR explains what changed, why, verification, and remaining risks.
-- [ ] No production deploy unless explicitly approved.
+- [ ] Any required Supabase migration has fresh explicit approval and is applied before deploying client code that depends on it.

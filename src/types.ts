@@ -332,6 +332,7 @@ export interface DraftAction {
 
 export interface Memory {
   id: EntityId;
+  projectId?: EntityId;
   memoryType: MemoryType;
   content: string;
   source: string;
@@ -345,6 +346,7 @@ export interface Memory {
 
 export interface MemoryCandidate {
   id: EntityId;
+  projectId?: EntityId;
   memoryType: MemoryType;
   content: string;
   source: string;

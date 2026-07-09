@@ -171,6 +171,25 @@ Pass:
 - A reload does not lose the photo or nearby unit data.
 - JSON backup includes every photo file available on that device and reports unavailable files.
 
+### 5B. Cross-Device Photo Sync
+
+- [ ] Use a work-safe Real Turn QA unit; do not use Demo Mode or tenant/private content.
+- [ ] On iPhone or iPad, add one small photo with an obvious QA caption.
+- [ ] Confirm the app says the photo saved locally first.
+- [ ] Tap `Sync now` once and open Sync details.
+- [ ] Confirm `Photo files uploaded` is `1` and `Photo files waiting` is `0`.
+- [ ] Open the same unit on Mac and the other mobile device, then sync/pull if Realtime has not arrived yet.
+- [ ] Confirm the thumbnail downloads, the caption is correct, and `Cloud copy ready` appears.
+- [ ] Reload each device and confirm the thumbnail remains visible.
+- [ ] Put one receiving device offline after its first download and confirm the cached thumbnail still appears.
+
+Pass:
+
+- The capture device never loses the local photo while upload is pending.
+- The private file appears only for Los's signed-in account.
+- A failed upload stays retryable and does not block ordinary record sync.
+- No duplicate photo record appears after repeated `Sync now` taps.
+
 ### 6. Reset / Delete Safety
 
 - [ ] Export JSON before reset.

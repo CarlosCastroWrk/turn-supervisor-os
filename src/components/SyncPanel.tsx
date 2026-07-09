@@ -101,6 +101,18 @@ export function SyncPanel({ sync }: SyncPanelProps) {
                   <dd>{diagnostics.lastUploadedRows ?? 0}</dd>
                 </div>
                 <div>
+                  <dt>Photo files uploaded</dt>
+                  <dd>{diagnostics.lastUploadedPhotoFiles ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Photo files waiting</dt>
+                  <dd>{diagnostics.pendingPhotoFiles ?? 0}</dd>
+                </div>
+                <div>
+                  <dt>Photo files not here</dt>
+                  <dd>{diagnostics.unavailableLocalPhotoFiles ?? 0}</dd>
+                </div>
+                <div>
                   <dt>Uploaded tables</dt>
                   <dd>{lastUploadedTables}</dd>
                 </div>
@@ -123,6 +135,10 @@ export function SyncPanel({ sync }: SyncPanelProps) {
                 <div className={diagnostics.lastError ? 'sync-diagnostics__error' : ''}>
                   <dt>Last error</dt>
                   <dd>{diagnostics.lastError ?? 'None'}</dd>
+                </div>
+                <div className={diagnostics.lastPhotoError ? 'sync-diagnostics__error' : ''}>
+                  <dt>Last photo error</dt>
+                  <dd>{diagnostics.lastPhotoError ?? 'None'}</dd>
                 </div>
               </dl>
             </details>

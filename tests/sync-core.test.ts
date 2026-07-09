@@ -106,3 +106,34 @@ test('mergePhotoNotes preserves local image data when cloud only has metadata', 
   assert.equal(merged.imageMimeType, 'image/jpeg');
   assert.equal(merged.imageByteSize, 12345);
 });
+
+test('mergePhotoNotes preserves a known cloud path when an offline local caption is newer', () => {
+  const local = [
+    {
+      id: 'photo_cloud_path',
+      projectId: 'project_real',
+      unitId: 'unit_204',
+      category: 'Problem' as const,
+      caption: 'newer offline caption',
+      createdAt: '2026-07-09T15:00:00.000Z',
+      updatedAt: '2026-07-09T15:10:00.000Z',
+    },
+  ];
+  const remote = [
+    {
+      id: 'photo_cloud_path',
+      projectId: 'project_real',
+      unitId: 'unit_204',
+      storagePath: '123e4567-e89b-42d3-a456-426614174000/photo_cloud_path.jpg',
+      category: 'Problem' as const,
+      caption: 'older cloud caption',
+      createdAt: '2026-07-09T15:00:00.000Z',
+      updatedAt: '2026-07-09T15:05:00.000Z',
+    },
+  ];
+
+  const [merged] = mergePhotoNotes(local, remote);
+
+  assert.equal(merged.caption, 'newer offline caption');
+  assert.equal(merged.storagePath, remote[0].storagePath);
+});

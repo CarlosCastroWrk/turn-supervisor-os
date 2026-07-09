@@ -28,6 +28,11 @@ import {
   type SyncRemoteData,
 } from './syncBoundary';
 import { mergePhotoNotes, mergeRows, syncRowFingerprint } from './syncCore';
+import {
+  uploadPendingPhotoFiles,
+  type PhotoFileUploadResult,
+  type PhotoSyncDependencies,
+} from './photoSync';
 
 type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'pending_upload' | 'offline' | 'error';
 type SyncTrigger = 'startup' | 'manual' | 'pull' | 'upload' | 'realtime' | 'reconnect' | 'local_edit';
@@ -44,14 +49,18 @@ export interface SyncDiagnostics {
   lastError?: string;
   lastEvent?: string;
   lastFinishedAt?: string;
+  lastPhotoError?: string;
   lastPulledRows?: number;
   lastStartedAt?: string;
   lastTable?: string;
   lastTrigger?: SyncTrigger;
+  lastUploadedPhotoFiles?: number;
   lastUploadedRows?: number;
   lastUploadedTables?: string[];
+  pendingPhotoFiles?: number;
   queued: boolean;
   runCount: number;
+  unavailableLocalPhotoFiles?: number;
 }
 
 interface SyncTable<T extends { id: string }> {
@@ -402,7 +411,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         floor_id: photo.floorId || null,
         unit_id: photo.unitId || null,
         issue_id: photo.issueId || null,
-        storage_path: '',
+        storage_path: photo.storagePath ?? '',
         category: photo.category,
         caption: photo.caption,
         created_at: photo.createdAt,
@@ -417,6 +426,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         floorId: optionalString(row, 'floor_id'),
         unitId: optionalString(row, 'unit_id'),
         issueId: optionalString(row, 'issue_id'),
+        storagePath: optionalString(row, 'storage_path'),
         category: stringValue(row, 'category') as PhotoNote['category'],
         caption: stringValue(row, 'caption'),
         createdAt: stringValue(row, 'created_at', nowISO()),
@@ -740,7 +750,7 @@ const hasChangedRows = (data: AppData, baseline: SyncBaseline) => {
   );
 };
 
-interface UploadLocalDataResult {
+export interface UploadLocalDataResult {
   baseline: SyncBaseline;
   failures: string[];
   uploadedRows: number;
@@ -749,6 +759,20 @@ interface UploadLocalDataResult {
 
 const uploadFailureMessage = (failures: string[]) =>
   `Upload failed for ${failures.length} table(s): ${failures.join('; ')}`;
+
+const photoUploadMessage = (result: PhotoFileUploadResult) => {
+  const parts: string[] = [];
+  if (result.uploadedFiles > 0) {
+    parts.push(`Uploaded ${result.uploadedFiles} private photo file(s).`);
+  }
+  if (result.failedFiles > 0) {
+    parts.push(`${result.failedFiles} photo file(s) still waiting for cloud upload.`);
+  }
+  if (result.unavailableLocalFiles > 0) {
+    parts.push(`${result.unavailableLocalFiles} older photo file(s) are not on this device.`);
+  }
+  return parts.join(' ');
+};
 
 const initialDiagnostics: SyncDiagnostics = {
   backgroundCheckCount: 0,
@@ -816,6 +840,48 @@ export const uploadLocalData = async (client: SupabaseClient, data: AppData, bas
   }
 
   return { baseline: nextBaseline, failures, uploadedRows, uploadedTables };
+};
+
+export interface UploadLocalDataWithPhotosResult extends UploadLocalDataResult {
+  data: AppData;
+  photoUpload: PhotoFileUploadResult;
+}
+
+export const uploadLocalDataWithPhotos = async (
+  client: SupabaseClient,
+  userId: string,
+  data: AppData,
+  baseline: SyncBaseline,
+  photoDependencies?: Partial<PhotoSyncDependencies>,
+): Promise<UploadLocalDataWithPhotosResult> => {
+  const recordUpload = await uploadLocalData(client, data, baseline);
+  const emptyPhotoUpload: PhotoFileUploadResult = {
+    data,
+    failedFiles: 0,
+    failures: [],
+    unavailableLocalFiles: 0,
+    uploadedFiles: 0,
+  };
+
+  if (recordUpload.failures.length > 0) {
+    return { ...recordUpload, data, photoUpload: emptyPhotoUpload };
+  }
+
+  const photoUpload = await uploadPendingPhotoFiles(client, userId, data, photoDependencies);
+  if (photoUpload.uploadedFiles === 0) {
+    return { ...recordUpload, data, photoUpload };
+  }
+
+  const pathUpload = await uploadLocalData(client, photoUpload.data, recordUpload.baseline);
+  const failures = [...recordUpload.failures, ...pathUpload.failures];
+  return {
+    baseline: pathUpload.baseline,
+    data: failures.length > 0 ? data : photoUpload.data,
+    failures,
+    photoUpload,
+    uploadedRows: recordUpload.uploadedRows + pathUpload.uploadedRows,
+    uploadedTables: Array.from(new Set([...recordUpload.uploadedTables, ...pathUpload.uploadedTables])),
+  };
 };
 
 const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
@@ -897,7 +963,15 @@ export const useSupabaseSync = (
   }, []);
 
   const finishDiagnostics = useCallback(
-    (patch: Pick<SyncDiagnostics, 'lastPulledRows' | 'lastUploadedRows'> & { lastUploadedTables?: string[] }) => {
+    (
+      patch: Pick<SyncDiagnostics, 'lastPulledRows' | 'lastUploadedRows'> & {
+        lastPhotoError?: string;
+        lastUploadedPhotoFiles?: number;
+        lastUploadedTables?: string[];
+        pendingPhotoFiles?: number;
+        unavailableLocalPhotoFiles?: number;
+      },
+    ) => {
       setDiagnostics((current) => ({
         ...current,
         ...patch,
@@ -1033,22 +1107,39 @@ export const useSupabaseSync = (
         }, 0);
       }
 
-      const uploadResult = await uploadLocalData(client, nextData, syncBaselineRef.current);
+      const uploadResult = await uploadLocalDataWithPhotos(client, session.user.id, nextData, syncBaselineRef.current);
+      const photoUploadResult = uploadResult.photoUpload;
+      nextData = uploadResult.data;
       syncBaselineRef.current = uploadResult.baseline;
       if (uploadResult.failures.length > 0) {
         throw new Error(uploadFailureMessage(uploadResult.failures));
       }
-      setStatus('synced');
+      if (photoUploadResult.uploadedFiles > 0) {
+        applyingRemoteRef.current = true;
+        setData(nextData);
+        dataRef.current = nextData;
+        window.setTimeout(() => {
+          applyingRemoteRef.current = false;
+        }, 0);
+      }
+      setStatus(photoUploadResult.failedFiles > 0 ? 'pending_upload' : 'synced');
       setLastSyncedAt(nowISO());
       finishDiagnostics({
+        lastPhotoError: photoUploadResult.failures[0],
         lastPulledRows: rowCount,
+        lastUploadedPhotoFiles: photoUploadResult.uploadedFiles,
         lastUploadedRows: uploadResult.uploadedRows,
         lastUploadedTables: uploadResult.uploadedTables,
+        pendingPhotoFiles: photoUploadResult.failedFiles,
+        unavailableLocalPhotoFiles: photoUploadResult.unavailableLocalFiles,
       });
+      const photoMessage = photoUploadMessage(photoUploadResult);
       setMessage(
-        uploadResult.uploadedRows > 0
+        `${
+          uploadResult.uploadedRows > 0
           ? `Checked cloud first, then uploaded ${uploadResult.uploadedRows} local change(s).`
-          : 'No local changes to upload.',
+          : 'No local record changes to upload.'
+        }${photoMessage ? ` ${photoMessage}` : ''}`,
       );
     } catch (error) {
       failDiagnostics(error);
@@ -1108,25 +1199,42 @@ export const useSupabaseSync = (
         }, 0);
       }
 
-      const uploadResult = await uploadLocalData(client, nextData, syncBaselineRef.current);
+      const uploadResult = await uploadLocalDataWithPhotos(client, session.user.id, nextData, syncBaselineRef.current);
+      const photoUploadResult = uploadResult.photoUpload;
+      nextData = uploadResult.data;
       syncBaselineRef.current = uploadResult.baseline;
       if (uploadResult.failures.length > 0) {
         throw new Error(uploadFailureMessage(uploadResult.failures));
       }
+      if (photoUploadResult.uploadedFiles > 0) {
+        applyingRemoteRef.current = true;
+        setData(nextData);
+        dataRef.current = nextData;
+        window.setTimeout(() => {
+          applyingRemoteRef.current = false;
+        }, 0);
+      }
       initializedRef.current = true;
-      setStatus('synced');
+      setStatus(photoUploadResult.failedFiles > 0 ? 'pending_upload' : 'synced');
       setLastSyncedAt(nowISO());
       finishDiagnostics({
+        lastPhotoError: photoUploadResult.failures[0],
         lastPulledRows: rowCount,
+        lastUploadedPhotoFiles: photoUploadResult.uploadedFiles,
         lastUploadedRows: uploadResult.uploadedRows,
         lastUploadedTables: uploadResult.uploadedTables,
+        pendingPhotoFiles: photoUploadResult.failedFiles,
+        unavailableLocalPhotoFiles: photoUploadResult.unavailableLocalFiles,
       });
+      const photoMessage = photoUploadMessage(photoUploadResult);
       setMessage(
-        options.quiet && uploadResult.uploadedRows === 0
+        `${
+          options.quiet && uploadResult.uploadedRows === 0 && photoUploadResult.uploadedFiles === 0
           ? `Synced. Background ${options.trigger === 'realtime' ? 'Realtime' : 'cloud'} check found no local uploads.`
           : rowCount > 0
           ? `Pulled cloud records and uploaded ${uploadResult.uploadedRows} local change(s).`
-          : `Cloud was empty. Uploaded ${uploadResult.uploadedRows} local record(s).`,
+          : `Cloud was empty. Uploaded ${uploadResult.uploadedRows} local record(s).`
+        }${photoMessage ? ` ${photoMessage}` : ''}`,
       );
     } catch (error) {
       failDiagnostics(error);

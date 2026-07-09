@@ -45,7 +45,7 @@ Make Real Turn Mode safe across Mac, iPhone, and iPad before adding more AI or f
 - Dashboard, Setup, Units, Issues, Crews, Assignments, Daily Log, Reports, Training Questions, Export
 - Rule-based Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and smart suggestions
 - No browser API keys
-- Photo metadata sync only; IndexedDB photo files remain on the capture device until Supabase Storage sync
+- Private Real Turn photo upload to Supabase Storage, synced `storage_path` metadata, and lazy cross-device thumbnail download/cache; physical-device acceptance is still pending
 - Photo-complete JSON backup and in-app restore for files available on the current device
 
 ## Recently Changed Areas

@@ -100,6 +100,13 @@ export const getPhotoBlob: PhotoBlobReader = async (photoId) => {
   return record?.blob;
 };
 
+export const getLocalPhotoBlob = async (photo: PhotoNote) => {
+  if (photo.imageData) {
+    return dataUrlToBlob(photo.imageData);
+  }
+  return getPhotoBlob(photo.id);
+};
+
 export const clearPhotoBlobs = async () => {
   if (typeof indexedDB === 'undefined') {
     return;

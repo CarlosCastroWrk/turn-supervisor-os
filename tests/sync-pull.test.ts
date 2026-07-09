@@ -8,7 +8,7 @@ import {
   syncedTables,
   uploadLocalData,
 } from '../src/lib/supabase/sync.ts';
-import type { AppData, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
+import type { AppData, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
 
 type RemoteRow = Record<string, unknown>;
 type RangeCall = { from: number; table: string; to: number };
@@ -76,6 +76,19 @@ const reportDraft = (updatedAt = stamp): ReportDocumentDraft => ({
   createdAt: stamp,
   updatedAt,
 });
+
+const photoNote = (storagePath = `${userId}/photo_sync_pull.jpg`): PhotoNote => ({
+  id: 'photo_sync_pull',
+  projectId: 'project_sync_pull',
+  unitId: 'unit_sync_pull_104',
+  storagePath,
+  category: 'Problem',
+  caption: 'Cloud photo path QA',
+  createdAt: stamp,
+  updatedAt: stamp,
+});
+
+const userId = '123e4567-e89b-42d3-a456-426614174000';
 
 const appData = (localProject = project(), localUnit = unit()): AppData => ({
   activeProjectId: localProject.id,
@@ -163,6 +176,20 @@ const reportDraftRow = (updatedAt = stamp): RemoteRow => ({
   updated_at: updatedAt,
 });
 
+const photoNoteRow = (storagePath = `${userId}/photo_sync_pull.jpg`): RemoteRow => ({
+  id: 'photo_sync_pull',
+  project_id: 'project_sync_pull',
+  building_id: null,
+  floor_id: null,
+  unit_id: 'unit_sync_pull_104',
+  issue_id: null,
+  storage_path: storagePath,
+  category: 'Problem',
+  caption: 'Cloud photo path QA',
+  created_at: stamp,
+  updated_at: stamp,
+});
+
 const rowsByTable = (overrides: Record<string, RemoteRow[]> = {}) =>
   new Map(syncedTables.map((table) => [table, overrides[table] ?? []]));
 
@@ -235,6 +262,14 @@ test('fetchRemoteData maps report draft rows with edited section state', async (
   assert.equal(draft?.sections[0]?.body, 'Unit 203 waiting on paint');
 });
 
+test('fetchRemoteData maps private photo storage paths', async () => {
+  const result = await fetchRemoteData(
+    asSupabaseClient(fakeClient(rowsByTable({ photo_notes: [photoNoteRow()] }))),
+  );
+
+  assert.equal(result.remote.photoNotes?.[0]?.storagePath, `${userId}/photo_sync_pull.jpg`);
+});
+
 test('uploadLocalData serializes edited report drafts for Supabase upsert', async () => {
   const upsertCalls: UpsertCall[] = [];
   const local = {
@@ -251,6 +286,19 @@ test('uploadLocalData serializes edited report drafts for Supabase upsert', asyn
   assert.equal(row?.title_edited, true);
   assert.equal(Array.isArray(row?.sections), true);
   assert.equal((row?.sections as ReportDocumentDraft['sections'])?.[0]?.bodyEdited, true);
+});
+
+test('uploadLocalData serializes private photo storage paths', async () => {
+  const upsertCalls: UpsertCall[] = [];
+  const local = {
+    ...appData(),
+    photoNotes: [photoNote()],
+  };
+
+  await uploadLocalData(asSupabaseClient(fakeClient(rowsByTable(), [], upsertCalls)), local, {});
+  const photoUpsert = upsertCalls.find((call) => call.table === 'photo_notes');
+
+  assert.equal(photoUpsert?.rows[0]?.storage_path, `${userId}/photo_sync_pull.jpg`);
 });
 
 test('pull-before-upload keeps a newer cloud row from being re-overwritten by a stale local row', async () => {

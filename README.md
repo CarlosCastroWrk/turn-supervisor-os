@@ -78,7 +78,7 @@ npm run lint
 3. Tap Share.
 4. Tap Add to Home Screen.
 
-The app stores data locally in that browser on that device. Operational records use localStorage and normal compressed photo files use IndexedDB. When Supabase sync is enabled and you are signed in, supported records also sync to your private Supabase project. Export JSON backups regularly; the backup gathers photo files available on that device and reports any missing files.
+The app stores data locally in that browser on that device. Operational records use localStorage and normal compressed photo files use IndexedDB. When Supabase sync is enabled and you are signed in, supported records and available Real Turn photo files also sync to your private Supabase project. Export JSON backups regularly; the backup gathers photo files available on that device and reports any missing files.
 
 ## Supabase Sync
 
@@ -96,7 +96,7 @@ Safety notes:
 - Sync comparison normalizes equivalent timestamp formats and JSON object key order to reduce false local-change upload loops.
 - Demo and real Turn projects are separated by project mode. Start Real Turn Mode before entering real field records.
 - Important Copilot mutations are still draft-first.
-- Photo metadata syncs, but IndexedDB photo files stay on the capture device until Supabase Storage photo sync is implemented.
+- Real Turn photos save locally first, then upload to Los's private Supabase Storage folder when signed in and online. Other devices lazy-download and cache thumbnails; Demo Mode photos stay local.
 - Deletes are not propagated yet; avoid deleting browser data unless you exported a backup.
 
 ## Start A Real Turn Safely
@@ -212,8 +212,9 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 
 ## Known V0.1 Limitations
 
-- IndexedDB photo files are still device-local; reinstalling or clearing site data can remove them unless they were included in a JSON backup.
-- Cross-device photo files are not available until Supabase Storage photo sync is implemented.
+- A newly captured photo remains device-local until a successful signed-in sync records its private cloud path; reinstalling or clearing site data before that can remove it unless it was included in a JSON backup.
+- Cross-device photo sync is implemented but still requires Los's one-photo Mac/iPhone/iPad acceptance check.
+- Cloud photo object deletion is not implemented yet.
 - PWA offline support caches the app shell, but full offline production hardening is not complete.
 - Cross-device sync is new and must be field-tested before Turn.
 - If sync still cycles after the latest deployed fingerprinting fix, the next slice should add visible sync diagnostics.
@@ -243,7 +244,7 @@ The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal n
 
 ### Version 0.2
 
-- Supabase Storage photo sync across Los's devices
+- Supabase Storage photo sync physical-device acceptance and cleanup lifecycle
 - Better offline PWA support
 - Import units from CSV
 - Voice notes

@@ -1440,6 +1440,20 @@ small {
   font-weight: 760;
 }
 
+.photo-thumb__retry {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: #334155;
+  padding: 0 10px;
+  font: inherit;
+}
+
 .timeline article {
   display: grid;
   gap: 4px;

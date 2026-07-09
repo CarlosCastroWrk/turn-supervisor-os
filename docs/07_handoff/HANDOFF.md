@@ -49,6 +49,7 @@ Complete the real-device offline/reconnect gate before entering real field data:
 
 - Real-device offline/reconnect behavior still needs final confirmation.
 - Delete propagation/tombstones are not implemented.
-- Photo binary sync through Supabase Storage is not implemented.
-- IndexedDB keeps normal photo files out of the main app record, but those files remain device-local until Supabase Storage sync.
+- Supabase Storage photo sync is implemented for private Real Turn files, but the one-photo Mac/iPhone/iPad acceptance check is still pending.
+- New photos save into IndexedDB first; signed-in sync uploads available files and other devices lazy-download/cache them.
+- Cloud photo object deletion is not implemented.
 - Simultaneous same-row edits still use whole-row timestamp conflict behavior.

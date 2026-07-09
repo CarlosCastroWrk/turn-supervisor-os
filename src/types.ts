@@ -237,6 +237,7 @@ export interface PhotoNote {
   localImageAvailable?: boolean;
   imageMimeType?: string;
   imageByteSize?: number;
+  storagePath?: string;
   category: PhotoCategory;
   caption: string;
   createdAt: string;

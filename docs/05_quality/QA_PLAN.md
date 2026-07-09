@@ -84,6 +84,8 @@ git diff --check
 - Confirm photo bytes are in IndexedDB and not the main localStorage record.
 - Export a photo-complete JSON backup and verify included/missing photo counts.
 - Stress at least 200 photo records and confirm the unit page remains bounded to six rendered thumbnails.
+- Capture one work-safe Real Turn photo, sync it from one physical device, and confirm the other two devices lazy-download and cache the same private file.
+- Repeat `Sync now` and confirm the photo record/file does not duplicate.
 - Inject corrupt local cache and confirm bad payload is preserved.
 - Confirm app still boots after fallback.
 

@@ -101,7 +101,10 @@ test('applicable memories stay inside the active project and require a live sour
   const data = withRealProject();
   data.projects.push(realProject({ id: 'project_archived', archivedAt: stamp }));
   data.crewMembers.push(activeCrew({ id: 'crew_inactive', active: false }));
-  data.memoryCandidates = [candidate('other_candidate_source', { projectId: 'project_other' })];
+  data.memoryCandidates = [
+    candidate('other_candidate_source', { projectId: 'project_other' }),
+    candidate('rejected_candidate_source', { projectId: data.activeProjectId, status: 'rejected' }),
+  ];
   data.memories = [
     memory('active_project'),
     memory('global_preference', {
@@ -117,6 +120,10 @@ test('applicable memories stay inside the active project and require a live sour
     memory('missing_source', { sourceEntityId: 'crew_removed', memoryType: 'Crew Memory' }),
     memory('wrong_project_candidate_source', {
       sourceEntityId: 'other_candidate_source',
+      memoryType: 'Crew Memory',
+    }),
+    memory('rejected_candidate_source_memory', {
+      sourceEntityId: 'rejected_candidate_source',
       memoryType: 'Crew Memory',
     }),
     memory('not_approved', { approved: false }),
@@ -147,10 +154,32 @@ test('duplicate candidate facts are suppressed within the active Turn', () => {
   const next = addMemoryCandidates(data, [
     candidate('duplicate_existing', { content: '  JOSE crew handles   painting.  ' }),
     candidate('new_fact', { content: 'Maria crew handles cleaning.' }),
-    candidate('duplicate_batch', { content: '  maria crew handles   cleaning.  ' }),
+    candidate('duplicate_batch', { content: '  maria crew handles   cleaning!  ' }),
   ]);
 
   assert.deepEqual(next.memoryCandidates.map((item) => item.id), ['new_fact']);
+});
+
+test('rejected or orphaned approved candidates do not prevent safe recapture', () => {
+  const data = withRealProject();
+  data.memoryCandidates = [
+    candidate('rejected_fact', { projectId: data.activeProjectId, status: 'rejected' }),
+    candidate('orphaned_approved_fact', {
+      projectId: data.activeProjectId,
+      status: 'approved',
+      content: 'Maria crew handles cleaning.',
+    }),
+  ];
+
+  const next = addMemoryCandidates(data, [
+    candidate('recaptured_rejected'),
+    candidate('recaptured_orphan', { content: 'Maria crew handles cleaning.' }),
+  ]);
+
+  assert.deepEqual(next.memoryCandidates.slice(0, 2).map((item) => item.id), [
+    'recaptured_rejected',
+    'recaptured_orphan',
+  ]);
 });
 
 test('a Memory candidate cannot be approved twice or after rejection', () => {

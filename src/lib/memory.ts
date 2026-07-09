@@ -5,7 +5,7 @@ export const isExplicitGlobalMemory = (memory: Pick<Memory, 'projectId' | 'memor
   (memory.memoryType === 'Personal Supervisor Preference' || memory.source === 'Built-in safety rule');
 
 const memoryFingerprint = (item: Pick<MemoryCandidate, 'memoryType' | 'content'>) =>
-  `${item.memoryType}:${item.content.trim().replace(/\s+/g, ' ').toLowerCase()}`;
+  `${item.memoryType}:${item.content.trim().replace(/\s+/g, ' ').replace(/[.!?]+$/, '').toLowerCase()}`;
 
 export const prepareMemoryCandidatesForActiveProject = (data: AppData, candidates: MemoryCandidate[]) => {
   const existing = new Set([
@@ -13,7 +13,7 @@ export const prepareMemoryCandidatesForActiveProject = (data: AppData, candidate
       .filter((memory) => memory.projectId === data.activeProjectId || isExplicitGlobalMemory(memory))
       .map(memoryFingerprint),
     ...data.memoryCandidates
-      .filter((candidate) => candidate.projectId === data.activeProjectId)
+      .filter((candidate) => candidate.projectId === data.activeProjectId && candidate.status === 'pending')
       .map(memoryFingerprint),
   ]);
 
@@ -63,6 +63,10 @@ const sourceIsActive = (data: AppData, memory: Memory) => {
 
   const crew = data.crewMembers.find((item) => item.id === memory.sourceEntityId);
   if (crew && !crew.active) {
+    return false;
+  }
+  const memoryCandidate = data.memoryCandidates.find((item) => item.id === memory.sourceEntityId);
+  if (memoryCandidate && memoryCandidate.status !== 'approved') {
     return false;
   }
 

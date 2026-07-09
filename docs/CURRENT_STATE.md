@@ -90,6 +90,7 @@ Every near-term change should serve that loop.
 - Focused Capture field workflow that hides Ask/Memory modes from the visible Capture page, collapses older draft history, keeps raw JSON draft editing advanced-only, and shows where an approved draft was applied
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
 - Export/backup tools for photo-complete JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
+- Full-device JSON restore validation that rejects malformed collections, unsafe records, duplicate IDs, invalid photo payloads, empty projects, and pathological record counts before replacing local state
 
 ## What Real Turn Mode Currently Does
 

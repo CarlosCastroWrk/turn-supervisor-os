@@ -20,7 +20,7 @@
 | Editable report drafts do not sync across devices | Medium | Closed | Los approved the `report_drafts` migration; report drafts now have a Supabase table, owner-scoped RLS, Realtime publication, and sync mapping. Same-row conflict review remains covered by the broader sync conflict risk. |
 | Stale, duplicate, Demo, or another Turn's Memory could influence current output | High | Guarded | E4 only consumes approved Memory for the active non-archived project plus explicit global personal/safety rules, validates live source records, suppresses duplicate candidate facts/double approval, and leaves legacy unscoped operational Memory inactive. The additive production migration and cross-device acceptance remain pending. |
 | Reports may be treated as official company records | Medium | Open | Keep copy personal and factual. Do not use company branding or invented numbers. |
-| Restore-from-JSON could replace the wrong local device state | Medium | Guarded | In-app restore exists with backup-first and replacement confirmations. Photo payloads restored from JSON migrate into IndexedDB after load. |
+| Restore-from-JSON could replace the wrong or corrupted local device state | Medium | Guarded | Backup-first and replacement confirmations remain. Restore now validates every persisted collection, required runtime fields, duplicate IDs, photo payloads, project availability, and record count before changing state. Physical photo-complete restore and unusually large-file behavior still need device acceptance. |
 | Parser coverage may miss real field phrasing | Medium | Guarded | A deterministic parser eval suite now covers punctuation-free unit boundaries, blockers, crew moves, conflicting updates, Ready safety, negation, and project-scoped Memory candidates. Continue adding training-derived phrases before Turn. |
 | Sync status lacks enough field diagnostics | Medium | Closed | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error, and Los confirmed production devices settle on `Synced`. |
 | Users may assume every action can be undone | Low | Guarded | Only high-frequency Unit quick-status toasts expose Undo. Destructive and compound actions keep explicit confirmations or review-first flows. |
@@ -35,7 +35,7 @@
 | AI mutating records without confirmation | High | Guarded | Keep Draft Actions as the approval boundary. |
 | Provider secrets leaking into browser code | High | Guarded | No OpenAI/Anthropic keys in Vite client code. Server-side API only if/when added. |
 | Tenant or private information entering notes/photos | High | Policy | Do not capture tenant PII, faces, or private documents. |
-| Exported JSON backup can contain work photos | High | Guarded | Export labels and storage copy state that backups can include local photo files and must be kept private. |
+| Exported JSON backup can contain every project and work photos | High | Guarded | The recovery export is labeled `Full Device JSON Backup`; its copy states that all projects and available local photo files are included and must be kept private. |
 
 ## Review Triggers
 

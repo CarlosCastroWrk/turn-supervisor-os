@@ -67,6 +67,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
 - [ ] Run export/backup QA from `docs/TESTING.md`.
 - [ ] Confirm Demo Mode records do not contaminate Real Turn reports, Copilot answers, or exports.
+- [x] Reject corrupted or structurally unsafe JSON backups before replacing local device state.
 - [x] Stop parser-created Ready drafts from bypassing Ready safety, inventing trade completion, and block negated completion notes from becoming Ready updates.
 - [x] Stop stale unit detail routes from editing the wrong fallback unit.
 - [x] Paginate Supabase pull reads, make `Pull cloud` pull-only, and make upload flows pull before push to reduce stale cloud clobber risk.
@@ -169,3 +170,4 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] F1 IndexedDB Photo Store: compressed photo files save locally outside the main app record, migrate safely, and remain included in device-available JSON backups.
 - [x] F2 Supabase Storage Photo Sync: Real Turn files upload privately, metadata paths sync after successful upload, other devices lazy-download/cache thumbnails, and failures remain retryable.
 - [x] G3 PWA Install And Offline Startup: install-safe PNG icons, rotation support, atomic shell updates, bounded flaky-network fallback, and automated persistent-browser offline restart coverage.
+- [x] P0 Backup Restore Safety: strict full-device backup validation, duplicate/invalid-photo protection, legacy normalization, accurate private-backup labeling, and rendered replacement/reload QA.

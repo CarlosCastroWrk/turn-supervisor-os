@@ -133,3 +133,9 @@
 - Ran a local 10,000-activity/1,000-Memory source-validation stress pass; all 1,000 active memories resolved in about 53 ms without rebuilding combined record arrays.
 - Rendered Capture-to-Setup approval, Demo/Real switching, Crew Memory, Daily Log auto-draft, last-used state, iPhone/iPad layouts, offline restart, overflow, touch-size, and console checks.
 - Found and fixed two QA regressions before release: pull-only sync dropping local unscoped/Demo Memory candidates, and Real Turn Daily Log history displaying Demo logs.
+- Started P0 Backup Restore Safety on `codex/backup-restore-safety` while E4 waits at its explicit Supabase migration gate.
+- Extracted JSON restore parsing into a strict Zod boundary that preserves supported legacy defaults but rejects malformed collections, incomplete runtime records, duplicate IDs, invalid photo payloads, empty projects, and excessive record counts before local replacement.
+- Renamed the recovery export to `Full Device JSON Backup` so it is clear that every project and available local photo is included and must remain private.
+- Added seven backup regression cases; the full deterministic suite passes 110/110, and a 10,000-activity / 2 MB backup validated in about 31 ms.
+- Verified corrupted-state preservation, valid replacement confirmation, reload persistence, desktop/mobile rendering, 390px overflow, and console health in an isolated browser profile. Physical photo-complete restore remains open.
+- Merged the shipped backup-safety release into the E4 branch and added direct project-scoped Memory/provenance backup coverage; the combined integration suite passes 129/129.

@@ -124,6 +124,23 @@ Acceptance:
 - Blocking status requires explicit user intent.
 - Resolving an issue does not silently guess a unit status.
 
+### A6. Backup Restore Safety
+
+Status: implemented in the P0 Backup Restore Safety release candidate.
+
+Scope:
+
+- Validate current and supported legacy JSON backups before replacing local state.
+- Reject malformed collections, incomplete runtime records, duplicate IDs, invalid embedded photos, empty project sets, and pathological record counts.
+- Keep backup-first and exact replacement-count confirmations.
+- Label the recovery export as a full-device private backup rather than an active-project export.
+
+Acceptance:
+
+- A corrupted backup cannot replace the current project or units.
+- A valid backup restores after confirmation and survives reload.
+- A 10,000-activity backup validates without field-visible delay.
+
 ## Phase B: Real Turn Cleanup And Sync Boundaries
 
 These slices clean up test noise and reduce resurrection/duplication risks.
@@ -582,5 +599,6 @@ Only after the field-safe deterministic version is trusted.
 29. G4 Accessibility And Field Contrast
 30. G2 Undo And Toast System
 31. E4 Project-Scoped Memory
+32. P0 Backup Restore Safety
 
 This order can change if real-device testing finds a higher-risk failure.

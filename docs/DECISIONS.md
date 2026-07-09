@@ -121,6 +121,18 @@ Rationale:
 - Demo photos must not leak into cloud data.
 - Automatic cloud deletion is deferred until delete propagation/tombstones have an explicit, tested design.
 
+### 2026-07-09: PWA updates must preserve the last complete offline shell
+
+Precache all files required by the current HTML before activating a new service worker. Keep the previous worker/cache when any required asset fails, use a four-second network-first navigation timeout, and return the cached shell when the network hangs or fails. Do not lock the manifest to portrait.
+
+Rationale:
+
+- A partial app update is more dangerous in the field than temporarily running the prior complete build.
+- Poor connectivity can leave `fetch()` pending even when the local app is usable.
+- iPad field use requires both landscape and portrait.
+- PNG and maskable install assets are more dependable across iPhone/iPad/Android launchers than an SVG-only manifest.
+- The service worker must cache only known static shell assets, never future same-origin API/data responses.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

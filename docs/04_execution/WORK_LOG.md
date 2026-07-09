@@ -107,3 +107,8 @@
 - Added local-first lazy cloud thumbnail download/cache, signed-out/offline/retry states, and Sync details for uploaded, waiting, and unavailable photo files.
 - Added focused photo-sync tests and browser checks for the full IndexedDB lifecycle, 202-photo scale, cloud-only signed-out/offline UI, mobile overflow, and console health.
 - Confirmed existing local and remote Supabase migrations match, dry-run reports up to date, and linked schema lint has no errors; no migration or production data change was needed.
+- Started G3 PWA Install And Offline Startup on `codex/pwa-offline-startup` after F2 shipped.
+- Added install-safe 192/512 PNG icons, a dedicated maskable icon, and a 180px Apple touch icon; removed the portrait-only orientation lock.
+- Reworked app-shell caching so incomplete updates do not activate, unchanged builds do not refetch all assets, and slow navigation falls back to the cached shell after four seconds.
+- Added deterministic PWA tests for manifest/icon integrity, timeout fallback, partial-install rejection, same-build request suppression, and exclusion of future same-origin private API/data responses from the cache.
+- Verified a persistent browser profile can fully restart offline, reload a Unit deep link, open Reports at iPad size, serve cached icons/manifest, and remain free of overflow and console errors.

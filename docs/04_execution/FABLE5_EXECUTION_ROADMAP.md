@@ -494,6 +494,8 @@ Scope:
 
 ### G3. PWA Install And Offline Startup
 
+Status: implemented in the G3 release slice; physical iPhone/iPad Home Screen acceptance remains open.
+
 Scope:
 
 - Add PNG icons for iOS install.

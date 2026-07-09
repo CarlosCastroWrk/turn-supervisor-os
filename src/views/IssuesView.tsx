@@ -1,6 +1,6 @@
 import { AlertOctagon, CheckCircle2, EyeOff, PlayCircle, Plus, TimerReset } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, CommittedTextarea, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/toast-context';
@@ -284,10 +284,13 @@ export function IssuesView({ data, setData, focusedIssueId }: IssuesViewProps) {
                   </div>
                 ) : null}
                 <Field label="Resolution notes">
-                  <textarea
+                  <CommittedTextarea
+                    draftKey={`issue:${issue.id}:resolutionNotes`}
                     rows={2}
                     value={issue.resolutionNotes}
-                    onChange={(event) => setData((current) => updateIssue(current, issue.id, { resolutionNotes: event.target.value }))}
+                    onCommit={(resolutionNotes) =>
+                      setData((current) => updateIssue(current, issue.id, { resolutionNotes }))
+                    }
                     placeholder="What fixed it? What still needs follow-up?"
                   />
                 </Field>

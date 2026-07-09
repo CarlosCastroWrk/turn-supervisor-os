@@ -152,3 +152,8 @@
 - Added a reusable latest-value persistence queue with a 500 ms bounded write interval, immediate background/pagehide/unmount flushes, and pending-write cancellation before local device reset.
 - Under 4x CPU throttling with a 3,046,822-character state, 26 rapid project-field updates produced 7 full localStorage writes instead of 26; a synthetic pagehide persisted the newest pending value in one immediate write.
 - Kept commit-on-blur activity cleanup open as the next slice because the same stress pass still recorded 26 activity entries for 26 project-name field updates.
+- Started P0 Commit-On-Blur Fields on `codex/commit-on-blur-fields`, stacked on Storage Write Coalescing.
+- Added a shared session-backed committed input/textarea that keeps focused text out of AppData, commits once on blur/Enter, restores interrupted same-session drafts, and drops a draft when its source record changed.
+- Applied the shared field behavior to existing Project, Unit, Issue, Crew, Assignment, training, and Memory text editors and removed Setup's fake `Saved Automatically` activity action.
+- Re-ran the 1,000-unit / 10,000-event stress: the 26-character Project edit fell from about 7.6 seconds to about 0.22 seconds under 4x CPU throttling, with one activity event and one full-state write after blur; interrupted-draft reload recovery also passed.
+- Added reset/restore cleanup for only Turn Field Copilot session-draft keys so an obsolete in-flight draft cannot reappear after a confirmed recovery operation.

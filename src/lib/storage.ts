@@ -3,6 +3,7 @@ import { seedData } from '../data/seed';
 import type { AppData } from '../types';
 import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
+import { createFieldDraftStore } from './fieldDraft';
 import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
@@ -52,8 +53,17 @@ export const saveAppData = (data: AppData) => {
 
 const appDataWriter = createCoalescedWriter(saveAppData, APP_DATA_SAVE_INTERVAL_MS);
 
+export const clearInFlightFieldDrafts = () => {
+  try {
+    return createFieldDraftStore(window.sessionStorage).clearAll();
+  } catch {
+    return 0;
+  }
+};
+
 export const clearAppData = async () => {
   appDataWriter.cancel();
+  clearInFlightFieldDrafts();
   window.localStorage.removeItem(STORAGE_KEY);
   try {
     await clearPhotoBlobs();

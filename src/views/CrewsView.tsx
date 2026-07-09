@@ -1,6 +1,6 @@
 import { Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, CommittedTextarea, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addCrewMember, updateCrewMember } from '../lib/actions';
@@ -132,10 +132,11 @@ export function CrewsView({ data, setData }: CrewsViewProps) {
                 <span>Assigned: {crew.assignedLocation || 'Not assigned'}</span>
               </div>
               <Field label="Observation notes">
-                <textarea
+                <CommittedTextarea
+                  draftKey={`crew:${crew.id}:notes`}
                   rows={3}
                   value={crew.notes}
-                  onChange={(event) => setData((current) => updateCrewMember(current, crew.id, { notes: event.target.value }))}
+                  onCommit={(notes) => setData((current) => updateCrewMember(current, crew.id, { notes }))}
                 />
               </Field>
               <Button

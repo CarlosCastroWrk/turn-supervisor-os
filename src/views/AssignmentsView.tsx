@@ -1,6 +1,6 @@
 import { Check, Clock, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { Button, Field } from '../components/FormControls';
+import { Button, CommittedTextarea, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { addAssignment, updateAssignment } from '../lib/actions';
@@ -175,10 +175,11 @@ export function AssignmentsView({ data, setData }: AssignmentsViewProps) {
                   ))}
                 </div>
                 <Field label="Notes">
-                  <textarea
+                  <CommittedTextarea
+                    draftKey={`assignment:${assignment.id}:notes`}
                     rows={2}
                     value={assignment.notes}
-                    onChange={(event) => setData((current) => updateAssignment(current, assignment.id, { notes: event.target.value }))}
+                    onCommit={(notes) => setData((current) => updateAssignment(current, assignment.id, { notes }))}
                   />
                 </Field>
               </article>

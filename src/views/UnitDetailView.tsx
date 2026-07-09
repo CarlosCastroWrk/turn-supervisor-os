@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, ClipboardPlus, PenLine, Plus, ShieldCheck, Wrench } from 'lucide-react';
-import { Button, Field, NumberInput } from '../components/FormControls';
+import { Button, CommittedTextarea, Field, NumberInput } from '../components/FormControls';
 import { PhotoCapture } from '../components/PhotoCapture';
 import { PhotoThumbnail } from '../components/PhotoThumbnail';
 import { Section } from '../components/Section';
@@ -380,10 +380,11 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           </div>
 
           <Field label="Notes">
-            <textarea
+            <CommittedTextarea
+              draftKey={`unit:${unit.id}:notes`}
               value={unit.notes}
               rows={4}
-              onChange={(event) => updateStatus({ notes: event.target.value }, 'Updated unit notes.')}
+              onCommit={(notes) => updateStatus({ notes }, 'Updated unit notes.')}
               placeholder="What matters in this unit?"
             />
           </Field>

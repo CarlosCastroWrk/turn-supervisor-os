@@ -8,7 +8,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings,
-  ShieldQuestion,
   Truck,
   Users,
 } from 'lucide-react';
@@ -27,21 +26,19 @@ const primaryNav: { view: AppView; label: string; icon: React.ElementType }[] = 
   { view: 'units', label: 'Units', icon: ListChecks },
   { view: 'issues', label: 'Issues', icon: ClipboardCheck },
   { view: 'crews', label: 'Crews', icon: Users },
-  { view: 'daily', label: 'Daily Log', icon: FileText },
 ];
 
 const secondaryNav: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'setup', label: 'Setup', icon: Settings },
   { view: 'assignments', label: 'Assignments', icon: Truck },
   { view: 'reports', label: 'Reports', icon: FileText },
-  { view: 'training', label: 'Training Questions', icon: ShieldQuestion },
   { view: 'export', label: 'Export', icon: Menu },
 ];
 
 const sidebarGroups: { label: string; items: { view: AppView; label: string; icon: React.ElementType }[] }[] = [
   { label: 'Field', items: primaryNav },
   { label: 'Plan', items: secondaryNav.filter((item) => ['assignments', 'reports'].includes(item.view)) },
-  { label: 'System', items: secondaryNav.filter((item) => ['setup', 'training', 'export'].includes(item.view)) },
+  { label: 'System', items: secondaryNav.filter((item) => ['setup', 'export'].includes(item.view)) },
 ];
 
 const SIDEBAR_COLLAPSED_KEY = 'turn-supervisor-os:sidebar-collapsed';

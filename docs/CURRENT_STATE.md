@@ -74,7 +74,8 @@ Every near-term change should serve that loop.
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
 - Voice-mode Capture UI with a mobile/iPad sheet, browser speech-recognition support where available, short-pause restart handling, and clear iPhone/iPad keyboard dictation fallback without auto-opening the keyboard on sheet open
-- Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
+- Focused Capture field workflow that hides Ask/Memory modes from the visible Capture page, collapses older draft history, keeps raw JSON draft editing advanced-only, and shows where an approved draft was applied
+- Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
 - Export/backup tools for JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
 
 ## What Real Turn Mode Currently Does

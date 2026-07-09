@@ -2,6 +2,7 @@ import { Archive, Download, PlayCircle, RotateCcw, Save } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { Section } from '../components/Section';
+import { useToast } from '../components/toast-context';
 import { archiveProject, createRealTurnProject, restoreProject, switchActiveProject, updateProject } from '../lib/actions';
 import { downloadTextFile } from '../lib/exporters';
 import { getActiveProject, getProjectBuildings, getProjectUnits } from '../lib/metrics';
@@ -14,6 +15,7 @@ interface SetupViewProps {
 }
 
 export function SetupView({ data, setData }: SetupViewProps) {
+  const { notify } = useToast();
   const project = getActiveProject(data);
   const date = new Date().toISOString().slice(0, 10);
   const demoProject = data.projects.find((item) => item.mode === 'demo');
@@ -60,7 +62,7 @@ export function SetupView({ data, setData }: SetupViewProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Backup could not be created.';
       setBackupMessage(message);
-      window.alert(message);
+      notify(message, { tone: 'error' });
     } finally {
       setIsBackingUp(false);
     }
@@ -68,7 +70,7 @@ export function SetupView({ data, setData }: SetupViewProps) {
 
   const startRealTurn = () => {
     if (!propertyName.trim()) {
-      window.alert('Add the property name before starting Real Turn Mode.');
+      notify('Add the property name before starting Real Turn Mode.', { tone: 'error' });
       return;
     }
 
@@ -99,6 +101,7 @@ export function SetupView({ data, setData }: SetupViewProps) {
         notes: realNotes,
       }),
     );
+    notify(`${propertyName.trim()} Real Turn created.`, { tone: 'success' });
   };
 
   const archiveRealProject = (projectToArchive: Project) => {
@@ -115,6 +118,7 @@ export function SetupView({ data, setData }: SetupViewProps) {
     }
 
     setData((current) => archiveProject(current, projectToArchive.id));
+    notify(`${projectToArchive.name} archived without deleting its records.`, { tone: 'success' });
   };
 
   return (

@@ -4,8 +4,10 @@ import { Button, Field, NumberInput } from '../components/FormControls';
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
+import { useToast } from '../components/toast-context';
+import { useUndoableUnitUpdate } from '../hooks/useUndoableUnitUpdate';
 import { createId, nowISO } from '../lib/constants';
-import { addUnits, unitTradesComplete, updateUnit } from '../lib/actions';
+import { addUnits, cleanCompletionPatch, maintenanceNeededPatch, paintCompletionPatch } from '../lib/actions';
 import {
   getBuildingSummary,
   getProjectBuildings,
@@ -96,6 +98,8 @@ const crewSummaryFor = (unit: Unit, crewById: Map<string, CrewMember>) => {
 };
 
 export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'All' }: UnitsViewProps) {
+  const { notify } = useToast();
+  const applyUnitUpdate = useUndoableUnitUpdate(setData);
   const [buildingFilter, setBuildingFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState<UnitStatusFilter>(initialStatusFilter);
@@ -183,7 +187,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
       !Number.isFinite(startingUnit) ||
       quickCount < 1
     ) {
-      window.alert('Check the quick-create inputs: Floors should look like "1" or "1-3" and First unit should be a number.');
+      notify('Check Quick Unit Creation: use floors like "1" or "1-3" and enter a numeric first Unit.', { tone: 'error' });
       return;
     }
     const existingBuilding = data.buildings.find(
@@ -243,7 +247,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
     }
 
     if (newUnits.length === 0) {
-      window.alert('All of those unit numbers already exist in that building. Nothing was created.');
+      notify('Those Unit numbers already exist in this building. Nothing was created.', { tone: 'error' });
       return;
     }
 
@@ -257,6 +261,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
         newUnits,
       ),
     );
+    notify(`Created ${newUnits.length} Unit${newUnits.length === 1 ? '' : 's'} in ${newBuilding.name}.`, { tone: 'success' });
   };
 
   return (
@@ -411,13 +416,11 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                     className="button--compact"
                     aria-label={`Mark paint complete for Unit ${unit.unitNumber}`}
                     onClick={() =>
-                      setData((current) =>
-                        updateUnit(
-                          current,
-                          unit.id,
-                          { paintStatus: 'Complete', overallStatus: unit.cleanStatus === 'Complete' ? 'Inspection Needed' : 'Cleaning Ready' },
-                          'Marked paint complete.',
-                        ),
+                      applyUnitUpdate(
+                        unit.id,
+                        paintCompletionPatch(unit),
+                        'Marked paint complete.',
+                        `Unit ${unit.unitNumber}: paint marked complete.`,
                       )
                     }
                   >
@@ -428,15 +431,11 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                     className="button--compact"
                     aria-label={`Mark cleaning complete for Unit ${unit.unitNumber}`}
                     onClick={() =>
-                      setData((current) =>
-                        updateUnit(
-                          current,
-                          unit.id,
-                          unitTradesComplete({ ...unit, cleanStatus: 'Complete' })
-                            ? { cleanStatus: 'Complete', overallStatus: 'Inspection Needed', inspectionStatus: 'Ready' }
-                            : { cleanStatus: 'Complete' },
-                          'Marked clean complete.',
-                        ),
+                      applyUnitUpdate(
+                        unit.id,
+                        cleanCompletionPatch(unit),
+                        'Marked clean complete.',
+                        `Unit ${unit.unitNumber}: cleaning marked complete.`,
                       )
                     }
                   >
@@ -447,13 +446,11 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                     className="button--compact"
                     aria-label={`Mark maintenance needed for Unit ${unit.unitNumber}`}
                     onClick={() =>
-                      setData((current) =>
-                        updateUnit(
-                          current,
-                          unit.id,
-                          { repairStatus: 'Needed', overallStatus: 'Maintenance Needed' },
-                          'Marked maintenance needed.',
-                        ),
+                      applyUnitUpdate(
+                        unit.id,
+                        maintenanceNeededPatch(unit),
+                        'Marked maintenance needed.',
+                        `Unit ${unit.unitNumber}: maintenance marked needed.`,
                       )
                     }
                   >

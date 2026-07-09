@@ -2,6 +2,7 @@ import { ClipboardCopy, Download, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
+import { useToast } from '../components/toast-context';
 import { buildDailyReport, buildDailyReportPreview, downloadTextFile } from '../lib/exporters';
 import { getActiveProject } from '../lib/metrics';
 import {
@@ -40,6 +41,7 @@ const readLegacyReportDraft = (key: string, projectId: string, reportDate: strin
 };
 
 export function ReportsView({ data, setData }: ReportsViewProps) {
+  const { notify } = useToast();
   const project = getActiveProject(data);
   const [date, setDate] = useState(todayISO());
   const [copied, setCopied] = useState(false);
@@ -92,7 +94,7 @@ export function ReportsView({ data, setData }: ReportsViewProps) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
-      window.alert('Copy failed on this browser. Press and hold the report text to select and copy it manually.');
+      notify('Copy failed. Press and hold the report text to select and copy it manually.', { tone: 'error' });
     }
   };
 

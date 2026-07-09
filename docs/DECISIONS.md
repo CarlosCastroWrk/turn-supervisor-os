@@ -144,6 +144,18 @@ Rationale:
 - Programmatic route focus helps keyboard and screen-reader users understand that the page changed without adding another screen.
 - Physical iOS VoiceOver and sunlight checks remain required because browser automation cannot prove real-device usability.
 
+### 2026-07-09: Undo must never overwrite newer field work
+
+Use nonblocking toasts for routine outcomes and expose Undo only for high-frequency Unit quick-status patches. Bind each Undo to the exact resulting Unit timestamp, refuse it after any later Unit edit, and record successful Undo as a new event. Keep destructive and recovery confirmations blocking.
+
+Rationale:
+
+- Accidental taps are likely in the field, but a broad snapshot restore could erase Realtime or later-device work.
+- A timestamp guard makes a stale toast fail closed instead of silently clobbering a newer status.
+- Activity history should show both the original action and its Undo so reports remain honest.
+- Trade shortcut transitions must preserve harder blockers and suppress no-op events instead of inferring that one completed trade makes the whole Unit advance.
+- Reset, restore, project lifecycle, unsaved edits, and unsafe Ready overrides need deliberate confirmation, not transient feedback.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

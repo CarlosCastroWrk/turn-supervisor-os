@@ -9,7 +9,7 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-A2 Draft Apply Safety through F2 Supabase Storage Photo Sync, G3 PWA Install/Offline Startup, and G4 Accessibility/Field Contrast
+A2 Draft Apply Safety through F2 Supabase Storage Photo Sync and G2-G4 field hardening
 ```
 
 Production:
@@ -47,6 +47,7 @@ Every near-term change should serve that loop.
 - Issue flow simplification with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board
 - Responsive app frame with a page-attached desktop/sidebar layout, persisted collapsed sidebar state, compact tablet Capture behavior, and mobile bottom-nav spacing
 - Field-accessibility hardening with 44px touch targets, high-contrast focus rings, a keyboard skip link, active-page navigation semantics, announced progress values, motion-safe scrolling, stronger secondary text contrast, and a focus-contained Voice Capture dialog
+- Nonblocking field feedback with accessible success/error toasts, explicit Issue-board outcomes, guarded Undo for high-frequency Unit quick-status taps, no-op suppression, and blocker-preserving trade transitions
 - Lightweight URL hash routing for top-level views, unit detail links, issue-focused links, dashboard deep links, reload, and browser back behavior
 - Copilot with Quick Capture, Draft Actions, Ask the OS, Briefings, Memory Inbox, and deterministic smart suggestions
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
@@ -100,6 +101,7 @@ Every near-term change should serve that loop.
 - Cloud object deletion/cleanup when a photo record is removed
 - Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
 - Physical iPhone/iPad verification in bright light and with VoiceOver enabled
+- General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
 - Multi-user mode
 - Automated browser regression suite
 - Server-side AI provider route
@@ -164,4 +166,4 @@ Run the B3 real-device offline/reconnect and F2 photo checks before entering rea
 6. Confirm Mac and iPad receive the updates after reconnect.
 7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 
-While those physical-device checks are pending, the next code slice should implement G2 error recovery and nonblocking feedback without weakening confirmations around destructive actions.
+While those physical-device checks are pending, the next code slice should implement E4 project-scoped Memory consumption without letting stale or unapproved memory affect current outputs.

@@ -2,6 +2,7 @@ import { Bot, Check, ClipboardCopy, FileText, Lightbulb, Mic, RotateCcw, Save, S
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
+import { useToast } from '../components/toast-context';
 import { StatusBadge } from '../components/StatusBadge';
 import {
   addAgentRun,
@@ -264,6 +265,7 @@ function MemoryCandidateCard({
 }
 
 export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
+  const { notify } = useToast();
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -792,7 +794,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
-      window.alert('Copy failed on this browser. Press and hold the briefing text to select and copy it manually.');
+      notify('Copy failed. Press and hold the briefing text to select and copy it manually.', { tone: 'error' });
     }
   };
 

@@ -2,18 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mergePhotoNotes, mergeRows, syncRowFingerprint } from '../src/lib/supabase/syncCore.ts';
 
-test('mergeRows keeps the local row when edit timestamps tie', () => {
+test('mergeRows chooses the same whole-row winner when edit timestamps tie', () => {
   const local = [{ id: 'unit_204', updatedAt: '2026-07-06T15:00:00.000Z', notes: 'iPad offline edit' }];
   const remote = [{ id: 'unit_204', updatedAt: '2026-07-06T15:00:00.000Z', notes: 'Mac stale cloud copy' }];
 
-  assert.equal(mergeRows(local, remote)[0].notes, 'iPad offline edit');
+  const localFirst = mergeRows(local, remote)[0];
+  const remoteFirst = mergeRows(remote, local)[0];
+
+  assert.deepEqual(localFirst, remoteFirst);
+  assert.equal(mergeRows([localFirst], [remoteFirst])[0].notes, localFirst.notes);
 });
 
-test('mergeRows compares timestamps by time value instead of string shape', () => {
+test('mergeRows treats equivalent timestamp shapes as the same deterministic tie', () => {
   const local = [{ id: 'unit_204', updatedAt: '2026-07-06T10:00:00-05:00', notes: 'local equivalent time' }];
   const remote = [{ id: 'unit_204', updatedAt: '2026-07-06T15:00:00.000Z', notes: 'remote equivalent time' }];
 
-  assert.equal(mergeRows(local, remote)[0].notes, 'local equivalent time');
+  assert.deepEqual(mergeRows(local, remote)[0], mergeRows(remote, local)[0]);
 });
 
 test('mergeRows accepts a newer remote row', () => {
@@ -21,6 +25,49 @@ test('mergeRows accepts a newer remote row', () => {
   const remote = [{ id: 'unit_204', updatedAt: '2026-07-06T15:05:00.000Z', notes: 'new remote note' }];
 
   assert.equal(mergeRows(local, remote)[0].notes, 'new remote note');
+});
+
+test('mergeRows does not let a stale pending Draft Action beat a resolved version', () => {
+  const pending = [{ id: 'draft_204', createdAt: '2026-07-06T15:00:00.000Z', status: 'pending' }];
+  const failed = [
+    {
+      id: 'draft_204',
+      createdAt: '2026-07-06T15:00:00.000Z',
+      status: 'failed',
+      error: 'Unit not found.',
+    },
+  ];
+  const rejected = [{ id: 'draft_204', createdAt: '2026-07-06T15:00:00.000Z', status: 'rejected' }];
+  const applied = [
+    {
+      id: 'draft_204',
+      createdAt: '2026-07-06T15:00:00.000Z',
+      appliedAt: '2026-07-06T15:05:00.000Z',
+      status: 'applied',
+    },
+  ];
+
+  assert.equal(mergeRows(pending, failed)[0].status, 'failed');
+  assert.equal(mergeRows(failed, pending)[0].status, 'failed');
+  assert.equal(mergeRows(pending, rejected)[0].status, 'rejected');
+  assert.equal(mergeRows(rejected, pending)[0].status, 'rejected');
+  assert.equal(mergeRows(pending, applied)[0].status, 'applied');
+  assert.equal(mergeRows(applied, pending)[0].status, 'applied');
+});
+
+test('equal-timestamp comparison remains bounded across 10,000 existing rows', () => {
+  const local = Array.from({ length: 10_000 }, (_, index) => ({
+    id: `activity_${String(index).padStart(5, '0')}`,
+    createdAt: '2026-07-09T20:00:00.000Z',
+    note: `Activity ${index + 1}`,
+  }));
+  const remote = structuredClone(local);
+  const startedAt = performance.now();
+  const merged = mergeRows(local, remote);
+  const elapsedMs = performance.now() - startedAt;
+
+  assert.equal(merged.length, 10_000);
+  assert.ok(elapsedMs < 2_000, `Expected 10,000 tied rows to merge under 2s; received ${elapsedMs.toFixed(1)}ms.`);
 });
 
 test('syncRowFingerprint treats equivalent timestamptz strings as unchanged', () => {
@@ -32,6 +79,21 @@ test('syncRowFingerprint treats equivalent timestamptz strings as unchanged', ()
   const remoteRow = {
     id: 'unit_204',
     updated_at: '2026-07-06T10:00:00-05:00',
+    notes: 'same update',
+  };
+
+  assert.equal(syncRowFingerprint(localRow), syncRowFingerprint(remoteRow));
+});
+
+test('syncRowFingerprint normalizes equivalent in-app camelCase timestamps', () => {
+  const localRow = {
+    id: 'unit_204',
+    updatedAt: '2026-07-06T10:00:00-05:00',
+    notes: 'same update',
+  };
+  const remoteRow = {
+    id: 'unit_204',
+    updatedAt: '2026-07-06T15:00:00.000Z',
     notes: 'same update',
   };
 

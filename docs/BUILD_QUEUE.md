@@ -13,8 +13,12 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Verify identical Demo/Real unit numbers, conflicting links, backup round-trip, and 10,000-draft performance.
   - [ ] Merge after E4, deploy, and run production smoke checks.
 - [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
+  - [x] Simulate disjoint Mac/iPhone/iPad edits after twelve offline hours and verify convergence without duplicate Units, Issues, or activity rows.
+  - [x] Verify newest-row convergence across all six three-device reconnect orders.
+  - [x] Stop equal-timestamp conflicts from re-uploading indefinitely and document the whole-row writer rule.
+  - [x] Document whole-row last-write-wins and clock-skew risks.
   - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
-  - [ ] Document whole-row last-write-wins risk and capture any stale overwrite findings.
+  - [ ] Capture any stale overwrite findings from the physical-device run.
 - [x] E1 Daily Activity Snapshot.
   - [x] Start recording a source-grounded daily summary from activity logs.
   - [x] Distinguish current state from historical day state.

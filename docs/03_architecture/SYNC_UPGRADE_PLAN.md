@@ -84,8 +84,17 @@ Key decisions and why:
    last_watermark`, merge into local state. Merge rule: incoming row wins if its
    `updated_at` is newer than the local row's (per-row LWW).
 4. **Conflicts:** with one user, a true conflict means Los edited the same record on
-   two devices while offline. LWW resolves it silently; the activity log records both
-   edits so nothing is invisible. Do not build merge UI for v1.
+   two devices while offline. LWW resolves it silently; separate activity rows can
+   preserve evidence of both actions, but the conflicting record itself still has one
+   whole-row winner. Do not build merge UI for v1.
+   Current implementation pulls cloud state before upload, chooses the row with the
+   newer lifecycle timestamp, and uses a canonical deterministic winner when timestamps
+   tie so devices converge instead of re-uploading tied copies. This is still whole-row
+   resolution: independent fields on the same row are not merged, and a badly skewed
+   future device clock can win until conflict review/server timestamps exist. Plain
+   Supabase upserts are not timestamp-conditional, so truly overlapping fetch/upload
+   runs can briefly publish an older row; a later pass recovers the newer timestamp,
+   but atomic stale-write rejection would require a separately approved server/schema slice.
 5. **Feature flag:** `VITE_ENABLE_SYNC`. Off → app behaves exactly as today.
 6. **Never migrate destructively:** first sync run uploads the current localStorage
    snapshot; local data is never deleted by sync code.

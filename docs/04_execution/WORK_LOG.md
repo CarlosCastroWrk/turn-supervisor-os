@@ -162,3 +162,9 @@
 - Re-ran the rendered field-scale gate: changing Estimated units from 1,000 to 1,250 produced zero activity and zero full writes while focused, then exactly one activity event and one full write on Enter.
 - Confirmed the transient Setup flow still creates 300 units from ten floors and thirty units per floor when the submit click follows numeric editing directly.
 - Confirmed Quick Unit Creation commits multi-digit Unit, bed, and bath counts before the submit click and creates the expected twelve Units with the selected counts.
+- Started P0 Three-Device Sync Regression on `codex/three-device-sync-regression`, stacked on Numeric Commit-On-Blur without touching production Supabase data.
+- Added a disposable in-memory Supabase model for Mac/iPhone/iPad reconnect testing, including disjoint edits after twelve offline hours and all six same-row reconnect orders.
+- Reproduced an equal-timestamp sync defect where two device copies could alternately upload forever because each merge preferred its own local row.
+- Changed exact-timestamp conflict resolution to select one canonical whole-row winner on every device, while keeping newer timestamps authoritative and preserving applied/rejected/failed Draft Actions over stale pending copies.
+- Verified disjoint edits converge without duplicate Units, Issues, or activity rows; newest same-row edits win in every reconnect order; and repeated tied-row reconnects produce zero follow-up uploads.
+- Added a 10,000-row equal-timestamp merge ceiling so deterministic convergence cannot silently create an unbounded large-history slowdown.

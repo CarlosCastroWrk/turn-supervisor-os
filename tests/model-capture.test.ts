@@ -159,7 +159,7 @@ test('model conversion drops unknown Unit mutations while preserving safe projec
   assert.match(result.warnings.join(' '), /due time was removed/i);
   assert.match(result.warnings.join(' '), /none of its Unit targets are confirmed.*999/i);
   assert.equal(result.draftActions[2].payload.dueAt, undefined);
-  assert.deepEqual(result.usage, { inputTokens: 100, outputTokens: 50, totalTokens: 150 });
+  assert.deepEqual(result.usage, { inputTokens: 100, cachedInputTokens: 0, outputTokens: 50, totalTokens: 150 });
 });
 
 test('model and deterministic merge keeps approved-memory candidates and flags status conflicts', async () => {
@@ -205,4 +205,54 @@ test('model and deterministic merge keeps approved-memory candidates and flags s
   assert.ok(merged.draftActions.length >= 2);
   assert.ok(merged.draftActions.some((draft) => draft.payload.requiresConflictConfirmation === true));
   assert.match(merged.warnings.join(' '), /conflicting combined status drafts/i);
+});
+
+test('model conversion never invents a crew assignment from a follow-up request', () => {
+  const request = buildModelCaptureRequest('Unit 203 has a sink leak. Ask Tony to confirm maintenance.', cloneSeed());
+  const result = convertModelCaptureOutput(
+    modelOutput([
+      modelAction({
+        kind: 'CREATE_ASSIGNMENT',
+        unitNumbers: ['203'],
+        title: 'Tony to confirm maintenance',
+        summary: 'Ask Tony to confirm maintenance.',
+        crewName: '',
+        trade: 'Maintenance',
+        assignmentStatus: 'Planned',
+        noteText: 'Confirm maintenance.',
+        dailyLogSection: null,
+      }),
+    ]),
+    request,
+    { model: 'gpt-test' },
+  );
+
+  assert.equal(result.draftActions.length, 0);
+  assert.match(result.warnings.join(' '), /assignment skipped.*explicitly move or assign a named crew/i);
+  assert.match(result.clarificationQuestions.join(' '), /confirm the crew and assignment/i);
+});
+
+test('model conversion keeps an explicit named crew move', () => {
+  const request = buildModelCaptureRequest('Move Jose crew to Unit 203.', cloneSeed());
+  const result = convertModelCaptureOutput(
+    modelOutput([
+      modelAction({
+        kind: 'CREATE_ASSIGNMENT',
+        unitNumbers: ['203'],
+        title: 'Move Jose crew to Unit 203',
+        summary: 'Assign Jose crew to Unit 203.',
+        crewName: 'Jose crew',
+        trade: 'Painter',
+        assignmentStatus: 'In Progress',
+        noteText: 'Move Jose crew to Unit 203.',
+        dailyLogSection: null,
+      }),
+    ]),
+    request,
+    { model: 'gpt-test' },
+  );
+
+  assert.equal(result.draftActions.length, 1);
+  assert.equal(result.draftActions[0].type, 'CREATE_ASSIGNMENT');
+  assert.equal(result.draftActions[0].payload.teamName, 'Jose crew');
 });

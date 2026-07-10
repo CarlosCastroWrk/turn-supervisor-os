@@ -128,20 +128,25 @@ Success gate:
 
 The app stays responsive, usable outdoors, and understandable after errors.
 
-## Phase H: Later Intelligence
+## Phase H: Guarded Intelligence
 
-Only after the deterministic field tool is trusted.
+The deterministic field tool remains authoritative and must work without a provider.
+
+Current:
+
+- Protected server-side AI route with structured pending Draft Actions
+- Cost-aware single-call routing and estimated TurnOS usage metering
+- Local deterministic fallback for offline, disabled, or failed provider requests
 
 Possible future:
 
-- Server-side AI route
-- Structured model outputs with supporting record IDs
 - Model-assisted summaries with local fallback
+- Grounded image understanding and recorded-audio transcription
 - Conflict review UI
 - True delete tombstones
 - Field-level merge/server timestamps
 
-Do not build Phase H until Phase A-D are safe enough for Turn use.
+Do not allow Phase H to mutate operational records without Los's existing confirmation boundary.
 
 ## Possible Company Product
 

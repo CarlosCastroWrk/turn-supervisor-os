@@ -26,6 +26,7 @@ const project: Project = {
   estimatedUnits: unitNumbers.length,
   estimatedBeds: unitNumbers.length * 2,
   estimatedCommonAreas: 0,
+  aiBudgetUsd: 10,
   createdAt: stamp,
   updatedAt: stamp,
 };

@@ -47,6 +47,7 @@ const projectSchema = recordSchema.extend({
   estimatedUnits: nonNegativeNumber,
   estimatedBeds: nonNegativeNumber,
   estimatedCommonAreas: nonNegativeNumber,
+  aiBudgetUsd: nonNegativeNumber.max(10_000).optional(),
   archivedAt: text.optional(),
   createdAt: text,
   updatedAt: text,
@@ -325,6 +326,22 @@ const suggestionSchema = recordSchema.extend({
   createdAt: text,
 });
 
+const aiUsageEventSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  task: z.literal('capture'),
+  model: nonEmptyText,
+  modelClass: z.enum(['fast', 'complex', 'override']),
+  routeReason: text,
+  inputTokens: nonNegativeNumber,
+  cachedInputTokens: nonNegativeNumber,
+  outputTokens: nonNegativeNumber,
+  totalTokens: nonNegativeNumber,
+  estimatedCostUsd: nonNegativeNumber,
+  pricingVersion: nonEmptyText,
+  createdAt: text,
+  updatedAt: text,
+});
+
 const recordCollectionKeys = [
   'projects',
   'buildings',
@@ -342,6 +359,7 @@ const recordCollectionKeys = [
   'memories',
   'memoryCandidates',
   'agentRuns',
+  'aiUsageEvents',
   'copilotConversations',
   'followUpTasks',
   'smartSuggestions',
@@ -366,6 +384,7 @@ const appDataBackupSchema = z
     memories: z.array(memorySchema).optional(),
     memoryCandidates: z.array(memoryCandidateSchema).optional(),
     agentRuns: z.array(agentRunSchema).optional(),
+    aiUsageEvents: z.array(aiUsageEventSchema).optional(),
     copilotConversations: z.array(conversationSchema).optional(),
     followUpTasks: z.array(followUpSchema).optional(),
     smartSuggestions: z.array(suggestionSchema).optional(),

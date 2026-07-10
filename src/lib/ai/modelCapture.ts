@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AppData, DraftAction } from '../../types.js';
+import type { AiModelClass, AppData, DraftAction } from '../../types.js';
 import { createId, nowISO, todayISO } from '../constants.js';
 import { agentParseResultSchema, type AgentParseResult } from './types.js';
 
@@ -171,19 +171,21 @@ export const buildModelCaptureRequest = (input: string, data: AppData): ModelCap
   }
 
   const unitNumbers = new Set(configuredUnitNumbersInInput(input, data, project.id));
-  const referencedUnits = data.units
+  const referencedProjectUnits = data.units
     .filter((unit) => unit.projectId === project.id && unitNumbers.has(unit.unitNumber))
-    .slice(0, 20)
-    .map((unit) => ({
-      id: unit.id,
-      unitNumber: unit.unitNumber,
-      overallStatus: unit.overallStatus,
-      paintStatus: unit.paintStatus,
-      cleanStatus: unit.cleanStatus,
-      repairStatus: unit.repairStatus,
-      inspectionStatus: unit.inspectionStatus,
-    }));
+    .slice(0, 20);
+  const referencedUnits = referencedProjectUnits.map((unit) => ({
+    id: unit.id,
+    unitNumber: unit.unitNumber,
+    overallStatus: unit.overallStatus,
+    paintStatus: unit.paintStatus,
+    cleanStatus: unit.cleanStatus,
+    repairStatus: unit.repairStatus,
+    inspectionStatus: unit.inspectionStatus,
+  }));
   const unitNumberById = new Map(referencedUnits.map((unit) => [unit.id, unit.unitNumber]));
+  const assignedCrewIds = new Set(referencedProjectUnits.flatMap((unit) => unit.assignedCrewIds));
+  const normalizedInput = input.toLowerCase();
 
   return modelCaptureRequestSchema.parse({
     input,
@@ -195,8 +197,14 @@ export const buildModelCaptureRequest = (input: string, data: AppData): ModelCap
     },
     referencedUnits,
     activeCrews: data.crewMembers
-      .filter((crew) => crew.projectId === project.id && crew.active)
-      .slice(0, 25)
+      .filter(
+        (crew) =>
+          crew.projectId === project.id &&
+          crew.active &&
+          (assignedCrewIds.has(crew.id) ||
+            (crew.name.trim().length >= 3 && normalizedInput.includes(crew.name.trim().toLowerCase()))),
+      )
+      .slice(0, 10)
       .map((crew) => ({
         id: crew.id,
         name: crew.name,
@@ -291,8 +299,13 @@ export const withCaptureConflictWarnings = (draftActions: DraftAction[]) => {
 interface ModelResultMetadata {
   model: string;
   inputTokens?: number;
+  cachedInputTokens?: number;
   outputTokens?: number;
   totalTokens?: number;
+  estimatedCostUsd?: number;
+  pricingVersion?: string;
+  modelClass?: AiModelClass;
+  routeReason?: string;
 }
 
 export const convertModelCaptureOutput = (
@@ -303,6 +316,8 @@ export const convertModelCaptureOutput = (
   const unitByNumber = new Map(request.referencedUnits.map((unit) => [unit.unitNumber, unit]));
   const warnings = [...output.warnings];
   const clarificationQuestions = [...output.clarificationQuestions];
+  const normalizedInput = request.input.toLowerCase();
+  const hasExplicitAssignmentVerb = /\b(?:move(?:d)?|assign(?:ed)?|reassign(?:ed)?|send|sent|put)\b/i.test(request.input);
   const draftActions: DraftAction[] = [];
   const createdAt = nowISO();
 
@@ -361,6 +376,20 @@ export const convertModelCaptureOutput = (
         ['notes', action.noteText || action.summary],
       ]);
     } else if (action.kind === 'CREATE_ASSIGNMENT') {
+      const requestedCrewName = action.crewName.trim();
+      const normalizedCrewName = requestedCrewName.toLowerCase();
+      const knownCrew = request.activeCrews.find(
+        (crew) => crew.name.trim().toLowerCase() === normalizedCrewName,
+      );
+      if (
+        !hasExplicitAssignmentVerb ||
+        !requestedCrewName ||
+        (!knownCrew && !normalizedInput.includes(normalizedCrewName))
+      ) {
+        warnings.push(`AI assignment skipped because the note did not explicitly move or assign a named crew: ${action.title}.`);
+        clarificationQuestions.push(`Confirm the crew and assignment for: ${action.title}`);
+        continue;
+      }
       const safeUnitNumbers = knownUnits.map((unit) => unit?.unitNumber).filter((value): value is string => Boolean(value));
       if (unknownUnits.length > 0) {
         warnings.push(`Unknown Unit(s) were removed from an assignment proposal: ${unknownUnits.join(', ')}.`);
@@ -368,7 +397,7 @@ export const convertModelCaptureOutput = (
       targetEntityType = 'assignment';
       payload = compactPayload([
         ['unitNumbers', safeUnitNumbers],
-        ['teamName', action.crewName || 'Crew update'],
+        ['teamName', knownCrew?.name ?? requestedCrewName],
         ['trade', action.trade ?? 'Other'],
         ['status', action.assignmentStatus ?? 'In Progress'],
         ['scope', action.noteText || action.summary],
@@ -450,8 +479,13 @@ export const convertModelCaptureOutput = (
     model: metadata.model,
     usage: {
       inputTokens: metadata.inputTokens ?? 0,
+      cachedInputTokens: metadata.cachedInputTokens ?? 0,
       outputTokens: metadata.outputTokens ?? 0,
       totalTokens: metadata.totalTokens ?? 0,
+      ...(metadata.estimatedCostUsd !== undefined ? { estimatedCostUsd: metadata.estimatedCostUsd } : {}),
+      ...(metadata.pricingVersion ? { pricingVersion: metadata.pricingVersion } : {}),
+      ...(metadata.modelClass ? { modelClass: metadata.modelClass } : {}),
+      ...(metadata.routeReason ? { routeReason: metadata.routeReason } : {}),
     },
     providerNotice: 'Secure AI assist used. Review every proposed change.',
   });

@@ -1,5 +1,6 @@
 import type {
   AppData,
+  AiUsageEvent,
   Assignment,
   Building,
   CrewMember,
@@ -12,6 +13,7 @@ import type {
 } from '../types';
 import { applyActivityLogRetention } from './activityRetention';
 import { UNIT_WORKFLOW_STATUSES } from './constants';
+import { DEFAULT_TURN_AI_BUDGET_USD } from './ai/usage';
 
 const DEMO_PROJECT_ID = 'project_west_campus_turn';
 
@@ -20,6 +22,10 @@ const arrayOrEmpty = <T>(value: T[] | undefined): T[] => (Array.isArray(value) ?
 const normalizeProject = (project: Project): Project => ({
   ...project,
   mode: project.mode === 'real' ? 'real' : 'demo',
+  aiBudgetUsd:
+    Number.isFinite(project.aiBudgetUsd) && project.aiBudgetUsd >= 0
+      ? project.aiBudgetUsd
+      : DEFAULT_TURN_AI_BUDGET_USD,
   archivedAt: typeof project.archivedAt === 'string' && project.archivedAt.length > 0 ? project.archivedAt : undefined,
 });
 
@@ -46,6 +52,17 @@ const normalizeAssignment = (assignment: Assignment): Assignment => ({
 const normalizePhotoNote = (photo: PhotoNote): PhotoNote => ({
   ...photo,
   updatedAt: fallbackStamp(photo.createdAt, photo.updatedAt),
+});
+
+const normalizeAiUsageEvent = (event: AiUsageEvent): AiUsageEvent => ({
+  ...event,
+  inputTokens: Math.max(0, Number.isFinite(event.inputTokens) ? event.inputTokens : 0),
+  cachedInputTokens: Math.max(0, Number.isFinite(event.cachedInputTokens) ? event.cachedInputTokens : 0),
+  outputTokens: Math.max(0, Number.isFinite(event.outputTokens) ? event.outputTokens : 0),
+  totalTokens: Math.max(0, Number.isFinite(event.totalTokens) ? event.totalTokens : 0),
+  estimatedCostUsd: Math.max(0, Number.isFinite(event.estimatedCostUsd) ? event.estimatedCostUsd : 0),
+  createdAt: event.createdAt || fallbackStamp(undefined, event.updatedAt),
+  updatedAt: fallbackStamp(event.createdAt, event.updatedAt),
 });
 
 const normalizeReportDraft = (draft: ReportDocumentDraft): ReportDocumentDraft => ({
@@ -168,6 +185,7 @@ export const normalizeAppData = (data: AppData): AppData => {
     memories: arrayOrEmpty(data.memories).map((memory) => normalizeMemory(memory, scopeData)),
     memoryCandidates: arrayOrEmpty(data.memoryCandidates).map((candidate) => normalizeMemoryCandidate(candidate, scopeData)),
     agentRuns: arrayOrEmpty(data.agentRuns),
+    aiUsageEvents: arrayOrEmpty(data.aiUsageEvents).map(normalizeAiUsageEvent),
     copilotConversations: arrayOrEmpty(data.copilotConversations),
     followUpTasks: arrayOrEmpty(data.followUpTasks),
     smartSuggestions: arrayOrEmpty(data.smartSuggestions),

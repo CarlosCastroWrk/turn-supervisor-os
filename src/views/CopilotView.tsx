@@ -4,6 +4,7 @@ import {
   Check,
   ClipboardCopy,
   FileText,
+  Gauge,
   Lightbulb,
   Mic,
   Paperclip,
@@ -23,6 +24,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { VoiceCaptureSheet } from '../components/VoiceCaptureSheet';
 import {
   addAgentRun,
+  addAiUsageEvent,
   addCopilotConversation,
   addDraftActions,
   addMemoryCandidates,
@@ -42,6 +44,7 @@ import {
 import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
+import { aiUsageEventFromResult, formatAiUsd } from '../lib/ai/usage';
 import { createId, localISODateFromDateTime, nowISO, todayISO } from '../lib/constants';
 import { createEmptyDailyLog, findDailyLog } from '../lib/dailyLogs';
 import {
@@ -58,7 +61,7 @@ import { blobToDataUrl, putPhotoBlob } from '../lib/photoStorage';
 import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
-import type { AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
+import type { AiUsageEvent, AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
 
 interface CopilotViewProps {
   data: AppData;
@@ -176,6 +179,19 @@ function MemoryCandidateCard({
   );
 }
 
+function AiCallReceipt({ event }: { event: AiUsageEvent }) {
+  const tierLabel = event.modelClass === 'fast' ? 'Fast' : event.modelClass === 'complex' ? 'Complex' : 'Override';
+
+  return (
+    <div className="ai-call-receipt" role="status">
+      <Gauge size={16} aria-hidden="true" />
+      <span>{tierLabel} · {event.model}</span>
+      <strong>{formatAiUsd(event.estimatedCostUsd)} estimated</strong>
+      <small>{event.inputTokens.toLocaleString()} in · {event.outputTokens.toLocaleString()} out</small>
+    </div>
+  );
+}
+
 export function CopilotView({
   data,
   setData,
@@ -209,6 +225,7 @@ export function CopilotView({
   const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0);
   const [isParsingCapture, setIsParsingCapture] = useState(false);
   const [parseSummary, setParseSummary] = useState('');
+  const [lastAiUsage, setLastAiUsage] = useState<AiUsageEvent | null>(null);
   const [draftFilter, setDraftFilter] = useState<DraftFilter>('pending');
   const [activeDraftBatchId, setActiveDraftBatchId] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
@@ -315,6 +332,7 @@ export function CopilotView({
     setActiveDraftBatchId('');
     setDraftNotice('');
     setLastChangedDraftId('');
+    setLastAiUsage(null);
   }, [data.activeProjectId]);
   const fallbackVoiceGuidance = useMemo(
     () =>
@@ -787,6 +805,7 @@ export function CopilotView({
     setCaptureAttachmentError('');
     setQuickInput('');
     setParseSummary('');
+    setLastAiUsage(null);
   };
 
   const parseQuickCapture = async () => {
@@ -796,12 +815,15 @@ export function CopilotView({
 
     parseInFlightRef.current = true;
     setIsParsingCapture(true);
+    const captureProjectId = data.activeProjectId;
     const result = await agentProvider
       .parseQuickCapture(captureSourceInput, data)
       .finally(() => {
         parseInFlightRef.current = false;
         setIsParsingCapture(false);
       });
+    const usageEvent = aiUsageEventFromResult(result, captureProjectId);
+    setLastAiUsage(usageEvent);
     const newMemoryCandidates = prepareMemoryCandidatesForActiveProject(data, result.memoryCandidates);
     const duplicateMemoryCount = result.memoryCandidates.length - newMemoryCandidates.length;
     const summaryParts: string[] = [];
@@ -839,6 +861,9 @@ export function CopilotView({
     setData((current) => {
       let next = addDraftActions(current, result.draftActions, captureSourceInput, batchId);
       next = addMemoryCandidates(next, newMemoryCandidates);
+      if (usageEvent) {
+        next = addAiUsageEvent(next, usageEvent);
+      }
       return addAgentRun(next, 'quick_capture', captureSourceInput, reviewedResult);
     });
     const inferredUnitId = inferSingleCaptureUnitId(result.draftActions, data.units, data.activeProjectId);
@@ -1375,6 +1400,7 @@ export function CopilotView({
             {isPreparingAttachment ? <p className="muted">Preparing attachment...</p> : null}
             {captureAttachmentError ? <p className="error-text" role="alert">{captureAttachmentError}</p> : null}
             {parseSummary ? <p className="success-text" role="status">{parseSummary}</p> : null}
+            {lastAiUsage ? <AiCallReceipt event={lastAiUsage} /> : null}
             <small>Draft-first: nothing changes until you approve it.</small>
           </footer>
 
@@ -1496,6 +1522,7 @@ export function CopilotView({
                 </Button>
               </details>
               {parseSummary ? <p className="success-text">{parseSummary}</p> : null}
+              {lastAiUsage ? <AiCallReceipt event={lastAiUsage} /> : null}
             </div>
           </Section>
 

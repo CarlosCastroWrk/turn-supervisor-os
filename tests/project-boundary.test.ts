@@ -55,6 +55,7 @@ const realProject: Project = {
   estimatedUnits: 1,
   estimatedBeds: 2,
   estimatedCommonAreas: 0,
+  aiBudgetUsd: 10,
   createdAt: '2026-07-09T12:00:00.000Z',
   updatedAt: '2026-07-09T12:00:00.000Z',
 };
@@ -93,6 +94,7 @@ const boundaryData = (): AppData => {
     memories: [],
     memoryCandidates: [],
     agentRuns: [],
+    aiUsageEvents: [],
     copilotConversations: [],
     followUpTasks: [],
     dailyLogs: [],
@@ -278,6 +280,7 @@ test('human-readable exports include only the requested Turn while full backup s
       { id: 'run_real_export', projectId: REAL_PROJECT_ID, mode: 'quick_capture', input: 'Real run', output: {}, status: 'failed', error: 'REAL_RUN_SENTINEL', createdAt: '2026-07-09T12:00:00.000Z' },
       { id: 'run_demo_export', projectId: DEMO_PROJECT_ID, mode: 'quick_capture', input: 'Demo run', output: {}, status: 'failed', error: 'DEMO_RUN_SENTINEL', createdAt: '2026-07-09T12:00:00.000Z' },
     ],
+    aiUsageEvents: [],
     copilotConversations: [
       { id: 'conversation_real_export', projectId: REAL_PROJECT_ID, role: 'assistant', content: 'REAL_CONVERSATION_SENTINEL', supportingRecords: [], suggestedNextActions: [], createdAt: '2026-07-09T12:00:00.000Z' },
       { id: 'conversation_demo_export', projectId: DEMO_PROJECT_ID, role: 'assistant', content: 'DEMO_CONVERSATION_SENTINEL', supportingRecords: [], suggestedNextActions: [], createdAt: '2026-07-09T12:00:00.000Z' },

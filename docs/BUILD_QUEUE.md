@@ -4,6 +4,17 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [ ] H2 Cost-Aware Model Orchestration and AI Usage Meter.
+  - [x] Route focused Capture extraction directly to `gpt-5.4-nano` and complex, attachment-heavy, ambiguous, or higher-consequence notes directly to `gpt-5.4-mini`.
+  - [x] Keep `gpt-5.5` as an explicit emergency override only; never auto-select it and never make a second model call after a completed first call.
+  - [x] Return token usage, route reason, pricing version, and estimated cost from the protected server route.
+  - [x] Persist deduplicated local-first usage receipts, include them in backup/restore, and add project-scoped sync mappings.
+  - [x] Add an editable Turn AI budget and Setup usage panel with estimated used, remaining, average call, and recent-call details.
+  - [x] Label all in-app cost and remaining values as estimates; link to OpenAI Billing for authoritative credit and organization-wide usage.
+  - [x] Verify funded local synthetic calls on `gpt-5.4-nano`, `gpt-5.4-mini`, and `gpt-5.5` without sending real field data.
+  - [x] Complete 218 deterministic tests, desktop/iPad/iPhone usage-meter QA, field-scale and Capture browser gates, lint, normal/Vercel production builds, dependency audit, secret scan, remote schema lint, and migration dry-run.
+  - [ ] Apply `20260710133819_add_ai_usage_metering.sql` only after fresh explicit approval.
+  - [ ] Merge and deploy with production AI still disabled; activate server environment variables only under a separate fresh approval.
 - [x] H1 Protected Model Route dormant release.
   - [x] Add a same-origin Vercel Function with no provider key in browser code.
   - [x] Verify Los's Supabase bearer token and fail closed unless the authenticated email matches a server-only allowlist.
@@ -13,8 +24,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Package the Node 24 function through Vercel and invoke the built artifact directly for 405/401/no-store behavior.
   - [x] Verify 206 deterministic tests, Capture and field-scale browser gates, lint, builds, OS checks, and zero dependency vulnerabilities.
   - [x] Merge PR #62, deploy `dpl_HTAnc2reXfF9TWVeyg3XiKjsZCz4`, verify canonical 405/401/503 API boundaries, and confirm production Capture makes zero model requests while disabled.
-  - [ ] Enable live model use only after OpenAI API billing is active and Los gives fresh approval for the required Vercel environment changes.
-  - [x] Configure `gpt-5.5` as the initial default; switch to Los's preferred `gpt-5.6-sol` only after that model becomes available to this API project.
+  - [x] Fund API billing and verify the protected route locally with synthetic notes only.
+  - [ ] Enable live production model use only after the H2 data migration and Los gives fresh approval for the required Vercel environment changes.
 - [x] C6 Capture Workspace V2 release.
   - [x] Replace route-first Capture with one global modal workspace that preserves the current board context.
   - [x] Add one composer for typed notes, camera photos, image attachments, and bounded CSV/TXT/JSON/EML field notes.
@@ -200,7 +211,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## P3: Future
 
-- [x] Server-side AI route with no browser API keys. Production enablement remains gated by billing and environment approval.
+- [x] Server-side AI route with no browser API keys. Production enablement remains gated by the H2 migration and environment approval.
 - [x] Structured Capture outputs with active-Turn record IDs and pending Draft Actions only.
 - [ ] Model-assisted summaries with local deterministic fallback.
 - [ ] Conflict review UI.
@@ -211,7 +222,6 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## Blocked
 
 - Real Property Doctor Services workflow details remain partially blocked until training clarifies what Los actually supervises day to day.
-- Live H1 model verification is blocked by OpenAI API `insufficient_quota`; `gpt-5.6-sol` is also not yet available to this API project, so the configured initial model is `gpt-5.5`.
 - Supabase one-time cleanup for duplicate/demo cloud records requires explicit approval before any data-changing command.
 
 ## Done

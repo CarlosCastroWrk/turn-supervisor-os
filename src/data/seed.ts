@@ -21,6 +21,7 @@ const project: Project = {
   estimatedUnits: 6,
   estimatedBeds: 18,
   estimatedCommonAreas: 6,
+  aiBudgetUsd: 10,
   createdAt: now,
   updatedAt: now,
 };
@@ -332,6 +333,7 @@ export const seedData: AppData = {
   ],
   memoryCandidates: [],
   agentRuns: [],
+  aiUsageEvents: [],
   copilotConversations: [],
   followUpTasks: [],
   smartSuggestions: [],

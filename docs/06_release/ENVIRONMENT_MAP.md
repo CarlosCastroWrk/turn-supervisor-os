@@ -7,8 +7,9 @@ Document environments without exposing secret values.
 | Local | Development | `http://localhost:5173` | Browser localStorage; optional linked QA sync | Los | Vite dev server; sync stays off unless local public Supabase env values and `VITE_ENABLE_SYNC=true` are present |
 | Production app | Hosted PWA | `https://turn-supervisor-os.vercel.app` | Browser localStorage + optional Supabase sync | Los | Dormant H1 route and full recovery runtime verified at `dpl_HTAnc2reXfF9TWVeyg3XiKjsZCz4`; later docs-only merges can produce newer deployment IDs |
 | Supabase | Sync/Auth/Storage foundation | `https://jgplalexkmjzldczouih.supabase.co` | Postgres + private Storage | Los | Schema/RLS/buckets applied; app sync enabled behind `VITE_ENABLE_SYNC` |
-| OpenAI API | Optional model-assisted Capture | Server-side only | Bounded synthetic/field note context; no direct mutations | Los | Local key exists outside git; production is disabled, API billing quota is not active, and `gpt-5.6-sol` is unavailable to this project |
+| OpenAI API | Optional model-assisted Capture | Server-side only | Bounded synthetic/field note context; no direct mutations | Los | Local key exists outside git; $10 prepaid credit was confirmed with auto-recharge off; synthetic local checks pass; production remains disabled pending schema and environment approval |
 | Local Vercel CLI | Deployment tooling | `vercel` | No app data | Los | Version `55.0.0` verified on 2026-07-09 |
+| Local Supabase CLI | Schema tooling | `supabase` | No app data | Los | Version `2.98.2` verified on 2026-07-10; `2.109.1` is available, but the current migration dry-run and linked schema lint pass |
 
 ## Secret Handling
 
@@ -18,5 +19,6 @@ Document environments without exposing secret values.
 - The Supabase database password for `turn-supervisor-os` is stored in macOS Keychain under service `pds-supabase-db-password`.
 - Vercel production has `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_ENABLE_SYNC=true`.
 - Vercel production does not yet have the approved H1 `OPENAI_API_KEY`, `TURN_OS_ALLOWED_EMAIL`, or `VITE_ENABLE_AI=true` activation set.
+- The in-app AI meter estimates only TurnOS calls from returned token usage. It does not use an OpenAI admin key and cannot claim the provider's authoritative balance.
 - Supabase Auth keeps global public signup disabled while email/password login is enabled for the existing Los user.
 - Do not commit Supabase service-role keys, provider API keys, or real `.env` files.

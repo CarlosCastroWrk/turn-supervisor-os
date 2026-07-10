@@ -6,9 +6,9 @@ import {
   type ModelCaptureRequest,
 } from '../../src/lib/ai/modelCapture.js';
 import type { AgentParseResult } from '../../src/lib/ai/types.js';
+import { AI_PRICING_VERSION, estimateAiTextCost } from '../../src/lib/ai/usage.js';
 import { CaptureRouteError, type CaptureUser } from './captureHandler.js';
-
-const DEFAULT_MODEL = 'gpt-5.5';
+import { selectCaptureModel } from './modelPolicy.js';
 
 const CAPTURE_INSTRUCTIONS = `You are the bounded parsing specialist for Los's private Turn Field Copilot.
 
@@ -21,6 +21,7 @@ Safety rules:
 - A Unit mutation must target exactly one Unit listed in referencedUnits.
 - If a mentioned Unit is absent from referencedUnits, ask for clarification instead of proposing its mutation.
 - Preserve separate facts as separate actions.
+- Use CREATE_ASSIGNMENT only for an explicit crew/team move or assignment. Use CREATE_FOLLOW_UP_TASK for ask, call, confirm, or reminder requests.
 - Do not mark a Unit Ready merely because one trade is complete. Ready requires paint, cleaning, repair, and inspection evidence.
 - Use a Daily Log entry for useful observations that do not safely map to another action.
 - Keep summaries concise and field-readable. Explain uncertainty in warnings or clarificationQuestions.
@@ -29,14 +30,6 @@ Safety rules:
 const safetyIdentifier = async (userId: string) => {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(userId));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-};
-
-const configuredModel = (env: NodeJS.ProcessEnv) => {
-  const model = env.OPENAI_MODEL?.trim() || DEFAULT_MODEL;
-  if (!/^[a-z0-9][a-z0-9._-]{1,80}$/i.test(model)) {
-    throw new CaptureRouteError(503, 'SERVER_CONFIG', 'Secure AI assist is not configured.');
-  }
-  return model;
 };
 
 export const runOpenAiCapture = async (
@@ -49,27 +42,37 @@ export const runOpenAiCapture = async (
     throw new CaptureRouteError(503, 'SERVER_CONFIG', 'Secure AI assist is not configured.');
   }
 
-  const model = configuredModel(env);
+  const selection = selectCaptureModel(request, env);
   const client = new OpenAI({ apiKey, maxRetries: 0, timeout: 18_000 });
   const response = await client.responses.parse({
-    model,
+    model: selection.model,
     instructions: CAPTURE_INSTRUCTIONS,
     input: JSON.stringify(request),
-    max_output_tokens: 3_000,
-    reasoning: { effort: 'low' },
+    max_output_tokens: selection.maxOutputTokens,
+    reasoning: { effort: selection.reasoningEffort },
     safety_identifier: await safetyIdentifier(user.id),
     store: false,
-    text: { format: zodTextFormat(modelCaptureOutputSchema, 'turn_capture') },
+    text: { format: zodTextFormat(modelCaptureOutputSchema, 'turn_capture'), verbosity: 'low' },
   });
 
   if (!response.output_parsed) {
     throw new Error('Model response did not contain parsed capture output.');
   }
 
+  const inputTokens = response.usage?.input_tokens ?? 0;
+  const cachedInputTokens = response.usage?.input_tokens_details?.cached_tokens ?? 0;
+  const outputTokens = response.usage?.output_tokens ?? 0;
+  const cost = estimateAiTextCost(selection.model, inputTokens, cachedInputTokens, outputTokens);
+
   return convertModelCaptureOutput(response.output_parsed, request, {
-    model,
-    inputTokens: response.usage?.input_tokens,
-    outputTokens: response.usage?.output_tokens,
+    model: selection.model,
+    modelClass: selection.modelClass,
+    routeReason: selection.routeReason,
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
     totalTokens: response.usage?.total_tokens,
+    estimatedCostUsd: cost?.totalCostUsd,
+    pricingVersion: AI_PRICING_VERSION,
   });
 };

@@ -46,6 +46,13 @@ export const createOpenAiAgentProvider = (
       const deterministicResult = await mockAgentProvider.parseQuickCapture(input, data);
       if (!dependencies.enabled) return deterministicResult;
       if (!input.trim()) return deterministicResult;
+      const activeProject = data.projects.find((project) => project.id === data.activeProjectId);
+      if (activeProject?.mode !== 'real') {
+        return localResultWithNotice(
+          deterministicResult,
+          'Demo Mode used the local safety parser and did not spend AI credit.',
+        );
+      }
       if (!dependencies.isOnline()) {
         return localResultWithNotice(deterministicResult, 'Offline safety parser used. No capture was lost.');
       }
@@ -91,7 +98,13 @@ export const createOpenAiAgentProvider = (
         if (apiResponse.result.rawInput !== request.input) {
           throw new Error('Capture assist response did not match the submitted note.');
         }
-        return mergeModelAndDeterministicCapture(apiResponse.result, deterministicResult);
+        const meteredResult: AgentParseResult = {
+          ...apiResponse.result,
+          usage: apiResponse.result.usage
+            ? { ...apiResponse.result.usage, requestId: apiResponse.requestId }
+            : undefined,
+        };
+        return mergeModelAndDeterministicCapture(meteredResult, deterministicResult);
       } catch {
         return localResultWithNotice(
           deterministicResult,

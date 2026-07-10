@@ -1,6 +1,7 @@
 import { Archive, Download, PlayCircle, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, CommittedInput, CommittedTextarea, Field, NumberInput } from '../components/FormControls';
+import { AiUsagePanel } from '../components/AiUsagePanel';
 import { MemorySettings } from '../components/MemorySettings';
 import { Section } from '../components/Section';
 import { UnitCsvImportPanel } from '../components/UnitCsvImportPanel';
@@ -359,6 +360,8 @@ export function SetupView({ data, setData }: SetupViewProps) {
           </Field>
         </div>
       </Section>
+
+      <AiUsagePanel data={data} onBudgetChange={(aiBudgetUsd) => saveField({ aiBudgetUsd })} />
 
       <MemorySettings data={data} setData={setData} />
 

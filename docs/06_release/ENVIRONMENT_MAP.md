@@ -5,7 +5,7 @@ Document environments without exposing secret values.
 | Environment | Purpose | URL | Data | Owner | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Local | Development | `http://localhost:5173` | Browser localStorage; optional linked QA sync | Los | Vite dev server; sync stays off unless local public Supabase env values and `VITE_ENABLE_SYNC=true` are present |
-| Production app | Hosted PWA | `https://turn-supervisor-os.vercel.app` | Browser localStorage + optional Supabase sync | Los | CSV runtime release verified at `dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8`; later docs-only merges can produce newer deployment IDs |
+| Production app | Hosted PWA | `https://turn-supervisor-os.vercel.app` | Browser localStorage + optional Supabase sync | Los | Bulk Unit runtime release verified at `dpl_86nG5asRS8ki51RcmavYjXHDTamN`; later docs-only merges can produce newer deployment IDs |
 | Supabase | Sync/Auth/Storage foundation | `https://jgplalexkmjzldczouih.supabase.co` | Postgres + private Storage | Los | Schema/RLS/buckets applied; app sync enabled behind `VITE_ENABLE_SYNC` |
 | Local Vercel CLI | Deployment tooling | `vercel` | No app data | Los | Version `55.0.0` verified on 2026-07-09 |
 

@@ -11,6 +11,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Editable project setup
 - Demo Mode vs Real Turn Mode with a Start Real Turn setup flow
 - Preview-first Real Turn CSV Unit import that skips existing/invalid rows and never imports status
+- Preview-first bulk Unit updates for up to 500 filtered Units with protected/stale-row skips and no bulk Ready path
 - Global bottom-right Capture button available across tabs
 - Organized/collapsible sidebar on iPad and desktop widths
 - Buildings, floors, units, unit filters, and quick unit creation
@@ -232,6 +233,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - Same-date Daily Log creation now converges to one row, but simultaneous edits still use whole-row timestamp resolution rather than field-level merge.
 - Delete propagation and conflict review UI are not implemented yet.
 - CSV Unit import is additive and preview-first, but it has no automatic import Undo. Export a backup first and review every preview count before confirming a real list.
+- Bulk Unit updates support guarded paint, cleaning, repair, and inspection transitions only. They do not offer bulk Ready, arbitrary resets, or automatic Undo.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.
 - No real OpenAI/API provider is enabled yet because there is no server-side route.
 
@@ -259,7 +261,6 @@ The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal n
 - Supabase Storage photo sync physical-device acceptance and cleanup lifecycle
 - Physical iPhone/iPad PWA install, rotation, and offline-restart acceptance
 - Voice notes
-- Faster bulk unit updates
 - Checklist templates per trade
 - Stronger Copilot parsing examples
 - Better draft-action grouping and bulk review

@@ -120,6 +120,7 @@ Slices:
 - PWA install and offline startup (implemented; physical iPhone/iPad acceptance pending)
 - Accessibility and field contrast (implemented; physical outdoor/VoiceOver acceptance pending)
 - Preview-first CSV Unit import (implemented; physical iPhone/iPad file-picker acceptance pending)
+- Preview-first bulk Unit updates (implemented; physical iPhone/iPad filtered-batch acceptance pending)
 
 Success gate:
 

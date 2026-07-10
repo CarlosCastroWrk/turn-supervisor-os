@@ -686,6 +686,28 @@ Acceptance:
 - Desktop/mobile automation passes without horizontal overflow or interference with global Capture.
 - Physical iPhone/iPad selection, preview, confirm, reload, and Capture spacing remain part of the device gate.
 
+### G6. Preview-First Bulk Unit Updates
+
+Status: implemented and deployed in PR #54; physical iPhone/iPad filtered-batch acceptance remains open.
+
+Scope:
+
+- Select Units from the active filtered board without changing the ordinary one-Unit workflow.
+- Apply one explicit paint, cleaning, repair, or inspection transition to at most 500 reviewed Units.
+- Preview exact update and skip counts before applying anything.
+- Revalidate active-project scope, Unit timestamps, workflow protection, and storage durability at confirmation.
+
+Acceptance:
+
+- Another Turn's Unit can never enter the batch even when Unit numbers match.
+- A Unit changed after preview is skipped instead of overwritten.
+- Blocked, later-stage, unfinished, unchanged, or missing Units fail closed when the selected transition does not qualify.
+- No bulk action can mark a Unit Ready, perform an arbitrary reset, or claim automatic Undo.
+- A storage quota failure leaves Units and Activity history unchanged.
+- 300 Units update and survive reload, 500 is the hard transaction ceiling, and 1,000 matching Units require narrower filters.
+- Desktop, iPad landscape, and iPhone render without horizontal overflow or Capture-confirm overlap.
+- Physical iPhone/iPad filtered selection, preview, confirm, reload, and sync remain part of the device gate.
+
 ## Phase H: Later Intelligence
 
 Only after the field-safe deterministic version is trusted.
@@ -739,5 +761,6 @@ Only after the field-safe deterministic version is trusted.
 38. P0 Three-Device Sync Regression
 39. P0 Daily Log Identity And Restore Safety
 40. G5 Preview-First CSV Unit Import
+41. G6 Preview-First Bulk Unit Updates
 
 This order can change if real-device testing finds a higher-risk failure.

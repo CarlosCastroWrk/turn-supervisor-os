@@ -4,6 +4,16 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [x] G6 Preview-First Bulk Unit Updates release.
+  - [x] Add temporary Unit-card selection mode without changing the ordinary single-Unit workflow.
+  - [x] Select shown Units or all current filtered matches, capped at 500 Units.
+  - [x] Preview one explicit paint, cleaning, repair, or inspection transition with exact update and skip counts.
+  - [x] Keep bulk Ready, arbitrary mass resets, and automatic bulk Undo out of scope.
+  - [x] Fail cross-project batches closed and skip protected, unchanged, missing, or post-preview stale Units.
+  - [x] Persist the complete transaction before UI success and identify skipped Unit numbers in feedback.
+  - [x] Verify 188 deterministic tests, 300-Unit apply/reload, 500-Unit transaction ceiling, 1,000-Unit refusal, forced quota failure, desktop/iPad/iPhone layout, Capture spacing, and production smoke.
+  - [x] Merge PR #54 and deploy `dpl_86nG5asRS8ki51RcmavYjXHDTamN`; no Supabase migration or production data change was required.
+  - [ ] Verify a disposable 2-3 Unit filtered batch on physical iPhone/iPad and confirm only the reviewed Units change after reload/sync.
 - [x] G5 Preview-First CSV Unit Import release.
   - [x] Accept Unit plus optional Building, Floor, Beds, Bathrooms, Common Area, and Notes headers with documented aliases.
   - [x] Show ready, existing, duplicate, and invalid rows before any Unit changes.
@@ -149,7 +159,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] G3 PWA Install And Offline Startup. Physical iPhone/iPad acceptance remains in the active gate.
 - [x] G4 Accessibility And Field Contrast. Physical outdoor/VoiceOver acceptance remains open.
 - [x] Add preview-first CSV Unit import. Physical iPhone/iPad file-picker acceptance remains in the active gate.
-- [ ] Add bulk unit update workflow.
+- [x] Add preview-first bulk Unit updates. Physical iPhone/iPad filtered-batch acceptance remains in the active gate.
 
 ## P3: Future
 

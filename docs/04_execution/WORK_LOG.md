@@ -194,3 +194,11 @@
 - Extended deterministic, sync, persistence, and rendered field-scale coverage to 181 passing tests plus a durable 5,000-Unit import, 2,850,866-character state, reload, mobile Capture spacing, and zero console/overflow findings.
 - Merged PR #51 at `5e260a1`, deployed `dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8`, and passed a fresh unsigned production smoke covering CSV preview, duplicate skip, confirm, reload, Not Started status, service-worker support, and production parser chunk loading.
 - No Supabase migration or production data change was required. Physical iPhone/iPad file-picker acceptance remains open.
+- Started G6 Preview-First Bulk Unit Updates on `codex/bulk-unit-updates` from clean `main` after the CSV release record closed.
+- Added active-filter Unit selection plus eight explicit Paint, Cleaning, Repair, and Send-to-Inspection transitions with a hard 500-Unit ceiling and no bulk Ready, arbitrary reset, or automatic Undo path.
+- Added a pure preview/apply transaction boundary that rejects cross-Turn Units, fails a changed project closed, skips protected/unchanged/missing Units, and refuses any Unit whose timestamp changed after preview.
+- Persisted the complete batch before UI success, recorded one factual Activity entry per changed Unit, and identified runtime-skipped Unit numbers in completion feedback.
+- The first mobile stress run caught the floating Capture button covering bulk confirmation; reserved mobile action space fixed the overlap before release.
+- Verified 188/188 deterministic tests, a 500-Unit pure transaction, a durable 300-Unit rendered apply in about 103 ms, 1,000-Unit select-all refusal, forced quota failure with zero mutation, reload persistence, and clean desktop/iPad/iPhone layouts and consoles.
+- Merged PR #54 at `72c5a8b`, deployed `dpl_86nG5asRS8ki51RcmavYjXHDTamN`, and passed a fresh unsigned production smoke covering Real Turn creation, selection, preview, apply, reload, unique Unit count, Activity count, no Ready bypass, no overflow, service-worker support, and zero console findings.
+- No Supabase migration or production data change was required. Physical iPhone/iPad filtered-batch acceptance remains open.

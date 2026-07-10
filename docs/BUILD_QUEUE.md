@@ -4,6 +4,16 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [ ] H1 Protected Model Route release candidate.
+  - [x] Add a same-origin Vercel Function with no provider key in browser code.
+  - [x] Verify Los's Supabase bearer token and fail closed unless the authenticated email matches a server-only allowlist.
+  - [x] Validate bounded request and response schemas, reject unknown Unit mutations, sanitize due dates, and return pending Draft Actions only.
+  - [x] Preserve deterministic parsing for disabled, unsigned, offline, timeout, quota, and provider-failure paths.
+  - [x] Add same-origin checks, a 64 KB body ceiling, twelve-request-per-minute process-local rate limiting, redacted errors, no-store responses, and duplicate-tap protection.
+  - [x] Package the Node 24 function through Vercel and invoke the built artifact directly for 405/401/no-store behavior.
+  - [x] Verify 206 deterministic tests, Capture and field-scale browser gates, lint, builds, OS checks, and zero dependency vulnerabilities.
+  - [ ] Enable live model use only after OpenAI API billing is active and Los gives fresh approval for the required Vercel environment changes.
+  - [ ] Use `gpt-5.5` initially; Los's preferred `gpt-5.6-sol` is currently limited-preview and unavailable to this API project.
 - [x] C6 Capture Workspace V2 release.
   - [x] Replace route-first Capture with one global modal workspace that preserves the current board context.
   - [x] Add one composer for typed notes, camera photos, image attachments, and bounded CSV/TXT/JSON/EML field notes.
@@ -189,8 +199,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## P3: Future
 
-- [ ] Server-side AI route with no browser API keys.
-- [ ] Structured model outputs with supporting record IDs.
+- [x] Server-side AI route with no browser API keys. Production enablement remains gated by billing and environment approval.
+- [x] Structured Capture outputs with active-Turn record IDs and pending Draft Actions only.
 - [ ] Model-assisted summaries with local deterministic fallback.
 - [ ] Conflict review UI.
 - [ ] True delete tombstones.
@@ -200,6 +210,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## Blocked
 
 - Real Property Doctor Services workflow details remain partially blocked until training clarifies what Los actually supervises day to day.
+- Live H1 model verification is blocked by OpenAI API `insufficient_quota`; `gpt-5.6-sol` is also not yet available to this API project, so the configured initial model is `gpt-5.5`.
 - Supabase one-time cleanup for duplicate/demo cloud records requires explicit approval before any data-changing command.
 
 ## Done

@@ -16,7 +16,8 @@ export async function resolve(specifier, context, nextResolve) {
     }
 
     const parentPath = context.parentURL ? fileURLToPath(context.parentURL) : process.cwd();
-    const basePath = specifier.startsWith('/') ? specifier : resolvePath(dirname(parentPath), specifier);
+    const sourceSpecifier = specifier.endsWith('.js') ? specifier.slice(0, -3) : specifier;
+    const basePath = sourceSpecifier.startsWith('/') ? sourceSpecifier : resolvePath(dirname(parentPath), sourceSpecifier);
 
     for (const extension of ['.ts', '.tsx']) {
       const candidate = `${basePath}${extension}`;

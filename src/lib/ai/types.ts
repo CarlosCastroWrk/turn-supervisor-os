@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AppData, BriefingType, DraftAction, MemoryCandidate } from '../../types';
+import type { AppData, BriefingType, DraftAction, MemoryCandidate } from '../../types.js';
 
 const draftActionTypeSchema = z.enum([
   'UPDATE_UNIT_STATUS',
@@ -86,6 +86,14 @@ export const agentParseResultSchema = z.object({
   clarificationQuestions: z.array(z.string()),
   warnings: z.array(z.string()),
   confidence: z.number().min(0).max(1),
+  provider: z.enum(['deterministic', 'openai']).default('deterministic'),
+  model: z.string().optional(),
+  usage: z.object({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+  }).optional(),
+  providerNotice: z.string().optional(),
 });
 
 export type AgentParseResult = z.infer<typeof agentParseResultSchema>;

@@ -19,6 +19,12 @@ https://turn-supervisor-os.vercel.app
 C6 Capture Workspace V2 verified at dpl_Fm5Pv6bH8jSPcYEg6xzfSc7jZP8Y
 ```
 
+Current unshipped release candidate:
+
+```text
+H1 Protected Model Route, dormant until billing and production environment approval
+```
+
 ## Current Goal
 
 Make Real Turn Mode safe to trust on Mac, iPhone, and iPad before Los enters real field data.
@@ -66,6 +72,8 @@ Every near-term change should serve that loop.
 - Setup-based Supervisor Memory review with editable candidates, approve/reject controls, active/inactive controls, source/scope visibility, last-used timestamps, and an explicit path for assigning legacy unscoped records
 - Typed Memory consumption for current-project Crew facts, Daily Log lessons, Ask OS supporting records, and briefing/report preferences without bypassing Draft Action or Daily Log confirmation
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
+- Optional protected model-assisted Capture provider behind `VITE_ENABLE_AI`, with a server-only OpenAI key, Los-only Supabase authentication, structured outputs, pending Draft Actions, and deterministic fallback
+- Bounded same-origin `/api/agent/capture` Vercel Function with request limits, rate limiting, redacted errors, no-store responses, and no direct operational mutation
 - PWA manifest and service worker with 192/512 PNG install icons, a dedicated maskable icon, an iOS touch icon, unrestricted orientation, atomic app-shell install/update behavior, a four-second navigation timeout, cached offline deep-link startup, and a static-only cache allowlist that excludes future app-data endpoints
 - Supabase cloud project `jgplalexkmjzldczouih`
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
@@ -146,8 +154,9 @@ These are user-reported physical checks, not automated claims. Capture Workspace
 - Bulk Ready, arbitrary mass status resets, and automatic bulk Undo; those operations remain intentionally outside the guarded batch workflow
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
-- Server-side AI provider route
+- Production-enabled model-assisted Capture; the route is implemented but remains dormant until API billing and explicitly approved Vercel environment changes
 - Durable recorded-audio transcription pipeline
+- Image understanding for staged Capture photos or files
 - Company product features
 
 ## Active Assumptions
@@ -191,4 +200,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Ship C6 Capture Workspace V2 through a reviewed PR, verify production on Mac/iPhone/iPad, then start H1 Protected Model Route with server-side credentials, structured outputs, deterministic fallback, and the existing Draft Action approval boundary.
+Merge and deploy the dormant H1 route with `VITE_ENABLE_AI` still off. Then activate OpenAI API billing, obtain fresh approval for the Vercel server-only key/allowlist/feature flag, enable `gpt-5.5`, and run one synthetic production Capture before any real field note is sent to the provider.

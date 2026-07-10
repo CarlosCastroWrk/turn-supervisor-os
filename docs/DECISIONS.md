@@ -230,7 +230,19 @@ Rationale:
 - A 500-Unit ceiling matches retryable sync batching and forces very large projects into reviewable groups.
 - Preview plus durable-write-before-success is the recovery boundary because bulk Undo does not exist.
 
+### 2026-07-10: H1 uses one bounded Responses API parser, not an agent swarm
+
+Keep the app's deterministic parser and Draft Action application layer authoritative. When enabled, one authenticated Vercel Function sends bounded active-Turn context to the OpenAI Responses API, validates structured output, rejects unsafe targets, and returns pending drafts for Los to review. Do not add autonomous tools, handoffs, or a multi-agent runtime for H1.
+
+Rationale:
+
+- Capture needs one model judgment step, while the app already owns the workflow, persistence, confirmation, and mutation loop.
+- A server route keeps `OPENAI_API_KEY` out of the Vite/browser bundle and allows Los-only Supabase auth, account allowlisting, request limits, rate limits, timeouts, and redacted errors.
+- Running the deterministic parser first preserves offline behavior, project-scoped Memory extraction, and a safe result when the provider, network, auth, quota, or model is unavailable.
+- Structured model output is still untrusted: unknown Unit mutations are discarded, due dates are normalized, conflicts require confirmation, and Ready remains guarded by the existing apply layer.
+- `gpt-5.5` is the initial configurable model because the selected `gpt-5.6-sol` returned limited-preview/unavailable for this API project. Production activation remains separate from code release and requires billing plus explicit environment approval.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.
-- Which server-side AI provider/model to use, if any, after Phase 1 stabilizes.
+- Whether later image understanding, recorded-audio transcription, or model-assisted reporting warrants additional model routes after H1 field evidence.

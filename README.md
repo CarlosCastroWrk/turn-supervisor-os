@@ -28,7 +28,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Field-accessible navigation and Capture behavior with 44px targets, visible focus, semantic progress/navigation state, reduced-motion support, and a keyboard-contained Voice dialog
 - Nonblocking field feedback plus timestamp-guarded Undo for Unit quick-status taps; destructive and recovery actions retain explicit confirmation
 - Local-first persistence using browser localStorage for operational records and IndexedDB for compressed photo files
-- Rule-based no-API-key copilot parser that creates draft actions before changing data
+- Rule-based no-API-key copilot parser that creates draft actions before changing data, plus an optional protected model-assisted Capture path with the same approval boundary
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
 - Mobile-accessible secondary navigation for Setup, Assignments, Reports, Training Questions, and Export
 - Optional Supabase sync panel behind `VITE_ENABLE_SYNC` for signing in and syncing records across devices
@@ -36,10 +36,10 @@ It is not official Property Doctor Services software. It is a personal superviso
 ## Intentionally Excluded
 
 - No company/team login system
-- No backend server beyond Supabase/Vercel infrastructure
+- No general application backend beyond the bounded Capture function and Supabase/Vercel infrastructure
 - No unrestricted cloud sync; sync requires Los's Supabase account and remains feature-flagged
-- No external APIs
-- No AI agent
+- No production-enabled external AI until billing and server-only environment approval are complete
+- No autonomous AI agent or direct model mutation
 - No autonomous actions
 - No CRM
 - No tenant portal
@@ -126,7 +126,7 @@ The Copilot is a local-first assistant layer. It helps capture, organize, summar
 1. Tap the bottom-right Capture button.
 2. Tap Record if browser speech recognition is available, or tap the messy note box and use iPhone/iPad keyboard dictation.
 3. Speak or type a field note.
-4. Tap Create Drafts.
+4. Tap Review Changes.
 5. Review Draft Actions.
 6. Edit payloads if needed.
 7. Approve/apply or reject each action.
@@ -204,14 +204,18 @@ Current typed consumption is deliberately narrow: sourced Crew facts, review-fir
 
 ## AI / API Safety
 
-The current app runs without an API key. Copilot uses a deterministic local provider in `src/lib/ai/mockAgentProvider.ts`.
+The app still runs without an API key and always retains the deterministic local provider in `src/lib/ai/mockAgentProvider.ts`. H1 adds an optional `/api/agent/capture` Vercel Function, but production model use stays disabled until API billing and explicitly approved Vercel environment changes are complete.
 
-Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider secret in browser code. A real OpenAI provider should only be added through a future server-side API layer that:
+The protected route:
 
-- keeps secrets on the server
-- validates structured outputs with Zod or JSON Schema
-- returns Draft Actions, not direct mutations
-- preserves the no-API-key local fallback
+- keeps `OPENAI_API_KEY` server-only
+- verifies Los's Supabase bearer token and a server-only account allowlist
+- sends bounded active-Turn context without crew phone, company, or language fields
+- validates structured output and rejects unknown Unit mutations
+- returns pending Draft Actions, never direct mutations
+- falls back to the local parser when disabled, unsigned, offline, timed out, rate limited, over quota, or unavailable
+
+The initial supported model is configurable and currently defaults to `gpt-5.5`. Los's preferred `gpt-5.6-sol` returned limited-preview/unavailable for this API project.
 
 ## Privacy Guardrails
 
@@ -235,7 +239,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - CSV Unit import is additive and preview-first, but it has no automatic import Undo. Export a backup first and review every preview count before confirming a real list.
 - Bulk Unit updates support guarded paint, cleaning, repair, and inspection transitions only. They do not offer bulk Ready, arbitrary resets, or automatic Undo.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.
-- No real OpenAI/API provider is enabled yet because there is no server-side route.
+- The protected OpenAI route is implemented but production-disabled. The current API project reports insufficient billing quota, and required Vercel environment changes still need fresh explicit approval.
 
 ## Sync / Voice / AI Upgrade (planned)
 

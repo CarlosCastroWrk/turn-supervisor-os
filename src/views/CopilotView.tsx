@@ -200,12 +200,14 @@ export function CopilotView({
   const lastSpeechErrorRef = useRef<string | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
   const noTranscriptTimerRef = useRef<number | undefined>(undefined);
+  const parseInFlightRef = useRef(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFallbackActive, setVoiceFallbackActive] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [voiceStatus, setVoiceStatus] = useState('');
   const [voiceElapsedSeconds, setVoiceElapsedSeconds] = useState(0);
+  const [isParsingCapture, setIsParsingCapture] = useState(false);
   const [parseSummary, setParseSummary] = useState('');
   const [draftFilter, setDraftFilter] = useState<DraftFilter>('pending');
   const [activeDraftBatchId, setActiveDraftBatchId] = useState('');
@@ -576,6 +578,7 @@ export function CopilotView({
     if (quickInput.trim()) {
       setVoiceStatus('Voice note saved to the text box. Review it, then create drafts.');
     }
+    voiceModeButtonRef.current?.focus({ preventScroll: true });
     window.requestAnimationFrame(() => voiceModeButtonRef.current?.focus({ preventScroll: true }));
   };
 
@@ -787,11 +790,18 @@ export function CopilotView({
   };
 
   const parseQuickCapture = async () => {
-    if (!captureInputReady) {
+    if (!captureInputReady || parseInFlightRef.current) {
       return;
     }
 
-    const result = await agentProvider.parseQuickCapture(captureSourceInput, data);
+    parseInFlightRef.current = true;
+    setIsParsingCapture(true);
+    const result = await agentProvider
+      .parseQuickCapture(captureSourceInput, data)
+      .finally(() => {
+        parseInFlightRef.current = false;
+        setIsParsingCapture(false);
+      });
     const newMemoryCandidates = prepareMemoryCandidatesForActiveProject(data, result.memoryCandidates);
     const duplicateMemoryCount = result.memoryCandidates.length - newMemoryCandidates.length;
     const summaryParts: string[] = [];
@@ -812,6 +822,9 @@ export function CopilotView({
     }
     if (summaryParts.length === 0) {
       summaryParts.push('No board change or new Memory suggestion was detected.');
+    }
+    if (result.providerNotice) {
+      summaryParts.push(result.providerNotice);
     }
     const parseSummaryMessage = summaryParts.join(' ');
     const reviewedResult = { ...result, memoryCandidates: newMemoryCandidates, summary: parseSummaryMessage };
@@ -1253,7 +1266,12 @@ export function CopilotView({
                     )}
                     <span>{attachment.name}</span>
                     {!('savedPhotoId' in attachment) || !attachment.savedPhotoId ? (
-                      <button type="button" onClick={() => removeCaptureAttachment(attachment.id)} aria-label={`Remove ${attachment.name}`}>
+                      <button
+                        type="button"
+                        disabled={isParsingCapture}
+                        onClick={() => removeCaptureAttachment(attachment.id)}
+                        aria-label={`Remove ${attachment.name}`}
+                      >
                         <X size={15} aria-hidden="true" />
                       </button>
                     ) : null}
@@ -1265,6 +1283,7 @@ export function CopilotView({
             <textarea
               ref={quickInputRef}
               rows={2}
+              disabled={isParsingCapture}
               value={quickInput}
               onChange={(event) => setQuickInput(event.target.value)}
               placeholder="Speak, type, add a photo, or attach a field note..."
@@ -1272,16 +1291,34 @@ export function CopilotView({
             />
 
             <div className="capture-composer__toolbar">
+              {isParsingCapture ? (
+                <span className="visually-hidden" role="status" aria-live="polite">
+                  Reviewing capture. No board changes have been applied.
+                </span>
+              ) : null}
               <div className="capture-composer__attachments">
-                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo" title="Take photo">
+                <button
+                  type="button"
+                  disabled={isParsingCapture}
+                  onClick={() => cameraInputRef.current?.click()}
+                  aria-label="Take a photo"
+                  title="Take photo"
+                >
                   <Camera size={20} aria-hidden="true" />
                 </button>
-                <button type="button" onClick={() => attachmentInputRef.current?.click()} aria-label="Add photo or file" title="Add photo or file">
+                <button
+                  type="button"
+                  disabled={isParsingCapture}
+                  onClick={() => attachmentInputRef.current?.click()}
+                  aria-label="Add photo or file"
+                  title="Add photo or file"
+                >
                   <Paperclip size={20} aria-hidden="true" />
                 </button>
                 <button
                   ref={voiceModeButtonRef}
                   type="button"
+                  disabled={isParsingCapture}
                   onClick={openVoiceSheet}
                   aria-label="Record a voice note"
                   title="Voice note"
@@ -1291,17 +1328,23 @@ export function CopilotView({
               </div>
               <div className="capture-composer__actions">
                 {(quickInput || captureAttachments.length > 0) ? (
-                  <button type="button" onClick={clearCapture} aria-label="Clear capture" title="Clear">
+                  <button
+                    type="button"
+                    disabled={isParsingCapture}
+                    onClick={clearCapture}
+                    aria-label="Clear capture"
+                    title="Clear"
+                  >
                     <Trash2 size={19} aria-hidden="true" />
                   </button>
                 ) : null}
                 <button
                   className="capture-send-button"
                   type="button"
-                  disabled={!captureInputReady || isPreparingAttachment}
+                  disabled={!captureInputReady || isPreparingAttachment || isParsingCapture}
                   onClick={parseQuickCapture}
-                  aria-label="Review captured changes"
-                  title="Review changes"
+                  aria-label={isParsingCapture ? 'Reviewing captured changes' : 'Review captured changes'}
+                  title={isParsingCapture ? 'Reviewing capture' : 'Review changes'}
                 >
                   <Send size={20} aria-hidden="true" />
                 </button>
@@ -1428,6 +1471,7 @@ export function CopilotView({
                   enterKeyHint="done"
                   inputMode="text"
                   rows={7}
+                  disabled={isParsingCapture}
                   value={quickInput}
                   onChange={(event) => setQuickInput(event.target.value)}
                   placeholder="Unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has sink leak, ask Tony."
@@ -1435,11 +1479,11 @@ export function CopilotView({
               </Field>
               <p className="muted">Drafts only. Nothing changes until approval.</p>
               <div className="button-row capture-actions">
-                <Button disabled={!quickInputReady} variant="primary" onClick={parseQuickCapture}>
+                <Button disabled={!quickInputReady || isParsingCapture} variant="primary" onClick={parseQuickCapture}>
                   <Sparkles size={18} aria-hidden="true" />
-                  Review Changes
+                  {isParsingCapture ? 'Reviewing...' : 'Review Changes'}
                 </Button>
-                <Button disabled={!quickInputReady} variant="ghost" onClick={() => setQuickInput('')}>
+                <Button disabled={!quickInputReady || isParsingCapture} variant="ghost" onClick={() => setQuickInput('')}>
                   <RotateCcw size={18} aria-hidden="true" />
                   Clear
                 </Button>

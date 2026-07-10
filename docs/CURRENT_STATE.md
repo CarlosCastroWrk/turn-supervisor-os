@@ -9,14 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G1 Bounded Activity History
+E4 Project-Scoped Memory through G5 Preview-First CSV Unit Import
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-dpl_7USDhKzQLuDHNit7vPCApLT6enkM
+dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8
 ```
 
 ## Current Goal
@@ -43,6 +43,8 @@ Every near-term change should serve that loop.
 - Bounded raw Activity history that prioritizes the active Turn, retains up to 10,000 entries in local hot state, and limits Supabase Activity pulls to the same newest-row window without deleting cloud rows; Daily Logs and report drafts remain separate
 - Session-backed commit-on-blur text fields for Project setup, Unit notes, Issue resolution, Crew observations, Assignment notes, training answers, and Memory edits; interrupted drafts restore only while the underlying record value is unchanged
 - Session-backed commit-on-blur numeric fields for existing Project estimates and Unit bed/bath counts; multi-digit edits remain local until blur or Enter and commit as one operational change
+- Preview-first Real Turn CSV Unit import with flexible Unit/Building/Floor/Beds/Bathrooms/Common Area/Notes headers, explicit skipped-row details, a 2 MB file limit, a 5,000-row limit, and a downloadable header-only template
+- Additive CSV apply safety that never overwrites an existing Unit, ignores imported status columns, starts every imported Unit as Not Started, validates again at commit time, and durably writes the full import before showing success
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
@@ -67,6 +69,7 @@ Every near-term change should serve that loop.
 - Deterministic equal-timestamp sync resolution that prevents same-row copies from re-uploading over each other indefinitely and preserves resolved Draft Action lifecycle states over stale pending copies
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel
 - Sync pull hardening that reads Supabase rows in ordered pages, keeps `Pull cloud` pull-only, shows `Upload needed` when a pull leaves unsent local changes, and checks cloud before local upload flows push changed rows
+- Retryable 500-row Supabase upload batches that checkpoint each successful batch so a later retry sends only unfinished changed rows
 - Demo sync boundary that skips demo-scoped project rows on upload while preserving local Demo Mode practice data on fresh cloud pulls
 - Storage/photo safety that preserves corrupt local cache payloads, compresses photos, stores normal photo files outside the main app record in IndexedDB, and migrates legacy embedded photos only after durable writes succeed
 - Private Supabase Storage photo sync for Real Turn records: row metadata uploads first, available local files upload into Los's authenticated folder, successful `storage_path` values sync back to `photo_notes`, and other devices lazy-download/cache thumbnails
@@ -92,10 +95,11 @@ Every near-term change should serve that loop.
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
 - Active-Turn Draft Action provenance that hides other-Turn history, refuses ambiguous/cross-project approvals, and prevents same-number Demo/Real Unit collisions
 - Export/backup tools for photo-complete JSON, CSV, reports, Copilot/Memory Markdown, and Follow-Ups CSV
+- Spreadsheet-safe CSV exports that neutralize cells beginning with formula-trigger characters before download
 - Current-Turn human-readable exports for Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups; the separately labeled full-device JSON backup intentionally keeps every project
 - Full-device JSON restore validation that rejects malformed collections, unsafe records, duplicate IDs, invalid photo payloads, empty projects, and pathological record counts before replacing local state
 - Restore guard that waits for Supabase auth state and requires sign-out before local replacement so active sync cannot immediately merge over the restored copy
-- A repeatable field-scale gate that creates 300 units through Setup, renders 100 units at a time across desktop/iPad/iPhone layouts, and validates Capture, Reports, export, backup restore, 1,000 units, 100 blockers, 500 ready units, and 10,000 activity events
+- A repeatable field-scale gate that creates 300 units through Setup, renders 100 units at a time across desktop/iPad/iPhone layouts, and validates Capture, Reports, export, backup restore, 1,000 units, 100 blockers, 500 ready units, 10,000 activity events, and a durable 5,000-unit CSV import
 - A disposable three-device sync regression that preserves disjoint 12-hour offline edits, tests every reconnect order for same-row updates, rejects duplicate rows, and verifies equal-timestamp conflicts settle without repeated uploads
 
 ## What Real Turn Mode Currently Does
@@ -107,6 +111,7 @@ Every near-term change should serve that loop.
 - Keeps demo data available separately for practice
 - Filters active project views so Real Turn records and Demo records are separated in normal use
 - Scopes crew contacts to the active project
+- Lets Los preview and add Units from a CSV in Setup without changing existing Units or trusting imported status values
 
 ## What Does Not Exist Yet
 
@@ -117,7 +122,9 @@ Every near-term change should serve that loop.
 - Cloud object deletion/cleanup when a photo record is removed
 - Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
 - Physical iPhone/iPad verification in bright light and with VoiceOver enabled
+- Physical iPhone/iPad verification of CSV file selection, preview, confirm, reload persistence, and Capture-button spacing
 - General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
+- A bulk Unit update workflow; field changes still happen one Unit or confirmed Draft Action at a time
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
 - Server-side AI provider route
@@ -156,6 +163,7 @@ Real-device Phase 1 QA:
 8. Export/backup works before any destructive reset.
 9. One work-safe Real Turn photo captured on one device appears on the other two after sync, then remains visible after reload.
 10. Core navigation, Capture, and Unit updates remain understandable in bright light and with iOS VoiceOver enabled.
+11. A small Real Turn CSV can be selected, previewed, confirmed, and found after reload on physical iPhone/iPad without covering the global Capture control.
 
 Current immediate field check:
 
@@ -169,6 +177,7 @@ Current immediate field check:
 8. In bright light, confirm secondary text and focus/tap states remain readable; enable VoiceOver briefly and confirm Dashboard, Units, and Voice Capture are announced coherently.
 9. Open the same Daily Log date across devices, make obvious offline QA edits, reconnect one at a time, and confirm one row settles everywhere.
 10. While signed in, open Export and confirm Restore JSON Backup is blocked with a sign-out instruction.
+11. In a disposable Real Turn, import a 2-3-row CSV on iPhone or iPad, confirm the preview counts, reload, and verify each new Unit remains Not Started.
 
 ## GitHub Workflow
 
@@ -189,3 +198,4 @@ Run the B3 real-device offline/reconnect, Daily Log, restore-guard, and F2 photo
 7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
 8. Open the same Daily Log date on all three devices, make obvious offline QA edits, reconnect one at a time, and confirm exactly one log settles everywhere.
 9. While still signed in, open Export and confirm Restore JSON Backup is blocked with a clear sign-out instruction.
+10. In a disposable Real Turn, select a small CSV on physical iPhone or iPad, review every preview count, confirm it, reload, and verify the new Units remain Not Started and Capture stays reachable.

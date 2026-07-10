@@ -18,6 +18,7 @@ import { getActiveProject, getIssuesForProject, getUnitsForProject } from '../li
 import { buildJsonBackupWithLocalPhotos } from '../lib/photoBackup';
 import { getProjectDailyLogs, getProjectFollowUpTasks } from '../lib/projectScope';
 import { restoreBlockReason } from '../lib/restoreSafety';
+import { todayISO } from '../lib/constants';
 import type { AppData } from '../types';
 
 interface ExportViewProps {
@@ -29,7 +30,7 @@ interface ExportViewProps {
 
 export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: ExportViewProps) {
   const { notify } = useToast();
-  const date = new Date().toISOString().slice(0, 10);
+  const date = todayISO();
   const project = getActiveProject(data);
   const projectDailyLogs = getProjectDailyLogs(data, project.id);
   const projectFollowUps = getProjectFollowUpTasks(data, project.id);

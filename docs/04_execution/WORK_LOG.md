@@ -102,6 +102,7 @@
 - The first stress run caught and fixed active-Turn history losing one slot to newer Demo history, plus outdated chained-order behavior in the disposable Supabase test double.
 - Repaired an incomplete local `lucide-react` install with `npm ci`; no dependency versions or lockfile content changed.
 - Verified 171/171 deterministic tests, the rendered 1,000-unit/10,000-event field-scale gate, one-write commit behavior at the retention limit, desktop/iPhone Export layout, no Capture/text overlap, no horizontal overflow, and no console warnings.
+- Merged PR #49 and shipped production deployment `dpl_7USDhKzQLuDHNit7vPCApLT6enkM`; the canonical app, service worker, manifest, and new Activity-retention bundle all returned `200`/expected content.
 
 - Started F1 IndexedDB Photo Store after Los approved the full pre-Turn P0/P1/P2 build program.
 - Moved normal compressed photo files out of the synchronous main app record and into versioned IndexedDB while keeping lightweight metadata in AppData.

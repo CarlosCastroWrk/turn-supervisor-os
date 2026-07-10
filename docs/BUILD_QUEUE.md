@@ -11,6 +11,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep Daily Logs, report drafts, operational records, photos, drafts, and Memory outside this retention cap.
   - [x] Disclose the retention behavior in Export / Backup.
   - [x] Verify 10,037-entry trimming, active-Turn priority, 10,003-row cloud pulls, 10,000-entry live updates, desktop/iPhone layout, and console health.
+  - [x] Merge PR #49, deploy production, and confirm the canonical app shell, service worker, manifest, and new bundle.
 - [x] P0 Daily Log Identity And Restore Safety release.
   - [x] Give every new project/date Daily Log one deterministic ID across devices.
   - [x] Collapse duplicate local project/date logs and preserve an existing legacy cloud row ID during pull-before-upload.

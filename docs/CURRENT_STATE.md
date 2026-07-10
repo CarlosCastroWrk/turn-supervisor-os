@@ -9,20 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G8 Production Recovery Gate
-```
-
-Current release candidate:
-
-```text
-C6 Capture Workspace V2
+E4 Project-Scoped Memory through G8 Production Recovery Gate, plus C6 Capture Workspace V2
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-Production recovery release verified at dpl_4HDaZEw892itU6k1H7zCLoFKUeRm
+C6 Capture Workspace V2 verified at dpl_Fm5Pv6bH8jSPcYEg6xzfSc7jZP8Y
 ```
 
 ## Current Goal

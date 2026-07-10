@@ -4,7 +4,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] C6 Capture Workspace V2 release.
+- [x] C6 Capture Workspace V2 release.
   - [x] Replace route-first Capture with one global modal workspace that preserves the current board context.
   - [x] Add one composer for typed notes, camera photos, image attachments, and bounded CSV/TXT/JSON/EML field notes.
   - [x] Keep parser output draft-first with compact per-action Approve, Reject, and advanced edit controls.
@@ -12,7 +12,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep voice behavior honest: browser speech where available, keyboard dictation or typed fallback everywhere else.
   - [x] Fix modal accessibility so the Capture input is never inside the inert background, Escape closes in layers, focus restores, and target navigation closes the workspace.
   - [x] Verify 194 deterministic tests, Capture browser workflow, field-scale behavior, local recovery gate, desktop/iPad/iPhone layouts, voice fallback, no overflow, builds, lint, OS checks, and zero dependency vulnerabilities.
-  - [ ] Merge the reviewed PR, deploy production, and run focused production smoke checks.
+  - [x] Merge PR #60, deploy `dpl_Fm5Pv6bH8jSPcYEg6xzfSc7jZP8Y`, and pass canonical production Capture plus seven-download recovery smoke checks.
   - [ ] Run one post-deploy physical Capture pass on Mac, iPhone, and iPad.
 - [x] G8 Production Recovery Gate and Local Date Safety release.
   - [x] Add an unsigned disposable production browser gate using only `QA_RECOVERY_*` local data.

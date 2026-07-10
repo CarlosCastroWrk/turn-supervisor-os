@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Button, CommittedInput, CommittedTextarea, Field, NumberInput } from '../components/FormControls';
 import { MemorySettings } from '../components/MemorySettings';
 import { Section } from '../components/Section';
+import { UnitCsvImportPanel } from '../components/UnitCsvImportPanel';
 import { useToast } from '../components/toast-context';
 import { archiveProject, createRealTurnProject, restoreProject, switchActiveProject, updateProject } from '../lib/actions';
 import { downloadTextFile } from '../lib/exporters';
@@ -382,6 +383,8 @@ export function SetupView({ data, setData }: SetupViewProps) {
         </div>
         <p className="muted">Use Units → Quick Unit Creation to add buildings, floors, and units quickly.</p>
       </Section>
+
+      {project.mode === 'real' ? <UnitCsvImportPanel data={data} project={project} setData={setData} /> : null}
     </div>
   );
 }

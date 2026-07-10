@@ -6,6 +6,7 @@ import {
   mergeRemoteData,
   remoteActivityPullLimit,
   remotePullPageSize,
+  remoteUploadBatchSize,
   replaceRemoteData,
   syncedTables,
   uploadLocalData,
@@ -476,6 +477,73 @@ test('uploadLocalData serializes edited report drafts for Supabase upsert', asyn
   assert.equal(row?.title_edited, true);
   assert.equal(Array.isArray(row?.sections), true);
   assert.equal((row?.sections as ReportDocumentDraft['sections'])?.[0]?.bodyEdited, true);
+});
+
+test('uploadLocalData batches large changed tables for retryable Supabase requests', async () => {
+  const unitCount = remoteUploadBatchSize * 2 + 3;
+  const upsertCalls: UpsertCall[] = [];
+  const local = {
+    ...appData(),
+    units: Array.from({ length: unitCount }, (_, index) => ({
+      ...unit(),
+      id: `unit_batch_${String(index).padStart(4, '0')}`,
+      unitNumber: String(10_000 + index),
+    })),
+  };
+
+  const result = await uploadLocalData(asSupabaseClient(fakeClient(rowsByTable(), [], upsertCalls)), local, {});
+  const unitUpserts = upsertCalls.filter((call) => call.table === 'units');
+
+  assert.deepEqual(unitUpserts.map((call) => call.rows.length), [remoteUploadBatchSize, remoteUploadBatchSize, 3]);
+  assert.equal(result.baseline.units?.size, unitCount);
+  assert.equal(result.uploadedRows, unitCount + 1);
+  assert.equal(result.uploadedTables.filter((table) => table === 'units').length, 1);
+  assert.deepEqual(result.failures, []);
+});
+
+test('uploadLocalData checkpoints successful batches and retries only unfinished rows', async () => {
+  const unitCount = remoteUploadBatchSize * 2 + 3;
+  const local = {
+    ...appData(),
+    units: Array.from({ length: unitCount }, (_, index) => ({
+      ...unit(),
+      id: `unit_retry_${String(index).padStart(4, '0')}`,
+      unitNumber: String(20_000 + index),
+    })),
+  };
+  let unitBatch = 0;
+  const partialClient = {
+    from(table: string) {
+      return {
+        async upsert() {
+          if (table === 'units') {
+            unitBatch += 1;
+            if (unitBatch === 2) return { error: { message: 'Disposable batch failure' } };
+          }
+          return { error: null };
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+
+  const partial = await uploadLocalData(partialClient, local, {});
+  assert.equal(partial.baseline.units?.size, remoteUploadBatchSize);
+  assert.equal(partial.uploadedRows, remoteUploadBatchSize + 1);
+  assert.deepEqual(partial.failures, [
+    `units rows ${remoteUploadBatchSize + 1}-${remoteUploadBatchSize * 2}: Disposable batch failure`,
+  ]);
+
+  const retryCalls: UpsertCall[] = [];
+  const retry = await uploadLocalData(
+    asSupabaseClient(fakeClient(rowsByTable(), [], retryCalls)),
+    local,
+    partial.baseline,
+  );
+  const unitRetries = retryCalls.filter((call) => call.table === 'units');
+  assert.deepEqual(unitRetries.map((call) => call.rows.length), [remoteUploadBatchSize, 3]);
+  assert.equal(retry.uploadedRows, remoteUploadBatchSize + 3);
+  assert.equal(retry.baseline.units?.size, unitCount);
+  assert.deepEqual(retry.failures, []);
 });
 
 test('uploadLocalData serializes private photo storage paths', async () => {

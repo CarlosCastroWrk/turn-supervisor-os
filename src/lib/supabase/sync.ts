@@ -712,6 +712,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
 
 export const syncedTables = tableConfigs.map((config) => config.table);
 export const remotePullPageSize = 1000;
+export const remoteUploadBatchSize = 500;
 export const remoteActivityPullLimit = ACTIVITY_LOG_RETENTION_LIMIT;
 
 export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
@@ -872,18 +873,27 @@ export const uploadLocalData = async (client: SupabaseClient, data: AppData, bas
       continue;
     }
 
-    const rows = items.map(config.toRow);
-    const { error } = await client.from(config.table).upsert(rows, { onConflict: 'id' });
-    if (error) {
-      failures.push(`${config.table}: ${error.message}`);
-      continue;
-    }
-
-    uploadedTables.push(config.table);
-    uploadedRows += rows.length;
     const tableBaseline = nextBaseline[config.key] ?? new Map<string, string>();
-    items.forEach((item) => tableBaseline.set(item.id, rowFingerprint(config, item)));
-    nextBaseline[config.key] = tableBaseline;
+    let uploadedAnyRows = false;
+    for (let from = 0; from < items.length; from += remoteUploadBatchSize) {
+      const batchItems = items.slice(from, from + remoteUploadBatchSize);
+      const rows = batchItems.map(config.toRow);
+      const { error } = await client.from(config.table).upsert(rows, { onConflict: 'id' });
+      if (error) {
+        const firstRow = from + 1;
+        const lastRow = from + batchItems.length;
+        failures.push(`${config.table} rows ${firstRow}-${lastRow}: ${error.message}`);
+        break;
+      }
+
+      uploadedAnyRows = true;
+      uploadedRows += rows.length;
+      batchItems.forEach((item) => tableBaseline.set(item.id, rowFingerprint(config, item)));
+      nextBaseline[config.key] = tableBaseline;
+    }
+    if (uploadedAnyRows) {
+      uploadedTables.push(config.table);
+    }
   }
 
   return { baseline: nextBaseline, failures, uploadedRows, uploadedTables };

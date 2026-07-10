@@ -211,6 +211,156 @@ try {
     responsive[target.name] = await verifyUnitBoard({ browser, storedState: stored300, ...target });
   }
 
+  const csvText = [
+    'Unit,Building,Floor,Beds,Bathrooms,Common Area,Notes,Overall Status',
+    '101,Building A,Floor 1,50,50,yes,Must not overwrite,Ready',
+    '1501,CSV Annex,Floor 15,2,1,no,"Needs, keys",Ready',
+    '1502,CSV Annex,Floor 15,3,2,yes,Second imported unit,Painting',
+    '1502,CSV Annex,Floor 15,9,9,no,Duplicate row,Ready',
+    '1503,CSV Annex,Floor 15,51,1,maybe,Invalid row,Ready',
+  ].join('\n');
+  const csvContext = await loadStoredContext(browser, { width: 1440, height: 900 }, stored300);
+  const csvPage = await csvContext.newPage();
+  const csvConsoleFindings = attachConsoleChecks(csvPage);
+  await csvPage.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  await csvPage.getByRole('heading', { name: 'Import Unit List', exact: true }).waitFor();
+  const csvFileInput = csvPage.getByLabel('CSV file', { exact: true });
+  await csvFileInput.setInputFiles({ name: 'qa-unit-import.csv', mimeType: 'text/csv', buffer: Buffer.from(csvText) });
+  const importTwoButton = csvPage.getByRole('button', { name: 'Import 2 Units', exact: true });
+  await importTwoButton.waitFor();
+  const csvPreviewSummary = await csvPage.locator('.csv-import-summary').innerText();
+  assert.match(csvPreviewSummary, /2\s+Ready to import/);
+  assert.match(csvPreviewSummary, /1\s+Existing skipped/);
+  assert.match(csvPreviewSummary, /2\s+Invalid or duplicate/);
+  await csvPage.getByText('Status columns are ignored. Every imported unit starts Not Started for field safety.', { exact: true }).waitFor();
+  await assertNoHorizontalOverflow(csvPage, 'desktop-csv-preview');
+  const csvPreviewScreenshot = path.join(screenshotDirectory, 'desktop-csv-preview.png');
+  await csvPage.locator('.unit-csv-import').screenshot({ path: csvPreviewScreenshot });
+
+  csvPage.once('dialog', (dialog) => dialog.accept());
+  await importTwoButton.click();
+  await waitForStoredUnitCount(csvPage, 302);
+  const csvImportResult = await csvPage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const projectUnits = stored.units.filter((unit) => unit.projectId === stored.activeProjectId);
+    const existing = projectUnits.find((unit) => unit.unitNumber === '101');
+    const imported = projectUnits.filter((unit) => unit.unitNumber === '1501' || unit.unitNumber === '1502');
+    return {
+      activityCount: stored.activityLogs.filter((log) => log.action === 'Imported units from CSV').length,
+      existing: { bedCount: existing?.bedCount, notes: existing?.notes },
+      imported: imported.map((unit) => ({
+        cleanStatus: unit.cleanStatus,
+        notes: unit.notes,
+        overallStatus: unit.overallStatus,
+        paintStatus: unit.paintStatus,
+        unitNumber: unit.unitNumber,
+      })),
+      uniqueUnits: new Set(projectUnits.map((unit) => unit.unitNumber.toLocaleLowerCase())).size,
+      unitCount: projectUnits.length,
+    };
+  }, storageKey);
+  assert.deepEqual(csvImportResult.existing, { bedCount: 0, notes: '' });
+  assert.equal(csvImportResult.activityCount, 1);
+  assert.equal(csvImportResult.unitCount, 302);
+  assert.equal(csvImportResult.uniqueUnits, 302);
+  assert.deepEqual(
+    csvImportResult.imported,
+    [
+      { cleanStatus: 'Not Started', notes: 'Needs, keys', overallStatus: 'Not Started', paintStatus: 'Not Started', unitNumber: '1501' },
+      { cleanStatus: 'Not Started', notes: 'Second imported unit', overallStatus: 'Not Started', paintStatus: 'Not Started', unitNumber: '1502' },
+    ],
+  );
+
+  await csvPage.reload({ waitUntil: 'networkidle' });
+  await csvPage.getByRole('heading', { name: 'Import Unit List', exact: true }).waitFor();
+  await csvPage.getByLabel('CSV file', { exact: true }).setInputFiles({
+    name: 'qa-unit-import.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csvText),
+  });
+  const zeroImportButton = csvPage.getByRole('button', { name: 'Import 0 Units', exact: true });
+  await zeroImportButton.waitFor();
+  assert.equal(await zeroImportButton.isDisabled(), true);
+  assert.deepEqual(csvConsoleFindings, [], `CSV import console findings:\n${csvConsoleFindings.join('\n')}`);
+  await csvContext.close();
+
+  const csvMobileContext = await loadStoredContext(browser, { width: 390, height: 844 }, stored300);
+  const csvMobilePage = await csvMobileContext.newPage();
+  const csvMobileConsoleFindings = attachConsoleChecks(csvMobilePage);
+  await csvMobilePage.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  await csvMobilePage.getByLabel('CSV file', { exact: true }).setInputFiles({
+    name: 'qa-mobile-import.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('unit,building,floor,beds,bathrooms\n1601,Mobile Annex,Floor 16,2,1'),
+  });
+  await csvMobilePage.getByRole('button', { name: 'Import 1 Unit', exact: true }).waitFor();
+  await assertNoHorizontalOverflow(csvMobilePage, 'iphone-csv-preview');
+  const csvMobileScreenshot = path.join(screenshotDirectory, 'iphone-csv-preview.png');
+  await csvMobilePage.locator('.unit-csv-import').screenshot({ path: csvMobileScreenshot });
+  const csvMobileOverlap = await csvMobilePage.evaluate(() => {
+    const importButton = document.querySelector('.csv-import-confirm .button')?.getBoundingClientRect();
+    const captureButton = document.querySelector('.floating-capture')?.getBoundingClientRect();
+    if (!importButton || !captureButton) return false;
+    return !(
+      importButton.right <= captureButton.left ||
+      importButton.left >= captureButton.right ||
+      importButton.bottom <= captureButton.top ||
+      importButton.top >= captureButton.bottom
+    );
+  });
+  assert.equal(csvMobileOverlap, false, 'Floating Capture must not cover the CSV Import button.');
+  assert.deepEqual(csvMobileConsoleFindings, [], `Mobile CSV console findings:\n${csvMobileConsoleFindings.join('\n')}`);
+  await csvMobileContext.close();
+
+  const scaleImportState = JSON.stringify(scaleState(0, 0));
+  const scaleCsv = [
+    'unit,building,floor',
+    ...Array.from({ length: 5_000 }, (_, index) => `${20_000 + index},Bulk Import,Unassigned`),
+  ].join('\n');
+  const scaleCsvContext = await loadStoredContext(browser, { width: 1440, height: 900 }, scaleImportState);
+  const scaleCsvPage = await scaleCsvContext.newPage();
+  const scaleCsvConsoleFindings = attachConsoleChecks(scaleCsvPage);
+  await scaleCsvPage.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  const scaleParseStartedAt = performance.now();
+  await scaleCsvPage.getByLabel('CSV file', { exact: true }).setInputFiles({
+    name: 'qa-5000-unit-import.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(scaleCsv),
+  });
+  const scaleImportButton = scaleCsvPage.getByRole('button', { name: 'Import 5,000 Units', exact: true });
+  await scaleImportButton.waitFor({ timeout: 15_000 });
+  const scaleParseMs = performance.now() - scaleParseStartedAt;
+  assert.equal(await scaleCsvPage.locator('.csv-import-table tbody tr').count(), 10);
+  const scaleImportStartedAt = performance.now();
+  scaleCsvPage.once('dialog', (dialog) => dialog.accept());
+  await scaleImportButton.click();
+  await waitForStoredUnitCount(scaleCsvPage, 5_000);
+  const scaleImportMs = performance.now() - scaleImportStartedAt;
+  const scaleCsvResult = await scaleCsvPage.evaluate((key) => {
+    const serialized = window.localStorage.getItem(key);
+    const stored = JSON.parse(serialized);
+    const units = stored.units.filter((unit) => unit.projectId === stored.activeProjectId);
+    return {
+      activityCount: stored.activityLogs.filter((log) => log.action === 'Imported units from CSV').length,
+      allNotStarted: units.every((unit) => unit.overallStatus === 'Not Started'),
+      serializedCharacters: serialized.length,
+      uniqueUnits: new Set(units.map((unit) => unit.unitNumber)).size,
+      unitCount: units.length,
+    };
+  }, storageKey);
+  assert.equal(scaleCsvResult.activityCount, 1);
+  assert.equal(scaleCsvResult.allNotStarted, true);
+  assert.equal(scaleCsvResult.uniqueUnits, 5_000);
+  assert.equal(scaleCsvResult.unitCount, 5_000);
+  assert.ok(scaleCsvResult.serializedCharacters < 5_000_000);
+  await scaleCsvPage.reload({ waitUntil: 'networkidle' });
+  await scaleCsvPage.getByRole('heading', { name: 'Import Unit List', exact: true }).waitFor();
+  await assertNoHorizontalOverflow(scaleCsvPage, 'desktop-5000-csv-import');
+  const scaleCsvScreenshot = path.join(screenshotDirectory, 'desktop-5000-csv-import.png');
+  await scaleCsvPage.locator('.setup-summary').screenshot({ path: scaleCsvScreenshot });
+  assert.deepEqual(scaleCsvConsoleFindings, [], `5,000-unit CSV console findings:\n${scaleCsvConsoleFindings.join('\n')}`);
+  await scaleCsvContext.close();
+
   const dailyContext = await loadStoredContext(browser, { width: 390, height: 844 }, stored300);
   const dailyPage = await dailyContext.newPage();
   const dailyConsoleFindings = attachConsoleChecks(dailyPage);
@@ -503,6 +653,16 @@ try {
         screenshot: dailyLogScreenshot,
       },
       quickCreation: quickCreationResult,
+      csvImport: {
+        imported: csvImportResult.unitCount - 300,
+        mobileScreenshot: csvMobileScreenshot,
+        previewScreenshot: csvPreviewScreenshot,
+        scaleImportMs: Math.round(scaleImportMs),
+        scaleParseMs: Math.round(scaleParseMs),
+        scaleScreenshot: scaleCsvScreenshot,
+        scaleSerializedCharacters: scaleCsvResult.serializedCharacters,
+        scaleUnitCount: scaleCsvResult.unitCount,
+      },
       numericPersistence: {
         latestActivityRetained: numericCommitResult.latestActivityId !== recoveryResult.latestActivityId,
         retainedActivityCount: numericCommitResult.activityCount,

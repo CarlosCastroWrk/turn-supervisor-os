@@ -36,13 +36,13 @@ test('Capture model policy uses nano for focused extraction and mini for complex
   assert.equal(highConsequenceSelection.maxOutputTokens, 3_000);
 
   const multiAction = buildModelCaptureRequest(
-    'Unit 203 paint complete. Unit 202 has a leak. Move Jose crew to 201. Ask Tony about keys.',
+    'Unit 203 paint complete. Unit 202 has a leak. Move Jose crew to 201. Ask the project manager about keys.',
     data,
   );
   assert.equal(selectCaptureModel(multiAction, {} as NodeJS.ProcessEnv).modelClass, 'complex');
 
   const mixedWorkflow = buildModelCaptureRequest(
-    'Unit 203 paint is complete but the bathroom sink is leaking. Ask Tony to confirm maintenance by 3 PM.',
+    'Unit 203 paint is complete but the bathroom sink is leaking. Ask the project manager to confirm maintenance by 3 PM.',
     data,
   );
   assert.equal(selectCaptureModel(mixedWorkflow, {} as NodeJS.ProcessEnv).modelClass, 'complex');

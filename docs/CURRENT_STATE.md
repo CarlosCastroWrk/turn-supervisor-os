@@ -156,7 +156,7 @@ These are user-reported physical checks, not automated claims. Capture Workspace
 - Bulk Ready, arbitrary mass status resets, and automatic bulk Undo; those operations remain intentionally outside the guarded batch workflow
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
-- Production-enabled model-assisted Capture; billing is funded and local synthetic model checks pass, but the production route remains dormant until the metering schema is applied and Los separately approves the required Vercel environment changes
+- Production-enabled model-assisted Capture; billing is funded, the metering schema is applied, and local synthetic model checks pass, but the production route remains dormant until the reviewed H2 release deploys and Los separately approves the required Vercel environment changes
 - Official OpenAI credit-balance reconciliation inside the app; the in-app meter tracks estimated TurnOS call cost from returned token usage and a Los-entered budget, not the provider's authoritative billing balance
 - Durable recorded-audio transcription pipeline
 - Image understanding for staged Capture photos or files
@@ -204,4 +204,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Finish H2 verification, then obtain fresh approval to apply `20260710133819_add_ai_usage_metering.sql`. After the schema is current, merge and deploy the metering slice with `VITE_ENABLE_AI` still off. Production model activation is a separate approval for the server-only key, Los allowlist, and feature flag, followed by one synthetic production Capture before any real field note is sent.
+Merge and deploy the reviewed H2 metering slice with `VITE_ENABLE_AI` still off. Production model activation is a separate approval for the server-only key, Los allowlist, and feature flag, followed by one synthetic production Capture before any real field note is sent.

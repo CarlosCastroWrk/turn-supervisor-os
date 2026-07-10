@@ -6,7 +6,7 @@ import type { AppData } from '../src/types.ts';
 
 const data: AppData = JSON.parse(JSON.stringify(seedData)) as AppData;
 const request = buildModelCaptureRequest(
-  'Unit 203 paint is complete but the bathroom sink is leaking. Ask Tony to confirm maintenance by 3 PM.',
+  'Unit 203 paint is complete but the bathroom sink is leaking.',
   data,
 );
 try {

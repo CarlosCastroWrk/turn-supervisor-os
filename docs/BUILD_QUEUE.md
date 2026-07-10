@@ -13,7 +13,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Label all in-app cost and remaining values as estimates; link to OpenAI Billing for authoritative credit and organization-wide usage.
   - [x] Verify funded local synthetic calls on `gpt-5.4-nano`, `gpt-5.4-mini`, and `gpt-5.5` without sending real field data.
   - [x] Complete 218 deterministic tests, desktop/iPad/iPhone usage-meter QA, field-scale and Capture browser gates, lint, normal/Vercel production builds, dependency audit, secret scan, remote schema lint, and migration dry-run.
-  - [ ] Apply `20260710133819_add_ai_usage_metering.sql` only after fresh explicit approval.
+  - [x] Apply `20260710133819_add_ai_usage_metering.sql` after Los's explicit approval; local and remote migration histories match, the remote is up to date, and linked schema lint passes.
   - [ ] Merge and deploy with production AI still disabled; activate server environment variables only under a separate fresh approval.
 - [x] H1 Protected Model Route dormant release.
   - [x] Add a same-origin Vercel Function with no provider key in browser code.

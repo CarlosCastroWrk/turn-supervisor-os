@@ -1500,7 +1500,7 @@ export function CopilotView({
                   disabled={isParsingCapture}
                   value={quickInput}
                   onChange={(event) => setQuickInput(event.target.value)}
-                  placeholder="Unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has sink leak, ask Tony."
+                  placeholder="Unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has a sink leak."
                 />
               </Field>
               <p className="muted">Drafts only. Nothing changes until approval.</p>

@@ -116,7 +116,7 @@ test('model conversion drops unknown Unit mutations while preserving safe projec
       kind: 'CREATE_FOLLOW_UP_TASK',
       unitNumbers: ['203'],
       title: 'Confirm maintenance timing',
-      summary: 'Ask Tony when maintenance will return.',
+      summary: 'Ask the project manager when maintenance will return.',
       issuePriority: 'Medium',
       owner: 'Los',
       noteText: 'Confirm maintenance timing.',
@@ -208,14 +208,14 @@ test('model and deterministic merge keeps approved-memory candidates and flags s
 });
 
 test('model conversion never invents a crew assignment from a follow-up request', () => {
-  const request = buildModelCaptureRequest('Unit 203 has a sink leak. Ask Tony to confirm maintenance.', cloneSeed());
+  const request = buildModelCaptureRequest('Unit 203 has a sink leak. Ask the project manager to confirm maintenance.', cloneSeed());
   const result = convertModelCaptureOutput(
     modelOutput([
       modelAction({
         kind: 'CREATE_ASSIGNMENT',
         unitNumbers: ['203'],
-        title: 'Tony to confirm maintenance',
-        summary: 'Ask Tony to confirm maintenance.',
+        title: 'Confirm maintenance response',
+        summary: 'Ask the project manager to confirm maintenance.',
         crewName: '',
         trade: 'Maintenance',
         assignmentStatus: 'Planned',

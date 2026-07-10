@@ -211,6 +211,117 @@ try {
     responsive[target.name] = await verifyUnitBoard({ browser, storedState: stored300, ...target });
   }
 
+  const bulkContext = await loadStoredContext(browser, { width: 1440, height: 900 }, stored300);
+  const bulkPage = await bulkContext.newPage();
+  const bulkConsoleFindings = attachConsoleChecks(bulkPage);
+  await bulkPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await bulkPage.getByRole('button', { name: 'Bulk update', exact: true }).click();
+  await bulkPage.getByRole('button', { name: 'Select all matches (300)', exact: true }).click();
+  await bulkPage.getByRole('combobox', { name: 'Update', exact: true }).selectOption('paint_complete');
+  await bulkPage.getByRole('button', { name: 'Review 300 Units', exact: true }).click();
+  const bulkSummary = await bulkPage.locator('.bulk-unit-preview__summary').innerText();
+  assert.match(bulkSummary, /300\s+Selected/);
+  assert.match(bulkSummary, /300\s+Will update/);
+  assert.match(bulkSummary, /0\s+Safely skipped/);
+  const bulkPreviewScreenshot = path.join(screenshotDirectory, 'desktop-bulk-300-preview.png');
+  await bulkPage.locator('.bulk-unit-workflow').screenshot({ path: bulkPreviewScreenshot });
+
+  const bulkStartedAt = performance.now();
+  await bulkPage.getByRole('button', { name: 'Update 300 Units', exact: true }).click();
+  await bulkPage.waitForFunction((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const projectUnits = stored.units.filter((unit) => unit.projectId === stored.activeProjectId);
+    return (
+      projectUnits.length === 300 &&
+      projectUnits.every((unit) => unit.paintStatus === 'Complete' && unit.overallStatus !== 'Ready') &&
+      stored.activityLogs.filter((log) => log.action === 'Bulk updated unit').length === 300
+    );
+  }, storageKey);
+  const bulkApplyMs = performance.now() - bulkStartedAt;
+  await bulkPage.reload({ waitUntil: 'networkidle' });
+  await bulkPage.getByRole('heading', { name: 'Unit Command' }).waitFor();
+  assert.equal(await bulkPage.locator('.unit-card').first().getByText('Paint: Complete', { exact: true }).count(), 1);
+  await assertNoHorizontalOverflow(bulkPage, 'desktop-bulk-300');
+  assert.deepEqual(bulkConsoleFindings, [], `Bulk update console findings:\n${bulkConsoleFindings.join('\n')}`);
+  await bulkContext.close();
+
+  const bulkQuotaContext = await loadStoredContext(browser, { width: 390, height: 844 }, stored300);
+  const bulkQuotaPage = await bulkQuotaContext.newPage();
+  await bulkQuotaPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await bulkQuotaPage.getByRole('button', { name: 'Bulk update', exact: true }).click();
+  await bulkQuotaPage.getByRole('button', { name: 'Select Unit 101', exact: true }).click();
+  await bulkQuotaPage.getByRole('button', { name: 'Select Unit 102', exact: true }).click();
+  await bulkQuotaPage.getByRole('combobox', { name: 'Update', exact: true }).selectOption('paint_complete');
+  await bulkQuotaPage.getByRole('button', { name: 'Review 2 Units', exact: true }).click();
+  await bulkQuotaPage.evaluate((key) => {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function rejectBulkWrite(storageKey, value) {
+      if (storageKey === key) throw new DOMException('Disposable quota failure', 'QuotaExceededError');
+      return originalSetItem.call(this, storageKey, value);
+    };
+  }, storageKey);
+  bulkQuotaPage.once('dialog', (dialog) => dialog.accept());
+  await bulkQuotaPage.getByRole('button', { name: 'Update 2 Units', exact: true }).click();
+  await bulkQuotaPage
+    .getByText('Bulk update canceled because this device could not safely store the result.', { exact: true })
+    .waitFor();
+  const bulkQuotaResult = await bulkQuotaPage.evaluate((key) => {
+    const stored = JSON.parse(window.localStorage.getItem(key));
+    const units = stored.units.filter(
+      (unit) => unit.projectId === stored.activeProjectId && (unit.unitNumber === '101' || unit.unitNumber === '102'),
+    );
+    return {
+      allUnchanged: units.every((unit) => unit.paintStatus === 'Not Started'),
+      activityCount: stored.activityLogs.filter((log) => log.action === 'Bulk updated unit').length,
+    };
+  }, storageKey);
+  assert.deepEqual(bulkQuotaResult, { allUnchanged: true, activityCount: 0 });
+  await bulkQuotaContext.close();
+
+  const bulkMobileContext = await loadStoredContext(browser, { width: 390, height: 844 }, stored300);
+  const bulkMobilePage = await bulkMobileContext.newPage();
+  const bulkMobileConsoleFindings = attachConsoleChecks(bulkMobilePage);
+  await bulkMobilePage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await bulkMobilePage.getByRole('button', { name: 'Bulk update', exact: true }).click();
+  await bulkMobilePage.getByRole('button', { name: 'Select shown (100)', exact: true }).click();
+  await bulkMobilePage.getByRole('combobox', { name: 'Update', exact: true }).selectOption('repair_needed');
+  await bulkMobilePage.getByRole('button', { name: 'Review 100 Units', exact: true }).click();
+  const bulkMobileConfirm = bulkMobilePage.getByRole('button', { name: 'Update 100 Units', exact: true });
+  await bulkMobileConfirm.scrollIntoViewIfNeeded();
+  const bulkMobileOverlap = await bulkMobilePage.evaluate(() => {
+    const updateButton = document.querySelector('.bulk-unit-preview__confirm .button--primary')?.getBoundingClientRect();
+    const captureButton = document.querySelector('.floating-capture')?.getBoundingClientRect();
+    if (!updateButton || !captureButton) return false;
+    return !(
+      updateButton.right <= captureButton.left ||
+      updateButton.left >= captureButton.right ||
+      updateButton.bottom <= captureButton.top ||
+      updateButton.top >= captureButton.bottom
+    );
+  });
+  assert.equal(bulkMobileOverlap, false, 'Floating Capture must not cover the bulk Unit confirmation button.');
+  await assertNoHorizontalOverflow(bulkMobilePage, 'iphone-bulk-preview');
+  const bulkMobileScreenshot = path.join(screenshotDirectory, 'iphone-bulk-preview.png');
+  await bulkMobilePage.screenshot({ path: bulkMobileScreenshot, fullPage: false });
+  assert.deepEqual(bulkMobileConsoleFindings, [], `Mobile bulk update console findings:\n${bulkMobileConsoleFindings.join('\n')}`);
+  await bulkMobileContext.close();
+
+  const bulkIpadContext = await loadStoredContext(browser, { width: 1024, height: 768 }, stored300);
+  const bulkIpadPage = await bulkIpadContext.newPage();
+  const bulkIpadConsoleFindings = attachConsoleChecks(bulkIpadPage);
+  await bulkIpadPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await bulkIpadPage.getByRole('button', { name: 'Bulk update', exact: true }).click();
+  await bulkIpadPage.getByRole('button', { name: 'Select all matches (300)', exact: true }).click();
+  await bulkIpadPage.getByRole('combobox', { name: 'Update', exact: true }).selectOption('repair_needed');
+  await bulkIpadPage.getByRole('button', { name: 'Review 300 Units', exact: true }).click();
+  const bulkIpadConfirm = bulkIpadPage.getByRole('button', { name: 'Update 300 Units', exact: true });
+  await bulkIpadConfirm.scrollIntoViewIfNeeded();
+  await assertNoHorizontalOverflow(bulkIpadPage, 'ipad-bulk-preview');
+  const bulkIpadScreenshot = path.join(screenshotDirectory, 'ipad-bulk-preview.png');
+  await bulkIpadPage.screenshot({ path: bulkIpadScreenshot, fullPage: false });
+  assert.deepEqual(bulkIpadConsoleFindings, [], `iPad bulk update console findings:\n${bulkIpadConsoleFindings.join('\n')}`);
+  await bulkIpadContext.close();
+
   const csvText = [
     'Unit,Building,Floor,Beds,Bathrooms,Common Area,Notes,Overall Status',
     '101,Building A,Floor 1,50,50,yes,Must not overwrite,Ready',
@@ -443,6 +554,16 @@ try {
   assert.ok(largeLoadMs < 15_000, `1,000-unit board took ${largeLoadMs.toFixed(1)}ms under 4x CPU throttling.`);
   await assertNoHorizontalOverflow(largePage, 'iphone-1000');
 
+  await largePage.getByRole('button', { name: 'Bulk update', exact: true }).click();
+  const selectLargeBatch = largePage.getByRole('button', { name: 'Select all matches (1,000)', exact: true });
+  assert.equal(await selectLargeBatch.isDisabled(), true);
+  await largePage.getByText('Narrow the filters to 500 or fewer Units before selecting all matches.', { exact: true }).waitFor();
+  await largePage.getByRole('button', { name: 'Select shown (100)', exact: true }).click();
+  await largePage.getByRole('combobox', { name: 'Update', exact: true }).selectOption('paint_complete');
+  await largePage.getByRole('button', { name: 'Review 100 Units', exact: true }).click();
+  await largePage.getByRole('button', { name: 'Update 100 Units', exact: true }).waitFor();
+  await largePage.getByRole('button', { name: 'Close bulk update', exact: true }).click();
+
   await largePage.goto(`${baseUrl}/#/reports`, { waitUntil: 'networkidle' });
   await largePage.getByRole('heading', { name: 'Daily Report', exact: true }).waitFor();
   await largePage.getByText('Turn Supervisor OS', { exact: true }).waitFor();
@@ -662,6 +783,14 @@ try {
         scaleScreenshot: scaleCsvScreenshot,
         scaleSerializedCharacters: scaleCsvResult.serializedCharacters,
         scaleUnitCount: scaleCsvResult.unitCount,
+      },
+      bulkUpdate: {
+        applyMs: Math.round(bulkApplyMs),
+        desktopScreenshot: bulkPreviewScreenshot,
+        ipadScreenshot: bulkIpadScreenshot,
+        mobileScreenshot: bulkMobileScreenshot,
+        quotaFailureCanceled: bulkQuotaResult.allUnchanged,
+        updatedUnits: 300,
       },
       numericPersistence: {
         latestActivityRetained: numericCommitResult.latestActivityId !== recoveryResult.latestActivityId,

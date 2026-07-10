@@ -1,5 +1,19 @@
-import { AlertTriangle, Brush, CheckCircle2, Filter, Hammer, Plus, Search, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  Brush,
+  CheckCircle2,
+  CheckSquare2,
+  Filter,
+  Hammer,
+  ListChecks,
+  Plus,
+  Search,
+  Sparkles,
+  Square,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { BulkUnitUpdatePanel } from '../components/BulkUnitUpdatePanel';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
@@ -20,6 +34,7 @@ import {
   isReadyUnit,
 } from '../lib/metrics';
 import type { AppNavigate } from '../lib/routing';
+import { BULK_UNIT_UPDATE_LIMIT } from '../lib/unitBulkUpdate';
 import type { AppData, Building, CrewMember, Floor, Issue, Unit, UnitStatusFilter } from '../types';
 
 interface UnitsViewProps {
@@ -105,6 +120,8 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
   const [statusFilter, setStatusFilter] = useState<UnitStatusFilter>(initialStatusFilter);
   const [query, setQuery] = useState('');
   const [visibleUnitLimit, setVisibleUnitLimit] = useState(UNIT_RENDER_STEP);
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(() => new Set());
   const [quickBuilding, setQuickBuilding] = useState('Building B');
   const [quickFloors, setQuickFloors] = useState('1-2');
   const [quickStart, setQuickStart] = useState('101');
@@ -165,14 +182,61 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
     });
   const visibleUnits = filteredUnits.slice(0, visibleUnitLimit);
   const hiddenUnitCount = Math.max(filteredUnits.length - visibleUnits.length, 0);
+  const selectedFilteredUnitIds = filteredUnits.filter((unit) => selectedUnitIds.has(unit.id)).map((unit) => unit.id);
 
   useEffect(() => {
     setVisibleUnitLimit(UNIT_RENDER_STEP);
+    setSelectedUnitIds(new Set());
   }, [buildingFilter, floorFilter, statusFilter, query]);
 
   useEffect(() => {
     setStatusFilter(initialStatusFilter);
   }, [initialStatusFilter]);
+
+  useEffect(() => {
+    setSelectedUnitIds(new Set());
+    setIsBulkMode(false);
+  }, [data.activeProjectId]);
+
+  const toggleBulkMode = () => {
+    setIsBulkMode((current) => !current);
+    setSelectedUnitIds(new Set());
+  };
+
+  const toggleUnitSelection = (unitId: string) => {
+    if (!selectedUnitIds.has(unitId) && selectedUnitIds.size >= BULK_UNIT_UPDATE_LIMIT) {
+      notify(`Bulk updates are limited to ${BULK_UNIT_UPDATE_LIMIT.toLocaleString()} Units. Narrow the filters first.`, {
+        tone: 'error',
+      });
+      return;
+    }
+    setSelectedUnitIds((current) => {
+      const next = new Set(current);
+      if (next.has(unitId)) {
+        next.delete(unitId);
+        return next;
+      }
+      next.add(unitId);
+      return next;
+    });
+  };
+
+  const selectShownUnits = () => {
+    setSelectedUnitIds(new Set(visibleUnits.slice(0, BULK_UNIT_UPDATE_LIMIT).map((unit) => unit.id)));
+  };
+
+  const selectAllMatches = () => {
+    if (filteredUnits.length > BULK_UNIT_UPDATE_LIMIT) {
+      notify(`Narrow the board to ${BULK_UNIT_UPDATE_LIMIT.toLocaleString()} or fewer matching Units first.`, { tone: 'error' });
+      return;
+    }
+    setSelectedUnitIds(new Set(filteredUnits.map((unit) => unit.id)));
+  };
+
+  const closeBulkMode = () => {
+    setSelectedUnitIds(new Set());
+    setIsBulkMode(false);
+  };
 
   const quickCreate = () => {
     const now = nowISO();
@@ -351,7 +415,50 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
         </div>
       </Section>
 
-      <Section title="Units" kicker={`${visibleUnits.length} of ${filteredUnits.length} shown`}>
+      <Section
+        title="Units"
+        kicker={`${visibleUnits.length} of ${filteredUnits.length} shown`}
+        action={
+          <Button aria-pressed={isBulkMode} onClick={toggleBulkMode} variant={isBulkMode ? 'ghost' : 'secondary'}>
+            {isBulkMode ? <X size={18} aria-hidden="true" /> : <ListChecks size={18} aria-hidden="true" />}
+            {isBulkMode ? 'Close bulk update' : 'Bulk update'}
+          </Button>
+        }
+      >
+        {isBulkMode ? (
+          <div className="bulk-unit-workflow">
+            <div className="bulk-unit-selection">
+              <div>
+                <strong>{selectedFilteredUnitIds.length.toLocaleString()} selected</strong>
+                <p>
+                  {filteredUnits.length.toLocaleString()} Unit{filteredUnits.length === 1 ? '' : 's'} match the current filters. Changing a filter clears selection.
+                </p>
+              </div>
+              <div className="button-row">
+                <Button disabled={visibleUnits.length === 0} onClick={selectShownUnits}>
+                  {visibleUnits.length > BULK_UNIT_UPDATE_LIMIT
+                    ? `Select first ${BULK_UNIT_UPDATE_LIMIT.toLocaleString()} shown`
+                    : `Select shown (${visibleUnits.length.toLocaleString()})`}
+                </Button>
+                <Button disabled={filteredUnits.length === 0 || filteredUnits.length > BULK_UNIT_UPDATE_LIMIT} onClick={selectAllMatches}>
+                  Select all matches ({filteredUnits.length.toLocaleString()})
+                </Button>
+                <Button disabled={selectedFilteredUnitIds.length === 0} onClick={() => setSelectedUnitIds(new Set())} variant="ghost">
+                  Clear
+                </Button>
+              </div>
+              {filteredUnits.length > BULK_UNIT_UPDATE_LIMIT ? (
+                <small>Narrow the filters to {BULK_UNIT_UPDATE_LIMIT.toLocaleString()} or fewer Units before selecting all matches.</small>
+              ) : null}
+            </div>
+            <BulkUnitUpdatePanel
+              data={data}
+              selectedUnitIds={selectedFilteredUnitIds}
+              setData={setData}
+              onComplete={closeBulkMode}
+            />
+          </div>
+        ) : null}
         {hiddenUnitCount > 0 ? (
           <div className="unit-list-limit">
             <div>
@@ -368,9 +475,19 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
             const blockerSummary = blockerSummaryFor(unit, unitIssues);
             const crewSummary = crewSummaryFor(unit, crewById);
             const latestActivity = formatFieldTime(latestActivityAt(unit, unitIssues));
+            const isSelected = selectedUnitIds.has(unit.id);
             return (
-              <article className={`unit-card ${hasAttention ? 'unit-card--attention' : ''}`} key={unit.id}>
-                <button className="unit-card__open" type="button" onClick={() => onNavigate('unitDetail', unit.id)}>
+              <article
+                className={`unit-card ${hasAttention ? 'unit-card--attention' : ''} ${isSelected ? 'unit-card--selected' : ''}`.trim()}
+                key={unit.id}
+              >
+                <button
+                  aria-label={isBulkMode ? `${isSelected ? 'Deselect' : 'Select'} Unit ${unit.unitNumber}` : undefined}
+                  aria-pressed={isBulkMode ? isSelected : undefined}
+                  className={`unit-card__open ${isBulkMode ? 'unit-card__open--selecting' : ''}`.trim()}
+                  type="button"
+                  onClick={() => (isBulkMode ? toggleUnitSelection(unit.id) : onNavigate('unitDetail', unit.id))}
+                >
                   <div className="unit-card__main">
                     <div>
                       <span className="quiet-label">Unit</span>
@@ -379,7 +496,15 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                         {unit.bedCount} beds · {unit.bathroomCount} baths
                       </small>
                     </div>
-                    <StatusBadge value={unit.overallStatus} />
+                    <div className="unit-card__state">
+                      <StatusBadge value={unit.overallStatus} />
+                      {isBulkMode ? (
+                        <span className={`unit-select-state ${isSelected ? 'is-selected' : ''}`}>
+                          {isSelected ? <CheckSquare2 size={17} aria-hidden="true" /> : <Square size={17} aria-hidden="true" />}
+                          {isSelected ? 'Selected' : 'Select'}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="unit-card__summary">
@@ -407,11 +532,11 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                       {unitIssues.length > 0 ? <AlertTriangle size={15} aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
                       {unitIssues.length === 1 ? '1 open issue' : `${unitIssues.length} open issues`}
                     </span>
-                    <small>Open unit</small>
+                    <small>{isBulkMode ? (isSelected ? 'Tap to deselect' : 'Tap to select') : 'Open unit'}</small>
                   </div>
                 </button>
 
-                <div className="quick-status-row">
+                {!isBulkMode ? <div className="quick-status-row">
                   <Button
                     className="button--compact"
                     aria-label={`Mark paint complete for Unit ${unit.unitNumber}`}
@@ -457,7 +582,7 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
                     <Hammer size={15} aria-hidden="true" />
                     Repair
                   </Button>
-                </div>
+                </div> : null}
               </article>
             );
           })}

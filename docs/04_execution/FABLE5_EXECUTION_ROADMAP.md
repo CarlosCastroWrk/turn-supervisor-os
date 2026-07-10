@@ -708,6 +708,25 @@ Acceptance:
 - Desktop, iPad landscape, and iPhone render without horizontal overflow or Capture-confirm overlap.
 - Physical iPhone/iPad filtered selection, preview, confirm, reload, and sync remain part of the device gate.
 
+### G7. Production Security Headers
+
+Status: implemented and deployed in PR #56; signed-in physical sync/photo acceptance remains part of the shared device gate.
+
+Scope:
+
+- Add a version-controlled Content Security Policy and baseline response headers to every production route.
+- Keep scripts same-origin while allowing only the Supabase HTTPS/WebSocket connections, photo blob/data sources, manifest, worker, camera, and microphone capabilities the field app already uses.
+- Block framing, object embedding, MIME sniffing, cross-origin form submission, and unused browser permissions without changing the local-first data model.
+
+Acceptance:
+
+- HTML, service worker, and manifest responses expose the reviewed header set in a Vercel preview and production.
+- The policy explicitly allows only the existing Supabase, photo blob/data, manifest, worker, camera, and microphone sources required by the field app.
+- The browser app shell, Dashboard, Capture, voice fallback, signed-out sync panel, and service-worker registration remain functional with no CSP, console, request, or overflow failures.
+- The deterministic suite verifies every required directive and prevents unsafe inline/evaluated scripts from being added silently.
+- `npm audit` remains at zero known vulnerabilities; no config-only dependency is accepted to provide type helpers.
+- Physical signed-in sync, cross-device photo, installed-PWA, and voice checks remain open rather than being inferred from the unsigned browser smoke.
+
 ## Phase H: Later Intelligence
 
 Only after the field-safe deterministic version is trusted.
@@ -762,5 +781,6 @@ Only after the field-safe deterministic version is trusted.
 39. P0 Daily Log Identity And Restore Safety
 40. G5 Preview-First CSV Unit Import
 41. G6 Preview-First Bulk Unit Updates
+42. G7 Production Security Headers
 
 This order can change if real-device testing finds a higher-risk failure.

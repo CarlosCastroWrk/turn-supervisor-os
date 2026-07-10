@@ -4,6 +4,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [x] G7 Production Security Headers release.
+  - [x] Add a restrictive Content Security Policy with explicit allowances for Supabase HTTPS/WebSocket sync, local/cloud photo blobs, the PWA manifest, and the service worker.
+  - [x] Keep scripts same-origin with no `unsafe-inline` or `unsafe-eval`; retain inline styles only for the existing dynamic progress indicator.
+  - [x] Block framing and MIME sniffing, restrict referrers, preserve self camera/microphone access, and disable unused geolocation/payment/USB permissions.
+  - [x] Reject the typed Vercel config helper after it introduced three high-severity development dependency findings; ship dependency-free `vercel.json` instead.
+  - [x] Verify 190 deterministic tests, field-scale browser QA, lint, OS checks, normal/production builds, zero dependency vulnerabilities, deployed response headers, PWA registration, mobile sync panel, Capture, no overflow, and zero console/request failures.
+  - [x] Merge PR #56 and deploy `dpl_ExMxdEEYfRzdxC5eF18ZjWbome4s`; no Supabase migration, environment change, or production data change was required.
 - [x] G6 Preview-First Bulk Unit Updates release.
   - [x] Add temporary Unit-card selection mode without changing the ordinary single-Unit workflow.
   - [x] Select shown Units or all current filtered matches, capped at 500 Units.
@@ -160,6 +167,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] G4 Accessibility And Field Contrast. Physical outdoor/VoiceOver acceptance remains open.
 - [x] Add preview-first CSV Unit import. Physical iPhone/iPad file-picker acceptance remains in the active gate.
 - [x] Add preview-first bulk Unit updates. Physical iPhone/iPad filtered-batch acceptance remains in the active gate.
+- [x] Add version-controlled production security headers with regression coverage and deployed runtime verification.
 
 ## P3: Future
 

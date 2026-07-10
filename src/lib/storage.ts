@@ -41,6 +41,7 @@ export const saveAppData = (data: AppData) => {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(applyActivityLogRetention(data)));
     storageFailureWarned = false;
+    return true;
   } catch (error) {
     console.warn('Failed to save Turn Supervisor OS data.', error);
     if (!storageFailureWarned) {
@@ -49,10 +50,16 @@ export const saveAppData = (data: AppData) => {
         'Saving failed — browser record storage is likely full. Export a JSON backup now from Export before making more changes.',
       );
     }
+    return false;
   }
 };
 
 const appDataWriter = createCoalescedWriter(saveAppData, APP_DATA_SAVE_INTERVAL_MS);
+
+export const persistAppDataNow = (data: AppData) => {
+  appDataWriter.cancel();
+  return saveAppData(data);
+};
 
 export const clearInFlightFieldDrafts = () => {
   try {

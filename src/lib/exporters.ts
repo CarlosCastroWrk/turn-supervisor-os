@@ -17,7 +17,8 @@ import {
 
 const escapeCsv = (value: unknown) => {
   const raw = String(value ?? '');
-  return `"${raw.replaceAll('"', '""')}"`;
+  const spreadsheetSafe = /^[\t\r\n ]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${spreadsheetSafe.replaceAll('"', '""')}"`;
 };
 
 export const toCsv = <T extends Record<string, unknown>>(rows: T[], columns: { key: keyof T; label: string }[]) => {

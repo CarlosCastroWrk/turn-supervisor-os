@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCoalescedWriter, type CoalescedTimer } from '../src/lib/coalescedWriter.ts';
+import { seedData } from '../src/data/seed.ts';
+import { persistAppDataNow } from '../src/lib/storage.ts';
 
 const fakeTimer = () => {
   let callback: (() => void) | undefined;
@@ -93,4 +95,48 @@ test('cancel discards a pending value so reset cannot rewrite cleared data', () 
   assert.equal(clock.cancelCount, 1);
   assert.equal(writer.hasPending(), false);
   assert.deepEqual(writes, []);
+});
+
+test('immediate persistence reports quota failure so a large import can fail closed', () => {
+  const originalWindow = globalThis.window;
+  const originalWarn = console.warn;
+  const writes: string[] = [];
+  const alerts: string[] = [];
+
+  try {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        alert: (message: string) => alerts.push(message),
+        localStorage: {
+          setItem: (_key: string, value: string) => writes.push(value),
+        },
+      },
+    });
+    assert.equal(persistAppDataNow(structuredClone(seedData)), true);
+    assert.equal(writes.length, 1);
+
+    console.warn = () => undefined;
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        alert: (message: string) => alerts.push(message),
+        localStorage: {
+          setItem: () => {
+            throw new DOMException('Storage full', 'QuotaExceededError');
+          },
+        },
+      },
+    });
+    assert.equal(persistAppDataNow(structuredClone(seedData)), false);
+    assert.equal(alerts.length, 1);
+    assert.match(alerts[0], /storage is likely full/);
+  } finally {
+    console.warn = originalWarn;
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    }
+  }
 });

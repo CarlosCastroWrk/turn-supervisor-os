@@ -34,6 +34,12 @@ import {
 import { createEmptyDailyLog, findDailyLog } from './dailyLogs';
 import { memoryAppliesToActiveProject, prepareMemoryCandidatesForActiveProject } from './memory';
 import { getDraftActionProjectId } from './projectScope';
+import {
+  normalizeUnitCsvImportRow,
+  normalizeUnitNumberKey,
+  UNIT_CSV_MAX_ROWS,
+  type UnitCsvRow,
+} from './unitCsvImport';
 
 export interface RealTurnSetupInput {
   projectName: string;
@@ -52,6 +58,17 @@ export interface RealTurnSetupInput {
   bathroomCount: number;
   hasCommonArea: boolean;
   notes: string;
+}
+
+export interface UnitCsvImportResult {
+  data: AppData;
+  status: 'applied' | 'project-changed' | 'not-real' | 'nothing-to-import' | 'row-limit';
+  importedCount: number;
+  skippedExisting: number;
+  skippedDuplicates: number;
+  skippedInvalid: number;
+  createdBuildings: number;
+  createdFloors: number;
 }
 
 type ActivityEntity = ActivityLog['entityType'];
@@ -296,6 +313,202 @@ export const createRealTurnProject = (data: AppData, input: RealTurnSetupInput):
       ),
       ...data.activityLogs,
     ],
+  };
+};
+
+const unitCsvImportResult = (
+  data: AppData,
+  status: UnitCsvImportResult['status'],
+  counts: Partial<Omit<UnitCsvImportResult, 'data' | 'status'>> = {},
+): UnitCsvImportResult => ({
+  data,
+  status,
+  importedCount: 0,
+  skippedExisting: 0,
+  skippedDuplicates: 0,
+  skippedInvalid: 0,
+  createdBuildings: 0,
+  createdFloors: 0,
+  ...counts,
+});
+
+const normalizedLocationKey = (value: string) =>
+  value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+
+const normalizedBuildingKey = (value: string) =>
+  normalizedLocationKey(value).replace(/^(building|bldg)\s+/, '');
+
+const normalizedFloorKey = (value: string) => {
+  const key = normalizedLocationKey(value);
+  const numeric = key.match(/^(?:(?:floor|level)\s*)?0*(\d+)(?:st|nd|rd|th)?(?:\s*(?:floor|level))?$/);
+  return numeric ? `floor:${Number(numeric[1])}` : key;
+};
+
+export const importUnitsFromCsv = (
+  data: AppData,
+  projectId: EntityId,
+  sourceRows: UnitCsvRow[],
+): UnitCsvImportResult => {
+  const project = data.projects.find((item) => item.id === projectId);
+  if (!project || data.activeProjectId !== projectId || project.archivedAt) {
+    return unitCsvImportResult(data, 'project-changed');
+  }
+  if (project.mode !== 'real') {
+    return unitCsvImportResult(data, 'not-real');
+  }
+  if (sourceRows.length > UNIT_CSV_MAX_ROWS) {
+    return unitCsvImportResult(data, 'row-limit');
+  }
+
+  const currentProjectUnits = data.units.filter((unit) => unit.projectId === projectId);
+  const existingUnitKeys = new Set(currentProjectUnits.map((unit) => normalizeUnitNumberKey(unit.unitNumber)));
+  const seenSourceKeys = new Set<string>();
+  const importRows: UnitCsvRow[] = [];
+  let skippedExisting = 0;
+  let skippedDuplicates = 0;
+  let skippedInvalid = 0;
+
+  for (const sourceRow of sourceRows) {
+    const row = normalizeUnitCsvImportRow(sourceRow);
+    if (!row) {
+      skippedInvalid += 1;
+      continue;
+    }
+    const key = normalizeUnitNumberKey(row.unitNumber);
+    if (seenSourceKeys.has(key)) {
+      skippedDuplicates += 1;
+      continue;
+    }
+    seenSourceKeys.add(key);
+    if (existingUnitKeys.has(key)) {
+      skippedExisting += 1;
+      continue;
+    }
+    existingUnitKeys.add(key);
+    importRows.push(row);
+  }
+
+  if (importRows.length === 0) {
+    return unitCsvImportResult(data, 'nothing-to-import', {
+      skippedExisting,
+      skippedDuplicates,
+      skippedInvalid,
+    });
+  }
+
+  const now = nowISO();
+  const projectBuildings = data.buildings.filter((building) => building.projectId === projectId);
+  const projectBuildingIds = new Set(projectBuildings.map((building) => building.id));
+  const projectFloors = data.floors.filter((floor) => projectBuildingIds.has(floor.buildingId));
+  const defaultExistingBuilding = projectBuildings.length === 1 ? projectBuildings[0] : undefined;
+  const buildingByName = new Map(projectBuildings.map((building) => [normalizedBuildingKey(building.name), building]));
+  const floorByLocation = new Map(
+    projectFloors.map((floor) => [`${floor.buildingId}:${normalizedFloorKey(floor.name)}`, floor]),
+  );
+  const createdBuildings: Building[] = [];
+  const createdFloors: Floor[] = [];
+  const importedUnits: Unit[] = [];
+
+  const resolveBuilding = (requestedName?: string) => {
+    const name = requestedName || defaultExistingBuilding?.name || 'Imported Units';
+    const key = normalizedBuildingKey(name);
+    const existing = buildingByName.get(key);
+    if (existing) return existing;
+    const building: Building = {
+      id: createId('building_import'),
+      projectId,
+      name,
+      notes: 'Created from previewed CSV unit import.',
+      createdAt: now,
+      updatedAt: now,
+    };
+    buildingByName.set(key, building);
+    createdBuildings.push(building);
+    return building;
+  };
+
+  const resolveFloor = (building: Building, requestedName?: string) => {
+    const name = requestedName || 'Unassigned Floor';
+    const key = `${building.id}:${normalizedFloorKey(name)}`;
+    const existing = floorByLocation.get(key);
+    if (existing) return existing;
+    const floor: Floor = {
+      id: createId('floor_import'),
+      buildingId: building.id,
+      name,
+      notes: requestedName ? 'Created from previewed CSV unit import.' : 'Floor was blank in the CSV; assign when known.',
+      createdAt: now,
+      updatedAt: now,
+    };
+    floorByLocation.set(key, floor);
+    createdFloors.push(floor);
+    return floor;
+  };
+
+  for (const row of importRows) {
+    const building = resolveBuilding(row.buildingName);
+    const floor = resolveFloor(building, row.floorName);
+    importedUnits.push({
+      id: createId('unit_import'),
+      projectId,
+      buildingId: building.id,
+      floorId: floor.id,
+      unitNumber: row.unitNumber,
+      bedCount: row.bedCount,
+      bathroomCount: row.bathroomCount,
+      hasCommonArea: row.hasCommonArea,
+      overallStatus: 'Not Started',
+      paintStatus: 'Not Started',
+      cleanStatus: 'Not Started',
+      repairStatus: 'Not Started',
+      flooringStatus: 'Not Applicable',
+      trashStatus: 'Not Started',
+      inspectionStatus: 'Not Started',
+      assignedCrewIds: [],
+      notes: row.notes,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  const allProjectUnits = [...currentProjectUnits, ...importedUnits];
+  const actualBeds = allProjectUnits.reduce((total, unit) => total + unit.bedCount, 0);
+  const actualCommonAreas = allProjectUnits.filter((unit) => unit.hasCommonArea).length;
+  const updatedProject: Project = {
+    ...project,
+    estimatedBuildings: Math.max(project.estimatedBuildings, projectBuildings.length + createdBuildings.length),
+    estimatedUnits: Math.max(project.estimatedUnits, allProjectUnits.length),
+    estimatedBeds: Math.max(project.estimatedBeds, actualBeds),
+    estimatedCommonAreas: Math.max(project.estimatedCommonAreas, actualCommonAreas),
+    updatedAt: now,
+  };
+  const skippedTotal = skippedExisting + skippedDuplicates + skippedInvalid;
+
+  return {
+    data: {
+      ...data,
+      projects: data.projects.map((item) => (item.id === projectId ? updatedProject : item)),
+      buildings: [...createdBuildings, ...data.buildings],
+      floors: [...createdFloors, ...data.floors],
+      units: [...importedUnits, ...data.units],
+      activityLogs: [
+        activity(
+          projectId,
+          'Unit',
+          importedUnits[0].id,
+          'Imported units from CSV',
+          `Added ${importedUnits.length} unit(s), created ${createdBuildings.length} building(s) and ${createdFloors.length} floor(s)${skippedTotal > 0 ? `, and safely skipped ${skippedTotal} row(s)` : ''}. Existing units were not changed.`,
+        ),
+        ...data.activityLogs,
+      ],
+    },
+    status: 'applied',
+    importedCount: importedUnits.length,
+    skippedExisting,
+    skippedDuplicates,
+    skippedInvalid,
+    createdBuildings: createdBuildings.length,
+    createdFloors: createdFloors.length,
   };
 };
 

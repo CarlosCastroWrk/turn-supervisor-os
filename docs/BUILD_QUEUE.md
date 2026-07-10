@@ -4,7 +4,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] H1 Protected Model Route release candidate.
+- [x] H1 Protected Model Route dormant release.
   - [x] Add a same-origin Vercel Function with no provider key in browser code.
   - [x] Verify Los's Supabase bearer token and fail closed unless the authenticated email matches a server-only allowlist.
   - [x] Validate bounded request and response schemas, reject unknown Unit mutations, sanitize due dates, and return pending Draft Actions only.
@@ -12,8 +12,9 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Add same-origin checks, a 64 KB body ceiling, twelve-request-per-minute process-local rate limiting, redacted errors, no-store responses, and duplicate-tap protection.
   - [x] Package the Node 24 function through Vercel and invoke the built artifact directly for 405/401/no-store behavior.
   - [x] Verify 206 deterministic tests, Capture and field-scale browser gates, lint, builds, OS checks, and zero dependency vulnerabilities.
+  - [x] Merge PR #62, deploy `dpl_HTAnc2reXfF9TWVeyg3XiKjsZCz4`, verify canonical 405/401/503 API boundaries, and confirm production Capture makes zero model requests while disabled.
   - [ ] Enable live model use only after OpenAI API billing is active and Los gives fresh approval for the required Vercel environment changes.
-  - [ ] Use `gpt-5.5` initially; Los's preferred `gpt-5.6-sol` is currently limited-preview and unavailable to this API project.
+  - [x] Configure `gpt-5.5` as the initial default; switch to Los's preferred `gpt-5.6-sol` only after that model becomes available to this API project.
 - [x] C6 Capture Workspace V2 release.
   - [x] Replace route-first Capture with one global modal workspace that preserves the current board context.
   - [x] Add one composer for typed notes, camera photos, image attachments, and bounded CSV/TXT/JSON/EML field notes.

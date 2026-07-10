@@ -4,7 +4,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
-- [ ] D7 Capture-First Field Shell.
+- [x] D7 Capture-First Field Shell.
   - [x] Replace the crowded Dashboard with a compact field Home for readiness, status counts, Needs attention, today's movement, and next actions.
   - [x] Reduce visible navigation to Home, Units, Issues, Crew, Reports, Setup, and a secondary Data & backup path.
   - [x] Add an iPhone bottom bar with a raised central Capture action and a focused More sheet for secondary destinations.
@@ -12,7 +12,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep every parsed operational mutation draft-first and show applied changes immediately on Home.
   - [x] Add focus containment, Escape dismissal, focus restoration, and inert-background behavior to the mobile More sheet.
   - [x] Pass 218 deterministic tests, Capture workflow, field-scale, local recovery, lint, build, dependency, and desktop/iPad/iPhone visual gates.
-  - [ ] Review PR, merge, deploy production, and run a read-only canonical smoke.
+  - [x] Merge PR #66, deploy `dpl_8UR8yhHBzYh4A5ht4G5inoMrQfJ4`, and pass a read-only canonical desktop/iPad/iPhone smoke with service-worker readiness, zero model calls, zero AppData mutation, no overflow, and no runtime findings.
 - [x] H2 Cost-Aware Model Orchestration and AI Usage Meter.
   - [x] Route focused Capture extraction directly to `gpt-5.4-nano` and complex, attachment-heavy, ambiguous, or higher-consequence notes directly to `gpt-5.4-mini`.
   - [x] Keep `gpt-5.5` as an explicit emergency override only; never auto-select it and never make a second model call after a completed first call.
@@ -196,7 +196,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] C4 Voice Reliability.
 - [x] C5 Capture Field-Speed Cleanup.
 - [ ] C6 Capture Workspace V2 production release and physical-device acceptance.
-- [ ] D7 Capture-First Field Shell production release and physical-device acceptance.
+- [x] D7 Capture-First Field Shell production release.
+- [ ] D7 Capture-First Field Shell physical-device acceptance.
 - [x] E2 Report Preview And Print/PDF.
 - [ ] Run field test on iPhone Safari or installed PWA.
 - [ ] Run field test on iPad Safari or installed PWA.

@@ -40,6 +40,7 @@ Every near-term change should serve that loop.
 - Mobile-first PWA shell with bottom navigation
 - Local-first persistence with operational records in browser `localStorage` under `turn-supervisor-os:v0.1` and compressed photo files in IndexedDB
 - Coalesced AppData persistence that writes the latest rapid-edit state at most once per 500 ms window, flushes immediately when the app backgrounds/closes, and cancels pending writes before device reset
+- Bounded raw Activity history that prioritizes the active Turn, retains up to 10,000 entries in local hot state, and limits Supabase Activity pulls to the same newest-row window without deleting cloud rows; Daily Logs and report drafts remain separate
 - Session-backed commit-on-blur text fields for Project setup, Unit notes, Issue resolution, Crew observations, Assignment notes, training answers, and Memory edits; interrupted drafts restore only while the underlying record value is unchanged
 - Session-backed commit-on-blur numeric fields for existing Project estimates and Unit bed/bath counts; multi-digit edits remain local until blur or Enter and commit as one operational change
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
@@ -129,6 +130,7 @@ Every near-term change should serve that loop.
 - Seed data is sample-only and should not appear in Real Turn reports, Copilot answers, or testing conclusions.
 - Real field records should live in Real Turn Mode.
 - `localStorage` is still the hot/offline cache for operational records even when Supabase sync is enabled; normal photo bytes live in IndexedDB.
+- Raw Activity detail is a bounded performance cache: the active Turn is prioritized within the latest 10,000 retained entries. Saved Daily Logs, report drafts, operational records, and cloud rows are not deleted by this policy.
 - A fresh device with no local cache should pull cloud records before uploading its seed data.
 - Compressed photos save locally first. When Los is signed in and online, available Real Turn photo files upload to private Supabase Storage; other devices fetch them only when a thumbnail is needed.
 - Demo Mode photos remain local and are excluded from cloud upload.

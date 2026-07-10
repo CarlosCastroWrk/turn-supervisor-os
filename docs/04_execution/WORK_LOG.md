@@ -96,6 +96,13 @@
 
 ## 2026-07-09
 
+- Started G1 Bounded Activity History on `codex/activity-log-retention` after resuming the approved roadmap from clean `main`.
+- Added a strict 10,000-entry raw Activity window with active-Turn priority, legacy provenance/source protection, load/restore/state-update enforcement, and explicit Export / Backup disclosure.
+- Bounded Supabase `activity_logs` pulls to ten ordered 1,000-row pages while leaving existing cloud rows untouched and keeping all other sync tables fully paginated.
+- The first stress run caught and fixed active-Turn history losing one slot to newer Demo history, plus outdated chained-order behavior in the disposable Supabase test double.
+- Repaired an incomplete local `lucide-react` install with `npm ci`; no dependency versions or lockfile content changed.
+- Verified 171/171 deterministic tests, the rendered 1,000-unit/10,000-event field-scale gate, one-write commit behavior at the retention limit, desktop/iPhone Export layout, no Capture/text overlap, no horizontal overflow, and no console warnings.
+
 - Started F1 IndexedDB Photo Store after Los approved the full pre-Turn P0/P1/P2 build program.
 - Moved normal compressed photo files out of the synchronous main app record and into versioned IndexedDB while keeping lightweight metadata in AppData.
 - Added safe legacy photo migration, local thumbnail loading with object URL cleanup, capped emergency fallback storage, and device reset cleanup.

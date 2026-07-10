@@ -4,6 +4,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [x] G1 Bounded Activity History implementation.
+  - [x] Keep at most 10,000 raw Activity entries in the local hot cache, prioritizing the active Turn.
+  - [x] Prioritize the active Turn plus legacy Draft/Follow-Up/training provenance when trimming.
+  - [x] Bound Supabase Activity pulls to the same newest 10,000-row window without deleting cloud rows.
+  - [x] Keep Daily Logs, report drafts, operational records, photos, drafts, and Memory outside this retention cap.
+  - [x] Disclose the retention behavior in Export / Backup.
+  - [x] Verify 10,037-entry trimming, active-Turn priority, 10,003-row cloud pulls, 10,000-entry live updates, desktop/iPhone layout, and console health.
 - [x] P0 Daily Log Identity And Restore Safety release.
   - [x] Give every new project/date Daily Log one deterministic ID across devices.
   - [x] Collapse duplicate local project/date logs and preserve an existing legacy cloud row ID during pull-before-upload.
@@ -126,7 +133,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] E4 Memory Consumption and project scoping. Migration, release, and production smoke checks are complete.
 - [x] F1 IndexedDB Photo Store.
 - [x] F2 Supabase Storage Photo Sync. Real-device photo acceptance remains in the active gate.
-- [ ] G1 Activity Log Pruning. Pull pagination moved up into P0 Sync Trust.
+- [x] G1 Bounded Activity History. Local state and Supabase pulls retain the latest 10,000 raw entries; cloud rows are not deleted.
 - [x] G2 Undo And Toast System. Guarded Undo is intentionally limited to Unit quick-status changes.
 - [x] G3 PWA Install And Offline Startup. Physical iPhone/iPad acceptance remains in the active gate.
 - [x] G4 Accessibility And Field Contrast. Physical outdoor/VoiceOver acceptance remains open.

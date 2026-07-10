@@ -16,7 +16,7 @@ Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8
+CSV runtime release verified at dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8
 ```
 
 ## Current Goal

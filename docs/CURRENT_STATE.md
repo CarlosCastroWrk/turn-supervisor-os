@@ -9,14 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through P0 Daily Log Identity And Restore Safety
+E4 Project-Scoped Memory through G1 Bounded Activity History
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-dpl_GZrUyPo2V7nxV5MYCsKoM4xva5eL
+dpl_7USDhKzQLuDHNit7vPCApLT6enkM
 ```
 
 ## Current Goal

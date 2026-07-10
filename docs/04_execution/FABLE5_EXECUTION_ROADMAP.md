@@ -775,7 +775,7 @@ Only after the field-safe deterministic version is trusted.
 
 ### H1. Protected Model Route
 
-Status: release candidate implemented; production enablement blocked by API billing and fresh Vercel environment approval.
+Status: implemented and deployed dormant in PR #62; live model use remains blocked by API billing and fresh Vercel environment approval.
 
 - [x] Add a same-origin server route with no provider key in browser code.
 - [x] Default to a configurable cost-controlled model and preserve a deterministic fallback.

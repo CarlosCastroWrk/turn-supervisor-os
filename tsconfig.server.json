@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "noEmit": true,
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.tsbuildinfo"
+  },
+  "include": [
+    "api/**/*.ts",
+    "server/**/*.ts",
+    "src/types.ts",
+    "src/lib/constants.ts",
+    "src/lib/ai/types.ts",
+    "src/lib/ai/modelCapture.ts"
+  ]
+}

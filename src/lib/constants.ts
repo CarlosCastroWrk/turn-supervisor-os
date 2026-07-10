@@ -8,7 +8,7 @@ import type {
   TrainingQuestionStatus,
   UnitWorkflowStatus,
   WorkStatus,
-} from '../types';
+} from '../types.js';
 
 export const UNIT_WORKFLOW_STATUSES: UnitWorkflowStatus[] = [
   'Not Started',

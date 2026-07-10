@@ -1,4 +1,3 @@
-import { mockAgentProvider } from './mockAgentProvider';
+import { openaiAgentProvider } from './openaiAgentProvider';
 
-export const agentProvider = mockAgentProvider;
-
+export const agentProvider = openaiAgentProvider;

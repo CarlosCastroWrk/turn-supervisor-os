@@ -775,11 +775,14 @@ Only after the field-safe deterministic version is trusted.
 
 ### H1. Protected Model Route
 
-- Add a same-origin server route with no provider key in browser code.
-- Default to a configurable cost-controlled model and preserve a deterministic fallback.
-- Require structured output validated at the server boundary.
-- Include supporting record IDs and never permit direct operational mutation.
-- Add request limits, timeouts, redacted errors, and eval fixtures before production enablement.
+Status: release candidate implemented; production enablement blocked by API billing and fresh Vercel environment approval.
+
+- [x] Add a same-origin server route with no provider key in browser code.
+- [x] Default to a configurable cost-controlled model and preserve a deterministic fallback.
+- [x] Require structured output validated at the server boundary.
+- [x] Include supporting record IDs and never permit direct operational mutation.
+- [x] Add request limits, timeouts, redacted errors, and eval fixtures before production enablement.
+- [ ] Enable live production requests only after API billing and environment approval; start with `gpt-5.5` because `gpt-5.6-sol` is unavailable to the current API project.
 
 ### H2. Grounded Multimodal Assistance
 

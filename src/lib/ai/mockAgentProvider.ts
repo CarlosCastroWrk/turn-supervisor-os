@@ -609,6 +609,7 @@ const parseQuickCapture = async (input: string, data: AppData): Promise<AgentPar
     clarificationQuestions: warnings.length > 0 ? ['Review low-confidence or missing-setup drafts before approving.'] : [],
     warnings,
     confidence: draftActions.length > 0 ? Math.min(0.92, draftActions.reduce((sum, action) => sum + action.confidence, 0) / draftActions.length) : 0.4,
+    provider: 'deterministic',
   };
 
   return agentParseResultSchema.parse(result);

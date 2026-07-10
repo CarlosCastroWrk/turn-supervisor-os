@@ -11,7 +11,8 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep accidental Issue removal as a confirmed soft close, rather than data deletion.
   - [x] Parse a shared completion statement such as “Unit 104, Unit 106, Unit 210 are done” into one separate draft per named Unit.
   - [x] Pass lint, build, 219 deterministic tests, and desktop/iPad/iPhone board-first browser QA with no overflow or runtime findings.
-  - [ ] Merge, deploy, and complete the short physical-device acceptance pass with disposable Demo data.
+  - [x] Merge PR #68 and deploy `dpl_BApbYbhWvAo7jFZ4jH3uqrEgsw6j`; canonical production shows the board-first pages, registers the service worker, and has no isolated-browser runtime findings.
+  - [ ] Complete the short physical-device acceptance pass with disposable Demo data.
 - [x] D7 Capture-First Field Shell.
   - [x] Replace the crowded Dashboard with a compact field Home for readiness, status counts, Needs attention, today's movement, and next actions.
   - [x] Reduce visible navigation to Home, Units, Issues, Crew, Reports, Setup, and a secondary Data & backup path.

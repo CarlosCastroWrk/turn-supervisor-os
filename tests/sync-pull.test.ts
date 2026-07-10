@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   fetchRemoteData,
   mergeRemoteData,
+  remoteActivityPullLimit,
   remotePullPageSize,
   replaceRemoteData,
   syncedTables,
@@ -13,8 +14,14 @@ import { buildDailyLogId, createEmptyDailyLog } from '../src/lib/dailyLogs.ts';
 import type { AppData, DailyLog, Memory, MemoryCandidate, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
 
 type RemoteRow = Record<string, unknown>;
+type OrderCall = { ascending: boolean; column: string; table: string };
 type RangeCall = { from: number; table: string; to: number };
 type UpsertCall = { rows: RemoteRow[]; table: string };
+
+interface FakeSelectQuery {
+  order: (column: string, options?: { ascending?: boolean }) => FakeSelectQuery;
+  range: (from: number, to: number) => Promise<{ data: RemoteRow[]; error: null }>;
+}
 
 const stamp = '2026-07-08T12:00:00.000Z';
 
@@ -270,20 +277,26 @@ const memoryCandidateRow = (): RemoteRow => ({
 const rowsByTable = (overrides: Record<string, RemoteRow[]> = {}) =>
   new Map(syncedTables.map((table) => [table, overrides[table] ?? []]));
 
-const fakeClient = (rows: Map<string, RemoteRow[]>, rangeCalls: RangeCall[] = [], upsertCalls: UpsertCall[] = []) => ({
+const fakeClient = (
+  rows: Map<string, RemoteRow[]>,
+  rangeCalls: RangeCall[] = [],
+  upsertCalls: UpsertCall[] = [],
+  orderCalls: OrderCall[] = [],
+) => ({
   from(table: string) {
     return {
       select() {
-        return {
-          order() {
-            return {
-              async range(from: number, to: number) {
-                rangeCalls.push({ from, table, to });
-                return { data: (rows.get(table) ?? []).slice(from, to + 1), error: null };
-              },
-            };
+        const query: FakeSelectQuery = {
+          order(column, options) {
+            orderCalls.push({ ascending: options?.ascending !== false, column, table });
+            return query;
+          },
+          async range(from, to) {
+            rangeCalls.push({ from, table, to });
+            return { data: (rows.get(table) ?? []).slice(from, to + 1), error: null };
           },
         };
+        return query;
       },
       async upsert(upsertRows: RemoteRow[]) {
         upsertCalls.push({ rows: upsertRows, table });
@@ -316,6 +329,88 @@ test('fetchRemoteData paginates table pulls past the Supabase 1000-row default',
     { from: 0, to: remotePullPageSize - 1 },
     { from: remotePullPageSize, to: remotePullPageSize * 2 - 1 },
   ]);
+});
+
+test('fetchRemoteData bounds Activity pulls to the newest local retention window', async () => {
+  const rangeCalls: RangeCall[] = [];
+  const orderCalls: OrderCall[] = [];
+  const activityRows = Array.from({ length: remoteActivityPullLimit + 3 }, (_, index) => ({
+    id: `activity_window_${String(index).padStart(5, '0')}`,
+    project_id: 'project_sync_pull',
+    entity_type: 'Unit',
+    entity_id: 'unit_sync_pull_104',
+    action: 'QA activity',
+    note: '',
+    created_at: new Date(Date.parse(stamp) - index * 1_000).toISOString(),
+  }));
+
+  const result = await fetchRemoteData(
+    asSupabaseClient(fakeClient(rowsByTable({ activity_logs: activityRows }), rangeCalls, [], orderCalls)),
+  );
+  const activityCalls = rangeCalls.filter((call) => call.table === 'activity_logs');
+  const activityOrders = orderCalls.filter((call) => call.table === 'activity_logs');
+
+  assert.equal(result.rowCount, remoteActivityPullLimit);
+  assert.equal(result.remote.activityLogs?.length, remoteActivityPullLimit);
+  assert.equal(activityCalls.length, remoteActivityPullLimit / remotePullPageSize);
+  assert.deepEqual(activityCalls.at(-1), {
+    from: remoteActivityPullLimit - remotePullPageSize,
+    table: 'activity_logs',
+    to: remoteActivityPullLimit - 1,
+  });
+  assert.deepEqual(activityOrders.slice(0, 2), [
+    { ascending: false, column: 'created_at', table: 'activity_logs' },
+    { ascending: true, column: 'id', table: 'activity_logs' },
+  ]);
+});
+
+test('bounded Activity baselines upload recent offline events without re-uploading older windowed rows', async () => {
+  const activityRows = Array.from({ length: remoteActivityPullLimit }, (_, index) => ({
+    id: `activity_cloud_window_${String(index).padStart(5, '0')}`,
+    project_id: 'project_sync_pull',
+    entity_type: 'Unit',
+    entity_id: 'unit_sync_pull_104',
+    action: 'Cloud activity',
+    note: '',
+    created_at: new Date(Date.parse(stamp) - index * 1_000).toISOString(),
+  }));
+  const clientRows = rowsByTable({
+    activity_logs: activityRows,
+    projects: [projectRow()],
+    units: [unitRow(stamp, 'local stale note')],
+  });
+  const baseline = await fetchRemoteData(asSupabaseClient(fakeClient(clientRows)));
+  const upsertCalls: UpsertCall[] = [];
+  const oldLocalActivity = {
+    id: 'activity_old_outside_window',
+    projectId: 'project_sync_pull',
+    entityType: 'Unit' as const,
+    entityId: 'unit_sync_pull_104',
+    action: 'Already-windowed old activity',
+    note: '',
+    createdAt: new Date(Date.parse(stamp) - (remoteActivityPullLimit + 10) * 1_000).toISOString(),
+  };
+  const recentOfflineActivity = {
+    ...oldLocalActivity,
+    id: 'activity_recent_offline',
+    action: 'Recent offline activity',
+    createdAt: new Date(Date.parse(stamp) + 1_000).toISOString(),
+  };
+  const local = {
+    ...appData(),
+    activityLogs: [recentOfflineActivity, oldLocalActivity],
+  };
+
+  const upload = await uploadLocalData(
+    asSupabaseClient(fakeClient(clientRows, [], upsertCalls)),
+    local,
+    baseline.baseline,
+  );
+  const activityUpsert = upsertCalls.find((call) => call.table === 'activity_logs');
+
+  assert.deepEqual(upload.failures, []);
+  assert.equal(upload.uploadedRows, 1);
+  assert.deepEqual(activityUpsert?.rows.map((row) => row.id), [recentOfflineActivity.id]);
 });
 
 test('fetchRemoteData maps report draft rows with edited section state', async () => {

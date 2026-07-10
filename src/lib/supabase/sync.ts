@@ -17,6 +17,7 @@ import type {
   TrainingQuestion,
   Unit,
 } from '../../types';
+import { ACTIVITY_LOG_RETENTION_LIMIT } from '../activityRetention';
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { reconcileDailyLogs } from '../dailyLogs';
@@ -39,7 +40,9 @@ type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'sy
 type SyncTrigger = 'startup' | 'manual' | 'pull' | 'upload' | 'realtime' | 'reconnect' | 'local_edit';
 type Row = Record<string, unknown>;
 type SyncedKey = SyncBoundaryKey;
-type SyncBaseline = Partial<Record<SyncedKey, Map<string, string>>>;
+type SyncBaseline = Partial<Record<SyncedKey, Map<string, string>>> & {
+  activityWindowStart?: string;
+};
 type SyncRunOptions = {
   quiet?: boolean;
   trigger: SyncTrigger;
@@ -69,6 +72,8 @@ interface SyncTable<T extends { id: string }> {
   table: string;
   toRow: (item: T) => Row;
   fromRow: (row: Row) => T;
+  pullLimit?: number;
+  pullOrder?: Array<{ ascending: boolean; column: string }>;
 }
 
 export interface SyncController {
@@ -535,6 +540,11 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
   {
     key: 'activityLogs',
     table: 'activity_logs',
+    pullLimit: ACTIVITY_LOG_RETENTION_LIMIT,
+    pullOrder: [
+      { column: 'created_at', ascending: false },
+      { column: 'id', ascending: true },
+    ],
     toRow: (item) => {
       const log = item as ActivityLog;
       return {
@@ -702,6 +712,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
 
 export const syncedTables = tableConfigs.map((config) => config.table);
 export const remotePullPageSize = 1000;
+export const remoteActivityPullLimit = ACTIVITY_LOG_RETENTION_LIMIT;
 
 export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
   normalizeAppData({
@@ -727,7 +738,7 @@ export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData
 const rowFingerprint = (config: SyncTable<{ id: string }>, item: { id: string }) => syncRowFingerprint(config.toRow(item));
 
 const cloneBaseline = (baseline: SyncBaseline = {}) => {
-  const next: SyncBaseline = {};
+  const next: SyncBaseline = { activityWindowStart: baseline.activityWindowStart };
   tableConfigs.forEach((config) => {
     const tableBaseline = baseline[config.key];
     if (tableBaseline) {
@@ -743,13 +754,34 @@ const baselineFromRemoteData = (remote: SyncRemoteData): SyncBaseline => {
     const rows = (remote[config.key] ?? []) as { id: string }[];
     baseline[config.key] = new Map(rows.map((item) => [item.id, rowFingerprint(config, item)]));
   });
+  const activityLogs = (remote.activityLogs ?? []) as ActivityLog[];
+  if (activityLogs.length >= ACTIVITY_LOG_RETENTION_LIMIT) {
+    const validTimes = activityLogs
+      .map((log) => Date.parse(log.createdAt))
+      .filter((time) => Number.isFinite(time));
+    if (validTimes.length > 0) {
+      baseline.activityWindowStart = new Date(Math.min(...validTimes)).toISOString();
+    }
+  }
   return baseline;
 };
 
 const changedItemsForConfig = (data: AppData, baseline: SyncBaseline, config: SyncTable<{ id: string }>) => {
   const tableBaseline = baseline[config.key];
   const items = data[config.key] as { id: string }[];
-  return items.filter((item) => rowFingerprint(config, item) !== tableBaseline?.get(item.id));
+  const changedItems = items.filter((item) => rowFingerprint(config, item) !== tableBaseline?.get(item.id));
+  if (config.key !== 'activityLogs' || !baseline.activityWindowStart) {
+    return changedItems;
+  }
+
+  const windowStart = Date.parse(baseline.activityWindowStart);
+  return changedItems.filter((item) => {
+    if (tableBaseline?.has(item.id) || !Number.isFinite(windowStart)) {
+      return true;
+    }
+    const createdAt = Date.parse((item as ActivityLog).createdAt);
+    return !Number.isFinite(createdAt) || createdAt >= windowStart;
+  });
 };
 
 const hasChangedRows = (data: AppData, baseline: SyncBaseline) => {
@@ -795,11 +827,17 @@ export const fetchRemoteData = async (client: SupabaseClient) => {
 
   for (const config of tableConfigs) {
     const tableRows: Row[] = [];
+    const pullLimit = config.pullLimit ?? Number.POSITIVE_INFINITY;
     let from = 0;
 
-    while (true) {
-      const to = from + remotePullPageSize - 1;
-      const { data, error } = await client.from(config.table).select('*').order('id', { ascending: true }).range(from, to);
+    while (tableRows.length < pullLimit) {
+      const requestedRows = Math.min(remotePullPageSize, pullLimit - tableRows.length);
+      const to = from + requestedRows - 1;
+      let query = client.from(config.table).select('*');
+      (config.pullOrder ?? [{ column: 'id', ascending: true }]).forEach((order) => {
+        query = query.order(order.column, { ascending: order.ascending });
+      });
+      const { data, error } = await query.range(from, to);
       if (error) {
         throw error;
       }
@@ -807,11 +845,11 @@ export const fetchRemoteData = async (client: SupabaseClient) => {
       const rows = (data ?? []) as Row[];
       tableRows.push(...rows);
 
-      if (rows.length < remotePullPageSize) {
+      if (rows.length < requestedRows || tableRows.length >= pullLimit) {
         break;
       }
 
-      from += remotePullPageSize;
+      from += requestedRows;
     }
 
     rowCount += tableRows.length;

@@ -10,6 +10,7 @@ import type {
   Project,
   ReportDocumentDraft,
 } from '../types';
+import { applyActivityLogRetention } from './activityRetention';
 import { UNIT_WORKFLOW_STATUSES } from './constants';
 
 const DEMO_PROJECT_ID = 'project_west_campus_turn';
@@ -148,7 +149,7 @@ export const normalizeAppData = (data: AppData): AppData => {
   const crewMembers = arrayOrEmpty(data.crewMembers).map((crew) => normalizeCrew(crew, demoProject?.id, activeProjectId));
   const scopeData = { ...data, projects, buildings, floors, crewMembers, activeProjectId };
 
-  return {
+  return applyActivityLogRetention({
     ...data,
     activeProjectId,
     projects,
@@ -171,5 +172,5 @@ export const normalizeAppData = (data: AppData): AppData => {
     followUpTasks: arrayOrEmpty(data.followUpTasks),
     smartSuggestions: arrayOrEmpty(data.smartSuggestions),
     configurableStatuses: Array.isArray(data.configurableStatuses) ? data.configurableStatuses : UNIT_WORKFLOW_STATUSES,
-  };
+  });
 };

@@ -599,6 +599,10 @@ small {
   gap: 16px;
 }
 
+.activity-retention-note {
+  width: calc(100% - 72px);
+}
+
 .page-title,
 .detail-header,
 .hero-panel {
@@ -2507,6 +2511,12 @@ small {
 
   .draft-filter-row {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1061px) {
+  .activity-retention-note {
+    width: calc(100% - 154px);
   }
 }
 

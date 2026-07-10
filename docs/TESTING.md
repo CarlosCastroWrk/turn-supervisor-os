@@ -37,6 +37,7 @@ The gate uses disposable local QA data only. It verifies:
 - Unit search and global Capture access;
 - desktop, iPad-landscape, and iPhone layouts without horizontal overflow or console errors;
 - a 1,000-unit state with 10,000 activity events under 4x CPU throttling;
+- a full 10,000-entry Activity window that retains each new field action while rolling off one oldest raw entry;
 - large-state Report rendering and an honest missing-Daily-Log warning.
 - iPhone-size Daily Log save, reload, and update with exactly one deterministic project/date row.
 
@@ -52,6 +53,7 @@ Baseline recorded July 9, 2026:
 - The rendered Start Real Turn path still generated 300 units from ten floors and thirty units per floor, guarding the blur-then-submit ordering used by transient numeric forms.
 - The rendered Quick Unit Creation path generated twelve Units with four beds and three baths, including the final number committed by clicking Create Units directly.
 - A Daily Log saved, survived reload, updated in place, and retained one deterministic project/date ID without overflow or console findings.
+- A 10,000-entry Activity cache stayed at exactly 10,000 through text, date, and numeric commits while each newest action remained present and each commit produced one full-state write.
 
 These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
 
@@ -66,6 +68,7 @@ These timings are regression signals, not physical iPhone/iPad acceptance. B3 of
 - overlapping stale uploads recover the newest timestamp on the next cloud pass and then stop uploading.
 - 10,000 existing equal-timestamp rows complete deterministic comparison within a two-second regression ceiling.
 - same-day Daily Logs converge to one row across all six three-device reconnect orders, including an existing legacy cloud ID.
+- Activity normalization keeps a deterministic 10,000-entry window, prioritizes the active Turn and required legacy provenance, and bounds Activity cloud pulls to ten ordered 1,000-row pages.
 
 This remains whole-row last-write-wins. Supabase upserts are not timestamp-conditional, so two truly overlapping uploads can briefly leave an older row in cloud state until the newer device receives or initiates another sync pass. The gate does not merge independent fields from simultaneous edits to the same record, correct a device clock that is far ahead, prove Realtime delivery, or replace the physical airplane-mode checklist below.
 

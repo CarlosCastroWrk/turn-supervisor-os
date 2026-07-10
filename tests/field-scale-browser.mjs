@@ -314,9 +314,10 @@ try {
   await largePage.evaluate(() => {
     window.__pdsStorageWriteCount = 0;
   });
-  const activityBeforeTyping = await largePage.evaluate((key) =>
-    JSON.parse(window.localStorage.getItem(key)).activityLogs.length,
-  storageKey);
+  const activityBeforeTyping = await largePage.evaluate((key) => {
+    const activityLogs = JSON.parse(window.localStorage.getItem(key)).activityLogs;
+    return { count: activityLogs.length, latestId: activityLogs[0]?.id };
+  }, storageKey);
   const originalProjectName = await projectNameInput.inputValue();
   const replacementProjectName = 'QA Commit Once Turn';
   const typingStartedAt = performance.now();
@@ -338,7 +339,7 @@ try {
 
   assert.equal(await projectNameInput.inputValue(), replacementProjectName);
   assert.equal(beforeCommit.projectName, originalProjectName);
-  assert.equal(beforeCommit.activityCount, activityBeforeTyping);
+  assert.equal(beforeCommit.activityCount, activityBeforeTyping.count);
   assert.equal(beforeCommit.storageWrites, 0);
   assert.ok(typingMs < 4_000, `Expected local-draft typing under 4s at 4x CPU; received ${typingMs.toFixed(1)}ms.`);
 
@@ -349,13 +350,14 @@ try {
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
     return {
       activityCount: stored.activityLogs.length,
+      latestActivityId: stored.activityLogs[0]?.id,
       projectName: project?.name,
       storageWrites: window.__pdsStorageWriteCount,
     };
   }, storageKey);
-  const activityEntriesAdded = persistenceResult.activityCount - activityBeforeTyping;
   assert.equal(persistenceResult.projectName, replacementProjectName);
-  assert.equal(activityEntriesAdded, 1);
+  assert.equal(persistenceResult.activityCount, activityBeforeTyping.count);
+  assert.notEqual(persistenceResult.latestActivityId, activityBeforeTyping.latestId);
   assert.equal(persistenceResult.storageWrites, 1);
 
   await largePage.evaluate(() => {
@@ -370,9 +372,14 @@ try {
   const pagehideResult = await largePage.evaluate((key) => {
     const stored = JSON.parse(window.localStorage.getItem(key));
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
-    return { startDate: project?.startDate, storageWrites: window.__pdsStorageWriteCount };
+    return {
+      latestActivityId: stored.activityLogs[0]?.id,
+      startDate: project?.startDate,
+      storageWrites: window.__pdsStorageWriteCount,
+    };
   }, storageKey);
   assert.equal(pagehideResult.startDate, '2026-07-10');
+  assert.notEqual(pagehideResult.latestActivityId, persistenceResult.latestActivityId);
   assert.equal(pagehideResult.storageWrites, 1);
 
   await largePage.evaluate(() => {
@@ -408,12 +415,14 @@ try {
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
     return {
       activityCount: stored.activityLogs.length,
+      latestActivityId: stored.activityLogs[0]?.id,
       projectName: project?.name,
       storageWrites: window.__pdsStorageWriteCount,
     };
   }, storageKey);
   assert.equal(recoveryResult.projectName, interruptedProjectName);
-  assert.equal(recoveryResult.activityCount, activityBeforeTyping + 3);
+  assert.equal(recoveryResult.activityCount, activityBeforeTyping.count);
+  assert.notEqual(recoveryResult.latestActivityId, pagehideResult.latestActivityId);
   assert.equal(recoveryResult.storageWrites, 1);
 
   const estimatedUnitsInput = recoveredTurnProjectSection.getByLabel('Estimated units');
@@ -429,6 +438,7 @@ try {
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
     return {
       activityCount: stored.activityLogs.length,
+      latestActivityId: stored.activityLogs[0]?.id,
       estimatedUnits: project?.estimatedUnits,
       storageWrites: window.__pdsStorageWriteCount,
     };
@@ -436,6 +446,7 @@ try {
   assert.equal(await estimatedUnitsInput.inputValue(), '1250');
   assert.equal(beforeNumericCommit.estimatedUnits, 1000);
   assert.equal(beforeNumericCommit.activityCount, activityBeforeNumericTyping);
+  assert.equal(beforeNumericCommit.latestActivityId, recoveryResult.latestActivityId);
   assert.equal(beforeNumericCommit.storageWrites, 0);
 
   await largePage.evaluate(() => {
@@ -467,12 +478,14 @@ try {
     const project = stored.projects.find((item) => item.id === stored.activeProjectId);
     return {
       activityCount: stored.activityLogs.length,
+      latestActivityId: stored.activityLogs[0]?.id,
       estimatedUnits: project?.estimatedUnits,
       storageWrites: window.__pdsStorageWriteCount,
     };
   }, storageKey);
   assert.equal(numericCommitResult.estimatedUnits, 1250);
-  assert.equal(numericCommitResult.activityCount, activityBeforeNumericTyping + 1);
+  assert.equal(numericCommitResult.activityCount, activityBeforeNumericTyping);
+  assert.notEqual(numericCommitResult.latestActivityId, recoveryResult.latestActivityId);
   assert.equal(numericCommitResult.storageWrites, 1);
   await assertNoHorizontalOverflow(largePage, 'iphone-commit-on-blur');
   const committedFieldScreenshot = path.join(screenshotDirectory, 'iphone-commit-on-blur.png');
@@ -491,12 +504,14 @@ try {
       },
       quickCreation: quickCreationResult,
       numericPersistence: {
-        activityEntriesAdded: numericCommitResult.activityCount - activityBeforeNumericTyping,
+        latestActivityRetained: numericCommitResult.latestActivityId !== recoveryResult.latestActivityId,
+        retainedActivityCount: numericCommitResult.activityCount,
         recoveredDraft: true,
         storageWrites: numericCommitResult.storageWrites,
       },
       persistence: {
-        activityEntriesAdded,
+        latestActivityRetained: persistenceResult.latestActivityId !== activityBeforeTyping.latestId,
+        retainedActivityCount: persistenceResult.activityCount,
         pagehideWrites: pagehideResult.storageWrites,
         recoveredDraft: recoveryResult.projectName === interruptedProjectName,
         recoveryWrites: recoveryResult.storageWrites,

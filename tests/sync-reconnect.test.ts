@@ -7,6 +7,11 @@ import type { ActivityLog, AppData, Issue, Unit } from '../src/types.ts';
 type DeviceName = 'mac' | 'iphone' | 'ipad';
 type RemoteRow = Record<string, unknown>;
 
+interface FakeSelectQuery {
+  order: (column: string, options?: { ascending?: boolean }) => FakeSelectQuery;
+  range: (from: number, to: number) => Promise<{ data: RemoteRow[]; error: null }>;
+}
+
 const baseStamp = '2026-07-09T08:00:00.000Z';
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -19,18 +24,26 @@ class DisposableCloud {
       from(table: string) {
         return {
           select() {
-            return {
-              order() {
-                return {
-                  async range(from: number, to: number) {
-                    const rows = [...(rowsByTable.get(table) ?? [])].sort((left, right) =>
-                      String(left.id).localeCompare(String(right.id)),
-                    );
-                    return { data: clone(rows.slice(from, to + 1)), error: null };
-                  },
-                };
+            const orders: Array<{ ascending: boolean; column: string }> = [];
+            const query: FakeSelectQuery = {
+              order(column, options) {
+                orders.push({ ascending: options?.ascending !== false, column });
+                return query;
+              },
+              async range(from, to) {
+                const rows = [...(rowsByTable.get(table) ?? [])].sort((left, right) => {
+                  for (const order of orders) {
+                    const comparison = String(left[order.column] ?? '').localeCompare(String(right[order.column] ?? ''));
+                    if (comparison !== 0) {
+                      return order.ascending ? comparison : -comparison;
+                    }
+                  }
+                  return 0;
+                });
+                return { data: clone(rows.slice(from, to + 1)), error: null };
               },
             };
+            return query;
           },
           async upsert(incoming: RemoteRow[]) {
             const byId = new Map((rowsByTable.get(table) ?? []).map((row) => [String(row.id), row]));

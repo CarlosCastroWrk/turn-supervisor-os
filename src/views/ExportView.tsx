@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Button } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
+import { ACTIVITY_LOG_RETENTION_LIMIT } from '../lib/activityRetention';
 import { parseJsonBackup } from '../lib/backups';
 import { clearAppData, clearInFlightFieldDrafts } from '../lib/storage';
 import {
@@ -235,6 +236,11 @@ export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: Expor
           <p className="muted">
             Restore is available only while Supabase sync is signed out. Start Real Turn Mode in Setup to keep sample data separate
             from real field data. Reset clears local photo files on this device after confirmation.
+          </p>
+          <p className="muted activity-retention-note">
+            For field performance, raw Activity history keeps up to {ACTIVITY_LOG_RETENTION_LIMIT.toLocaleString()} entries and
+            prioritizes the current Turn. Saved Daily Logs and report drafts are not pruned. Full-device backups include the Activity
+            history still retained on this device.
           </p>
         </div>
       </Section>

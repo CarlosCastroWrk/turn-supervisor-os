@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
+import { applyActivityLogRetention } from './activityRetention';
 import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
 import { createFieldDraftStore } from './fieldDraft';
@@ -38,7 +39,7 @@ let storageFailureWarned = false;
 
 export const saveAppData = (data: AppData) => {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(applyActivityLogRetention(data)));
     storageFailureWarned = false;
   } catch (error) {
     console.warn('Failed to save Turn Supervisor OS data.', error);
@@ -76,9 +77,15 @@ export const clearAppData = async () => {
 
 export const usePersistentAppData = () => {
   const [hasStoredData, setHasStoredData] = useState(() => hasStoredAppData());
-  const [data, setData] = useState<AppData>(() => loadAppData());
+  const [data, setStoredData] = useState<AppData>(() => loadAppData());
   const migrationInFlight = useRef(false);
   const attemptedLegacyPhotoIds = useRef(new Set<string>());
+  const setData = useCallback<Dispatch<SetStateAction<AppData>>>((update) => {
+    setStoredData((current) => {
+      const next = typeof update === 'function' ? update(current) : update;
+      return applyActivityLogRetention(next);
+    });
+  }, []);
 
   useEffect(() => {
     if (migrationInFlight.current) {
@@ -112,7 +119,7 @@ export const usePersistentAppData = () => {
       .finally(() => {
         migrationInFlight.current = false;
       });
-  }, [data.photoNotes]);
+  }, [data.photoNotes, setData]);
 
   useEffect(() => {
     appDataWriter.schedule(data);
@@ -139,5 +146,5 @@ export const usePersistentAppData = () => {
     };
   }, []);
 
-  return useMemo(() => ({ data, setData, hasStoredData }), [data, hasStoredData]);
+  return useMemo(() => ({ data, setData, hasStoredData }), [data, hasStoredData, setData]);
 };

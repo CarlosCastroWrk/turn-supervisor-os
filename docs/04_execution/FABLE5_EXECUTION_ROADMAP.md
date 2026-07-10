@@ -604,12 +604,20 @@ These slices harden the app once core field use is stable.
 
 ### G1. Activity Log Pruning And Pull Pagination
 
-Status: pull pagination is implemented; bounded activity retention remains open. The automated field-scale baseline validates 10,000 events but records a 3,046,822-character AppData payload before photo files.
+Status: implemented in the G1 Bounded Activity History release slice. Pull pagination remains in place, local hot state retains at most 10,000 raw Activity entries, and Activity cloud pulls use the same newest-row bound without deleting cloud history.
 
 Scope:
 
 - Avoid Supabase 1000-row pull caps.
 - Keep activity history useful without unbounded sync cost.
+
+Acceptance:
+
+- The active Turn is prioritized when the raw Activity window is full.
+- Legacy Draft, Follow-Up, training, and direct Memory-source provenance is retained before ordinary inactive-project history when space is constrained.
+- New actions remain in the 10,000-entry window while the oldest raw detail rolls off.
+- Saved Daily Logs, report drafts, operational records, photos, Draft Actions, and Memory are not pruned.
+- Supabase Activity rows are not deleted by this client-side retention policy.
 
 ### G2. Undo And Toast System
 

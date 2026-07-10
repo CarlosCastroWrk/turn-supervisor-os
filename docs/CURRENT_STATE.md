@@ -9,20 +9,20 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1/H2 model route and meter, D7 Capture-First Field Shell, and the D8 Board-First Field Pages release candidate
+E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1/H2 model route and meter, D7 Capture-First Field Shell, and D8 Board-First Field Pages
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-D7 deployed at dpl_8UR8yhHBzYh4A5ht4G5inoMrQfJ4; production AI remains dormant
+D8 deployed at dpl_BApbYbhWvAo7jFZ4jH3uqrEgsw6j; production AI remains dormant
 ```
 
 Current release state:
 
 ```text
-D7 is shipped. D8 board-first pages are locally verified and awaiting merge/deploy; focused physical-device acceptance remains.
+D8 is shipped. Focused physical-device acceptance remains.
 ```
 
 ## Current Goal
@@ -183,7 +183,7 @@ These are user-reported physical checks, not automated claims. They predate the 
 
 ## Current Testing Priority
 
-The automated D8 release gate is ready. After deployment, the immediate priority is a short physical-device acceptance pass:
+The automated D8 release gate and a read-only production smoke pass. The immediate priority is a short physical-device acceptance pass:
 
 1. Confirm Issues opens directly to the board, then Add issue opens the manual fallback only when tapped.
 2. Confirm Crew opens directly to the directory, then Add crew accepts only the essential contact details.
@@ -202,4 +202,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Review and merge the D8 Board-First Field Pages pull request, deploy it, then refresh or fully reopen the installed PWA on Mac, iPhone, and iPad and run the focused acceptance list above with disposable Demo data. Keep the deployed H2 meter dormant; production model activation remains a separate approval for server-only environment changes.
+Refresh or fully reopen the installed PWA on Mac, iPhone, and iPad and run the focused D8 acceptance list above with disposable Demo data. Keep the deployed H2 meter dormant; production model activation remains a separate approval for server-only environment changes.

@@ -248,3 +248,6 @@
 - Before approval, the Supabase dry-run listed only `20260710133819_add_ai_usage_metering.sql`; the pending migration required both usage-row ownership and referenced-project ownership.
 - Los approved and applied `20260710133819_add_ai_usage_metering.sql` to the linked project. Local and remote migration histories match, the remote is up to date, and linked schema lint passes. The security advisor has one pre-existing account-level warning: Supabase leaked-password protection is disabled; no Auth configuration was changed in this release.
 - Removed Tony-specific Capture examples and the AI smoke note. A final funded fast-route smoke used only the unit paint/leak note, returned one maintenance issue, cost an estimated $0.0005374, and created no manager follow-up.
+- Merged PR #64 at `4e404d6`, deployed H2 as `dpl_68wPJ1VwKziFev8yXhtkaoEyuNEE`, and confirmed the canonical app aliases the new deployment.
+- Canonical production returned `200`; the protected route returned `405` for GET and `401` for unsigned POST, so no production model request can run while activation variables remain absent.
+- The full unsigned production recovery gate passed again: seven current-Turn exports, a 759-byte IndexedDB photo in backup, invalid/corrupt restore rejection, cancel, valid restore, reload persistence, and no auth, sync upload, or provider request.

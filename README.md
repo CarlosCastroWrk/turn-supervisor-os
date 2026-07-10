@@ -204,7 +204,7 @@ Current typed consumption is deliberately narrow: sourced Crew facts, review-fir
 
 ## AI / API Safety
 
-The app still runs without an API key and always retains the deterministic local provider in `src/lib/ai/mockAgentProvider.ts`. H1 adds an optional `/api/agent/capture` Vercel Function. API billing is funded, synthetic local model checks pass, and the H2 metering schema is applied, but production model use stays disabled until the reviewed H2 release deploys and explicitly approved Vercel environment changes are complete.
+The app still runs without an API key and always retains the deterministic local provider in `src/lib/ai/mockAgentProvider.ts`. H1 adds an optional `/api/agent/capture` Vercel Function. API billing is funded, synthetic local model checks pass, the H2 metering schema is applied, and the H2 release is deployed, but production model use stays disabled until explicitly approved Vercel environment changes are complete.
 
 The protected route:
 

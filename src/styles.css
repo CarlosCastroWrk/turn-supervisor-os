@@ -748,6 +748,171 @@ small {
   min-width: 148px;
 }
 
+.bulk-unit-workflow {
+  display: grid;
+  gap: 12px;
+}
+
+.bulk-unit-selection,
+.bulk-unit-tool {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 12px;
+}
+
+.bulk-unit-selection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.bulk-unit-selection > div:first-child {
+  min-width: min(100%, 260px);
+}
+
+.bulk-unit-selection strong,
+.bulk-unit-selection p,
+.bulk-unit-selection small {
+  display: block;
+}
+
+.bulk-unit-selection p,
+.bulk-unit-selection small,
+.bulk-unit-tool__description {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.bulk-unit-selection p {
+  margin-top: 3px;
+}
+
+.bulk-unit-selection small {
+  flex-basis: 100%;
+}
+
+.bulk-unit-tool {
+  display: grid;
+  gap: 12px;
+}
+
+.bulk-unit-tool__intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.bulk-unit-tool__intro svg {
+  flex: 0 0 auto;
+  color: var(--green);
+}
+
+.bulk-unit-tool__intro strong,
+.bulk-unit-tool__intro p {
+  display: block;
+}
+
+.bulk-unit-tool__intro p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.bulk-unit-tool__controls {
+  display: grid;
+  gap: 10px;
+}
+
+.bulk-unit-tool__controls .button {
+  align-self: end;
+}
+
+.bulk-unit-preview {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.bulk-unit-preview__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+}
+
+.bulk-unit-preview__summary div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.bulk-unit-preview__summary strong {
+  font-size: 1.2rem;
+}
+
+.bulk-unit-preview__summary span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 760;
+}
+
+.bulk-unit-preview__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 10px;
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.bulk-unit-preview__notice svg {
+  flex: 0 0 auto;
+}
+
+.bulk-unit-preview__units {
+  display: grid;
+  gap: 4px;
+}
+
+.bulk-unit-preview__units p,
+.bulk-unit-preview__skipped li,
+.bulk-unit-preview__skipped small {
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.bulk-unit-preview__skipped summary {
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 800;
+  line-height: 44px;
+}
+
+.bulk-unit-preview__skipped ul {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 6px;
+  padding-left: 20px;
+}
+
+.bulk-unit-preview__confirm .button {
+  min-width: 170px;
+}
+
 .stats-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1190,6 +1355,25 @@ small {
   .daily-autodraft .button {
     width: 100%;
   }
+
+  .bulk-unit-selection {
+    align-items: stretch;
+  }
+
+  .bulk-unit-selection .button-row,
+  .bulk-unit-preview__confirm {
+    display: grid;
+    width: 100%;
+  }
+
+  .bulk-unit-preview__confirm {
+    padding-right: 72px;
+  }
+
+  .bulk-unit-selection .button,
+  .bulk-unit-preview__confirm .button {
+    width: 100%;
+  }
 }
 
 .issue-card--focused {
@@ -1369,6 +1553,11 @@ small {
   box-shadow: inset 4px 0 0 #f59e0b, 0 1px 0 rgba(15, 23, 42, 0.03);
 }
 
+.unit-card--selected {
+  border-color: var(--blue);
+  box-shadow: inset 4px 0 0 var(--blue), 0 0 0 2px rgba(37, 99, 235, 0.14);
+}
+
 .unit-card__open {
   display: grid;
   padding: 0;
@@ -1388,6 +1577,26 @@ small {
 .unit-card__main {
   min-height: 88px;
   padding: 14px;
+}
+
+.unit-card__state {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
+
+.unit-select-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.unit-select-state.is-selected {
+  color: var(--blue);
 }
 
 .unit-card__summary {
@@ -2672,6 +2881,10 @@ small {
 
   .field-capture-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bulk-unit-tool__controls {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .grid.three,

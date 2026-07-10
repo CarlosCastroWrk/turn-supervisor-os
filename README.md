@@ -10,6 +10,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Copilot section with focused Quick Capture, Draft Actions, deterministic Ask/Briefing internals, and Setup-based Supervisor Memory review
 - Editable project setup
 - Demo Mode vs Real Turn Mode with a Start Real Turn setup flow
+- Preview-first Real Turn CSV Unit import that skips existing/invalid rows and never imports status
 - Global bottom-right Capture button available across tabs
 - Organized/collapsible sidebar on iPad and desktop widths
 - Buildings, floors, units, unit filters, and quick unit creation
@@ -111,6 +112,7 @@ Safety notes:
 3. Fill the Start Real Turn fields: property, location, dates, supervisor, project manager, and the structure you know.
 4. Tap Start Real Turn.
 5. Confirm the Dashboard says Real Turn Mode before entering real field notes.
+6. Optional: use Setup's CSV import to preview and add a known Unit list. Existing Units are skipped and every imported Unit starts Not Started.
 
 Demo Mode stays available for practice. Use the mode switch in Setup to return to the sample project without mixing it into the real board.
 
@@ -229,7 +231,7 @@ Because this is a static Vite app, do not put `OPENAI_API_KEY` or any provider s
 - Visible sync diagnostics now identify trigger, table, row counts, queued work, and the last error; true same-row conflict review is still not implemented.
 - Same-date Daily Log creation now converges to one row, but simultaneous edits still use whole-row timestamp resolution rather than field-level merge.
 - Delete propagation and conflict review UI are not implemented yet.
-- No CSV import yet.
+- CSV Unit import is additive and preview-first, but it has no automatic import Undo. Export a backup first and review every preview count before confirming a real list.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.
 - No real OpenAI/API provider is enabled yet because there is no server-side route.
 
@@ -256,7 +258,6 @@ The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal n
 
 - Supabase Storage photo sync physical-device acceptance and cleanup lifecycle
 - Physical iPhone/iPad PWA install, rotation, and offline-restart acceptance
-- Import units from CSV
 - Voice notes
 - Faster bulk unit updates
 - Checklist templates per trade
@@ -268,7 +269,6 @@ The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal n
 - Voice note transcription upload
 - Photo understanding with privacy controls
 - Bulk floor updates by voice
-- CSV import from company-provided unit list
 - Supervisor performance journal
 - Optional cloud sync
 - Multi-device sync between iPhone and iPad

@@ -4,6 +4,16 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [x] G5 Preview-First CSV Unit Import release.
+  - [x] Accept Unit plus optional Building, Floor, Beds, Bathrooms, Common Area, and Notes headers with documented aliases.
+  - [x] Show ready, existing, duplicate, and invalid rows before any Unit changes.
+  - [x] Keep import additive: never overwrite existing Units and ignore status columns so every imported Unit starts Not Started.
+  - [x] Reject files over 2 MB or 5,000 data rows and protect text, numeric, boolean, and spreadsheet formula boundaries.
+  - [x] Persist the import durably before UI success and cancel the apply if browser storage rejects the write.
+  - [x] Upload changed sync rows in retryable 500-row batches with completed-batch checkpointing.
+  - [x] Verify 181 deterministic tests, desktop/mobile CSV interaction, reload persistence, a 5,000-Unit import, production bundle loading, and a fresh unsigned production smoke.
+  - [x] Merge PR #51 and deploy `dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8`; no Supabase migration or production data change was required.
+  - [ ] Verify physical iPhone/iPad file selection, preview, confirm, reload, and Capture spacing with disposable QA Units.
 - [x] G1 Bounded Activity History implementation.
   - [x] Keep at most 10,000 raw Activity entries in the local hot cache, prioritizing the active Turn.
   - [x] Prioritize the active Turn plus legacy Draft/Follow-Up/training provenance when trimming.
@@ -138,7 +148,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] G2 Undo And Toast System. Guarded Undo is intentionally limited to Unit quick-status changes.
 - [x] G3 PWA Install And Offline Startup. Physical iPhone/iPad acceptance remains in the active gate.
 - [x] G4 Accessibility And Field Contrast. Physical outdoor/VoiceOver acceptance remains open.
-- [ ] Add CSV unit import.
+- [x] Add preview-first CSV Unit import. Physical iPhone/iPad file-picker acceptance remains in the active gate.
 - [ ] Add bulk unit update workflow.
 
 ## P3: Future

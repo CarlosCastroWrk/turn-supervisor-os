@@ -186,3 +186,11 @@
 - Added auth-resolution state and a signed-out restore guard; force-overwriting cloud data remains deliberately out of scope.
 - Verified all six three-device Daily Log reconnect orders, 5,000-log reconciliation, pull-before-upload legacy behavior, and rendered iPhone save/reload/update with one row, no overflow, and no console findings. The full deterministic suite now passes 165/165 before final release verification.
 - Merged PR #47, deployed `dpl_GZrUyPo2V7nxV5MYCsKoM4xva5eL`, confirmed the canonical URL and new production bundle/service worker return `200`, and passed read-only Daily Log/Export route plus console smoke checks. Physical signed-in restore and three-device Daily Log acceptance remain open.
+- Started G5 Preview-First CSV Unit Import on `codex/csv-unit-import` from clean `main`.
+- Added lazy Papa Parse handling for bounded Real Turn Unit lists with aliases, quoted fields, BOM/CRLF support, unknown-column warnings, strict field limits, and a header-only template.
+- Added an explicit preview and additive apply boundary: existing, duplicate, invalid, stale-project, oversized, quota-rejected, and status-bearing inputs cannot overwrite or silently advance Unit records.
+- Reused canonical Building/Floor aliases, created only missing structure, persisted the entire import before showing success, and neutralized spreadsheet formula cells in CSV exports.
+- Batched changed Supabase row uploads in retryable groups of 500 and checkpointed successful batches so a later failure does not resend completed work.
+- Extended deterministic, sync, persistence, and rendered field-scale coverage to 181 passing tests plus a durable 5,000-Unit import, 2,850,866-character state, reload, mobile Capture spacing, and zero console/overflow findings.
+- Merged PR #51 at `5e260a1`, deployed `dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8`, and passed a fresh unsigned production smoke covering CSV preview, duplicate skip, confirm, reload, Not Started status, service-worker support, and production parser chunk loading.
+- No Supabase migration or production data change was required. Physical iPhone/iPad file-picker acceptance remains open.

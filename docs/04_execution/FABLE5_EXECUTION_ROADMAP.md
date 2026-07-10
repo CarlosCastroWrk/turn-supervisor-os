@@ -665,6 +665,27 @@ Acceptance:
 - Voice Capture traps keyboard focus, closes on Escape, and restores focus to its trigger.
 - Physical bright-light and iOS VoiceOver checks remain part of the Phase 1 device gate.
 
+### G5. Preview-First CSV Unit Import
+
+Status: implemented and deployed in PR #51; physical iPhone/iPad file-picker acceptance remains open.
+
+Scope:
+
+- Import Real Turn Units from a flexible, documented CSV contract without overwriting existing Units.
+- Preview ready, existing, duplicate, and invalid rows before applying anything.
+- Ignore imported status values and start every imported Unit as Not Started.
+- Bound file size, row count, headers, text, numbers, and browser-storage pressure.
+- Persist the complete import before reporting success and batch large sync uploads retryably.
+
+Acceptance:
+
+- A malformed, duplicate, oversized, stale-project, or storage-rejected import changes no Units.
+- A valid import can add up to 5,000 unique Units, survives reload, and creates missing Building/Floor records without duplicate aliases.
+- Existing Unit records and statuses remain unchanged.
+- Exported CSV values cannot execute as spreadsheet formulas when opened.
+- Desktop/mobile automation passes without horizontal overflow or interference with global Capture.
+- Physical iPhone/iPad selection, preview, confirm, reload, and Capture spacing remain part of the device gate.
+
 ## Phase H: Later Intelligence
 
 Only after the field-safe deterministic version is trusted.
@@ -717,5 +738,6 @@ Only after the field-safe deterministic version is trusted.
 37. P0 Numeric Commit-On-Blur
 38. P0 Three-Device Sync Regression
 39. P0 Daily Log Identity And Restore Safety
+40. G5 Preview-First CSV Unit Import
 
 This order can change if real-device testing finds a higher-risk failure.

@@ -119,6 +119,7 @@ Slices:
 - Undo/toast feedback (implemented for routine feedback and guarded Unit quick-status Undo)
 - PWA install and offline startup (implemented; physical iPhone/iPad acceptance pending)
 - Accessibility and field contrast (implemented; physical outdoor/VoiceOver acceptance pending)
+- Preview-first CSV Unit import (implemented; physical iPhone/iPad file-picker acceptance pending)
 
 Success gate:
 

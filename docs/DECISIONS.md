@@ -203,8 +203,20 @@ Rationale:
 - Los can safely inspect and export recovered data while signed out.
 - Signing in later may still merge newer cloud rows, so recovered data should be reviewed/exported first.
 
+### 2026-07-09: CSV Unit import is preview-first, additive, and status-blind
+
+Allow flexible Unit-list CSV files only in Real Turn Mode. Parse and preview the complete bounded file before applying it, skip existing/duplicate/invalid Units, ignore status columns, and create every imported Unit as Not Started. Revalidate and durably persist the whole additive result before showing success.
+
+Rationale:
+
+- Training may provide differently named Unit-list columns, so documented aliases are safer than one guessed company template.
+- A roster file is not trustworthy evidence of live field progress; imported status must never advance the board.
+- Existing Units may already contain notes, issues, photos, or current work, so import must never overwrite them.
+- A browser quota failure after an apparent success would be field data loss; the apply must fail closed before UI state changes.
+- Large imports need explicit limits and retryable sync batches instead of one unbounded cloud request.
+- Import has no general Undo, so backup and preview remain the recovery boundary.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.
-- Whether to implement CSV unit import before training clarifies the actual unit list format.
 - Which server-side AI provider/model to use, if any, after Phase 1 stabilizes.

@@ -66,6 +66,10 @@ const extractUnitNumbers = (text: string, data: AppData) => {
     .map(({ unitNumber }) => unitNumber);
   return unique([...prefixed, ...bare]);
 };
+
+const hasSharedUnitCompletion = (sentence: string, units: string[]) =>
+  units.length > 1 && /\b(?:are|all)\s+(?:done|complete|completed|finished)\b/i.test(sentence);
+
 const extractBuildings = (text: string) => unique(Array.from(text.matchAll(/\bbuilding\s+([a-z0-9]+)/gi)).map((match) => `Building ${match[1].toUpperCase()}`));
 const extractFloors = (text: string) => unique(Array.from(text.matchAll(/\bfloor\s+(\d+)/gi)).map((match) => `Floor ${match[1]}`));
 const CREW_NAME_STOPWORDS = new Set(['the', 'a', 'an', 'my', 'our', 'his', 'her', 'their', 'this', 'that', 'whole', 'entire', 'other', 'new', 'one']);
@@ -529,8 +533,11 @@ const parseQuickCapture = async (input: string, data: AppData): Promise<AgentPar
   const warnings: string[] = [];
 
   sentenceSplit(rawInput).forEach((sentence) => {
-    unitScopedSegments(sentence, data).forEach((segment) => {
-      const segmentUnits = extractUnitNumbers(segment, data);
+    const sentenceUnits = extractUnitNumbers(sentence, data);
+    const segments = hasSharedUnitCompletion(sentence, sentenceUnits) ? [sentence] : unitScopedSegments(sentence, data);
+
+    segments.forEach((segment) => {
+      const segmentUnits = hasSharedUnitCompletion(sentence, sentenceUnits) ? sentenceUnits : extractUnitNumbers(segment, data);
       segmentUnits.forEach((unitNumber) => {
         draftActions.push(...statusDraftsForUnit(data, unitNumber, segment, rawInput));
         const issueDraft = issueDraftForTarget(data, unitNumber, segment, rawInput);

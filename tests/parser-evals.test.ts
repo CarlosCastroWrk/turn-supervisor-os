@@ -115,6 +115,18 @@ test('parser scopes punctuation-free unit updates to each unit phrase', async ()
   assert.equal(result.draftActions.some((action) => action.type === 'CREATE_ISSUE' && action.payload.unitNumber === '105'), false);
 });
 
+test('parser applies a shared completion statement to every named unit', async () => {
+  const result = await parse('Unit 104, Unit 105, and Unit 203 are done');
+
+  assert.deepEqual(result.detectedEntities.units, ['104', '105', '203']);
+  const readyDrafts = result.draftActions.filter(
+    (action) => action.type === 'UPDATE_UNIT_STATUS' && action.payload.overallStatus === 'Ready',
+  );
+  assert.equal(readyDrafts.length, 3);
+  assert.deepEqual(readyDrafts.map((draft) => draft.payload.unitNumber).sort(), ['104', '105', '203']);
+  assert.equal(readyDrafts.every((draft) => draft.payload.explicitReadyConfirmation === undefined), true);
+});
+
 test('parser keeps a multi-condition blocker on the mentioned unit only', async () => {
   const result = await parse('204 paint done but cleaning blocked keys missing');
 

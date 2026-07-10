@@ -4,6 +4,14 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [x] D8 Board-First Field Pages release candidate.
+  - [x] Show the Issue board first, with simple In Progress and Done field states; open manual issue entry only from an explicit Add issue button.
+  - [x] Show the Crew directory first, with a lightweight Add crew dialog for name, trade, optional phone, and quick note.
+  - [x] Reshape Unit detail around the current check, editable bed count, fast status actions, quick note, photos, and linked issues; leave full manual controls collapsed.
+  - [x] Keep accidental Issue removal as a confirmed soft close, rather than data deletion.
+  - [x] Parse a shared completion statement such as “Unit 104, Unit 106, Unit 210 are done” into one separate draft per named Unit.
+  - [x] Pass lint, build, 219 deterministic tests, and desktop/iPad/iPhone board-first browser QA with no overflow or runtime findings.
+  - [ ] Merge, deploy, and complete the short physical-device acceptance pass with disposable Demo data.
 - [x] D7 Capture-First Field Shell.
   - [x] Replace the crowded Dashboard with a compact field Home for readiness, status counts, Needs attention, today's movement, and next actions.
   - [x] Reduce visible navigation to Home, Units, Issues, Crew, Reports, Setup, and a secondary Data & backup path.

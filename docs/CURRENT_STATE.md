@@ -9,20 +9,20 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1 Protected Model Route, and H2 Cost-Aware Model Orchestration and AI Usage Meter
+E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1/H2 model route and meter, and D7 Capture-First Field Shell
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-H2 deployed dormant at dpl_68wPJ1VwKziFev8yXhtkaoEyuNEE
+D7 deployed at dpl_8UR8yhHBzYh4A5ht4G5inoMrQfJ4; production AI remains dormant
 ```
 
-Current unshipped slice:
+Current release state:
 
 ```text
-D7 Capture-First Field Shell
+D7 is shipped. Focused physical-device acceptance remains.
 ```
 
 ## Current Goal
@@ -143,7 +143,7 @@ On July 10, 2026, Los reported hands-on passes across the production PWA for:
 - basic iOS VoiceOver use
 - bright-light readability
 
-These are user-reported physical checks, not automated claims. Capture Workspace V2 still needs one focused production pass after deployment because its modal composer is new.
+These are user-reported physical checks, not automated claims. They predate the D7 shell, so D7 still needs one focused production pass on Los's Mac, iPhone, and iPad.
 
 ## What Does Not Exist Yet
 
@@ -183,7 +183,7 @@ These are user-reported physical checks, not automated claims. Capture Workspace
 
 ## Current Testing Priority
 
-The shared sync, reconnect, photo, permission, VoiceOver, and outdoor-readability baseline is reported passing. The immediate priority is the D7 Capture-First Field Shell release gate:
+The automated D7 release gate and unsigned canonical desktop/iPad/iPhone smoke pass. The immediate priority is a short physical-device acceptance pass:
 
 1. Confirm Home shows one compact readiness summary, actionable status counts, Needs attention, today's movement, and next actions without the old manual quick-action grid.
 2. Confirm desktop navigation stays on the left edge and iPhone uses Home, Units, Capture, Issues, and More without horizontal overflow.
@@ -204,4 +204,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Finish, review, and deploy D7 Capture-First Field Shell, then run its focused Mac/iPhone/iPad acceptance pass. Keep the deployed H2 meter dormant; production model activation remains a separate approval for server-only environment changes.
+Refresh or fully reopen the installed PWA on Mac, iPhone, and iPad, then run the focused D7 acceptance list above with disposable Demo data. Keep the deployed H2 meter dormant; production model activation remains a separate approval for server-only environment changes.

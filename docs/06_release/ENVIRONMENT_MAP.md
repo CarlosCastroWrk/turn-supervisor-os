@@ -5,7 +5,7 @@ Document environments without exposing secret values.
 | Environment | Purpose | URL | Data | Owner | Notes |
 | --- | --- | --- | --- | --- | --- |
 | Local | Development | `http://localhost:5173` | Browser localStorage; optional linked QA sync | Los | Vite dev server; sync stays off unless local public Supabase env values and `VITE_ENABLE_SYNC=true` are present |
-| Production app | Hosted PWA | `https://turn-supervisor-os.vercel.app` | Browser localStorage + optional Supabase sync | Los | H2 usage meter and dormant protected route verified at `dpl_68wPJ1VwKziFev8yXhtkaoEyuNEE`; later docs-only merges can produce newer deployment IDs |
+| Production app | Hosted PWA | `https://turn-supervisor-os.vercel.app` | Browser localStorage + optional Supabase sync | Los | D7 Capture-First Field Shell verified at `dpl_8UR8yhHBzYh4A5ht4G5inoMrQfJ4`; H2 usage meter remains dormant, and later docs-only merges can produce newer deployment IDs |
 | Supabase | Sync/Auth/Storage foundation | `https://jgplalexkmjzldczouih.supabase.co` | Postgres + private Storage | Los | Schema/RLS/buckets applied; app sync enabled behind `VITE_ENABLE_SYNC` |
 | OpenAI API | Optional model-assisted Capture | Server-side only | Bounded synthetic/field note context; no direct mutations | Los | Local key exists outside git; $10 prepaid credit was confirmed with auto-recharge off; synthetic local checks, metering schema, and H2 release pass; production remains disabled pending environment approval |
 | Local Vercel CLI | Deployment tooling | `vercel` | No app data | Los | Version `55.0.0` verified on 2026-07-09 |

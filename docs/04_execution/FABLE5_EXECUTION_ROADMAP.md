@@ -727,6 +727,25 @@ Acceptance:
 - `npm audit` remains at zero known vulnerabilities; no config-only dependency is accepted to provide type helpers.
 - Physical signed-in sync, cross-device photo, installed-PWA, and voice checks remain open rather than being inferred from the unsigned browser smoke.
 
+### G8. Production Recovery Gate And Local Date Safety
+
+Status: implemented and deployed in PR #58.
+
+Scope:
+
+- Exercise the real production report, export, local-photo, backup, and restore UI in a fresh unsigned browser profile with disposable `QA_RECOVERY_*` data.
+- Verify current-Turn human-readable files stay scoped while the private full-device backup preserves Demo and Real Turn recovery data.
+- Reject invalid and structurally corrupt backups without changing local storage, cancel a valid restore once, then approve and verify it through reload.
+- Keep backup, CSV, Markdown, and report filenames on Los's local field date near the UTC date boundary.
+
+Acceptance:
+
+- Seven expected files download and contain the reviewed project/date/count sentinels without Demo contamination in current-Turn output.
+- A compressed photo lives in IndexedDB, survives reload and a normal Unit edit, enters the private JSON backup, and returns after valid restore.
+- Invalid and corrupt files leave local storage byte-for-byte unchanged; cancel changes nothing; approved restore removes post-backup edits and preserves exact project/Unit/Issue counts after reload.
+- Local, protected preview, and canonical production runs finish with no overflow, console, page, CSP, or request failures.
+- The gate remains unsigned and cannot upload or alter Supabase data; physical signed-in restore and cross-device photo acceptance remain separate.
+
 ## Phase H: Later Intelligence
 
 Only after the field-safe deterministic version is trusted.
@@ -782,5 +801,6 @@ Only after the field-safe deterministic version is trusted.
 40. G5 Preview-First CSV Unit Import
 41. G6 Preview-First Bulk Unit Updates
 42. G7 Production Security Headers
+43. G8 Production Recovery Gate And Local Date Safety
 
 This order can change if real-device testing finds a higher-risk failure.

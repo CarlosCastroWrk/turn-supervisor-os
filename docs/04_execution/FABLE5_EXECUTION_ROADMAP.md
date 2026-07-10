@@ -370,7 +370,7 @@ Acceptance:
 
 ### C6. Capture Workspace V2
 
-Status: implementation and local release verification are complete; PR, production deployment, and one focused physical-device acceptance pass remain.
+Status: implemented in PR #60 and deployed as `dpl_Fm5Pv6bH8jSPcYEg6xzfSc7jZP8Y`; one focused physical-device acceptance pass remains.
 
 Scope:
 

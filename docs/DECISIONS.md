@@ -216,6 +216,20 @@ Rationale:
 - Large imports need explicit limits and retryable sync batches instead of one unbounded cloud request.
 - Import has no general Undo, so backup and preview remain the recovery boundary.
 
+### 2026-07-09: Bulk Unit updates are filtered, previewed, and transition-limited
+
+Bulk updates operate only on explicitly selected Units from the active filtered board, apply one known workflow transition, and stop at 500 Units. Confirmation rechecks the active Turn, each Unit's preview timestamp, workflow protection, and durable browser storage. Bulk Ready, arbitrary status resets, and automatic bulk Undo are not available.
+
+Rationale:
+
+- A broad `Approve All` or free-form mass editor can silently move hidden, blocked, or stale Units under field pressure.
+- Current filters provide understandable operational scope such as one floor or one status group; changing a filter clears selection.
+- Exact Unit timestamps prevent a reviewed batch from overwriting newer local or Realtime work.
+- Reusing guarded transitions keeps bulk Paint/Clean/Repair behavior aligned with known one-Unit behavior.
+- Inspection can be queued only when tracked trades qualify; final Ready remains a per-Unit safety decision.
+- A 500-Unit ceiling matches retryable sync batching and forces very large projects into reviewable groups.
+- Preview plus durable-write-before-success is the recovery boundary because bulk Undo does not exist.
+
 ## Deferred Decisions
 
 - Whether to rename visible runtime copy from Turn Supervisor OS to Turn Field Copilot before or after Phase 1 sync QA.

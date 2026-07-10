@@ -9,14 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G5 Preview-First CSV Unit Import
+E4 Project-Scoped Memory through G6 Preview-First Bulk Unit Updates
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-CSV runtime release verified at dpl_37Tbxui5LXzLXFoFWnCobU4sbpN8
+Bulk Unit runtime release verified at dpl_86nG5asRS8ki51RcmavYjXHDTamN
 ```
 
 ## Current Goal
@@ -45,6 +45,8 @@ Every near-term change should serve that loop.
 - Session-backed commit-on-blur numeric fields for existing Project estimates and Unit bed/bath counts; multi-digit edits remain local until blur or Enter and commit as one operational change
 - Preview-first Real Turn CSV Unit import with flexible Unit/Building/Floor/Beds/Bathrooms/Common Area/Notes headers, explicit skipped-row details, a 2 MB file limit, a 5,000-row limit, and a downloadable header-only template
 - Additive CSV apply safety that never overwrites an existing Unit, ignores imported status columns, starts every imported Unit as Not Started, validates again at commit time, and durably writes the full import before showing success
+- Preview-first bulk Unit updates from the filtered Units board: select shown or all current matches, choose one explicit paint/clean/repair/inspection transition, review update/skip counts, and confirm up to 500 Units
+- Bulk update safety that stays inside the active Turn, excludes bulk Ready and free-form resets, skips protected/unchanged/missing Units, rejects a changed project, refuses post-preview stale Unit timestamps, persists before UI success, and names skipped Units in feedback
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
@@ -99,7 +101,7 @@ Every near-term change should serve that loop.
 - Current-Turn human-readable exports for Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups; the separately labeled full-device JSON backup intentionally keeps every project
 - Full-device JSON restore validation that rejects malformed collections, unsafe records, duplicate IDs, invalid photo payloads, empty projects, and pathological record counts before replacing local state
 - Restore guard that waits for Supabase auth state and requires sign-out before local replacement so active sync cannot immediately merge over the restored copy
-- A repeatable field-scale gate that creates 300 units through Setup, renders 100 units at a time across desktop/iPad/iPhone layouts, and validates Capture, Reports, export, backup restore, 1,000 units, 100 blockers, 500 ready units, 10,000 activity events, and a durable 5,000-unit CSV import
+- A repeatable field-scale gate that creates 300 units through Setup, renders 100 units at a time across desktop/iPad/iPhone layouts, and validates Capture, Reports, export, backup restore, 1,000 units, 100 blockers, 500 ready units, 10,000 activity events, a durable 5,000-unit CSV import, and previewed/durable 300-Unit bulk updates
 - A disposable three-device sync regression that preserves disjoint 12-hour offline edits, tests every reconnect order for same-row updates, rejects duplicate rows, and verifies equal-timestamp conflicts settle without repeated uploads
 
 ## What Real Turn Mode Currently Does
@@ -124,7 +126,7 @@ Every near-term change should serve that loop.
 - Physical iPhone/iPad verification in bright light and with VoiceOver enabled
 - Physical iPhone/iPad verification of CSV file selection, preview, confirm, reload persistence, and Capture-button spacing
 - General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
-- A bulk Unit update workflow; field changes still happen one Unit or confirmed Draft Action at a time
+- Bulk Ready, arbitrary mass status resets, and automatic bulk Undo; those operations remain intentionally outside the guarded batch workflow
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
 - Server-side AI provider route
@@ -164,6 +166,7 @@ Real-device Phase 1 QA:
 9. One work-safe Real Turn photo captured on one device appears on the other two after sync, then remains visible after reload.
 10. Core navigation, Capture, and Unit updates remain understandable in bright light and with iOS VoiceOver enabled.
 11. A small Real Turn CSV can be selected, previewed, confirmed, and found after reload on physical iPhone/iPad without covering the global Capture control.
+12. A filtered 2-3 Unit batch can be selected, previewed, confirmed, and found after reload on physical iPhone/iPad without applying to hidden or stale Units.
 
 Current immediate field check:
 
@@ -178,6 +181,7 @@ Current immediate field check:
 9. Open the same Daily Log date across devices, make obvious offline QA edits, reconnect one at a time, and confirm one row settles everywhere.
 10. While signed in, open Export and confirm Restore JSON Backup is blocked with a sign-out instruction.
 11. In a disposable Real Turn, import a 2-3-row CSV on iPhone or iPad, confirm the preview counts, reload, and verify each new Unit remains Not Started.
+12. Filter the same disposable Turn to 2-3 QA Units, run one bulk Paint or Repair update, verify the preview counts, reload, and confirm only those Units changed.
 
 ## GitHub Workflow
 
@@ -199,3 +203,4 @@ Run the B3 real-device offline/reconnect, Daily Log, restore-guard, and F2 photo
 8. Open the same Daily Log date on all three devices, make obvious offline QA edits, reconnect one at a time, and confirm exactly one log settles everywhere.
 9. While still signed in, open Export and confirm Restore JSON Backup is blocked with a clear sign-out instruction.
 10. In a disposable Real Turn, select a small CSV on physical iPhone or iPad, review every preview count, confirm it, reload, and verify the new Units remain Not Started and Capture stays reachable.
+11. Filter to 2-3 disposable QA Units, select them in `Bulk update`, review one Paint or Repair transition, confirm, reload, and verify only that reviewed group changed.

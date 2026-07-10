@@ -207,6 +207,7 @@ export function CopilotView({
   const captureWorkspaceRef = useRef<HTMLElement | null>(null);
   const captureCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const captureAttachmentsRef = useRef<StagedCaptureAttachment[]>([]);
   const voiceModeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -217,6 +218,8 @@ export function CopilotView({
   const restartTimerRef = useRef<number | undefined>(undefined);
   const noTranscriptTimerRef = useRef<number | undefined>(undefined);
   const parseInFlightRef = useRef(false);
+  const autoVoiceOpenedRef = useRef(false);
+  const openVoiceSheetRef = useRef<() => void>(() => undefined);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFallbackActive, setVoiceFallbackActive] = useState(false);
@@ -349,13 +352,13 @@ export function CopilotView({
   const voiceTranscriptPreview = [quickInput.trim(), interimTranscript.trim()].filter(Boolean).join(' ');
 
   useEffect(() => {
-    if (mode !== 'quick' || !canAutoFocusCaptureText) {
+    if (presentation !== 'page' || mode !== 'quick' || !canAutoFocusCaptureText) {
       return;
     }
 
     const id = window.setTimeout(() => quickInputRef.current?.focus(), 0);
     return () => window.clearTimeout(id);
-  }, [canAutoFocusCaptureText, mode]);
+  }, [canAutoFocusCaptureText, mode, presentation]);
 
   useEffect(
     () => () => {
@@ -587,7 +590,7 @@ export function CopilotView({
     setVoiceStatus(voiceGuidance.unavailableStatus);
   };
 
-  const closeVoiceSheet = () => {
+  const closeVoiceSheet = (restoreFocus = true) => {
     if (isRecording || keepListeningRef.current) {
       stopVoiceCapture();
     }
@@ -596,8 +599,46 @@ export function CopilotView({
     if (quickInput.trim()) {
       setVoiceStatus('Voice note saved to the text box. Review it, then create drafts.');
     }
-    voiceModeButtonRef.current?.focus({ preventScroll: true });
-    window.requestAnimationFrame(() => voiceModeButtonRef.current?.focus({ preventScroll: true }));
+    if (restoreFocus) {
+      voiceModeButtonRef.current?.focus({ preventScroll: true });
+      window.requestAnimationFrame(() => voiceModeButtonRef.current?.focus({ preventScroll: true }));
+    }
+  };
+
+  openVoiceSheetRef.current = openVoiceSheet;
+
+  useEffect(() => {
+    if (presentation !== 'overlay' || !isOpen) {
+      autoVoiceOpenedRef.current = false;
+      return;
+    }
+    if (autoVoiceOpenedRef.current) {
+      return;
+    }
+
+    autoVoiceOpenedRef.current = true;
+    const timer = window.setTimeout(() => openVoiceSheetRef.current(), 120);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, presentation]);
+
+  const openCameraFromVoice = () => {
+    closeVoiceSheet(false);
+    window.requestAnimationFrame(() => cameraInputRef.current?.click());
+  };
+
+  const openPhotoFromVoice = () => {
+    closeVoiceSheet(false);
+    window.requestAnimationFrame(() => photoInputRef.current?.click());
+  };
+
+  const openFileFromVoice = () => {
+    closeVoiceSheet(false);
+    window.requestAnimationFrame(() => attachmentInputRef.current?.click());
+  };
+
+  const switchVoiceToTyping = () => {
+    closeVoiceSheet(false);
+    window.requestAnimationFrame(() => quickInputRef.current?.focus({ preventScroll: true }));
   };
 
   const handleVoiceSheetKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
@@ -878,6 +919,13 @@ export function CopilotView({
     }
   };
 
+  const finishVoiceCapture = () => {
+    closeVoiceSheet();
+    if (captureInputReady) {
+      window.setTimeout(() => void parseQuickCapture(), 0);
+    }
+  };
+
   const afterDraftChange = (draft: DraftAction, status: DraftActionStatus) => {
     setLastChangedDraftId(draft.id);
     if (status === 'applied') {
@@ -1106,12 +1154,12 @@ export function CopilotView({
         >
           <header className="capture-workspace__header">
             <div className="capture-workspace__project">
-              <strong>{activeProject?.name || activeProject?.propertyName || 'Current Turn'}</strong>
-              <span>{activeProject?.mode === 'real' ? 'Real Turn' : 'Demo'} · Draft-first</span>
+              <strong>Field Copilot</strong>
+              <span>{activeProject?.name || activeProject?.propertyName || 'Current Turn'} · {activeProject?.mode === 'real' ? 'Real Turn' : 'Demo'}</span>
             </div>
             <div className="capture-workspace__title">
-              <Sparkles size={20} aria-hidden="true" />
-              <h1 id="capture-workspace-title">Field Copilot</h1>
+              <Mic size={20} aria-hidden="true" />
+              <h1 id="capture-workspace-title">Capture</h1>
             </div>
             <button
               ref={captureCloseButtonRef}
@@ -1139,9 +1187,12 @@ export function CopilotView({
             ) : null}
 
             {captureSourceInput || captureAttachments.length > 0 ? (
-              <article className="capture-thread-event capture-thread-event--user">
-                <div className="capture-thread-event__marker">You</div>
-                <div className="capture-message-bubble">
+              <article className="capture-source-card">
+                <div className="capture-source-card__header">
+                  <span className="quiet-label">Captured update</span>
+                  <small>Ready for review</small>
+                </div>
+                <div className="capture-source-card__body">
                   {captureAttachments.some((attachment) => attachment.kind === 'photo') ? (
                     <div className="capture-message-photos">
                       {captureAttachments
@@ -1160,11 +1211,7 @@ export function CopilotView({
             ) : null}
 
             {currentCaptureDrafts.length > 0 || captureAttachments.some((attachment) => attachment.kind === 'photo') ? (
-              <article className="capture-thread-event capture-thread-event--assistant">
-                <div className="capture-thread-event__marker capture-thread-event__marker--assistant">
-                  <Sparkles size={17} aria-hidden="true" />
-                </div>
-                <div className="capture-review-panel">
+              <section className="capture-review-panel" aria-label="Capture review">
                   <div className="capture-review-panel__header">
                     <div>
                       <span className="quiet-label">Review before applying</span>
@@ -1246,8 +1293,7 @@ export function CopilotView({
                         );
                       })}
                   </div>
-                </div>
-              </article>
+              </section>
             ) : null}
 
             {draftNotice ? (
@@ -1387,6 +1433,16 @@ export function CopilotView({
               tabIndex={-1}
             />
             <input
+              ref={photoInputRef}
+              className="visually-hidden"
+              hidden
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleCaptureAttachmentChange}
+              tabIndex={-1}
+            />
+            <input
               ref={attachmentInputRef}
               className="visually-hidden"
               hidden
@@ -1416,11 +1472,17 @@ export function CopilotView({
               inputRef={voiceSheetTextareaRef}
               status={voiceStatus}
               titleId="voice-sheet-title-overlay"
+              showOrb
               dictationPlaceholder="Tap Use keyboard mic, then speak your field update."
-              onClose={closeVoiceSheet}
+              onClose={() => closeVoiceSheet()}
+              onFinish={finishVoiceCapture}
               onStart={startVoiceCapture}
               onStop={stopVoiceCapture}
               onFallback={focusFallbackDictation}
+              onCamera={openCameraFromVoice}
+              onPhoto={openPhotoFromVoice}
+              onFile={openFileFromVoice}
+              onType={switchVoiceToTyping}
               onKeyDown={handleVoiceSheetKeyDown}
             />
           ) : null}
@@ -1540,7 +1602,8 @@ export function CopilotView({
               titleId="voice-sheet-title"
               showOrb
               dictationPlaceholder="Tap Use keyboard mic, then dictate: unit 204 paint done but cleaning blocked keys missing."
-              onClose={closeVoiceSheet}
+              onClose={() => closeVoiceSheet()}
+              onFinish={finishVoiceCapture}
               onStart={startVoiceCapture}
               onStop={stopVoiceCapture}
               onFallback={focusFallbackDictation}

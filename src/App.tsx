@@ -23,6 +23,7 @@ function App() {
   const { data, setData, hasStoredData } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [route, setRoute] = useState(() => parseAppHash(typeof window === 'undefined' ? '' : window.location.hash));
+  const [captureOpen, setCaptureOpen] = useState(false);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -40,6 +41,13 @@ function App() {
   }, []);
 
   const navigate = useCallback<AppNavigate>((view, unitId, options) => {
+    if (view === 'copilot') {
+      setCaptureOpen(true);
+      return;
+    }
+
+    setCaptureOpen(false);
+
     const nextRoute = routeForNavigation(view, unitId, options);
     const nextHash = buildAppHash(nextRoute);
 
@@ -52,29 +60,39 @@ function App() {
   }, []);
 
   return (
-    <AppShell activeView={route.view} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
-      {route.view === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
-      {route.view === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
-      {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
-      {route.view === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={route.unitStatusFilter} /> : null}
-      {route.view === 'unitDetail' ? (
-        <UnitDetailView data={data} setData={setData} unitId={route.unitId} onNavigate={navigate} />
-      ) : null}
-      {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
-      {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
-      {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
-      {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
-      {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
-      {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
-      {route.view === 'export' ? (
-        <ExportView
-          data={data}
-          setData={setData}
-          syncAuthReady={sync.authReady}
-          syncSignedIn={sync.signedIn}
-        />
-      ) : null}
-    </AppShell>
+    <>
+      <AppShell activeView={route.view} captureOpen={captureOpen} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
+        {route.view === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
+        {route.view === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
+        {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
+        {route.view === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={route.unitStatusFilter} /> : null}
+        {route.view === 'unitDetail' ? (
+          <UnitDetailView data={data} setData={setData} unitId={route.unitId} onNavigate={navigate} />
+        ) : null}
+        {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
+        {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
+        {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
+        {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
+        {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
+        {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
+        {route.view === 'export' ? (
+          <ExportView
+            data={data}
+            setData={setData}
+            syncAuthReady={sync.authReady}
+            syncSignedIn={sync.signedIn}
+          />
+        ) : null}
+      </AppShell>
+      <CopilotView
+        data={data}
+        isOpen={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onNavigate={navigate}
+        presentation="overlay"
+        setData={setData}
+      />
+    </>
   );
 }
 

@@ -16,6 +16,7 @@ import type { AppView } from '../types';
 
 interface AppShellProps {
   activeView: AppView;
+  captureOpen?: boolean;
   onNavigate: (view: AppView) => void;
   syncSlot?: React.ReactNode;
   children: React.ReactNode;
@@ -70,9 +71,11 @@ const getStoredSidebarState = () => {
   }
 };
 
-export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShellProps) {
+export function AppShell({ activeView, captureOpen = false, onNavigate, syncSlot, children }: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarState);
   const mainRef = useRef<HTMLElement | null>(null);
+  const captureButtonRef = useRef<HTMLButtonElement | null>(null);
+  const captureOriginViewRef = useRef<AppView | null>(null);
   const previousViewRef = useRef(activeView);
   const activeNavView = activeView === 'unitDetail' ? 'units' : activeView;
 
@@ -96,17 +99,29 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
     }
   }, [activeView]);
 
+  useEffect(() => {
+    if (captureOpen) {
+      captureOriginViewRef.current = activeView;
+      return;
+    }
+
+    if (captureOriginViewRef.current === activeView) {
+      captureButtonRef.current?.focus({ preventScroll: true });
+    }
+    captureOriginViewRef.current = null;
+  }, [activeView, captureOpen]);
+
   const focusMainContent = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     mainRef.current?.focus({ preventScroll: true });
   };
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''}`}>
+    <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''} ${captureOpen ? 'is-capture-open' : ''}`}>
       <a className="skip-link" href="#main-content" onClick={focusMainContent}>
         Skip to main content
       </a>
-      <header className="app-header">
+      <header className="app-header" aria-hidden={captureOpen || undefined} inert={captureOpen || undefined}>
         <div className="header-main">
           <button className="brand-button" type="button" onClick={() => onNavigate('dashboard')}>
             <span className="brand-mark">TS</span>
@@ -137,22 +152,26 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
         </nav>
       </header>
 
-      <main className="app-main" id="main-content" ref={mainRef} tabIndex={-1}>
+      <main className="app-main" id="main-content" ref={mainRef} tabIndex={-1} aria-hidden={captureOpen || undefined} inert={captureOpen || undefined}>
         {children}
       </main>
 
       <button
-        className={`floating-capture ${activeView === 'copilot' ? 'is-active' : ''}`}
+        ref={captureButtonRef}
+        className={`floating-capture ${activeView === 'copilot' || captureOpen ? 'is-active' : ''}`}
         type="button"
         onClick={() => onNavigate('copilot')}
         aria-label="Open Capture"
-        aria-current={activeView === 'copilot' ? 'page' : undefined}
+        aria-expanded={captureOpen}
+        aria-haspopup="dialog"
+        aria-hidden={captureOpen || undefined}
+        tabIndex={captureOpen ? -1 : undefined}
       >
         <Mic size={24} aria-hidden="true" />
         <span>Capture</span>
       </button>
 
-      <nav className="bottom-nav mobile-nav" aria-label="Primary navigation">
+      <nav className="bottom-nav mobile-nav" aria-label="Primary navigation" aria-hidden={captureOpen || undefined} inert={captureOpen || undefined}>
         {primaryNav.map((item) => {
           const Icon = item.icon;
           return (
@@ -170,7 +189,12 @@ export function AppShell({ activeView, onNavigate, syncSlot, children }: AppShel
         })}
       </nav>
 
-      <nav className={`side-nav ${sidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="Workspace navigation">
+      <nav
+        className={`side-nav ${sidebarCollapsed ? 'is-collapsed' : ''}`}
+        aria-label="Workspace navigation"
+        aria-hidden={captureOpen || undefined}
+        inert={captureOpen || undefined}
+      >
         <button
           className="side-nav__toggle"
           type="button"

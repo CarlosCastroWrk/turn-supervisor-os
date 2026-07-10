@@ -236,7 +236,7 @@ Acceptance:
 
 ### B3. Offline/Reconnect Trust
 
-Status: deterministic three-device convergence coverage is implemented; physical Mac/iPhone/iPad airplane-mode acceptance remains open.
+Status: deterministic convergence coverage is implemented; Los reported the physical Mac/iPhone/iPad offline/reconnect baseline passing on July 10, 2026.
 
 Scope:
 
@@ -367,6 +367,29 @@ Acceptance:
 - After capturing `unit 103 is done`, the current draft card is the main thing Los sees.
 - Older/stale drafts do not dominate the default Capture view.
 - Applied drafts clearly offer a path to open the affected unit/target.
+
+### C6. Capture Workspace V2
+
+Status: implementation and local release verification are complete; PR, production deployment, and one focused physical-device acceptance pass remain.
+
+Scope:
+
+- Open one global Field Copilot workspace without routing away from the current board.
+- Accept typed updates, camera photos, image attachments, and bounded readable field-note files in one composer.
+- Present parser output as a compact conversation and review timeline.
+- Keep photos and every operational mutation behind explicit Unit targeting and approval.
+- Keep voice capture honest across browser speech, iPhone/iPad keyboard dictation, and typed fallback.
+- Preserve modal focus, Escape layers, background inertness, and target navigation.
+
+Acceptance:
+
+- Capture opens from every primary field screen and the composer accepts input on Mac, iPad, and iPhone.
+- One message can create multiple separately reviewable Draft Actions.
+- A staged photo is compressed, saved locally first, and never silently assigned to an ambiguous Unit.
+- Approve and Reject change only the reviewed records.
+- Opening a result closes Capture and lands on the correct record.
+- Desktop, iPad landscape, and 390-pixel iPhone layouts have no horizontal overflow or blocked controls.
+- Provider calls remain out of this release; deterministic Capture still works fully offline.
 
 ## Phase D: Field Command Center UX
 
@@ -585,7 +608,7 @@ Acceptance:
 
 ### F2. Supabase Storage Photo Sync
 
-Status: implemented in the F2 release slice; physical-device acceptance remains open.
+Status: implemented in the F2 release slice; Los reported cross-device photo acceptance passing on July 10, 2026.
 
 Scope:
 
@@ -651,7 +674,7 @@ Scope:
 
 ### G4. Accessibility And Field Contrast
 
-Status: implemented in the G4 release slice; physical outdoor and iOS VoiceOver acceptance remains open.
+Status: implemented in the G4 release slice; Los reported bright-light readability and basic iOS VoiceOver acceptance passing on July 10, 2026.
 
 Scope:
 
@@ -750,9 +773,22 @@ Acceptance:
 
 Only after the field-safe deterministic version is trusted.
 
-- Server-side AI route with no browser API keys.
-- Structured outputs with supporting record IDs.
-- Model-assisted summaries with local deterministic fallback.
+### H1. Protected Model Route
+
+- Add a same-origin server route with no provider key in browser code.
+- Default to a configurable cost-controlled model and preserve a deterministic fallback.
+- Require structured output validated at the server boundary.
+- Include supporting record IDs and never permit direct operational mutation.
+- Add request limits, timeouts, redacted errors, and eval fixtures before production enablement.
+
+### H2. Grounded Multimodal Assistance
+
+- Use approved project context, selected records, and staged images or readable files.
+- Turn model suggestions into the existing Draft Action review contract.
+- Keep offline Capture usable when the provider or network is unavailable.
+
+### H3. Later Data Integrity
+
 - Conflict review UI.
 - True delete tombstones.
 - Field-level merge/server timestamps.
@@ -802,5 +838,7 @@ Only after the field-safe deterministic version is trusted.
 41. G6 Preview-First Bulk Unit Updates
 42. G7 Production Security Headers
 43. G8 Production Recovery Gate And Local Date Safety
+44. C6 Capture Workspace V2
+45. H1 Protected Model Route
 
 This order can change if real-device testing finds a higher-risk failure.

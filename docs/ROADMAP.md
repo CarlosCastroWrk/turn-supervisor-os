@@ -122,6 +122,7 @@ Slices:
 - Preview-first CSV Unit import (implemented; physical iPhone/iPad file-picker acceptance pending)
 - Preview-first bulk Unit updates (implemented; physical iPhone/iPad filtered-batch acceptance pending)
 - Production security headers (implemented; header, PWA registration, Capture, and signed-out sync-panel production smoke passed; signed-in physical acceptance remains open)
+- Production export/backup/restore gate and local-field-date filenames (implemented; physical signed-in and device-camera acceptance remains open)
 
 Success gate:
 

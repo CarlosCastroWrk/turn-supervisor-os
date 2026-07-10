@@ -22,6 +22,14 @@ npm run check:os
 npm run build
 ```
 
+After production changes to Reports, Export, backups, restore, local photos, storage, or date handling:
+
+```bash
+npm run test:production-recovery
+```
+
+The production recovery gate uses a fresh unsigned browser profile and disposable local-only `QA_RECOVERY_*` data. It downloads every recovery/export surface, runs invalid/corrupt/cancel/approve restore paths, and never authenticates or uploads to Supabase.
+
 ## Automated Field-Scale Gate
 
 Run after changes to Setup, Units, Capture, Reports, exports, backups, storage, or large-list behavior:
@@ -190,12 +198,12 @@ Pass:
 
 ### 5. Backup / Export
 
-- [ ] Export Full Device JSON Backup.
-- [ ] Export units CSV.
-- [ ] Export issues CSV.
-- [ ] Export daily report text.
-- [ ] Export Copilot/Memory Markdown if populated.
-- [ ] Export Follow-Ups CSV if populated.
+- [x] Export Full Device JSON Backup.
+- [x] Export units CSV.
+- [x] Export issues CSV.
+- [x] Export daily report text.
+- [x] Export Copilot/Memory Markdown if populated.
+- [x] Export Follow-Ups CSV if populated.
 
 Pass:
 
@@ -206,11 +214,11 @@ Pass:
 
 ### 5A. JSON Restore Safety
 
-- [ ] Use only an expendable browser profile/device with obvious QA data.
-- [ ] Select an invalid JSON file and confirm the app says no local data changed.
-- [ ] Select a structurally corrupt backup such as one with no projects and confirm existing project/unit counts remain unchanged.
-- [ ] Select a known valid backup, read the replacement count confirmation, and cancel once.
-- [ ] Repeat, approve the valid restore, reload, and confirm project/unit/issue counts persist exactly.
+- [x] Use only an expendable browser profile/device with obvious QA data.
+- [x] Select an invalid JSON file and confirm the app says no local data changed.
+- [x] Select a structurally corrupt backup such as one with no projects and confirm existing project/unit counts remain unchanged.
+- [x] Select a known valid backup, read the replacement count confirmation, and cancel once.
+- [x] Repeat, approve the valid restore, reload, and confirm project/unit/issue counts persist exactly.
 
 Pass:
 
@@ -220,14 +228,16 @@ Pass:
 
 ### 5B. Photo Storage Safety
 
-- [ ] Open a QA unit.
-- [ ] Add one work-safe test photo.
-- [ ] Confirm the app says the photo was saved offline on this device.
-- [ ] Reload the app.
-- [ ] Confirm the photo thumbnail and caption remain visible on that unit.
-- [ ] Confirm normal unit edits still save after the photo is added.
-- [ ] Export Full Device JSON Backup and confirm the completion message reports local photo files included or missing.
-- [ ] Restore only into an expendable QA browser/device and confirm restored thumbnails return after migration.
+- [x] Open a QA unit.
+- [x] Add one work-safe synthetic test image through the production photo input.
+- [x] Confirm the app says the photo was saved offline on this device.
+- [x] Reload the app.
+- [x] Confirm the photo thumbnail and caption remain visible on that unit.
+- [x] Confirm normal unit edits still save after the photo is added.
+- [x] Export Full Device JSON Backup and confirm the completion message reports local photo files included or missing.
+- [x] Restore only into an expendable QA browser/device and confirm restored thumbnails return after migration.
+
+Automated production baseline recorded July 9, 2026: seven downloads used the same local field date, one compressed 759-byte test image lived outside `localStorage`, the private backup included it, invalid/corrupt/cancel paths changed nothing, and the approved restore persisted 2 projects, 8 Units, and 3 Issues through reload. Physical camera selection remains in the iPhone/iPad field gate.
 
 Pass:
 

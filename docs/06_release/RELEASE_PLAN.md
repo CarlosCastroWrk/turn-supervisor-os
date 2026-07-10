@@ -58,6 +58,14 @@ For production-env confidence:
 vercel env run -e production -- npm run build
 ```
 
+After deploying changes to Reports, Export, backups, restore, photos, storage, or date handling:
+
+```bash
+npm run test:production-recovery
+```
+
+This gate uses a fresh unsigned browser profile and disposable local `QA_RECOVERY_*` data. It must not be run in an authenticated browser profile.
+
 For Supabase schema changes:
 
 ```bash

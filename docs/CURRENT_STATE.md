@@ -9,14 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G7 Production Security Headers
+E4 Project-Scoped Memory through G8 Production Recovery Gate
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-Production security-header release verified at dpl_ExMxdEEYfRzdxC5eF18ZjWbome4s
+Production recovery release verified at dpl_4HDaZEw892itU6k1H7zCLoFKUeRm
 ```
 
 ## Current Goal
@@ -49,6 +49,8 @@ Every near-term change should serve that loop.
 - Bulk update safety that stays inside the active Turn, excludes bulk Ready and free-form resets, skips protected/unchanged/missing Units, rejects a changed project, refuses post-preview stale Unit timestamps, persists before UI success, and names skipped Units in feedback
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
 - Version-controlled production security headers with same-origin scripts, explicit Supabase HTTPS/WebSocket access, photo and PWA blob allowances, camera/microphone self-permission, clickjacking protection, MIME-sniffing protection, and a restrictive referrer policy
+- Repeatable unsigned production recovery gate that downloads the daily report plus every current-Turn export, verifies project boundaries, captures/compresses/reloads a local photo, includes it in the private full-device backup, rejects invalid/corrupt backups without mutation, exercises cancel, applies a valid restore, and verifies reload persistence
+- Local-field-date export filenames so late-night Central work does not receive the next UTC day's backup/CSV/Markdown filename
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
 - Clickable dashboard stat cards that navigate to filtered unit lists

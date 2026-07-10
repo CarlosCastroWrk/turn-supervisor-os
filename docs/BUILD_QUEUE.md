@@ -4,6 +4,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [x] G8 Production Recovery Gate and Local Date Safety release.
+  - [x] Add an unsigned disposable production browser gate using only `QA_RECOVERY_*` local data.
+  - [x] Download and inspect the daily report, full-device JSON, Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups files.
+  - [x] Verify current-Turn scoping, private full-device scope, IndexedDB photo durability, photo-complete backup, invalid/corrupt rejection, cancel, valid restore, reload, overflow, and runtime console/request health.
+  - [x] Fix late-night export filenames to use Los's local field date instead of the next UTC date.
+  - [x] Verify local, protected preview, and canonical production recovery runs plus 190 deterministic tests, field-scale QA, lint, OS checks, builds, and zero dependency vulnerabilities.
+  - [x] Merge PR #58 and deploy `dpl_4HDaZEw892itU6k1H7zCLoFKUeRm`; no Supabase migration, authentication, environment change, cloud upload, or production data change was required.
 - [x] G7 Production Security Headers release.
   - [x] Add a restrictive Content Security Policy with explicit allowances for Supabase HTTPS/WebSocket sync, local/cloud photo blobs, the PWA manifest, and the service worker.
   - [x] Keep scripts same-origin with no `unsafe-inline` or `unsafe-eval`; retain inline styles only for the existing dynamic progress indicator.
@@ -119,7 +126,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## P0: Must Clear Before Real Field Reliance
 
 - [ ] Run offline/reconnect QA from `docs/TESTING.md`.
-- [ ] Run export/backup QA from `docs/TESTING.md`.
+- [x] Run export/backup QA from `docs/TESTING.md` in a disposable unsigned production browser; physical signed-in/cloud-photo checks remain separate.
 - [x] Guard Real Turn reports, Copilot answers, Capture history, sync uploads, and human-readable exports against Demo/other-Turn contamination. Production release remains in the active boundary slice.
 - [x] Reject corrupted or structurally unsafe JSON backups before replacing local device state.
 - [x] Stop parser-created Ready drafts from bypassing Ready safety, inventing trade completion, and block negated completion notes from becoming Ready updates.

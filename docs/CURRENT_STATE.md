@@ -12,6 +12,12 @@ Latest shipped release train:
 E4 Project-Scoped Memory through G8 Production Recovery Gate
 ```
 
+Current release candidate:
+
+```text
+C6 Capture Workspace V2
+```
+
 Production:
 
 ```text
@@ -95,6 +101,10 @@ Every near-term change should serve that loop.
 - Demo Mode vs Real Turn Mode, with Start Real Turn creating a separate active project after backup
 - Project-scoped crew contacts so demo crews do not pollute real Turn mode
 - Global bottom-right Capture button with organized/collapsible sidebar on larger screens
+- Global Field Copilot workspace that opens in place, accepts typed notes, photos, camera input, and bounded readable files, then keeps every proposed mutation in a compact review-first timeline
+- Persistent Capture composer with camera, attachment, voice/dictation, clear, and review controls across desktop, iPad landscape, and iPhone
+- Explicit photo staging that compresses locally, suggests a Unit only when one active-project target is unambiguous, and still requires confirmation before save
+- Capture focus safety that keeps the workspace outside the inert app background, traps focus, closes nested voice mode first, restores focus on dismissal, and closes cleanly when opening an applied target
 - Voice-mode Capture UI with a mobile/iPad sheet, browser speech-recognition support where available, installed iPhone/iPad PWA keyboard-dictation fallback, no-transcript timeout fallback, short-pause restart handling, and no auto-opening keyboard on sheet open
 - Focused Capture field workflow that hides Ask/Memory modes from the visible Capture page, collapses older draft history, keeps raw JSON draft editing advanced-only, and shows where an approved draft was applied
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All inside the collapsed draft-history review
@@ -118,15 +128,25 @@ Every near-term change should serve that loop.
 - Scopes crew contacts to the active project
 - Lets Los preview and add Units from a CSV in Setup without changing existing Units or trusting imported status values
 
+## Physical Acceptance Reported By Los
+
+On July 10, 2026, Los reported hands-on passes across the production PWA for:
+
+- Mac, iPhone, and iPad sync settling and cross-device visibility
+- offline edits surviving reconnect
+- cross-device photo sync
+- camera and microphone permission behavior
+- basic iOS VoiceOver use
+- bright-light readability
+
+These are user-reported physical checks, not automated claims. Capture Workspace V2 still needs one focused production pass after deployment because its modal composer is new.
+
 ## What Does Not Exist Yet
 
-- Full offline/reconnect sync QA across Los's Mac, iPhone, and iPad
 - True conflict review for simultaneous same-row edits across devices
 - Delete propagation / tombstones for synced rows
-- Real-device verification that one captured photo reaches Los's other signed-in devices
 - Cloud object deletion/cleanup when a photo record is removed
 - Physical iPhone/iPad Home Screen verification of the new icon, rotation, and fully closed offline restart
-- Physical iPhone/iPad verification in bright light and with VoiceOver enabled
 - Physical iPhone/iPad verification of CSV file selection, preview, confirm, reload persistence, and Capture-button spacing
 - General undo for issues, drafts, setup, imports, or destructive actions; G2 Undo is intentionally limited to timestamp-guarded Unit quick-status changes
 - Bulk Ready, arbitrary mass status resets, and automatic bulk Undo; those operations remain intentionally outside the guarded batch workflow
@@ -156,35 +176,18 @@ Every near-term change should serve that loop.
 
 ## Current Testing Priority
 
-Real-device Phase 1 QA:
+The shared sync, reconnect, photo, permission, VoiceOver, and outdoor-readability baseline is reported passing. The immediate priority is the new Capture Workspace production acceptance:
 
-1. Mac signs in and confirms synced.
-2. iPhone signs in and confirms synced.
-3. iPad signs in and confirms synced.
-4. Real Turn project created/updated on one device appears on the others.
-5. Unit, issue, daily log, follow-up, and setup updates sync without duplicates or stale overwrites.
-6. Offline updates survive airplane mode and sync after reconnect.
-7. Demo data stays separate from Real Turn data.
-8. Export/backup works before any destructive reset.
-9. One work-safe Real Turn photo captured on one device appears on the other two after sync, then remains visible after reload.
-10. Core navigation, Capture, and Unit updates remain understandable in bright light and with iOS VoiceOver enabled.
-11. A small Real Turn CSV can be selected, previewed, confirmed, and found after reload on physical iPhone/iPad without covering the global Capture control.
-12. A filtered 2-3 Unit batch can be selected, previewed, confirmed, and found after reload on physical iPhone/iPad without applying to hidden or stale Units.
-
-Current immediate field check:
-
-1. Open production on iPhone.
-2. Turn on airplane mode.
-3. Update 2-3 obvious QA units/issues.
-4. Confirm the changes remain visible locally.
-5. Turn airplane mode off.
-6. Confirm Mac and iPad receive the updates after reconnect.
-7. Add one work-safe QA photo, sync, and confirm the thumbnail appears on Mac and iPad.
-8. In bright light, confirm secondary text and focus/tap states remain readable; enable VoiceOver briefly and confirm Dashboard, Units, and Voice Capture are announced coherently.
-9. Open the same Daily Log date across devices, make obvious offline QA edits, reconnect one at a time, and confirm one row settles everywhere.
-10. While signed in, open Export and confirm Restore JSON Backup is blocked with a sign-out instruction.
-11. In a disposable Real Turn, import a 2-3-row CSV on iPhone or iPad, confirm the preview counts, reload, and verify each new Unit remains Not Started.
-12. Filter the same disposable Turn to 2-3 QA Units, run one bulk Paint or Repair update, verify the preview counts, reload, and confirm only those Units changed.
+1. Open Capture from Dashboard, Units, and Issues on Mac, iPhone, and iPad.
+2. Confirm it opens immediately without route change or keyboard zoom.
+3. Type one multi-unit note and confirm each proposed action is separate.
+4. Take or attach one work-safe photo, confirm the suggested Unit, and save it.
+5. Approve one action and reject one action; confirm the board reflects only the approved action.
+6. Tap `Open Unit` or another applied target and confirm Capture closes on the correct record.
+7. Open voice mode; confirm browser speech works where available and iPhone/iPad keyboard dictation remains clear where it does not.
+8. Close voice mode and Capture; confirm focus, scrolling, sync, and the underlying page remain usable.
+9. Repeat once offline, then reconnect and confirm the approved records and saved photo sync normally.
+10. Separately finish the still-open physical CSV, bulk update, and Home Screen restart checks.
 
 ## GitHub Workflow
 
@@ -194,16 +197,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Run the B3 real-device offline/reconnect, Daily Log, restore-guard, and F2 photo checks before entering real field data:
-
-1. Open production on iPhone.
-2. Turn on airplane mode.
-3. Update 2-3 obvious QA units/issues.
-4. Confirm the changes remain visible locally.
-5. Turn airplane mode off.
-6. Confirm Mac and iPad receive the updates after reconnect.
-7. Capture one work-safe Real Turn QA photo on iPhone or iPad, tap `Sync now`, and confirm it appears on the other devices.
-8. Open the same Daily Log date on all three devices, make obvious offline QA edits, reconnect one at a time, and confirm exactly one log settles everywhere.
-9. While still signed in, open Export and confirm Restore JSON Backup is blocked with a clear sign-out instruction.
-10. In a disposable Real Turn, select a small CSV on physical iPhone or iPad, review every preview count, confirm it, reload, and verify the new Units remain Not Started and Capture stays reachable.
-11. Filter to 2-3 disposable QA Units, select them in `Bulk update`, review one Paint or Repair transition, confirm, reload, and verify only that reviewed group changed.
+Ship C6 Capture Workspace V2 through a reviewed PR, verify production on Mac/iPhone/iPad, then start H1 Protected Model Route with server-side credentials, structured outputs, deterministic fallback, and the existing Draft Action approval boundary.

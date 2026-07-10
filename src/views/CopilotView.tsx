@@ -1,14 +1,32 @@
-import { Bot, Check, ClipboardCopy, FileText, Lightbulb, Mic, RotateCcw, Save, Send, Sparkles, Square, Trash2, X } from 'lucide-react';
+import {
+  Bot,
+  Camera,
+  Check,
+  ClipboardCopy,
+  FileText,
+  Lightbulb,
+  Mic,
+  Paperclip,
+  RotateCcw,
+  Save,
+  Send,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DraftActionCard } from '../components/DraftActionCard';
 import { Button, CommittedTextarea, Field } from '../components/FormControls';
 import { Section } from '../components/Section';
 import { useToast } from '../components/toast-context';
 import { StatusBadge } from '../components/StatusBadge';
+import { VoiceCaptureSheet } from '../components/VoiceCaptureSheet';
 import {
   addAgentRun,
   addCopilotConversation,
   addDraftActions,
   addMemoryCandidates,
+  addPhotoNote,
   applyAllPendingDraftActions,
   applyDraftAction,
   approveMemoryCandidate,
@@ -24,22 +42,38 @@ import {
 import { agentProvider } from '../lib/ai/agentProvider';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import type { AskOsResult, BriefingResult } from '../lib/ai/types';
-import { createId, localISODateFromDateTime, todayISO } from '../lib/constants';
+import { createId, localISODateFromDateTime, nowISO, todayISO } from '../lib/constants';
 import { createEmptyDailyLog, findDailyLog } from '../lib/dailyLogs';
+import {
+  buildCaptureInput,
+  inferSingleCaptureUnitId,
+  isSupportedCaptureTextFile,
+  type StagedCaptureAttachment,
+  type StagedPhotoAttachment,
+  type StagedTextAttachment,
+} from '../lib/captureWorkspace';
 import { getActiveProjectMemoryCandidates, prepareMemoryCandidatesForActiveProject } from '../lib/memory';
+import { preparePhotoFile } from '../lib/photoProcessing';
+import { blobToDataUrl, putPhotoBlob } from '../lib/photoStorage';
 import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
-import type { AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate } from '../types';
+import type { AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
 
 interface CopilotViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
   onNavigate: AppNavigate;
+  presentation?: 'page' | 'overlay';
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
 type DraftFilter = 'pending' | 'applied' | 'rejected' | 'failed' | 'all';
+
+const MAX_CAPTURE_TEXT_FILE_BYTES = 2_000_000;
+const MAX_EMBEDDED_PHOTO_FALLBACK_BYTES = 450_000;
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
@@ -88,7 +122,6 @@ const modeLabels: { mode: CopilotMode; label: string }[] = [
   { mode: 'quick', label: 'Capture' },
 ];
 
-const confidenceLabel = (value: number) => `${Math.round(value * 100)}%`;
 const payloadString = (draft: DraftAction, key: string) => {
   const value = draft.payload[key];
   return typeof value === 'string' ? value : '';
@@ -104,113 +137,6 @@ const draftTargetLabel = (draft: DraftAction) => {
   if (draft.targetEntityType === 'dailyLog') return 'Daily Log';
   return draft.targetEntityType;
 };
-
-function DraftActionCard({
-  draft,
-  isStale,
-  targetLabel,
-  onApply,
-  onConfirmConflictAndApply,
-  onOpenTarget,
-  onReject,
-  onSavePayload,
-  showAppliedOpenButton = true,
-}: {
-  draft: DraftAction;
-  isStale: boolean;
-  targetLabel: string;
-  onApply: () => void;
-  onConfirmConflictAndApply: () => void;
-  onOpenTarget?: () => void;
-  onReject: () => void;
-  onSavePayload: (payload: Record<string, unknown>) => void;
-  showAppliedOpenButton?: boolean;
-}) {
-  const [payloadText, setPayloadText] = useState(() => JSON.stringify(draft.payload, null, 2));
-  const [payloadError, setPayloadError] = useState('');
-  const isActionable = draft.status === 'pending' || draft.status === 'failed';
-  const needsConflictConfirmation =
-    draft.payload.requiresConflictConfirmation === true && draft.payload.explicitConflictConfirmation !== true;
-
-  const savePayload = () => {
-    try {
-      const parsed = JSON.parse(payloadText) as Record<string, unknown>;
-      onSavePayload(parsed);
-      setPayloadError('');
-    } catch {
-      setPayloadError('Payload must be valid JSON before saving.');
-    }
-  };
-
-  return (
-    <article className="draft-card">
-      <div className="draft-card__header">
-        <div>
-          <span className="quiet-label">{draft.type.replaceAll('_', ' ')}</span>
-          <h3>{draft.title}</h3>
-        </div>
-        <StatusBadge value={draft.status} />
-      </div>
-      <p>{draft.summary}</p>
-      <div className="draft-meta">
-        <span>Target: {targetLabel}</span>
-        <span>Confidence: {confidenceLabel(draft.confidence)}</span>
-        {captureBatchId(draft) ? <span>Batch: {captureBatchId(draft).slice(-6)}</span> : null}
-        {isStale ? <span>Stale</span> : null}
-      </div>
-      <details>
-        <summary>Why this draft exists</summary>
-        <p>{draft.why}</p>
-      </details>
-      {isStale ? <p className="error-text">This pending draft is from a previous day. Review it by itself before approving.</p> : null}
-      {needsConflictConfirmation ? (
-        <p className="error-text">
-          This capture produced more than one possible update for {targetLabel}. Approve only the version that matches the field.
-        </p>
-      ) : null}
-      {draft.error ? <p className="error-text">{draft.error}</p> : null}
-      {draft.status === 'applied' ? <p className="success-text">Applied to {targetLabel}.</p> : null}
-      {draft.status === 'rejected' ? <p className="muted">Rejected. No board record was changed.</p> : null}
-      {showAppliedOpenButton && draft.status === 'applied' && onOpenTarget ? (
-        <div className="button-row">
-          <Button onClick={onOpenTarget}>Open {targetLabel}</Button>
-        </div>
-      ) : null}
-      {isActionable ? (
-        <details className="draft-advanced">
-          <summary>Advanced edit</summary>
-          <Field label="Editable draft details">
-            <textarea rows={6} value={payloadText} onChange={(event) => setPayloadText(event.target.value)} />
-          </Field>
-          {payloadError ? <p className="error-text">{payloadError}</p> : null}
-          <Button onClick={savePayload}>
-            <Save size={16} aria-hidden="true" />
-            Save Edit
-          </Button>
-        </details>
-      ) : null}
-      {isActionable ? (
-        <div className="button-row">
-          {needsConflictConfirmation ? (
-            <Button variant="primary" onClick={onConfirmConflictAndApply}>
-              <Check size={16} aria-hidden="true" />
-              Confirm & Approve
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={onApply}>
-              <Check size={16} aria-hidden="true" />
-              Approve
-            </Button>
-          )}
-          <Button variant="ghost" onClick={onReject}>
-            <X size={16} aria-hidden="true" />
-            Reject
-          </Button>
-        </div>
-      ) : null}
-    </article>
-  );
-}
 
 function MemoryCandidateCard({
   candidate,
@@ -250,11 +176,23 @@ function MemoryCandidateCard({
   );
 }
 
-export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
+export function CopilotView({
+  data,
+  setData,
+  onNavigate,
+  presentation = 'page',
+  isOpen = true,
+  onClose,
+}: CopilotViewProps) {
   const { notify } = useToast();
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const captureWorkspaceRef = useRef<HTMLElement | null>(null);
+  const captureCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const captureAttachmentsRef = useRef<StagedCaptureAttachment[]>([]);
   const voiceModeButtonRef = useRef<HTMLButtonElement | null>(null);
   const voiceSheetTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -273,6 +211,9 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
   const [activeDraftBatchId, setActiveDraftBatchId] = useState('');
   const [draftNotice, setDraftNotice] = useState('');
   const [lastChangedDraftId, setLastChangedDraftId] = useState('');
+  const [captureAttachments, setCaptureAttachments] = useState<StagedCaptureAttachment[]>([]);
+  const [captureAttachmentError, setCaptureAttachmentError] = useState('');
+  const [isPreparingAttachment, setIsPreparingAttachment] = useState(false);
   const [askInput, setAskInput] = useState('');
   const [askResult, setAskResult] = useState<AskOsResult | null>(null);
   const [briefing, setBriefing] = useState<BriefingResult | null>(null);
@@ -321,7 +262,27 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     [lastChangedDraftId, projectDraftActions],
   );
   const pendingMemory = getActiveProjectMemoryCandidates(data, 'pending');
-  const quickInputReady = quickInput.trim().length > 0;
+  const activeProject = data.projects.find((project) => project.id === data.activeProjectId);
+  const activeProjectUnits = useMemo(
+    () => data.units.filter((unit) => unit.projectId === data.activeProjectId),
+    [data.activeProjectId, data.units],
+  );
+  const textAttachments = useMemo(
+    () =>
+      captureAttachments
+        .filter((attachment): attachment is StagedTextAttachment => attachment.kind === 'text')
+        .map((attachment) => ({ name: attachment.name, content: attachment.content })),
+    [captureAttachments],
+  );
+  const captureSourceInput = useMemo(
+    () => buildCaptureInput(quickInput, textAttachments),
+    [quickInput, textAttachments],
+  );
+  const unsavedPhotoAttachments = captureAttachments.filter(
+    (attachment): attachment is StagedPhotoAttachment => attachment.kind === 'photo' && !attachment.savedPhotoId,
+  );
+  const quickInputReady = captureSourceInput.trim().length > 0;
+  const captureInputReady = quickInputReady || captureAttachments.some((attachment) => attachment.kind === 'photo');
   const speechSupported = typeof window !== 'undefined' && Boolean(window.SpeechRecognition ?? window.webkitSpeechRecognition);
   const deviceCaptureContext = useMemo(
     () => {
@@ -403,6 +364,35 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     document.body.classList.toggle('voice-sheet-open', isVoiceSheetOpen);
     return () => document.body.classList.remove('voice-sheet-open');
   }, [isVoiceSheetOpen]);
+
+  useEffect(() => {
+    captureAttachmentsRef.current = captureAttachments;
+  }, [captureAttachments]);
+
+  useEffect(
+    () => () => {
+      for (const attachment of captureAttachmentsRef.current) {
+        if (attachment.kind === 'photo') {
+          URL.revokeObjectURL(attachment.previewUrl);
+        }
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (presentation !== 'overlay' || !isOpen) {
+      return;
+    }
+
+    document.body.classList.add('capture-workspace-open');
+    const focusTimer = window.setTimeout(() => captureCloseButtonRef.current?.focus({ preventScroll: true }), 0);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.classList.remove('capture-workspace-open');
+    };
+  }, [isOpen, presentation]);
 
   const clearNoTranscriptTimer = () => {
     if (noTranscriptTimerRef.current) {
@@ -616,12 +606,192 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     }
   };
 
-  const parseQuickCapture = async () => {
-    if (!quickInputReady) {
+  const stageCaptureFiles = async (files: FileList | null) => {
+    if (!files?.length) {
       return;
     }
 
-    const result = await agentProvider.parseQuickCapture(quickInput, data);
+    setIsPreparingAttachment(true);
+    setCaptureAttachmentError('');
+    const preparedAttachments: StagedCaptureAttachment[] = [];
+    const errors: string[] = [];
+
+    for (const file of Array.from(files)) {
+      try {
+        if (file.type.startsWith('image/')) {
+          const prepared = await preparePhotoFile(file);
+          preparedAttachments.push({
+            id: createId('capture_attachment'),
+            kind: 'photo',
+            name: file.name || 'Field photo',
+            blob: prepared.blob,
+            previewUrl: URL.createObjectURL(prepared.blob),
+            originalBytes: prepared.originalBytes,
+            compressedBytes: prepared.compressedBytes,
+            targetUnitId: '',
+          });
+          continue;
+        }
+
+        if (!isSupportedCaptureTextFile(file.name, file.type)) {
+          errors.push(`${file.name}: choose a photo, CSV, text, JSON, or email file.`);
+          continue;
+        }
+
+        if (file.size > MAX_CAPTURE_TEXT_FILE_BYTES) {
+          errors.push(`${file.name}: file is larger than 2 MB.`);
+          continue;
+        }
+
+        const content = await file.text();
+        if (!content.trim()) {
+          errors.push(`${file.name}: file is empty.`);
+          continue;
+        }
+
+        preparedAttachments.push({
+          id: createId('capture_attachment'),
+          kind: 'text',
+          name: file.name || 'Attached note',
+          content,
+          byteSize: file.size,
+        });
+      } catch (error) {
+        errors.push(`${file.name}: ${error instanceof Error ? error.message : 'attachment could not be prepared.'}`);
+      }
+    }
+
+    if (preparedAttachments.length > 0) {
+      setCaptureAttachments((current) => [...current, ...preparedAttachments]);
+    }
+    if (errors.length > 0) {
+      setCaptureAttachmentError(errors.join(' '));
+    }
+    setIsPreparingAttachment(false);
+  };
+
+  const handleCaptureAttachmentChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    await stageCaptureFiles(input.files);
+    input.value = '';
+  };
+
+  const removeCaptureAttachment = (attachmentId: string) => {
+    setCaptureAttachments((current) => {
+      const attachment = current.find((item) => item.id === attachmentId);
+      if (attachment?.kind === 'photo') {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+      return current.filter((item) => item.id !== attachmentId);
+    });
+    setCaptureAttachmentError('');
+  };
+
+  const updateCapturePhotoTarget = (attachmentId: string, targetUnitId: string) => {
+    setCaptureAttachments((current) =>
+      current.map((attachment) =>
+        attachment.id === attachmentId && attachment.kind === 'photo'
+          ? { ...attachment, targetUnitId }
+          : attachment,
+      ),
+    );
+  };
+
+  const saveCapturePhoto = async (attachmentId: string) => {
+    const attachment = captureAttachmentsRef.current.find(
+      (item): item is StagedPhotoAttachment => item.id === attachmentId && item.kind === 'photo',
+    );
+    if (!attachment || attachment.savedPhotoId) {
+      return true;
+    }
+
+    const unit = data.units.find(
+      (item) => item.id === attachment.targetUnitId && item.projectId === data.activeProjectId,
+    );
+    if (!unit) {
+      setCaptureAttachmentError(`Choose a Unit for ${attachment.name} before saving it.`);
+      return false;
+    }
+
+    const now = nowISO();
+    const photoId = createId('photo');
+    let photo: PhotoNote = {
+      id: photoId,
+      projectId: data.activeProjectId,
+      unitId: unit.id,
+      localImageAvailable: true,
+      imageMimeType: attachment.blob.type,
+      imageByteSize: attachment.blob.size,
+      category: 'Problem',
+      caption: quickInput.trim() || attachment.name,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      await putPhotoBlob(photoId, attachment.blob);
+    } catch {
+      if (attachment.blob.size > MAX_EMBEDDED_PHOTO_FALLBACK_BYTES) {
+        setCaptureAttachmentError(
+          `${attachment.name} could not be saved in durable photo storage. Keep it staged and try again.`,
+        );
+        return false;
+      }
+
+      photo = {
+        ...photo,
+        imageData: await blobToDataUrl(attachment.blob),
+        localImageAvailable: false,
+      };
+    }
+
+    setData((current) => addPhotoNote(current, photo));
+    setCaptureAttachments((current) =>
+      current.map((item) =>
+        item.id === attachmentId && item.kind === 'photo' ? { ...item, savedPhotoId: photoId } : item,
+      ),
+    );
+    setCaptureAttachmentError('');
+    setDraftNotice(`Saved ${attachment.name} to Unit ${unit.unitNumber}.`);
+    return true;
+  };
+
+  const saveAllCapturePhotos = async () => {
+    const pendingPhotos = captureAttachmentsRef.current.filter(
+      (attachment): attachment is StagedPhotoAttachment => attachment.kind === 'photo' && !attachment.savedPhotoId,
+    );
+    if (pendingPhotos.some((attachment) => !attachment.targetUnitId)) {
+      setCaptureAttachmentError('Choose a Unit for every photo before approving this capture.');
+      return false;
+    }
+
+    for (const attachment of pendingPhotos) {
+      if (!(await saveCapturePhoto(attachment.id))) {
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const clearCapture = () => {
+    for (const attachment of captureAttachmentsRef.current) {
+      if (attachment.kind === 'photo') {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+    }
+    setCaptureAttachments([]);
+    setCaptureAttachmentError('');
+    setQuickInput('');
+    setParseSummary('');
+  };
+
+  const parseQuickCapture = async () => {
+    if (!captureInputReady) {
+      return;
+    }
+
+    const result = await agentProvider.parseQuickCapture(captureSourceInput, data);
     const newMemoryCandidates = prepareMemoryCandidatesForActiveProject(data, result.memoryCandidates);
     const duplicateMemoryCount = result.memoryCandidates.length - newMemoryCandidates.length;
     const summaryParts: string[] = [];
@@ -654,10 +824,20 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       setActiveDraftBatchId(batchId);
     }
     setData((current) => {
-      let next = addDraftActions(current, result.draftActions, quickInput, batchId);
+      let next = addDraftActions(current, result.draftActions, captureSourceInput, batchId);
       next = addMemoryCandidates(next, newMemoryCandidates);
-      return addAgentRun(next, 'quick_capture', quickInput, reviewedResult);
+      return addAgentRun(next, 'quick_capture', captureSourceInput, reviewedResult);
     });
+    const inferredUnitId = inferSingleCaptureUnitId(result.draftActions, data.units, data.activeProjectId);
+    if (inferredUnitId) {
+      setCaptureAttachments((current) =>
+        current.map((attachment) =>
+          attachment.kind === 'photo' && !attachment.targetUnitId
+            ? { ...attachment, targetUnitId: inferredUnitId }
+            : attachment,
+        ),
+      );
+    }
   };
 
   const afterDraftChange = (draft: DraftAction, status: DraftActionStatus) => {
@@ -710,7 +890,10 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     });
   };
 
-  const applyPendingDrafts = () => {
+  const applyPendingDrafts = async () => {
+    if (!(await saveAllCapturePhotos())) {
+      return;
+    }
     const count = currentCapturePendingDraftIds.length;
     setData((current) => applyAllPendingDraftActions(current, currentCapturePendingDraftIds));
     setLastChangedDraftId('');
@@ -761,7 +944,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
     );
 
   const saveRawNoteOnly = () => {
-    if (!quickInput.trim()) {
+    if (!captureSourceInput.trim()) {
       return;
     }
 
@@ -771,7 +954,7 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
         createEmptyDailyLog(current.activeProjectId, todayISO());
       return upsertDailyLog(current, {
         ...existing,
-        middayUpdate: [existing.middayUpdate, `Raw Copilot note: ${quickInput.trim()}`].filter(Boolean).join('\n'),
+        middayUpdate: [existing.middayUpdate, `Raw Copilot note: ${captureSourceInput.trim()}`].filter(Boolean).join('\n'),
       });
     });
     setParseSummary('Saved raw note to today’s Daily Log.');
@@ -835,6 +1018,347 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
       });
     });
   };
+
+  const handleCaptureWorkspaceKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape' && !isVoiceSheetOpen) {
+      event.preventDefault();
+      onClose?.();
+      return;
+    }
+    if (event.key !== 'Tab' || isVoiceSheetOpen) {
+      return;
+    }
+
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), input:not([disabled]), summary',
+      ),
+    ).filter((element) => element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) {
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const recentAppliedDrafts = projectDraftActions.filter((draft) => draft.status === 'applied').slice(0, 3);
+  const captureReviewCount = currentCapturePendingDraftIds.length + unsavedPhotoAttachments.length;
+
+  if (presentation === 'overlay') {
+    if (!isOpen) {
+      return null;
+    }
+
+    return (
+      <div className="capture-workspace-backdrop" role="presentation">
+        <section
+          ref={captureWorkspaceRef}
+          className="capture-workspace"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="capture-workspace-title"
+          onKeyDown={handleCaptureWorkspaceKeyDown}
+        >
+          <header className="capture-workspace__header">
+            <div className="capture-workspace__project">
+              <strong>{activeProject?.name || activeProject?.propertyName || 'Current Turn'}</strong>
+              <span>{activeProject?.mode === 'real' ? 'Real Turn' : 'Demo'} · Draft-first</span>
+            </div>
+            <div className="capture-workspace__title">
+              <Sparkles size={20} aria-hidden="true" />
+              <h1 id="capture-workspace-title">Field Copilot</h1>
+            </div>
+            <button
+              ref={captureCloseButtonRef}
+              className="icon-button"
+              type="button"
+              onClick={onClose}
+              aria-label="Close Field Copilot"
+              title="Close"
+            >
+              <X size={20} aria-hidden="true" />
+            </button>
+          </header>
+
+          <div className="capture-workspace__timeline" aria-live="polite">
+            {!captureSourceInput && captureAttachments.length === 0 && currentCaptureDrafts.length === 0 ? (
+              <div className="capture-empty-state">
+                <div className="capture-empty-state__icon">
+                  <Mic size={24} aria-hidden="true" />
+                </div>
+                <div>
+                  <h2>Capture the field once</h2>
+                  <p>Speak, type, take a photo, or attach a field note. You will review every change before it reaches the board.</p>
+                </div>
+              </div>
+            ) : null}
+
+            {captureSourceInput || captureAttachments.length > 0 ? (
+              <article className="capture-thread-event capture-thread-event--user">
+                <div className="capture-thread-event__marker">You</div>
+                <div className="capture-message-bubble">
+                  {captureAttachments.some((attachment) => attachment.kind === 'photo') ? (
+                    <div className="capture-message-photos">
+                      {captureAttachments
+                        .filter((attachment): attachment is StagedPhotoAttachment => attachment.kind === 'photo')
+                        .map((attachment) => (
+                          <img key={attachment.id} src={attachment.previewUrl} alt={attachment.name} />
+                        ))}
+                    </div>
+                  ) : null}
+                  <p>{quickInput.trim() || 'Attached field material ready for review.'}</p>
+                  {textAttachments.length > 0 ? (
+                    <small>{textAttachments.length} text attachment{textAttachments.length === 1 ? '' : 's'} included</small>
+                  ) : null}
+                </div>
+              </article>
+            ) : null}
+
+            {currentCaptureDrafts.length > 0 || captureAttachments.some((attachment) => attachment.kind === 'photo') ? (
+              <article className="capture-thread-event capture-thread-event--assistant">
+                <div className="capture-thread-event__marker capture-thread-event__marker--assistant">
+                  <Sparkles size={17} aria-hidden="true" />
+                </div>
+                <div className="capture-review-panel">
+                  <div className="capture-review-panel__header">
+                    <div>
+                      <span className="quiet-label">Review before applying</span>
+                      <h2>
+                        {captureReviewCount > 0
+                          ? `${captureReviewCount} change${captureReviewCount === 1 ? '' : 's'} ready to review`
+                          : 'Capture review complete'}
+                      </h2>
+                    </div>
+                    {captureReviewCount > 1 ? (
+                      <Button variant="primary" onClick={applyPendingDrafts}>
+                        <Check size={17} aria-hidden="true" />
+                        Approve shown
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className="capture-review-list">
+                    {currentCaptureDrafts.map((draft) => (
+                      <DraftActionCard
+                        key={draft.id}
+                        draft={draft}
+                        isStale={isStalePendingDraft(draft)}
+                        targetLabel={draftTargetLabel(draft)}
+                        onApply={() => applyOneDraft(draft)}
+                        onConfirmConflictAndApply={() => confirmConflictAndApplyOneDraft(draft)}
+                        onOpenTarget={canOpenDraftTarget(draft) ? () => openDraftTarget(draft) : undefined}
+                        onReject={() => rejectOneDraft(draft)}
+                        onSavePayload={(payload) => setData((current) => updateDraftAction(current, draft.id, { payload }))}
+                        showAppliedOpenButton={draft.id !== lastChangedDraftId || !draftNotice}
+                        compact
+                      />
+                    ))}
+
+                    {captureAttachments
+                      .filter((attachment): attachment is StagedPhotoAttachment => attachment.kind === 'photo')
+                      .map((attachment) => {
+                        const selectedUnit = activeProjectUnits.find((unit) => unit.id === attachment.targetUnitId);
+                        return (
+                          <article className={`capture-photo-review ${attachment.savedPhotoId ? 'is-saved' : ''}`} key={attachment.id}>
+                            <img src={attachment.previewUrl} alt={attachment.name} />
+                            <div className="capture-photo-review__body">
+                              <span className="quiet-label">Photo attachment</span>
+                              <strong>{attachment.savedPhotoId ? `Saved to Unit ${selectedUnit?.unitNumber ?? ''}` : attachment.name}</strong>
+                              {attachment.savedPhotoId ? (
+                                <p>Stored offline and ready for Real Turn photo sync.</p>
+                              ) : (
+                                <label>
+                                  <span>Save to Unit</span>
+                                  <select
+                                    value={attachment.targetUnitId}
+                                    onChange={(event) => updateCapturePhotoTarget(attachment.id, event.target.value)}
+                                  >
+                                    <option value="">Choose Unit</option>
+                                    {activeProjectUnits.map((unit) => (
+                                      <option key={unit.id} value={unit.id}>Unit {unit.unitNumber}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
+                            </div>
+                            <div className="capture-photo-review__actions">
+                              {attachment.savedPhotoId ? (
+                                <Button onClick={() => onNavigate('unitDetail', attachment.targetUnitId)}>Open Unit</Button>
+                              ) : (
+                                <>
+                                  <Button variant="primary" onClick={() => saveCapturePhoto(attachment.id)}>
+                                    <Check size={17} aria-hidden="true" />
+                                    Save photo
+                                  </Button>
+                                  <Button variant="ghost" onClick={() => removeCaptureAttachment(attachment.id)}>
+                                    <X size={17} aria-hidden="true" />
+                                    Remove
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })}
+                  </div>
+                </div>
+              </article>
+            ) : null}
+
+            {draftNotice ? (
+              <article className="capture-applied-event" role="status">
+                <Check size={20} aria-hidden="true" />
+                <div>
+                  <strong>{draftNotice}</strong>
+                  <p>The board and activity history now reflect the approved change.</p>
+                </div>
+                {lastChangedDraft && canOpenDraftTarget(lastChangedDraft) ? (
+                  <Button onClick={() => openDraftTarget(lastChangedDraft)}>Open {draftTargetLabel(lastChangedDraft)}</Button>
+                ) : null}
+              </article>
+            ) : null}
+
+            {!captureSourceInput && captureAttachments.length === 0 && recentAppliedDrafts.length > 0 ? (
+              <div className="capture-recent-list">
+                <span className="quiet-label">Recently applied</span>
+                {recentAppliedDrafts.map((draft) => (
+                  <button key={draft.id} type="button" onClick={() => canOpenDraftTarget(draft) && openDraftTarget(draft)}>
+                    <Check size={17} aria-hidden="true" />
+                    <span>
+                      <strong>{draft.title}</strong>
+                      <small>{draftTargetLabel(draft)}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <footer className="capture-composer">
+            {captureAttachments.length > 0 ? (
+              <div className="capture-attachment-strip">
+                {captureAttachments.map((attachment) => (
+                  <div className="capture-attachment-chip" key={attachment.id}>
+                    {attachment.kind === 'photo' ? (
+                      <img src={attachment.previewUrl} alt="" />
+                    ) : (
+                      <FileText size={18} aria-hidden="true" />
+                    )}
+                    <span>{attachment.name}</span>
+                    {!('savedPhotoId' in attachment) || !attachment.savedPhotoId ? (
+                      <button type="button" onClick={() => removeCaptureAttachment(attachment.id)} aria-label={`Remove ${attachment.name}`}>
+                        <X size={15} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            <textarea
+              ref={quickInputRef}
+              rows={2}
+              value={quickInput}
+              onChange={(event) => setQuickInput(event.target.value)}
+              placeholder="Speak, type, add a photo, or attach a field note..."
+              aria-label="Capture update"
+            />
+
+            <div className="capture-composer__toolbar">
+              <div className="capture-composer__attachments">
+                <button type="button" onClick={() => cameraInputRef.current?.click()} aria-label="Take a photo" title="Take photo">
+                  <Camera size={20} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => attachmentInputRef.current?.click()} aria-label="Add photo or file" title="Add photo or file">
+                  <Paperclip size={20} aria-hidden="true" />
+                </button>
+                <button
+                  ref={voiceModeButtonRef}
+                  type="button"
+                  onClick={openVoiceSheet}
+                  aria-label="Record a voice note"
+                  title="Voice note"
+                >
+                  <Mic size={20} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="capture-composer__actions">
+                {(quickInput || captureAttachments.length > 0) ? (
+                  <button type="button" onClick={clearCapture} aria-label="Clear capture" title="Clear">
+                    <Trash2 size={19} aria-hidden="true" />
+                  </button>
+                ) : null}
+                <button
+                  className="capture-send-button"
+                  type="button"
+                  disabled={!captureInputReady || isPreparingAttachment}
+                  onClick={parseQuickCapture}
+                  aria-label="Review captured changes"
+                  title="Review changes"
+                >
+                  <Send size={20} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+
+            <input
+              ref={cameraInputRef}
+              className="visually-hidden"
+              hidden
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleCaptureAttachmentChange}
+              tabIndex={-1}
+            />
+            <input
+              ref={attachmentInputRef}
+              className="visually-hidden"
+              hidden
+              type="file"
+              accept="image/*,.csv,.txt,.json,.eml,text/csv,text/plain,application/json,message/rfc822"
+              multiple
+              onChange={handleCaptureAttachmentChange}
+              tabIndex={-1}
+            />
+
+            {isPreparingAttachment ? <p className="muted">Preparing attachment...</p> : null}
+            {captureAttachmentError ? <p className="error-text" role="alert">{captureAttachmentError}</p> : null}
+            {parseSummary ? <p className="success-text" role="status">{parseSummary}</p> : null}
+            <small>Draft-first: nothing changes until you approve it.</small>
+          </footer>
+
+          {isVoiceSheetOpen ? (
+            <VoiceCaptureSheet
+              guidance={activeVoiceGuidance}
+              canUseBrowserSpeech={canUseBrowserSpeech}
+              isRecording={isRecording}
+              duration={voiceDuration}
+              transcriptPreview={voiceTranscriptPreview}
+              input={quickInput}
+              onInputChange={setQuickInput}
+              inputRef={voiceSheetTextareaRef}
+              status={voiceStatus}
+              titleId="voice-sheet-title-overlay"
+              dictationPlaceholder="Tap Use keyboard mic, then speak your field update."
+              onClose={closeVoiceSheet}
+              onStart={startVoiceCapture}
+              onStop={stopVoiceCapture}
+              onFallback={focusFallbackDictation}
+              onKeyDown={handleVoiceSheetKeyDown}
+            />
+          ) : null}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -932,89 +1456,25 @@ export function CopilotView({ data, setData, onNavigate }: CopilotViewProps) {
           </Section>
 
           {isVoiceSheetOpen ? (
-            <div className="voice-sheet-backdrop" role="presentation">
-              <section
-                className={`voice-sheet voice-sheet--${activeVoiceGuidance.mode} ${isRecording ? 'is-recording' : ''}`}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="voice-sheet-title"
-                onKeyDown={handleVoiceSheetKeyDown}
-              >
-                <div className="voice-sheet__handle" aria-hidden="true" />
-                <div className="voice-sheet__topline">
-                  <div>
-                    <span className="quiet-label">Voice capture</span>
-                    <h2 id="voice-sheet-title">{canUseBrowserSpeech ? 'Listening mode' : 'Dictation mode'}</h2>
-                  </div>
-                  <button autoFocus className="icon-button" type="button" onClick={closeVoiceSheet} aria-label="Close voice mode">
-                    <X size={20} aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="voice-orb-wrap" aria-hidden="true">
-                  <div className="voice-orb">
-                    <Mic size={28} />
-                  </div>
-                  <span />
-                  <span />
-                </div>
-
-                <div className="voice-session-meta">
-                  <strong>{isRecording ? 'Recording' : canUseBrowserSpeech ? 'Ready' : 'Ready for keyboard mic'}</strong>
-                  <span>{voiceDuration}</span>
-                </div>
-
-                <div className="voice-sheet-meter" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                  <span />
-                </div>
-
-                <div className="voice-transcript-panel" aria-live="polite">
-                  {canUseBrowserSpeech ? (
-                    <p>{voiceTranscriptPreview || 'Transcript will appear here as your browser returns words.'}</p>
-                  ) : (
-                    <textarea
-                      ref={voiceSheetTextareaRef}
-                      rows={5}
-                      value={quickInput}
-                      onChange={(event) => setQuickInput(event.target.value)}
-                      placeholder="Tap Use keyboard mic, then dictate: unit 204 paint done but cleaning blocked keys missing."
-                      aria-label="Voice mode dictation text"
-                    />
-                  )}
-                </div>
-
-                {voiceStatus ? (
-                  <p className={isRecording ? 'success-text' : 'muted'} role="status" aria-live="polite">
-                    {voiceStatus}
-                  </p>
-                ) : null}
-
-                <div className="voice-sheet-actions">
-                  {canUseBrowserSpeech ? (
-                    <Button variant={isRecording ? 'ghost' : 'primary'} onClick={isRecording ? stopVoiceCapture : startVoiceCapture}>
-                      {isRecording ? <Square size={18} aria-hidden="true" /> : <Mic size={18} aria-hidden="true" />}
-                      {isRecording ? 'Stop' : 'Record'}
-                    </Button>
-                  ) : (
-                    <Button variant="primary" onClick={focusFallbackDictation}>
-                      <Mic size={18} aria-hidden="true" />
-                      {activeVoiceGuidance.sheetPrimaryAction}
-                    </Button>
-                  )}
-                  <Button onClick={closeVoiceSheet}>
-                    <Check size={18} aria-hidden="true" />
-                    Done
-                  </Button>
-                </div>
-                <small>{activeVoiceGuidance.privacyNote}</small>
-              </section>
-            </div>
+            <VoiceCaptureSheet
+              guidance={activeVoiceGuidance}
+              canUseBrowserSpeech={canUseBrowserSpeech}
+              isRecording={isRecording}
+              duration={voiceDuration}
+              transcriptPreview={voiceTranscriptPreview}
+              input={quickInput}
+              onInputChange={setQuickInput}
+              inputRef={voiceSheetTextareaRef}
+              status={voiceStatus}
+              titleId="voice-sheet-title"
+              showOrb
+              dictationPlaceholder="Tap Use keyboard mic, then dictate: unit 204 paint done but cleaning blocked keys missing."
+              onClose={closeVoiceSheet}
+              onStart={startVoiceCapture}
+              onStop={stopVoiceCapture}
+              onFallback={focusFallbackDictation}
+              onKeyDown={handleVoiceSheetKeyDown}
+            />
           ) : null}
 
           <Section

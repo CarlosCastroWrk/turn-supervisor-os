@@ -566,6 +566,7 @@ try {
 
   await largePage.goto(`${baseUrl}/#/reports`, { waitUntil: 'networkidle' });
   await largePage.getByRole('heading', { name: 'Daily Report', exact: true }).waitFor();
+  await largePage.getByLabel('Report date').fill('2026-07-09');
   await largePage.getByText('Turn Supervisor OS', { exact: true }).waitFor();
   const reportText = await largePage.locator('main').innerText();
   assert.match(reportText, /Total units\s+1000/);

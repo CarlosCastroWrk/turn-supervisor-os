@@ -4,6 +4,16 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## Active Slice
 
+- [ ] C6 Capture Workspace V2 release.
+  - [x] Replace route-first Capture with one global modal workspace that preserves the current board context.
+  - [x] Add one composer for typed notes, camera photos, image attachments, and bounded CSV/TXT/JSON/EML field notes.
+  - [x] Keep parser output draft-first with compact per-action Approve, Reject, and advanced edit controls.
+  - [x] Compress and stage photos locally, infer only one unambiguous current-project Unit, and require Unit confirmation before save.
+  - [x] Keep voice behavior honest: browser speech where available, keyboard dictation or typed fallback everywhere else.
+  - [x] Fix modal accessibility so the Capture input is never inside the inert background, Escape closes in layers, focus restores, and target navigation closes the workspace.
+  - [x] Verify 194 deterministic tests, Capture browser workflow, field-scale behavior, local recovery gate, desktop/iPad/iPhone layouts, voice fallback, no overflow, builds, lint, OS checks, and zero dependency vulnerabilities.
+  - [ ] Merge the reviewed PR, deploy production, and run focused production smoke checks.
+  - [ ] Run one post-deploy physical Capture pass on Mac, iPhone, and iPad.
 - [x] G8 Production Recovery Gate and Local Date Safety release.
   - [x] Add an unsigned disposable production browser gate using only `QA_RECOVERY_*` local data.
   - [x] Download and inspect the daily report, full-device JSON, Units, Issues, Daily Logs, Copilot/Memory, and Follow-Ups files.
@@ -61,13 +71,13 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Keep Demo and unverifiable drafts/follow-ups local during Supabase sync.
   - [x] Verify identical Demo/Real unit numbers, conflicting links, backup round-trip, and 10,000-draft performance.
   - [x] Merge after E4, deploy, and run production smoke checks.
-- [ ] B3 Offline/Reconnect Trust remains the next real-device gate.
+- [x] B3 Offline/Reconnect Trust baseline.
   - [x] Simulate disjoint Mac/iPhone/iPad edits after twelve offline hours and verify convergence without duplicate Units, Issues, or activity rows.
   - [x] Verify newest-row convergence across all six three-device reconnect orders.
   - [x] Stop equal-timestamp conflicts from re-uploading indefinitely and document the whole-row writer rule.
   - [x] Document whole-row last-write-wins and clock-skew risks.
-  - [ ] Run Mac/iPhone/iPad airplane-mode edit test.
-  - [ ] Capture any stale overwrite findings from the physical-device run.
+  - [x] Los reported the Mac/iPhone/iPad airplane-mode and reconnect flow passing on July 10, 2026.
+  - [x] No stale overwrite finding was reported in that physical baseline.
 - [x] E1 Daily Activity Snapshot.
   - [x] Start recording a source-grounded daily summary from activity logs.
   - [x] Distinguish current state from historical day state.
@@ -91,7 +101,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Persist `storage_path` only after the private file upload succeeds.
   - [x] Lazy-download and cache cloud thumbnails on another device.
   - [x] Keep upload failures retryable and visible in Sync details.
-  - [ ] Verify one work-safe photo across Mac, iPhone, and iPad.
+  - [x] Los reported a work-safe photo syncing across Mac, iPhone, and iPad on July 10, 2026.
 - [x] G3 PWA Install And Offline Startup implementation.
   - [x] Add 192/512 PNG install icons, a maskable icon, and a 180px iOS touch icon.
   - [x] Remove the portrait-only manifest lock so iPad can rotate.
@@ -104,7 +114,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
   - [x] Add strong focus visibility, skip navigation, active-page semantics, progressbar values, and route titles.
   - [x] Trap and restore focus in Voice Capture and honor reduced-motion preferences.
   - [x] Verify labels, target sizes, contrast, keyboard flow, mobile overflow, and console health in rendered browser QA.
-  - [ ] Verify outdoor legibility and iOS VoiceOver behavior on physical iPhone/iPad.
+  - [x] Los reported bright-light readability and basic iOS VoiceOver use passing on July 10, 2026.
 - [x] G2 Undo And Toast System implementation.
   - [x] Replace routine validation/copy/backup errors with nonblocking accessible feedback.
   - [x] Keep reset, restore, archive/start, unsaved-change, Ready-override, and storage-failure confirmations blocking.
@@ -153,6 +163,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] D6 Hash Routing and deep links.
 - [x] C4 Voice Reliability.
 - [x] C5 Capture Field-Speed Cleanup.
+- [ ] C6 Capture Workspace V2 production release and physical-device acceptance.
 - [x] E2 Report Preview And Print/PDF.
 - [ ] Run field test on iPhone Safari or installed PWA.
 - [ ] Run field test on iPad Safari or installed PWA.

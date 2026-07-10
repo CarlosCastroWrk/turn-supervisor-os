@@ -16,6 +16,7 @@ Run before reporting a code or release slice as verified:
 
 ```bash
 npm run test:sync
+npm run test:capture-workspace
 npm run test:field-scale
 npm run lint
 npm run check:os
@@ -29,6 +30,26 @@ npm run test:production-recovery
 ```
 
 The production recovery gate uses a fresh unsigned browser profile and disposable local-only `QA_RECOVERY_*` data. It downloads every recovery/export surface, runs invalid/corrupt/cancel/approve restore paths, and never authenticates or uploads to Supabase.
+
+## Automated Capture Workspace Gate
+
+Run after changes to global Capture, voice fallback, attachment staging, Draft Action review, focus handling, or target navigation:
+
+```bash
+npm run test:capture-workspace
+```
+
+The gate uses disposable local Demo data. It verifies:
+
+- the global button opens one modal workspace without changing route;
+- the composer is outside the inert background and remains keyboard-focusable;
+- a real image file and typed update stage together;
+- one current-project Unit can be suggested for a photo without silently saving it;
+- photo save reaches durable local storage before metadata success;
+- opening the saved Unit closes Capture and navigates to the target;
+- iPhone layout fits 390 by 844 pixels without overflow;
+- voice fallback opens coherently and Escape restores focus to the Capture trigger;
+- no console, page, or failed-request findings occur.
 
 ## Automated Field-Scale Gate
 
@@ -63,7 +84,7 @@ Baseline recorded July 9, 2026:
 - A Daily Log saved, survived reload, updated in place, and retained one deterministic project/date ID without overflow or console findings.
 - A 10,000-entry Activity cache stayed at exactly 10,000 through text, date, and numeric commits while each newest action remained present and each commit produced one full-state write.
 
-These timings are regression signals, not physical iPhone/iPad acceptance. B3 offline/reconnect, F2 cross-device photo sync, Home Screen restart, outdoor contrast, and VoiceOver still require Los's real devices.
+These timings are regression signals, not physical iPhone/iPad acceptance. Los separately reported the B3 offline/reconnect, F2 cross-device photo, camera/microphone permission, outdoor-readability, and basic VoiceOver baseline passing on July 10, 2026. Home Screen restart, physical CSV, physical bulk update, and the new Capture Workspace still need focused checks.
 
 ## Automated Three-Device Sync Gate
 
@@ -100,6 +121,8 @@ Do not print secrets or `.env` values.
 - Keep Demo Mode available for practice, but enter real testing records in Real Turn Mode.
 
 ## Mac / iPhone / iPad Phase 1 Checklist
+
+Reported baseline, July 10, 2026: Mac/iPhone/iPad sync, reconnect, photo sync, camera/microphone permissions, bright-light readability, and basic VoiceOver use passed in Los's hands. The granular boxes below remain a repeatable evidence checklist and should be completed again for a release that changes the relevant path.
 
 ### 1. Sign In And Baseline Sync
 
@@ -237,7 +260,7 @@ Pass:
 - [x] Export Full Device JSON Backup and confirm the completion message reports local photo files included or missing.
 - [x] Restore only into an expendable QA browser/device and confirm restored thumbnails return after migration.
 
-Automated production baseline recorded July 9, 2026: seven downloads used the same local field date, one compressed 759-byte test image lived outside `localStorage`, the private backup included it, invalid/corrupt/cancel paths changed nothing, and the approved restore persisted 2 projects, 8 Units, and 3 Issues through reload. Physical camera selection remains in the iPhone/iPad field gate.
+Automated production baseline recorded July 9, 2026: seven downloads used the same local field date, one compressed 759-byte test image lived outside `localStorage`, the private backup included it, invalid/corrupt/cancel paths changed nothing, and the approved restore persisted 2 projects, 8 Units, and 3 Issues through reload. Los reported physical camera permission/selection behavior passing on July 10; Capture Workspace V2 requires a focused repeat after deployment.
 
 Pass:
 

@@ -19,13 +19,48 @@ test('current backup envelopes round-trip through restore validation', () => {
 });
 
 test('legacy bare AppData backups remain restorable and receive missing collection defaults', () => {
-  const data = cloneSeed() as AppData & { reportDrafts?: AppData['reportDrafts'] };
+  const data = cloneSeed() as AppData & {
+    aiUsageEvents?: AppData['aiUsageEvents'];
+    reportDrafts?: AppData['reportDrafts'];
+  };
   delete data.reportDrafts;
+  delete data.aiUsageEvents;
+  delete (data.projects[0] as AppData['projects'][number] & { aiBudgetUsd?: number }).aiBudgetUsd;
 
   const restored = parseJsonBackup(JSON.stringify(data));
 
   assert.equal(restored.activeProjectId, seedData.activeProjectId);
   assert.deepEqual(restored.reportDrafts, []);
+  assert.deepEqual(restored.aiUsageEvents, []);
+  assert.equal(restored.projects[0].aiBudgetUsd, 10);
+});
+
+test('AI budget and minimal usage telemetry survive backup validation', () => {
+  const data = cloneSeed();
+  data.projects[0].aiBudgetUsd = 15;
+  data.aiUsageEvents = [
+    {
+      id: 'ai_usage_backup',
+      projectId: data.activeProjectId,
+      task: 'capture',
+      model: 'gpt-5.4-nano',
+      modelClass: 'fast',
+      routeReason: 'Focused capture uses the lowest-cost capable model.',
+      inputTokens: 1_000,
+      cachedInputTokens: 100,
+      outputTokens: 400,
+      totalTokens: 1_400,
+      estimatedCostUsd: 0.0007,
+      pricingVersion: '2026-07-10',
+      createdAt: '2026-07-10T13:00:00.000Z',
+      updatedAt: '2026-07-10T13:00:00.000Z',
+    },
+  ];
+
+  const restored = parseJsonBackup(buildJsonBackup(data));
+
+  assert.equal(restored.projects[0].aiBudgetUsd, 15);
+  assert.deepEqual(restored.aiUsageEvents, data.aiUsageEvents);
 });
 
 test('invalid JSON and empty project backups fail before local replacement', () => {

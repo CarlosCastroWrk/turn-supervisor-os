@@ -775,22 +775,32 @@ Only after the field-safe deterministic version is trusted.
 
 ### H1. Protected Model Route
 
-Status: implemented and deployed dormant in PR #62; live model use remains blocked by API billing and fresh Vercel environment approval.
+Status: implemented and deployed dormant in PR #62; billing is funded and local synthetic model checks pass, but production use still requires the H2 schema and fresh Vercel environment approval.
 
 - [x] Add a same-origin server route with no provider key in browser code.
 - [x] Default to a configurable cost-controlled model and preserve a deterministic fallback.
 - [x] Require structured output validated at the server boundary.
 - [x] Include supporting record IDs and never permit direct operational mutation.
 - [x] Add request limits, timeouts, redacted errors, and eval fixtures before production enablement.
-- [ ] Enable live production requests only after API billing and environment approval; start with `gpt-5.5` because `gpt-5.6-sol` is unavailable to the current API project.
+- [ ] Enable live production requests only after H2 migration, environment approval, and one synthetic production check.
 
-### H2. Grounded Multimodal Assistance
+### H2. Cost-Aware Model Orchestration And AI Usage Meter
+
+- [x] Use one direct model call chosen by Capture complexity and consequence.
+- [x] Keep focused extraction on `gpt-5.4-nano`, complex Capture on `gpt-5.4-mini`, and `gpt-5.5` manual-only.
+- [x] Record model, route reason, token usage, pricing version, and estimated per-call cost.
+- [x] Add local-first, backup-safe usage history and a project-level Turn AI budget.
+- [x] Show estimated used/remaining/average/recent calls without requesting an elevated OpenAI admin key.
+- [x] Apply the owner-scoped Supabase metering migration after explicit approval; local and remote history now match, with linked schema lint passing.
+- [ ] Deploy the dormant H2 release before separate production activation.
+
+### H3. Grounded Multimodal Assistance
 
 - Use approved project context, selected records, and staged images or readable files.
 - Turn model suggestions into the existing Draft Action review contract.
 - Keep offline Capture usable when the provider or network is unavailable.
 
-### H3. Later Data Integrity
+### H4. Later Data Integrity
 
 - Conflict review UI.
 - True delete tombstones.
@@ -843,5 +853,6 @@ Status: implemented and deployed dormant in PR #62; live model use remains block
 43. G8 Production Recovery Gate And Local Date Safety
 44. C6 Capture Workspace V2
 45. H1 Protected Model Route
+46. H2 Cost-Aware Model Orchestration And AI Usage Meter
 
 This order can change if real-device testing finds a higher-risk failure.

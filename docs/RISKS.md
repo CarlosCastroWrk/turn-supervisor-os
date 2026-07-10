@@ -29,7 +29,11 @@
 | Sync status lacks enough field diagnostics | Medium | Closed | The diagnostics slice adds visible trigger, table, event, row count, queued state, and last error, and Los confirmed production devices settle on `Synced`. |
 | Users may assume every action can be undone | Low | Guarded | Only high-frequency Unit quick-status toasts expose Undo. Destructive and compound actions keep explicit confirmations or review-first flows. |
 | Same-day Daily Logs created offline could violate the cloud project/date uniqueness rule | High | Guarded | Production uses deterministic new IDs, tuple-aware local save, legacy cloud-ID reconciliation, all six reconnect-order tests, and a 5,000-log performance gate. Physical-device acceptance remains pending. |
+| AI usage estimates could drift from the provider invoice | Medium | Guarded | Every receipt stores returned token counts and a versioned price table, the UI labels values as estimates, and authoritative balance/organization usage stays on OpenAI Billing. Recheck pricing before Turn and whenever models or provider rates change. |
+| The in-app AI budget could be mistaken for a hard spending cap | Medium | Guarded | The panel explicitly calls the value a Turn budget estimate. Keep OpenAI project limits and auto-recharge settings as the actual enforcement controls. |
+| AI usage receipts could fail to sync after the H2 release | High | Guarded | The reviewed `ai_usage_events`/`ai_budget_usd` migration is applied with owner/project RLS, grants, and Realtime publication. Deploy remains dormant with production AI disabled; run one signed-in cross-device usage receipt check before enabling live model calls. |
 | Vercel CLI was outdated locally | Low | Closed | Upgraded to `55.0.0` on 2026-07-09 after Los approved. |
+| Supabase CLI is behind the current release | Low | Open | Version `2.98.2` successfully performs the H2 dry-run and linked lint; `2.109.1` is available. Upgrade separately rather than changing release tooling inside the metering slice. |
 
 ## Product Scope Risks
 

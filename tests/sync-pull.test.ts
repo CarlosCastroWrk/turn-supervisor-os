@@ -12,7 +12,7 @@ import {
   uploadLocalData,
 } from '../src/lib/supabase/sync.ts';
 import { buildDailyLogId, createEmptyDailyLog } from '../src/lib/dailyLogs.ts';
-import type { AppData, DailyLog, Memory, MemoryCandidate, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
+import type { AiUsageEvent, AppData, DailyLog, Memory, MemoryCandidate, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
 
 type RemoteRow = Record<string, unknown>;
 type OrderCall = { ascending: boolean; column: string; table: string };
@@ -41,6 +41,7 @@ const project = (updatedAt = stamp): Project => ({
   estimatedUnits: 1,
   estimatedBeds: 2,
   estimatedCommonAreas: 0,
+  aiBudgetUsd: 10,
   createdAt: stamp,
   updatedAt,
 });
@@ -131,6 +132,23 @@ const memoryCandidate = (id = 'candidate_sync_pull', projectId: string | undefin
   updatedAt: stamp,
 });
 
+const aiUsageEvent = (): AiUsageEvent => ({
+  id: 'ai_usage_sync_pull',
+  projectId: 'project_sync_pull',
+  task: 'capture',
+  model: 'gpt-5.4-mini',
+  modelClass: 'complex',
+  routeReason: 'Capture spans several workflow types.',
+  inputTokens: 1_015,
+  cachedInputTokens: 100,
+  outputTokens: 569,
+  totalTokens: 1_584,
+  estimatedCostUsd: 0.00324675,
+  pricingVersion: '2026-07-10',
+  createdAt: stamp,
+  updatedAt: stamp,
+});
+
 const userId = '123e4567-e89b-42d3-a456-426614174000';
 
 const appData = (localProject = project(), localUnit = unit()): AppData => ({
@@ -151,6 +169,7 @@ const appData = (localProject = project(), localUnit = unit()): AppData => ({
   memories: [],
   memoryCandidates: [],
   agentRuns: [],
+  aiUsageEvents: [],
   copilotConversations: [],
   followUpTasks: [],
   smartSuggestions: [],
@@ -172,6 +191,7 @@ const projectRow = (updatedAt = stamp): RemoteRow => ({
   estimated_units: 1,
   estimated_beds: 2,
   estimated_common_areas: 0,
+  ai_budget_usd: 10,
   archived_at: null,
   created_at: stamp,
   updated_at: updatedAt,
@@ -271,6 +291,23 @@ const memoryCandidateRow = (): RemoteRow => ({
   source_entity_id: 'unit_sync_pull_104',
   confidence: 0.82,
   status: 'pending',
+  created_at: stamp,
+  updated_at: stamp,
+});
+
+const aiUsageEventRow = (): RemoteRow => ({
+  id: 'ai_usage_sync_pull',
+  project_id: 'project_sync_pull',
+  task: 'capture',
+  model: 'gpt-5.4-mini',
+  model_class: 'complex',
+  route_reason: 'Capture spans several workflow types.',
+  input_tokens: 1_015,
+  cached_input_tokens: 100,
+  output_tokens: 569,
+  total_tokens: 1_584,
+  estimated_cost_usd: 0.00324675,
+  pricing_version: '2026-07-10',
   created_at: stamp,
   updated_at: stamp,
 });
@@ -461,6 +498,17 @@ test('fetchRemoteData maps project scope and source ids for Memory rows', async 
   assert.equal(result.remote.memoryCandidates?.[0]?.sourceEntityId, 'unit_sync_pull_104');
 });
 
+test('fetchRemoteData maps the Turn AI budget and minimal usage receipt', async () => {
+  const result = await fetchRemoteData(
+    asSupabaseClient(
+      fakeClient(rowsByTable({ projects: [{ ...projectRow(), ai_budget_usd: 12.5 }], ai_usage_events: [aiUsageEventRow()] })),
+    ),
+  );
+
+  assert.equal(result.remote.projects?.[0]?.aiBudgetUsd, 12.5);
+  assert.deepEqual(result.remote.aiUsageEvents?.[0], aiUsageEvent());
+});
+
 test('uploadLocalData serializes edited report drafts for Supabase upsert', async () => {
   const upsertCalls: UpsertCall[] = [];
   const local = {
@@ -575,6 +623,36 @@ test('uploadLocalData serializes project scope and source ids for Memory rows', 
   assert.equal(memoryUpsert?.rows[0]?.source_entity_id, 'unit_sync_pull_104');
   assert.equal(candidateUpsert?.rows[0]?.project_id, 'project_sync_pull');
   assert.equal(candidateUpsert?.rows[0]?.source_entity_id, 'unit_sync_pull_104');
+});
+
+test('uploadLocalData serializes the Turn AI budget and minimal usage receipt', async () => {
+  const upsertCalls: UpsertCall[] = [];
+  const local = {
+    ...appData({ ...project(), aiBudgetUsd: 12.5 }),
+    aiUsageEvents: [aiUsageEvent()],
+  };
+
+  await uploadLocalData(asSupabaseClient(fakeClient(rowsByTable(), [], upsertCalls)), local, {});
+  const projectUpsert = upsertCalls.find((call) => call.table === 'projects');
+  const usageUpsert = upsertCalls.find((call) => call.table === 'ai_usage_events');
+
+  assert.equal(projectUpsert?.rows[0]?.ai_budget_usd, 12.5);
+  assert.deepEqual(usageUpsert?.rows[0], {
+    id: 'ai_usage_sync_pull',
+    project_id: 'project_sync_pull',
+    task: 'capture',
+    model: 'gpt-5.4-mini',
+    model_class: 'complex',
+    route_reason: 'Capture spans several workflow types.',
+    input_tokens: 1_015,
+    cached_input_tokens: 100,
+    output_tokens: 569,
+    total_tokens: 1_584,
+    estimated_cost_usd: 0.00324675,
+    pricing_version: '2026-07-10',
+    created_at: stamp,
+    updated_at: stamp,
+  });
 });
 
 test('replaceRemoteData preserves a local-only unscoped Memory candidate', () => {

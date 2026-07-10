@@ -90,8 +90,14 @@ export const agentParseResultSchema = z.object({
   model: z.string().optional(),
   usage: z.object({
     inputTokens: z.number().int().nonnegative(),
+    cachedInputTokens: z.number().int().nonnegative().optional(),
     outputTokens: z.number().int().nonnegative(),
     totalTokens: z.number().int().nonnegative(),
+    estimatedCostUsd: z.number().nonnegative().optional(),
+    pricingVersion: z.string().optional(),
+    modelClass: z.enum(['fast', 'complex', 'override']).optional(),
+    routeReason: z.string().optional(),
+    requestId: z.string().optional(),
   }).optional(),
   providerNotice: z.string().optional(),
 });

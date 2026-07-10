@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import type { RealtimeChannel, Session, SupabaseClient } from '@supabase/supabase-js';
 import type {
   ActivityLog,
+  AiUsageEvent,
   AppData,
   Assignment,
   CrewMember,
@@ -161,6 +162,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         estimated_units: project.estimatedUnits,
         estimated_beds: project.estimatedBeds,
         estimated_common_areas: project.estimatedCommonAreas,
+        ai_budget_usd: project.aiBudgetUsd,
         archived_at: project.archivedAt ?? null,
         created_at: project.createdAt,
         updated_at: project.updatedAt,
@@ -182,6 +184,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         estimatedUnits: numberValue(row, 'estimated_units'),
         estimatedBeds: numberValue(row, 'estimated_beds'),
         estimatedCommonAreas: numberValue(row, 'estimated_common_areas'),
+        aiBudgetUsd: numberValue(row, 'ai_budget_usd', 10),
         archivedAt: optionalString(row, 'archived_at'),
         createdAt: stringValue(row, 'created_at', nowISO()),
         updatedAt: stringValue(row, 'updated_at', nowISO()),
@@ -708,6 +711,46 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         completedAt: optionalString(row, 'completed_at'),
       }) satisfies FollowUpTask,
   },
+  {
+    key: 'aiUsageEvents',
+    table: 'ai_usage_events',
+    toRow: (item) => {
+      const event = item as AiUsageEvent;
+      return {
+        id: event.id,
+        project_id: event.projectId,
+        task: event.task,
+        model: event.model,
+        model_class: event.modelClass,
+        route_reason: event.routeReason,
+        input_tokens: event.inputTokens,
+        cached_input_tokens: event.cachedInputTokens,
+        output_tokens: event.outputTokens,
+        total_tokens: event.totalTokens,
+        estimated_cost_usd: event.estimatedCostUsd,
+        pricing_version: event.pricingVersion,
+        created_at: event.createdAt,
+        updated_at: event.updatedAt,
+      };
+    },
+    fromRow: (row) =>
+      ({
+        id: stringValue(row, 'id'),
+        projectId: stringValue(row, 'project_id'),
+        task: stringValue(row, 'task', 'capture') as AiUsageEvent['task'],
+        model: stringValue(row, 'model'),
+        modelClass: stringValue(row, 'model_class', 'override') as AiUsageEvent['modelClass'],
+        routeReason: stringValue(row, 'route_reason'),
+        inputTokens: numberValue(row, 'input_tokens'),
+        cachedInputTokens: numberValue(row, 'cached_input_tokens'),
+        outputTokens: numberValue(row, 'output_tokens'),
+        totalTokens: numberValue(row, 'total_tokens'),
+        estimatedCostUsd: numberValue(row, 'estimated_cost_usd'),
+        pricingVersion: stringValue(row, 'pricing_version'),
+        createdAt: stringValue(row, 'created_at', nowISO()),
+        updatedAt: stringValue(row, 'updated_at', nowISO()),
+      }) satisfies AiUsageEvent,
+  },
 ];
 
 export const syncedTables = tableConfigs.map((config) => config.table);
@@ -734,6 +777,7 @@ export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData
     memories: mergeRows(local.memories, (remote.memories ?? []) as Memory[]),
     memoryCandidates: mergeRows(local.memoryCandidates, (remote.memoryCandidates ?? []) as MemoryCandidate[]),
     followUpTasks: mergeRows(local.followUpTasks, (remote.followUpTasks ?? []) as FollowUpTask[]),
+    aiUsageEvents: mergeRows(local.aiUsageEvents, (remote.aiUsageEvents ?? []) as AiUsageEvent[]),
   });
 
 const rowFingerprint = (config: SyncTable<{ id: string }>, item: { id: string }) => syncRowFingerprint(config.toRow(item));
@@ -962,6 +1006,7 @@ export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppDa
     memories: (remoteWithLocalDemo.memories ?? local.memories) as Memory[],
     memoryCandidates: (remoteWithLocalDemo.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
     followUpTasks: (remoteWithLocalDemo.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
+    aiUsageEvents: (remoteWithLocalDemo.aiUsageEvents ?? local.aiUsageEvents) as AiUsageEvent[],
   });
 };
 

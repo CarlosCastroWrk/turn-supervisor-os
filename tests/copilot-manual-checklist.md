@@ -8,7 +8,7 @@ Use this checklist before relying on Copilot during field work.
 - [ ] Parse: `Building B floor 2 is behind. Three rooms still need paint. Jose is waiting on supplies.`
 - [ ] Parse: `Tony said don't mark units ready until inspection is complete.`
 - [ ] Parse: `Maria crew finished 204 and 205, moved to 206.`
-- [ ] Parse: `Ask Tony tomorrow how extra work gets approved.`
+- [ ] Parse: `Ask the project manager tomorrow how extra work gets approved.`
 - [ ] Parse: `Building A 101, 102, 103 all clean complete, need inspection.`
 - [ ] Parse: `Unit 212 blocked because tenant stuff still inside. Do not enter yet.`
 - [ ] Parse: `End of day: 18 complete, 7 blocked, biggest issue is keys and maintenance.`
@@ -61,4 +61,3 @@ Use this checklist before relying on Copilot during field work.
 - [ ] Copilot does not send messages externally.
 - [ ] Copilot does not mutate data without user approval.
 - [ ] Mobile Copilot layout works at iPhone width.
-

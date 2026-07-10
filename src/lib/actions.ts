@@ -1,5 +1,6 @@
 import type {
   ActivityLog,
+  AiUsageEvent,
   AppData,
   Assignment,
   Building,
@@ -32,6 +33,7 @@ import {
   todayISO,
 } from './constants';
 import { createEmptyDailyLog, findDailyLog } from './dailyLogs';
+import { DEFAULT_TURN_AI_BUDGET_USD } from './ai/usage';
 import { memoryAppliesToActiveProject, prepareMemoryCandidatesForActiveProject } from './memory';
 import { getDraftActionProjectId } from './projectScope';
 import {
@@ -245,6 +247,7 @@ export const createRealTurnProject = (data: AppData, input: RealTurnSetupInput):
     estimatedUnits: buildingTotal * floorTotal * unitTotal,
     estimatedBeds: buildingTotal * floorTotal * unitTotal * Math.max(0, input.bedCount),
     estimatedCommonAreas: input.hasCommonArea ? buildingTotal * floorTotal * unitTotal : 0,
+    aiBudgetUsd: DEFAULT_TURN_AI_BUDGET_USD,
     createdAt: now,
     updatedAt: now,
   };
@@ -910,6 +913,20 @@ export const addAgentRun = (data: AppData, mode: AppData['agentRuns'][number]['m
     ...data.agentRuns,
   ],
 });
+
+export const addAiUsageEvent = (data: AppData, event: AiUsageEvent): AppData => {
+  if (
+    data.aiUsageEvents.some((existing) => existing.id === event.id) ||
+    !data.projects.some((project) => project.id === event.projectId)
+  ) {
+    return data;
+  }
+
+  return {
+    ...data,
+    aiUsageEvents: [event, ...data.aiUsageEvents].slice(0, 10_000),
+  };
+};
 
 export const addCopilotConversation = (
   data: AppData,

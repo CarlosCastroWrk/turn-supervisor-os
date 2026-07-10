@@ -1295,6 +1295,245 @@ small {
   background: linear-gradient(90deg, var(--orange), var(--green));
 }
 
+.ai-usage-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-usage-panel__header,
+.ai-usage-panel__identity,
+.ai-usage-history__heading,
+.ai-usage-history__heading > div,
+.ai-budget-note,
+.ai-call-receipt {
+  display: flex;
+  align-items: center;
+}
+
+.ai-usage-panel__header,
+.ai-usage-history__heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-usage-panel__identity,
+.ai-usage-history__heading > div,
+.ai-budget-note,
+.ai-call-receipt {
+  gap: 8px;
+}
+
+.ai-usage-panel__identity strong,
+.ai-usage-panel__identity small {
+  display: block;
+}
+
+.ai-status-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.ai-status-dot.is-active {
+  background: var(--green);
+  box-shadow: 0 0 0 4px #dcfce7;
+}
+
+.ai-billing-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 9px 12px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ai-usage-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ai-usage-metrics article {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 12px;
+}
+
+.ai-usage-metrics span,
+.ai-routing-grid span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 760;
+}
+
+.ai-usage-metrics strong {
+  font-size: 1.28rem;
+}
+
+.ai-budget-meter {
+  display: grid;
+  gap: 7px;
+}
+
+.ai-budget-meter__meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.ai-budget-meter__track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.ai-budget-meter__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.ai-usage-panel__controls {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-usage-panel__controls .field {
+  max-width: 220px;
+}
+
+.ai-budget-note {
+  align-self: end;
+  min-height: 46px;
+  border-left: 3px solid var(--orange);
+  background: #fff7ed;
+  padding: 9px 11px;
+}
+
+.ai-budget-note svg {
+  flex: 0 0 auto;
+  color: #c2410c;
+}
+
+.ai-budget-note p {
+  color: #7c2d12;
+  font-size: 0.8rem;
+}
+
+.ai-routing-details {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-routing-details summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.ai-routing-grid {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+  margin-bottom: 12px;
+}
+
+.ai-routing-grid div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.ai-routing-grid small,
+.ai-usage-history li small {
+  display: block;
+}
+
+.ai-usage-history {
+  display: grid;
+  gap: 9px;
+}
+
+.ai-usage-history ol {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+  padding: 0;
+  list-style: none;
+}
+
+.ai-usage-history li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  padding: 10px 12px;
+}
+
+.ai-usage-history li > div {
+  min-width: 0;
+}
+
+.ai-usage-history li > strong {
+  flex: 0 0 auto;
+}
+
+.ai-pricing-note {
+  font-size: 0.72rem;
+}
+
+.ai-call-receipt {
+  width: fit-content;
+  max-width: 100%;
+  flex-wrap: wrap;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius);
+  background: #eff6ff;
+  color: #1e3a8a;
+  padding: 7px 9px;
+  font-size: 0.76rem;
+}
+
+.ai-call-receipt span,
+.ai-call-receipt strong,
+.ai-call-receipt small {
+  color: inherit;
+}
+
+.ai-call-receipt small {
+  flex-basis: 100%;
+  padding-left: 24px;
+}
+
 .priority-list {
   display: grid;
   gap: 8px;
@@ -2841,6 +3080,22 @@ small {
 }
 
 @media (max-width: 619px) {
+  .ai-usage-panel__header,
+  .ai-usage-history li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-billing-link {
+    width: 100%;
+  }
+
+  .ai-pricing-note {
+    display: block;
+    min-height: 58px;
+    padding-right: 76px;
+  }
+
   .mode-card {
     align-items: stretch;
     flex-direction: column;
@@ -2877,6 +3132,15 @@ small {
 
   .grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ai-usage-metrics,
+  .ai-routing-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ai-usage-panel__controls {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
   }
 
   .field-capture-grid {

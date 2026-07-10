@@ -38,7 +38,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - No company/team login system
 - No general application backend beyond the bounded Capture function and Supabase/Vercel infrastructure
 - No unrestricted cloud sync; sync requires Los's Supabase account and remains feature-flagged
-- No production-enabled external AI until billing and server-only environment approval are complete
+- No production-enabled external AI until the metering schema and server-only environment activation are explicitly approved
 - No autonomous AI agent or direct model mutation
 - No autonomous actions
 - No CRM
@@ -134,7 +134,7 @@ The Copilot is a local-first assistant layer. It helps capture, organize, summar
 Example note:
 
 ```text
-Building A unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has sink leak, ask Tony.
+Building A unit 204 paint done but cleaning blocked because keys are missing. Jose crew moved from 203 to 205. Unit 312 has a sink leak.
 ```
 
 The local parser can create drafts like:
@@ -204,7 +204,7 @@ Current typed consumption is deliberately narrow: sourced Crew facts, review-fir
 
 ## AI / API Safety
 
-The app still runs without an API key and always retains the deterministic local provider in `src/lib/ai/mockAgentProvider.ts`. H1 adds an optional `/api/agent/capture` Vercel Function, but production model use stays disabled until API billing and explicitly approved Vercel environment changes are complete.
+The app still runs without an API key and always retains the deterministic local provider in `src/lib/ai/mockAgentProvider.ts`. H1 adds an optional `/api/agent/capture` Vercel Function. API billing is funded, synthetic local model checks pass, and the H2 metering schema is applied, but production model use stays disabled until the reviewed H2 release deploys and explicitly approved Vercel environment changes are complete.
 
 The protected route:
 
@@ -215,7 +215,9 @@ The protected route:
 - returns pending Draft Actions, never direct mutations
 - falls back to the local parser when disabled, unsigned, offline, timed out, rate limited, over quota, or unavailable
 
-The initial supported model is configurable and currently defaults to `gpt-5.5`. Los's preferred `gpt-5.6-sol` returned limited-preview/unavailable for this API project.
+H2 selects exactly one model per request: `gpt-5.4-nano` for focused extraction and `gpt-5.4-mini` for complex, attachment-heavy, ambiguous, or higher-consequence captures. `gpt-5.5` is available only as an explicit server override and is never selected automatically. Successful model calls return a local-first usage receipt with token counts and estimated cost.
+
+Setup includes an AI Usage panel for a Los-entered Turn budget, estimated used and remaining amounts, average call cost, and recent calls. These values estimate TurnOS spend from returned token usage and versioned prices; they are not the official OpenAI credit balance. The panel links to OpenAI Billing for authoritative account totals, and OpenAI project limits remain the real spending control.
 
 ## Privacy Guardrails
 
@@ -239,7 +241,7 @@ The initial supported model is configurable and currently defaults to `gpt-5.5`.
 - CSV Unit import is additive and preview-first, but it has no automatic import Undo. Export a backup first and review every preview count before confirming a real list.
 - Bulk Unit updates support guarded paint, cleaning, repair, and inspection transitions only. They do not offer bulk Ready, arbitrary resets, or automatic Undo.
 - Copilot parsing is rule-based and conservative. It will miss some messy field phrasing.
-- The protected OpenAI route is implemented but production-disabled. The current API project reports insufficient billing quota, and required Vercel environment changes still need fresh explicit approval.
+- The protected OpenAI route is implemented but production-disabled. Billing is funded and the H2 metering migration is applied; required Vercel environment changes still need separate fresh explicit approval.
 
 ## Sync / Voice / AI Upgrade (planned)
 

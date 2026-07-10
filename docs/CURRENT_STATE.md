@@ -19,6 +19,12 @@ https://turn-supervisor-os.vercel.app
 H1 dormant route verified at dpl_HTAnc2reXfF9TWVeyg3XiKjsZCz4
 ```
 
+Current unshipped slice:
+
+```text
+H2 Cost-Aware Model Orchestration and AI Usage Meter
+```
+
 ## Current Goal
 
 Make Real Turn Mode safe to trust on Mac, iPhone, and iPad before Los enters real field data.
@@ -68,6 +74,8 @@ Every near-term change should serve that loop.
 - Local mock/rule-based agent provider with Zod validation and no API key requirement
 - Optional protected model-assisted Capture provider behind `VITE_ENABLE_AI`, with a server-only OpenAI key, Los-only Supabase authentication, structured outputs, pending Draft Actions, and deterministic fallback
 - Bounded same-origin `/api/agent/capture` Vercel Function with request limits, rate limiting, redacted errors, no-store responses, and no direct operational mutation
+- Cost-aware one-call Capture routing that uses `gpt-5.4-nano` for focused extraction and `gpt-5.4-mini` for complex, attachment-heavy, ambiguous, or higher-consequence notes; `gpt-5.5` remains an explicit override and is never selected automatically
+- Local-first AI usage receipts with model, token counts, routing reason, and estimated per-call cost, plus a Setup budget panel for estimated used, remaining, average call cost, and recent calls
 - PWA manifest and service worker with 192/512 PNG install icons, a dedicated maskable icon, an iOS touch icon, unrestricted orientation, atomic app-shell install/update behavior, a four-second navigation timeout, cached offline deep-link startup, and a static-only cache allowlist that excludes future app-data endpoints
 - Supabase cloud project `jgplalexkmjzldczouih`
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
@@ -148,7 +156,8 @@ These are user-reported physical checks, not automated claims. Capture Workspace
 - Bulk Ready, arbitrary mass status resets, and automatic bulk Undo; those operations remain intentionally outside the guarded batch workflow
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
-- Production-enabled model-assisted Capture; the route is implemented but remains dormant until API billing and explicitly approved Vercel environment changes
+- Production-enabled model-assisted Capture; billing is funded, the metering schema is applied, and local synthetic model checks pass, but the production route remains dormant until the reviewed H2 release deploys and Los separately approves the required Vercel environment changes
+- Official OpenAI credit-balance reconciliation inside the app; the in-app meter tracks estimated TurnOS call cost from returned token usage and a Los-entered budget, not the provider's authoritative billing balance
 - Durable recorded-audio transcription pipeline
 - Image understanding for staged Capture photos or files
 - Company product features
@@ -170,6 +179,7 @@ These are user-reported physical checks, not automated claims. Capture Workspace
 - Legacy unscoped operational memories and candidates remain inactive/local until Los assigns them to the current Turn; Demo-scoped Memory stays local.
 - JSON restore is a signed-out local recovery workflow. Los should review/export recovered data before signing in again because a later sync can still merge newer cloud rows.
 - Static Vite browser code must not contain provider secrets. Any real OpenAI/Anthropic path requires a server-side API layer.
+- The AI budget is a visibility tool, not a hard provider spending limit. OpenAI project limits and the provider Billing page remain authoritative.
 
 ## Current Testing Priority
 
@@ -194,4 +204,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Merge and deploy the dormant H1 route with `VITE_ENABLE_AI` still off. Then activate OpenAI API billing, obtain fresh approval for the Vercel server-only key/allowlist/feature flag, enable `gpt-5.5`, and run one synthetic production Capture before any real field note is sent to the provider.
+Merge and deploy the reviewed H2 metering slice with `VITE_ENABLE_AI` still off. Production model activation is a separate approval for the server-only key, Los allowlist, and feature flag, followed by one synthetic production Capture before any real field note is sent.

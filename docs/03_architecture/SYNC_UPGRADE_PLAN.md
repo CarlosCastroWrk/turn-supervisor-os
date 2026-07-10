@@ -113,9 +113,9 @@ Hold-to-record (MediaRecorder, m4a/webm)
 ```
 
 - **"I said 10 things"**: the extraction prompt instructs one DraftAction per atomic
-  statement, each carrying the source sentence in `sourceText`. The example note in the
-  README (204 paint / keys / Jose crew / 312 leak / ask Tony / Building B floor 2)
-  should produce 6 drafts — make that the canonical eval case.
+  statement, each carrying the source sentence in `sourceText`. The README example remains
+  a baseline multi-action parse case; add an explicit ask/call/confirm statement only when
+  testing follow-up creation.
 - **Low confidence:** extraction sets `confidence`; anything < 0.7 renders with a
   warning style and is never bulk-approved. Whole-note fallback (save as daily-log
   draft) stays.

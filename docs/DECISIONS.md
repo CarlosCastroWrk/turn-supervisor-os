@@ -240,7 +240,19 @@ Rationale:
 - A server route keeps `OPENAI_API_KEY` out of the Vite/browser bundle and allows Los-only Supabase auth, account allowlisting, request limits, rate limits, timeouts, and redacted errors.
 - Running the deterministic parser first preserves offline behavior, project-scoped Memory extraction, and a safe result when the provider, network, auth, quota, or model is unavailable.
 - Structured model output is still untrusted: unknown Unit mutations are discarded, due dates are normalized, conflicts require confirmation, and Ready remains guarded by the existing apply layer.
-- `gpt-5.5` is the initial configurable model because the selected `gpt-5.6-sol` returned limited-preview/unavailable for this API project. Production activation remains separate from code release and requires billing plus explicit environment approval.
+- The model remains configurable, but production activation is separate from code release and requires explicit environment approval.
+
+### 2026-07-10: H2 routes once by Capture risk and meters estimated TurnOS cost
+
+Use one server-selected model per Capture request. Route focused extraction to `gpt-5.4-nano`; route attachments, long or multi-target notes, ambiguity, unknown Units, and higher-consequence status language to `gpt-5.4-mini`. Never auto-select `gpt-5.5`, and do not cascade from one completed model call into a second billable call.
+
+Rationale:
+
+- Direct routing keeps a $10 prepaid budget useful without weakening complex field-note handling.
+- Returned token usage supports a transparent per-call estimate and local-first Turn budget meter.
+- The meter is deliberately not labeled as official OpenAI balance: standard project keys cannot read organization Costs/Usage, and adding an elevated admin key would create unnecessary privilege and secret risk.
+- Provider pricing can change, so every receipt records a pricing version and the UI links to authoritative OpenAI Billing.
+- The meter is informational, not a hard cap; provider project limits remain the enforcement boundary.
 
 ## Deferred Decisions
 

@@ -22,6 +22,7 @@ const realProject = (id: string, patch: Partial<Project> = {}): Project => ({
   estimatedUnits: 1,
   estimatedBeds: 2,
   estimatedCommonAreas: 0,
+  aiBudgetUsd: 10,
   createdAt: '2026-07-08T12:00:00.000Z',
   updatedAt: '2026-07-08T12:00:00.000Z',
   ...patch,

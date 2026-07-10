@@ -1,5 +1,6 @@
 import type {
   ActivityLog,
+  AiUsageEvent,
   AppData,
   Assignment,
   CrewMember,
@@ -34,7 +35,8 @@ export type SyncBoundaryKey =
   | 'draftActions'
   | 'memories'
   | 'memoryCandidates'
-  | 'followUpTasks';
+  | 'followUpTasks'
+  | 'aiUsageEvents';
 
 export type SyncRemoteData = Partial<Record<SyncBoundaryKey, { id: string }[]>>;
 
@@ -50,6 +52,7 @@ interface DemoSyncBoundary {
   demoDailyLogIds: Set<string>;
   demoReportDraftIds: Set<string>;
   demoActivityLogIds: Set<string>;
+  demoAiUsageEventIds: Set<string>;
   localOnlyDraftActionIds: Set<string>;
   localOnlyFollowUpTaskIds: Set<string>;
 }
@@ -106,6 +109,9 @@ export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
   const demoActivityLogIds = new Set(
     data.activityLogs.filter((log) => demoProjectIds.has(log.projectId)).map((log) => log.id),
   );
+  const demoAiUsageEventIds = new Set(
+    data.aiUsageEvents.filter((event) => demoProjectIds.has(event.projectId)).map((event) => event.id),
+  );
   const localOnlyDraftActionIds = new Set(
     data.draftActions
       .filter((draft) => {
@@ -135,6 +141,7 @@ export const createDemoSyncBoundary = (data: AppData): DemoSyncBoundary => {
     demoDailyLogIds,
     demoReportDraftIds,
     demoActivityLogIds,
+    demoAiUsageEventIds,
     localOnlyDraftActionIds,
     localOnlyFollowUpTaskIds,
   };
@@ -188,6 +195,8 @@ export const isDemoScopedSyncItem = (
     case 'followUpTasks': {
       return boundary.localOnlyFollowUpTaskIds.has(item.id);
     }
+    case 'aiUsageEvents':
+      return boundary.demoAiUsageEventIds.has(item.id);
     case 'trainingQuestions':
       return false;
     default:
@@ -259,6 +268,10 @@ export const withLocalDemoRows = (local: AppData, remote: SyncRemoteData): SyncR
     followUpTasks: appendMissingRows(
       remote.followUpTasks as FollowUpTask[] | undefined,
       local.followUpTasks.filter((task) => isDemoScopedSyncItem(boundary, 'followUpTasks', task)),
+    ),
+    aiUsageEvents: appendMissingRows(
+      remote.aiUsageEvents as AiUsageEvent[] | undefined,
+      local.aiUsageEvents.filter((event) => isDemoScopedSyncItem(boundary, 'aiUsageEvents', event)),
     ),
     trainingQuestions: remote.trainingQuestions as TrainingQuestion[] | undefined,
   };

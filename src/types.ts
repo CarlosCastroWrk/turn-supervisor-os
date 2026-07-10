@@ -106,6 +106,8 @@ export type MemoryType =
   | 'Lesson Learned';
 export type AgentRunMode = 'quick_capture' | 'ask_os' | 'briefing' | 'report' | 'memory_extraction';
 export type AgentRunStatus = 'success' | 'failed';
+export type AiModelClass = 'fast' | 'complex' | 'override';
+export type AiUsageTask = 'capture';
 export type FollowUpTaskStatus = 'open' | 'in_progress' | 'completed' | 'dismissed';
 export type SmartSuggestionStatus = 'active' | 'dismissed' | 'completed';
 export type SuggestionPriority = 'Low' | 'Medium' | 'High' | 'Critical';
@@ -127,6 +129,7 @@ export interface Project {
   estimatedUnits: number;
   estimatedBeds: number;
   estimatedCommonAreas: number;
+  aiBudgetUsd: number;
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -368,6 +371,23 @@ export interface AgentRun {
   error?: string;
 }
 
+export interface AiUsageEvent {
+  id: EntityId;
+  projectId: EntityId;
+  task: AiUsageTask;
+  model: string;
+  modelClass: AiModelClass;
+  routeReason: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  pricingVersion: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CopilotConversation {
   id: EntityId;
   projectId?: EntityId;
@@ -422,6 +442,7 @@ export interface AppData {
   memories: Memory[];
   memoryCandidates: MemoryCandidate[];
   agentRuns: AgentRun[];
+  aiUsageEvents: AiUsageEvent[];
   copilotConversations: CopilotConversation[];
   followUpTasks: FollowUpTask[];
   smartSuggestions: SmartSuggestion[];

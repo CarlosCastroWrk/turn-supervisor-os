@@ -165,6 +165,12 @@ try {
 
   const setupUnitCount = setupPage.locator('.setup-summary article').filter({ hasText: 'Units' }).locator('strong');
   assert.equal(await setupUnitCount.textContent(), '300');
+  const aiUsagePanel = setupPage.locator('.ai-usage-panel');
+  await aiUsagePanel.waitFor();
+  assert.match(await aiUsagePanel.innerText(), /Estimated remaining\s+\$10\.00/);
+  assert.match(await aiUsagePanel.innerText(), /AI assist not active/);
+  const aiUsageDesktopScreenshot = path.join(screenshotDirectory, 'desktop-ai-usage.png');
+  await aiUsagePanel.screenshot({ path: aiUsageDesktopScreenshot });
   const stored300 = await setupPage.evaluate((key) => window.localStorage.getItem(key), storageKey);
   assert.ok(stored300);
 
@@ -399,6 +405,11 @@ try {
   const csvMobilePage = await csvMobileContext.newPage();
   const csvMobileConsoleFindings = attachConsoleChecks(csvMobilePage);
   await csvMobilePage.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  const aiUsageMobilePanel = csvMobilePage.locator('.ai-usage-panel');
+  await aiUsageMobilePanel.waitFor();
+  await assertNoHorizontalOverflow(csvMobilePage, 'iphone-ai-usage');
+  const aiUsageMobileScreenshot = path.join(screenshotDirectory, 'iphone-ai-usage.png');
+  await aiUsageMobilePanel.screenshot({ path: aiUsageMobileScreenshot });
   await csvMobilePage.getByLabel('CSV file', { exact: true }).setInputFiles({
     name: 'qa-mobile-import.csv',
     mimeType: 'text/csv',
@@ -809,7 +820,13 @@ try {
         typingMs: Math.round(typingMs),
       },
       responsive,
-      screenshots: { committedField: committedFieldScreenshot, large: largeScreenshot, setup: setupScreenshot },
+      screenshots: {
+        aiUsageDesktop: aiUsageDesktopScreenshot,
+        aiUsageMobile: aiUsageMobileScreenshot,
+        committedField: committedFieldScreenshot,
+        large: largeScreenshot,
+        setup: setupScreenshot,
+      },
     })}\n`,
   );
 } finally {

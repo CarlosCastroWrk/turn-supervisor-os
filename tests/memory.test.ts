@@ -25,6 +25,7 @@ const realProject = (patch: Partial<Project> = {}): Project => ({
   estimatedUnits: 1,
   estimatedBeds: 2,
   estimatedCommonAreas: 0,
+  aiBudgetUsd: 10,
   createdAt: stamp,
   updatedAt: stamp,
   ...patch,

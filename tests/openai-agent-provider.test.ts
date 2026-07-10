@@ -10,6 +10,9 @@ import { createOpenAiAgentProvider } from '../src/lib/ai/openaiAgentProvider.ts'
 import type { AppData } from '../src/types.ts';
 
 const data: AppData = JSON.parse(JSON.stringify(seedData)) as AppData;
+data.projects = data.projects.map((project) =>
+  project.id === data.activeProjectId ? { ...project, mode: 'real' } : project,
+);
 const input = 'Unit 203 has a sink leak.';
 
 const modelOutput: ModelCaptureOutput = {
@@ -96,4 +99,23 @@ test('offline and failed model paths return deterministic drafts without throwin
   assert.equal(failed.provider, 'deterministic');
   assert.match(failed.providerNotice ?? '', /local safety parser completed/i);
   assert.ok(failed.draftActions.length > 0);
+});
+
+test('Demo Mode stays on the free local parser even when AI is enabled', async () => {
+  const demoData = JSON.parse(JSON.stringify(seedData)) as AppData;
+  let calls = 0;
+  const provider = createOpenAiAgentProvider({
+    enabled: true,
+    isOnline: () => true,
+    getAccessToken: async () => 'valid.capture.token.123456',
+    fetcher: async () => {
+      calls += 1;
+      throw new Error('Demo Mode must not spend API credit.');
+    },
+  });
+
+  const result = await provider.parseQuickCapture(input, demoData);
+  assert.equal(calls, 0);
+  assert.equal(result.provider, 'deterministic');
+  assert.match(result.providerNotice ?? '', /did not spend AI credit/i);
 });

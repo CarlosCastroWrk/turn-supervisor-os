@@ -1,4 +1,4 @@
-import { Check, Mic, Square, X } from 'lucide-react';
+import { Camera, Check, FileText, Image, Keyboard, Mic, ShieldCheck, Square, X } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
 import type { VoiceCaptureGuidance } from '../lib/voiceCapture';
 import { Button } from './FormControls';
@@ -17,9 +17,14 @@ interface VoiceCaptureSheetProps {
   showOrb?: boolean;
   dictationPlaceholder: string;
   onClose: () => void;
+  onFinish: () => void;
   onStart: () => void;
   onStop: () => void;
   onFallback: () => void;
+  onCamera?: () => void;
+  onPhoto?: () => void;
+  onFile?: () => void;
+  onType?: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }
 
@@ -37,9 +42,14 @@ export function VoiceCaptureSheet({
   showOrb = false,
   dictationPlaceholder,
   onClose,
+  onFinish,
   onStart,
   onStop,
   onFallback,
+  onCamera,
+  onPhoto,
+  onFile,
+  onType,
   onKeyDown,
 }: VoiceCaptureSheetProps) {
   return (
@@ -55,18 +65,18 @@ export function VoiceCaptureSheet({
         <div className="voice-sheet__topline">
           <div>
             <span className="quiet-label">Voice capture</span>
-            <h2 id={titleId}>{canUseBrowserSpeech ? 'Listening mode' : 'Dictation mode'}</h2>
+            <h2 id={titleId}>Capture</h2>
           </div>
           <button autoFocus className="icon-button" type="button" onClick={onClose} aria-label="Close voice mode">
             <X size={20} aria-hidden="true" />
           </button>
         </div>
 
+        <p className="voice-safety-line"><ShieldCheck size={17} aria-hidden="true" />Nothing changes until you approve.</p>
+
         {showOrb ? (
           <div className="voice-orb-wrap" aria-hidden="true">
-            <div className="voice-orb">
-              <Mic size={28} />
-            </div>
+            <div className="voice-orb">{isRecording ? <Square size={28} /> : <Mic size={30} />}</div>
             <span />
             <span />
           </div>
@@ -94,6 +104,14 @@ export function VoiceCaptureSheet({
           )}
         </div>
         {status ? <p className={isRecording ? 'success-text' : 'muted'} role="status" aria-live="polite">{status}</p> : null}
+        {onCamera && onPhoto && onFile && onType ? (
+          <div className="voice-capture-tools" aria-label="Other capture options">
+            <button type="button" onClick={onCamera}><Camera size={21} aria-hidden="true" /><span>Camera</span></button>
+            <button type="button" onClick={onPhoto}><Image size={21} aria-hidden="true" /><span>Photo</span></button>
+            <button type="button" onClick={onFile}><FileText size={21} aria-hidden="true" /><span>File</span></button>
+            <button type="button" onClick={onType}><Keyboard size={21} aria-hidden="true" /><span>Type</span></button>
+          </div>
+        ) : null}
         <div className="voice-sheet-actions">
           {canUseBrowserSpeech ? (
             <Button variant={isRecording ? 'ghost' : 'primary'} onClick={isRecording ? onStop : onStart}>
@@ -106,9 +124,9 @@ export function VoiceCaptureSheet({
               {guidance.sheetPrimaryAction}
             </Button>
           )}
-          <Button onClick={onClose}>
+          <Button variant="primary" onClick={onFinish}>
             <Check size={18} aria-hidden="true" />
-            Done
+            Finish
           </Button>
         </div>
         <small>{guidance.privacyNote}</small>

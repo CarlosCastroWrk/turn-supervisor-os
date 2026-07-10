@@ -6,14 +6,14 @@ It is not official Property Doctor Services software. It is a personal superviso
 
 ## What V0.1 Includes
 
-- Mobile-first dashboard with Turn day, project progress, blockers, crews, priorities, and quick actions
+- Mobile-first field Home with Turn day, readiness, tappable status counts, Needs attention, today's movement, and next actions
 - Copilot section with focused Quick Capture, Draft Actions, deterministic Ask/Briefing internals, and Setup-based Supervisor Memory review
 - Editable project setup
 - Demo Mode vs Real Turn Mode with a Start Real Turn setup flow
 - Preview-first Real Turn CSV Unit import that skips existing/invalid rows and never imports status
 - Preview-first bulk Unit updates for up to 500 filtered Units with protected/stale-row skips and no bulk Ready path
-- Global bottom-right Capture button available across tabs
-- Organized/collapsible sidebar on iPad and desktop widths
+- Universal Capture available from a raised iPhone bottom action and a fixed desktop action
+- Focused iPhone navigation plus an organized/collapsible left-edge sidebar on iPad and desktop widths
 - Buildings, floors, units, unit filters, and quick unit creation
 - Unit detail view with fast status updates, notes, linked issues, photos, and activity history
 - Crew directory with factual professional notes
@@ -30,7 +30,7 @@ It is not official Property Doctor Services software. It is a personal superviso
 - Local-first persistence using browser localStorage for operational records and IndexedDB for compressed photo files
 - Rule-based no-API-key copilot parser that creates draft actions before changing data, plus an optional protected model-assisted Capture path with the same approval boundary
 - Draft Action status tabs for Pending, Applied, Rejected, Failed, and All
-- Mobile-accessible secondary navigation for Setup, Assignments, Reports, Training Questions, and Export
+- Mobile More sheet for Crew, Reports, Setup, and Data & backup; lower-frequency operational screens remain available through their linked workflows
 - Optional Supabase sync panel behind `VITE_ENABLE_SYNC` for signing in and syncing records across devices
 
 ## Intentionally Excluded
@@ -112,7 +112,7 @@ Safety notes:
 2. Tap Backup JSON.
 3. Fill the Start Real Turn fields: property, location, dates, supervisor, project manager, and the structure you know.
 4. Tap Start Real Turn.
-5. Confirm the Dashboard says Real Turn Mode before entering real field notes.
+5. Confirm Home says Real Turn Mode before entering real field notes.
 6. Optional: use Setup's CSV import to preview and add a known Unit list. Existing Units are skipped and every imported Unit starts Not Started.
 
 Demo Mode stays available for practice. Use the mode switch in Setup to return to the sample project without mixing it into the real board.
@@ -123,13 +123,12 @@ The Copilot is a local-first assistant layer. It helps capture, organize, summar
 
 ### Quick Capture
 
-1. Tap the bottom-right Capture button.
-2. Tap Record if browser speech recognition is available, or tap the messy note box and use iPhone/iPad keyboard dictation.
-3. Speak or type a field note.
-4. Tap Review Changes.
-5. Review Draft Actions.
-6. Edit payloads if needed.
-7. Approve/apply or reject each action.
+1. Tap Capture once from any field screen.
+2. Voice mode opens immediately without focusing the keyboard. Speak where browser speech recognition is available, or use Type and the iPhone/iPad keyboard microphone.
+3. Camera, Photo, File, and Type stay available in the same Capture surface.
+4. Tap Finish, then Review captured changes when needed.
+5. Review each proposed Draft Action.
+6. Approve/apply or reject each action. Nothing operational changes before approval.
 
 Example note:
 

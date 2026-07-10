@@ -9,14 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, and the dormant H1 Protected Model Route
+E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1 Protected Model Route, and H2 Cost-Aware Model Orchestration and AI Usage Meter
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-H1 dormant route verified at dpl_HTAnc2reXfF9TWVeyg3XiKjsZCz4
+H2 deployed dormant at dpl_68wPJ1VwKziFev8yXhtkaoEyuNEE
 ```
 
 Current unshipped slice:
@@ -156,7 +156,7 @@ These are user-reported physical checks, not automated claims. Capture Workspace
 - Bulk Ready, arbitrary mass status resets, and automatic bulk Undo; those operations remain intentionally outside the guarded batch workflow
 - Multi-user mode
 - A broad browser regression suite beyond the targeted field-scale, photo, PWA, accessibility, and release smoke harnesses
-- Production-enabled model-assisted Capture; billing is funded, the metering schema is applied, and local synthetic model checks pass, but the production route remains dormant until the reviewed H2 release deploys and Los separately approves the required Vercel environment changes
+- Production-enabled model-assisted Capture; billing is funded, the metering schema and H2 release are deployed, and local synthetic model checks pass, but the production route remains dormant until Los separately approves the required Vercel environment changes
 - Official OpenAI credit-balance reconciliation inside the app; the in-app meter tracks estimated TurnOS call cost from returned token usage and a Los-entered budget, not the provider's authoritative billing balance
 - Durable recorded-audio transcription pipeline
 - Image understanding for staged Capture photos or files
@@ -204,4 +204,4 @@ Direct commits to `main` are reserved for urgent field hotfixes with explicit ap
 
 ## Next Action
 
-Merge and deploy the reviewed H2 metering slice with `VITE_ENABLE_AI` still off. Production model activation is a separate approval for the server-only key, Los allowlist, and feature flag, followed by one synthetic production Capture before any real field note is sent.
+Keep the deployed H2 meter dormant while finishing ordinary field-device QA. Production model activation is a separate approval for the server-only key, Los allowlist, and feature flag, followed by one synthetic production Capture and a signed-in cross-device usage-receipt check before any real field note is sent.

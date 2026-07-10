@@ -792,7 +792,7 @@ Status: implemented and deployed dormant in PR #62; billing is funded and local 
 - [x] Add local-first, backup-safe usage history and a project-level Turn AI budget.
 - [x] Show estimated used/remaining/average/recent calls without requesting an elevated OpenAI admin key.
 - [x] Apply the owner-scoped Supabase metering migration after explicit approval; local and remote history now match, with linked schema lint passing.
-- [ ] Deploy the dormant H2 release before separate production activation.
+- [x] Deploy the dormant H2 release at `dpl_68wPJ1VwKziFev8yXhtkaoEyuNEE`; canonical recovery and protected-route smoke pass before separate production activation.
 
 ### H3. Grounded Multimodal Assistance
 

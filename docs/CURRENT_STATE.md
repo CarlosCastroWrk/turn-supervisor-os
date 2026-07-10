@@ -9,14 +9,14 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G6 Preview-First Bulk Unit Updates
+E4 Project-Scoped Memory through G7 Production Security Headers
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-Bulk Unit runtime release verified at dpl_86nG5asRS8ki51RcmavYjXHDTamN
+Production security-header release verified at dpl_ExMxdEEYfRzdxC5eF18ZjWbome4s
 ```
 
 ## Current Goal
@@ -48,6 +48,7 @@ Every near-term change should serve that loop.
 - Preview-first bulk Unit updates from the filtered Units board: select shown or all current matches, choose one explicit paint/clean/repair/inspection transition, review update/skip counts, and confirm up to 500 Units
 - Bulk update safety that stays inside the active Turn, excludes bulk Ready and free-form resets, skips protected/unchanged/missing Units, rejects a changed project, refuses post-preview stale Unit timestamps, persists before UI success, and names skipped Units in feedback
 - Vercel production deployment at `https://turn-supervisor-os.vercel.app`
+- Version-controlled production security headers with same-origin scripts, explicit Supabase HTTPS/WebSocket access, photo and PWA blob allowances, camera/microphone self-permission, clickjacking protection, MIME-sniffing protection, and a restrictive referrer policy
 - Private GitHub repo at `CarlosCastroWrk/turn-supervisor-os`
 - Dashboard, setup, units, unit detail, issues, crews, assignments, daily log, reports, training questions, and export views
 - Clickable dashboard stat cards that navigate to filtered unit lists

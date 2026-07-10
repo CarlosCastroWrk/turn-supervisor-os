@@ -121,6 +121,7 @@ Slices:
 - Accessibility and field contrast (implemented; physical outdoor/VoiceOver acceptance pending)
 - Preview-first CSV Unit import (implemented; physical iPhone/iPad file-picker acceptance pending)
 - Preview-first bulk Unit updates (implemented; physical iPhone/iPad filtered-batch acceptance pending)
+- Production security headers (implemented; header, PWA registration, Capture, and signed-out sync-panel production smoke passed; signed-in physical acceptance remains open)
 
 Success gate:
 

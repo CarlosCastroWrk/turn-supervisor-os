@@ -12,6 +12,7 @@
     "test:ai-usage": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs tests/ai-usage-browser.mjs",
     "test:field-scale": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs tests/field-scale-browser.mjs",
     "test:capture-workspace": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs tests/capture-workspace-browser.mjs",
+    "test:board-first": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs tests/board-first-field-pages-browser.mjs",
     "test:production-recovery": "node --experimental-strip-types --import ./tests/register-ts-loader.mjs tests/production-recovery-browser.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "check:os": "scripts/check_os.sh"

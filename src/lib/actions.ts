@@ -35,6 +35,7 @@ import {
 import { createEmptyDailyLog, findDailyLog } from './dailyLogs';
 import { DEFAULT_TURN_AI_BUDGET_USD } from './ai/usage';
 import { memoryAppliesToActiveProject, prepareMemoryCandidatesForActiveProject } from './memory';
+import { getUnitReadyConflicts } from './metrics';
 import { getDraftActionProjectId } from './projectScope';
 import {
   normalizeUnitCsvImportRow,
@@ -1082,7 +1083,7 @@ export const maintenanceNeededPatch = (unit: Unit): ReversibleUnitPatch => ({
 
 const unitCanBeReady = (unit: Unit, patch: Partial<Unit>) => {
   const next = { ...unit, ...patch };
-  return unitTradesComplete(next) && workDone(next.inspectionStatus);
+  return getUnitReadyConflicts(next).length === 0;
 };
 
 const failDraft = (data: AppData, draft: DraftAction, error: string): AppData =>
@@ -1152,8 +1153,8 @@ export const applyDraftAction = (data: AppData, draftActionId: EntityId): AppDat
     if (repairStatus.value) patch.repairStatus = repairStatus.value as WorkStatus;
     if (inspectionStatus.value) patch.inspectionStatus = inspectionStatus.value as WorkStatus;
 
-    if (patch.overallStatus === 'Ready' && !unitCanBeReady(unit, patch) && draft.payload.explicitReadyConfirmation !== true) {
-      return failDraft(next, draft, 'Ready is blocked until paint, clean, maintenance, and inspection are complete.');
+    if (patch.overallStatus === 'Ready' && !unitCanBeReady(unit, patch)) {
+      return failDraft(next, draft, 'Ready is blocked until all work checks and final inspection are complete.');
     }
 
     next = updateUnit(next, unit.id, patch, draft.summary);

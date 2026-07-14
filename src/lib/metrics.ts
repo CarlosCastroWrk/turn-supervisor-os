@@ -1,4 +1,4 @@
-import type { AppData, Assignment, Building, Floor, Issue, Project, Unit } from '../types';
+import type { AppData, Assignment, Building, Floor, Issue, Project, Unit, WorkStatus } from '../types';
 
 export const isArchivedProject = (project: Project) => Boolean(project.archivedAt);
 
@@ -27,12 +27,66 @@ export const getProjectIssues = (data: AppData) => getIssuesForProject(data, dat
 export const getProjectAssignments = (data: AppData) => getAssignmentsForProject(data, data.activeProjectId);
 export const getProjectCrewMembers = (data: AppData) => getCrewMembersForProject(data, data.activeProjectId);
 
-export const isBlockedUnit = (unit: Unit) =>
-  unit.overallStatus.includes('Blocked') ||
-  unit.paintStatus === 'Blocked' ||
-  unit.cleanStatus === 'Blocked' ||
-  unit.repairStatus === 'Blocked' ||
-  unit.trashStatus === 'Blocked';
+export interface UnitStatusReason {
+  label: string;
+  status: string;
+}
+
+const workIsComplete = (status: WorkStatus) => status === 'Complete' || status === 'Not Applicable';
+
+const explicitOverallBlockers = new Set<Unit['overallStatus']>([
+  'Access Blocked',
+  'Punch List',
+  'Rework Needed',
+  'Hold / Blocked',
+]);
+
+const workChecks: Array<{ label: string; key: keyof Pick<Unit, 'paintStatus' | 'cleanStatus' | 'repairStatus' | 'flooringStatus' | 'trashStatus'> }> = [
+  { label: 'Paint', key: 'paintStatus' },
+  { label: 'Clean', key: 'cleanStatus' },
+  { label: 'Maintenance', key: 'repairStatus' },
+  { label: 'Flooring', key: 'flooringStatus' },
+  { label: 'Trash out', key: 'trashStatus' },
+];
+
+export const getUnitBlockingReasons = (unit: Unit): UnitStatusReason[] => {
+  const reasons: UnitStatusReason[] = [];
+  if (unit.overallStatus.includes('Blocked')) {
+    reasons.push({ label: 'Overall', status: unit.overallStatus });
+  }
+  workChecks.forEach(({ label, key }) => {
+    if (unit[key] === 'Blocked') {
+      reasons.push({ label, status: unit[key] });
+    }
+  });
+  return reasons;
+};
+
+export const getUnitReadyConflicts = (unit: Unit): UnitStatusReason[] => {
+  const conflicts: UnitStatusReason[] = [];
+  if (explicitOverallBlockers.has(unit.overallStatus)) {
+    conflicts.push({ label: 'Overall', status: unit.overallStatus });
+  }
+  workChecks.forEach(({ label, key }) => {
+    if (!workIsComplete(unit[key])) {
+      conflicts.push({ label, status: unit[key] });
+    }
+  });
+  if (!workIsComplete(unit.inspectionStatus)) {
+    conflicts.push({ label: 'Inspection', status: unit.inspectionStatus });
+  }
+  return conflicts;
+};
+
+export const getMarkReadyBlockers = (unit: Unit): UnitStatusReason[] => {
+  const blockers = getUnitReadyConflicts(unit).filter(({ label }) => label !== 'Inspection');
+  if (unit.inspectionStatus === 'Blocked' || unit.inspectionStatus === 'Rework Needed') {
+    blockers.push({ label: 'Inspection', status: unit.inspectionStatus });
+  }
+  return blockers;
+};
+
+export const isBlockedUnit = (unit: Unit) => getUnitBlockingReasons(unit).length > 0;
 
 export const isInProgressUnit = (unit: Unit) =>
   ['Painting', 'Cleaning', 'Maintenance In Progress', 'Punch List', 'Rework Needed'].includes(unit.overallStatus);
@@ -40,7 +94,8 @@ export const isInProgressUnit = (unit: Unit) =>
 export const isInspectionUnit = (unit: Unit) =>
   unit.overallStatus === 'Inspection Needed' || unit.inspectionStatus === 'Ready' || unit.inspectionStatus === 'Needed';
 
-export const isReadyUnit = (unit: Unit) => unit.overallStatus === 'Ready';
+export const isReadyUnit = (unit: Unit) =>
+  unit.overallStatus === 'Ready' && getUnitReadyConflicts(unit).length === 0;
 
 export const getUnitSummary = (units: Unit[]) => {
   const totalUnits = units.length;

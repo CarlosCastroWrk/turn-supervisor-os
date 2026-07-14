@@ -5,6 +5,7 @@ import { createServer } from 'vite';
 const host = '127.0.0.1';
 const port = 4187;
 const baseUrl = `http://${host}:${port}`;
+const storageKey = 'turn-supervisor-os:v0.1';
 
 const attachRuntimeChecks = (page) => {
   const findings = [];
@@ -83,6 +84,44 @@ try {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await unitIssueDialog.waitFor({ state: 'hidden' });
     await assertNoHorizontalOverflow(page, `${target.name} Unit detail`);
+
+    await page.goto(`${baseUrl}/#/unit/unit_103`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Unit 103', exact: true }).waitFor();
+    await page.getByRole('button', { name: /Mark ready/ }).click();
+    await page.getByRole('alert').filter({ hasText: 'Cannot mark Unit 103 Ready yet' }).waitFor();
+    assert.equal(await page.locator('.unit-overview__status').getByText('Access Blocked', { exact: true }).count(), 1);
+    await page.getByText('Manual unit details', { exact: true }).click();
+    const flooringSelect = page.locator('.unit-manual-details label.field').filter({ hasText: /^Flooring/ }).locator('select');
+    const trashOutSelect = page.locator('.unit-manual-details label.field').filter({ hasText: /^Trash out/ }).locator('select');
+    assert.equal(await flooringSelect.count(), 1);
+    assert.equal(await trashOutSelect.count(), 1);
+    assert.equal(await trashOutSelect.inputValue(), 'Blocked');
+    const overallSelect = page.getByRole('combobox', { name: 'Overall', exact: true });
+    await overallSelect.selectOption('Ready');
+    await page.getByRole('alert').filter({ hasText: 'Cannot set Unit 103 to Ready manually' }).waitFor();
+    assert.equal(await overallSelect.inputValue(), 'Access Blocked');
+    await assertNoHorizontalOverflow(page, `${target.name} guarded Ready state`);
+
+    await page.evaluate((key) => {
+      const stored = JSON.parse(window.localStorage.getItem(key));
+      stored.units = stored.units.map((unit) =>
+        unit.id === 'unit_103'
+          ? {
+              ...unit,
+              overallStatus: 'Ready',
+              paintStatus: 'Complete',
+              cleanStatus: 'Complete',
+              repairStatus: 'Needed',
+              inspectionStatus: 'Complete',
+            }
+          : unit,
+      );
+      window.localStorage.setItem(key, JSON.stringify(stored));
+    }, storageKey);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('alert').filter({ hasText: 'Ready needs review.' }).waitFor();
+    assert.equal(await page.locator('.unit-overview__status').getByText('Ready', { exact: true }).count(), 1);
+    await assertNoHorizontalOverflow(page, `${target.name} contradictory Ready warning`);
 
     assert.deepEqual(findings, [], `${target.name} runtime findings:\n${findings.join('\n')}`);
     await context.close();

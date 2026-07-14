@@ -11,6 +11,7 @@ import {
   syncedTables,
   uploadLocalData,
 } from '../src/lib/supabase/sync.ts';
+import { SyncSessionChangedError } from '../src/lib/supabase/cacheOwnership.ts';
 import { buildDailyLogId, createEmptyDailyLog } from '../src/lib/dailyLogs.ts';
 import type { AiUsageEvent, AppData, DailyLog, Memory, MemoryCandidate, PhotoNote, Project, ReportDocumentDraft, Unit } from '../src/types.ts';
 
@@ -345,6 +346,63 @@ const fakeClient = (
 });
 
 const asSupabaseClient = (client: ReturnType<typeof fakeClient>) => client as unknown as SupabaseClient;
+
+test('remote pull stops before applying more tables when the account changes mid-request', async () => {
+  let active = true;
+  let rangeCalls = 0;
+  const client = {
+    from() {
+      return {
+        select() {
+          const query = {
+            order() {
+              return query;
+            },
+            async range() {
+              rangeCalls += 1;
+              active = false;
+              return { data: [], error: null };
+            },
+          };
+          return query;
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const requestGuard = () => {
+    if (!active) throw new SyncSessionChangedError();
+  };
+
+  await assert.rejects(fetchRemoteData(client, requestGuard), SyncSessionChangedError);
+  assert.equal(rangeCalls, 1);
+});
+
+test('row upload starts no new request after the account guard changes', async () => {
+  let active = true;
+  let upsertCalls = 0;
+  const client = {
+    from() {
+      return {
+        async upsert() {
+          upsertCalls += 1;
+          active = false;
+          return { error: null };
+        },
+      };
+    },
+  } as unknown as SupabaseClient;
+  const requestGuard = () => {
+    if (!active) throw new SyncSessionChangedError();
+  };
+
+  await assert.rejects(uploadLocalData(client, appData(), {}, requestGuard), SyncSessionChangedError);
+  assert.equal(upsertCalls, 1);
+
+  active = false;
+  upsertCalls = 0;
+  await assert.rejects(uploadLocalData(client, appData(), {}, requestGuard), SyncSessionChangedError);
+  assert.equal(upsertCalls, 0);
+});
 
 test('fetchRemoteData paginates table pulls past the Supabase 1000-row default', async () => {
   const rangeCalls: RangeCall[] = [];

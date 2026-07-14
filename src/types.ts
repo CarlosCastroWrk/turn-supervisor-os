@@ -460,6 +460,7 @@ export type AppView =
   | 'daily'
   | 'reports'
   | 'copilot'
+  | 'playbooks'
   | 'training'
   | 'export';
 

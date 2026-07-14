@@ -62,6 +62,7 @@ Every near-term change should serve that loop.
 - Clickable Home stat cards that navigate to filtered unit lists
 - Needs Attention and Next Action cards that navigate to the relevant unit, issue, assignment, or board view
 - Grounded Turn Pulse on Home that summarizes the active Turn, names one read-only Start Here action, preserves evidence, and keeps every action behind the existing record/detail flow
+- Read-only Turn OS Playbooks for the existing Capture/Confirm, blocker, and Daily Log workflows, with no invented company procedure or completion tracking
 - Units page scan upgrades with needs-attention sorting, counted status filter chips, larger tappable unit cards, compact quick status actions, and visible blocker/crew/last-activity context
 - Issue flow simplification with default owner/date capture, no priority/date fields in the field form, Active issue filtering, and two-step soft remove from the normal board
 - Responsive app frame with a true left-edge desktop/iPad sidebar, persisted collapsed state, compact tablet Capture behavior, and focused mobile bottom navigation

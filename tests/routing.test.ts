@@ -40,6 +40,7 @@ test('buildAppHash keeps ordinary top-level navigation compact', () => {
   assert.equal(buildAppHash(routeForNavigation('dashboard')), '#/dashboard');
   assert.equal(buildAppHash(routeForNavigation('units', undefined, { unitStatusFilter: 'Blocked' })), '#/units?status=Blocked');
   assert.equal(buildAppHash(routeForNavigation('reports')), '#/reports');
+  assert.equal(buildAppHash(routeForNavigation('playbooks')), '#/playbooks');
 });
 
 test('routeForNavigation avoids a dead unit detail route when no unit id is present', () => {

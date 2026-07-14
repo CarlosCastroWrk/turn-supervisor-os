@@ -13,6 +13,7 @@ import { DailyLogView } from './views/DailyLogView';
 import { DashboardView } from './views/DashboardView';
 import { ExportView } from './views/ExportView';
 import { IssuesView } from './views/IssuesView';
+import { PlaybooksView } from './views/PlaybooksView';
 import { ReportsView } from './views/ReportsView';
 import { SetupView } from './views/SetupView';
 import { TrainingQuestionsView } from './views/TrainingQuestionsView';
@@ -74,6 +75,7 @@ function App() {
         {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
         {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
         {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
+        {route.view === 'playbooks' ? <PlaybooksView onNavigate={navigate} /> : null}
         {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
         {route.view === 'export' ? (
           <ExportView

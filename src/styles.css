@@ -1068,6 +1068,138 @@ small {
   gap: 10px;
 }
 
+.playbooks-title {
+  align-items: flex-start;
+}
+
+.playbooks-title > svg {
+  flex: 0 0 auto;
+  color: #2563eb;
+}
+
+.playbooks-title p {
+  max-width: 680px;
+  margin: 5px 0 0;
+}
+
+.playbook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  align-items: stretch;
+  gap: 12px;
+}
+
+.playbook-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  padding: 15px;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.playbook-card__header h2 {
+  margin: 4px 0 5px;
+  font-size: 1.08rem;
+}
+
+.playbook-card__header p,
+.playbook-steps p {
+  margin: 0;
+  color: #475569;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.playbook-steps {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.playbook-steps li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+}
+
+.playbook-steps li > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.playbook-steps strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.84rem;
+}
+
+.playbook-card__safety {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  border-radius: calc(var(--radius) - 4px);
+  background: #f0fdf4;
+  color: #166534;
+  padding: 9px;
+  font-size: 0.75rem;
+  font-weight: 720;
+  line-height: 1.4;
+}
+
+.playbook-card__safety svg {
+  margin-top: 1px;
+}
+
+.playbook-card__action {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: calc(var(--radius) - 4px);
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.playbook-card__action span,
+.playbook-card__action strong {
+  display: block;
+  grid-column: 1;
+}
+
+.playbook-card__action span {
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.playbook-card__action strong {
+  font-size: 0.84rem;
+}
+
+.playbook-card__action svg {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+
 .list-card,
 .list-card--button,
 .issue-card__header,

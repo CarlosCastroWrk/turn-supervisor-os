@@ -9,20 +9,20 @@ The app exists as a private, local-first React + TypeScript + Vite PWA for Los t
 Latest shipped release train:
 
 ```text
-E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1/H2 model route and meter, D7 Capture-First Field Shell, and D8 Board-First Field Pages
+E4 Project-Scoped Memory through G8 Production Recovery Gate, C6 Capture Workspace V2, the dormant H1/H2 model route and meter, D7 Capture-First Field Shell, D8 Board-First Field Pages, the P0 Account-Scoped Cache Guard, I1 Grounded Turn Pulse, and I2 Turn OS Playbooks
 ```
 
 Production:
 
 ```text
 https://turn-supervisor-os.vercel.app
-D8 deployed at dpl_BApbYbhWvAo7jFZ4jH3uqrEgsw6j; production AI remains dormant
+Turn OS release `b6d055c` deployed at `dpl_7QzXf9h1xZmTPidXFNvWXCFYGU7t`; production AI remains dormant
 ```
 
 Current release state:
 
 ```text
-D8 is shipped. Focused physical-device acceptance remains.
+The account-scoped cache guard, Grounded Turn Pulse, and read-only Turn OS Playbooks are shipped. Existing unbound caches require explicit account review; the broader focused physical-device acceptance list remains.
 ```
 
 ## Current Goal
@@ -82,6 +82,7 @@ Every near-term change should serve that loop.
 - Supabase cloud project `jgplalexkmjzldczouih`
 - Supabase schema, RLS, private `photos`/`audio` buckets, email/password login enabled, and global public signup disabled
 - Supabase sync client behind `VITE_ENABLE_SYNC`, including sign-in UI, first-run upload/pull, manual sync controls, and Realtime subscriptions for synced tables
+- Account-scoped local cache ownership that pauses record and photo sync when the cache is unbound or belongs to another account, pins each run to its starting session, and resumes only after an explicit matching-account claim
 - Sync change fingerprinting that normalizes timestamp formats and JSON object key order to avoid false local-change loops after pulling Supabase rows
 - Deterministic equal-timestamp sync resolution that prevents same-row copies from re-uploading over each other indefinitely and preserves resolved Draft Action lifecycle states over stale pending copies
 - Sync diagnostics that quiet background Realtime checks and expose last trigger, table, event, row counts, queued state, and last error in the sync panel

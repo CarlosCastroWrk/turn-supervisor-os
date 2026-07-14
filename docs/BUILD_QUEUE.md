@@ -190,6 +190,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 - [x] Move existing-record Project estimate and Unit bed/bath number fields to session-backed commit-on-blur behavior without breaking multi-field Setup creation.
 - [x] Prevent same-day Daily Logs created offline on multiple devices from violating the Supabase project/date uniqueness boundary.
 - [x] Block local JSON restore until sync auth is resolved and signed out.
+- [x] Bind each device-local cache to one Supabase account, pause account-switch record/photo sync at `Cache needs review`, and require an explicit matching-account claim before upload resumes.
 - [x] C1 Dictation Parser Eval Suite.
 - [x] C2 Unit-Boundary Parser for punctuation-free field notes.
 - [x] C3 Draft Batch Safety: visible/current batch approval only.

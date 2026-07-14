@@ -5442,6 +5442,29 @@ body.capture-workspace-open {
   white-space: nowrap;
 }
 
+.unit-ready-conflict {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  border: 1px solid #fdba74;
+  border-radius: var(--radius);
+  background: #fff7ed;
+  color: #9a3412;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.unit-ready-conflict svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.unit-ready-conflict strong {
+  display: block;
+}
+
 .unit-overview__grid > .field {
   margin: 0;
 }

@@ -44,6 +44,7 @@ try {
   await page.getByRole('heading', { name: 'Turn OS Playbooks', exact: true }).waitFor();
   assert.equal(page.url().endsWith('#/playbooks'), true);
   assert.equal(await page.locator('.playbook-card').count(), 3);
+  assert.equal(await page.getByText('Opening one takes you to the existing screen; it never changes a Unit, Issue, or Crew record for you.', { exact: false }).count(), 1);
   assert.equal(await page.getByText('They are not official company procedures.', { exact: false }).count(), 1);
   const dimensions = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,

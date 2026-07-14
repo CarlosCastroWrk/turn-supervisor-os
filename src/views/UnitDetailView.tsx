@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, ClipboardPlus, ImagePlus, PenLine, Plus, ShieldCheck, Wrench } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardPlus, ImagePlus, PenLine, Plus, ShieldCheck, Wrench } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { FieldEntryDialog } from '../components/FieldEntryDialog';
 import { Button, CommittedTextarea, Field, NumberInput } from '../components/FormControls';
@@ -19,6 +19,7 @@ import {
 } from '../lib/actions';
 import { createId, formatTime, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, WORK_STATUSES } from '../lib/constants';
+import { getMarkReadyBlockers, getUnitReadyConflicts, type UnitStatusReason } from '../lib/metrics';
 import type { AppData, AppView, Issue, IssueCategory, UnitWorkflowStatus, WorkStatus } from '../types';
 
 interface UnitDetailViewProps {
@@ -30,6 +31,12 @@ interface UnitDetailViewProps {
 
 const completedLabel = (status: WorkStatus) =>
   status === 'Complete' || status === 'Not Applicable' ? 'Complete' : status;
+
+const describeReasons = (reasons: UnitStatusReason[]) => {
+  const visible = reasons.slice(0, 3).map(({ label, status }) => `${label} is ${status}`);
+  const remaining = reasons.length - visible.length;
+  return `${visible.join('; ')}${remaining > 0 ? `; and ${remaining} more` : ''}`;
+};
 
 export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetailViewProps) {
   const { notify } = useToast();
@@ -57,10 +64,15 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
   const issues = data.issues.filter((issue) => issue.unitId === unit.id);
   const photos = data.photoNotes.filter((photo) => photo.unitId === unit.id);
   const activity = data.activityLogs.filter((log) => log.entityId === unit.id).slice(0, 8);
+  const readyConflicts = unit.overallStatus === 'Ready' ? getUnitReadyConflicts(unit) : [];
   const checks = [
     { label: 'Paint', value: completedLabel(unit.paintStatus) },
     { label: 'Clean', value: completedLabel(unit.cleanStatus) },
     { label: 'Maintenance', value: completedLabel(unit.repairStatus) },
+    ...(unit.flooringStatus === 'Not Applicable'
+      ? []
+      : [{ label: 'Flooring', value: completedLabel(unit.flooringStatus) }]),
+    { label: 'Trash out', value: completedLabel(unit.trashStatus) },
     { label: 'Inspection', value: completedLabel(unit.inspectionStatus) },
   ];
 
@@ -72,15 +84,21 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
     applyUnitUpdate(unit.id, patch, note, confirmation);
   };
 
-  const markReady = () => {
-    const incompleteItems = [
-      unit.paintStatus !== 'Complete' && unit.paintStatus !== 'Not Applicable' ? `paint: ${unit.paintStatus}` : '',
-      unit.cleanStatus !== 'Complete' && unit.cleanStatus !== 'Not Applicable' ? `clean: ${unit.cleanStatus}` : '',
-      unit.repairStatus !== 'Complete' && unit.repairStatus !== 'Not Applicable' ? `maintenance: ${unit.repairStatus}` : '',
-      unit.inspectionStatus !== 'Complete' && unit.inspectionStatus !== 'Not Applicable' ? `inspection: ${unit.inspectionStatus}` : '',
-    ].filter(Boolean);
+  const updateOverallStatus = (overallStatus: UnitWorkflowStatus) => {
+    if (overallStatus === 'Ready') {
+      const conflicts = getUnitReadyConflicts({ ...unit, overallStatus });
+      if (conflicts.length > 0) {
+        notify(`Cannot set Unit ${unit.unitNumber} to Ready manually: ${describeReasons(conflicts)}. Use Mark ready after correcting the work checks.`, { tone: 'error' });
+        return;
+      }
+    }
+    updateStatus({ overallStatus }, 'Changed overall status.');
+  };
 
-    if (incompleteItems.length > 0 && !window.confirm(`Unit ${unit.unitNumber} still has incomplete work (${incompleteItems.join(', ')}). Mark it Ready anyway?`)) {
+  const markReady = () => {
+    const blockers = getMarkReadyBlockers(unit);
+    if (blockers.length > 0) {
+      notify(`Cannot mark Unit ${unit.unitNumber} Ready yet: ${describeReasons(blockers)}.`, { tone: 'error' });
       return;
     }
 
@@ -183,6 +201,15 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
               />
             </Field>
           </div>
+          {readyConflicts.length > 0 ? (
+            <div className="unit-ready-conflict" role="alert">
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>
+                <strong>Ready needs review.</strong>
+                This Unit still says {describeReasons(readyConflicts)}. Correct the work checks before relying on Home.
+              </span>
+            </div>
+          ) : null}
         </Section>
 
         <Section title="Update unit" kicker="Fast field actions" className="unit-quick-actions">
@@ -205,7 +232,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
             </button>
             <button className="quick-action" type="button" onClick={markReady}>
               <ClipboardPlus size={22} aria-hidden="true" />
-              <span><strong>Mark ready</strong><small>Final-ready locally</small></span>
+              <span><strong>Mark ready</strong><small>Complete the final check</small></span>
             </button>
           </div>
         </Section>
@@ -254,7 +281,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           <div className="form-card">
             <div className="grid two">
               <Field label="Overall">
-                <select value={unit.overallStatus} onChange={(event) => updateStatus({ overallStatus: event.target.value as UnitWorkflowStatus }, 'Changed overall status.')}>
+                <select value={unit.overallStatus} onChange={(event) => updateOverallStatus(event.target.value as UnitWorkflowStatus)}>
                   {data.configurableStatuses.map((status) => <option key={status}>{status}</option>)}
                 </select>
               </Field>
@@ -270,6 +297,16 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
               </Field>
               <Field label="Maintenance">
                 <select value={unit.repairStatus} onChange={(event) => updateStatus({ repairStatus: event.target.value as WorkStatus }, 'Changed maintenance status.')}>
+                  {WORK_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                </select>
+              </Field>
+              <Field label="Flooring">
+                <select value={unit.flooringStatus} onChange={(event) => updateStatus({ flooringStatus: event.target.value as WorkStatus }, 'Changed flooring status.')}>
+                  {WORK_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                </select>
+              </Field>
+              <Field label="Trash out">
+                <select value={unit.trashStatus} onChange={(event) => updateStatus({ trashStatus: event.target.value as WorkStatus }, 'Changed trash-out status.')}>
                   {WORK_STATUSES.map((status) => <option key={status}>{status}</option>)}
                 </select>
               </Field>

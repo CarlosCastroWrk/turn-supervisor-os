@@ -1,6 +1,6 @@
 import type { AppData, SmartSuggestion, Unit } from '../../types';
 import { createId, nowISO, todayISO } from '../constants';
-import { getProjectAssignments, getProjectIssues, getProjectUnits, isBlockedUnit } from '../metrics';
+import { getProjectAssignments, getProjectIssues, getProjectUnits, getUnitBlockingReasons, isBlockedUnit } from '../metrics';
 
 const hoursSince = (iso: string) => {
   const value = new Date(iso).getTime();
@@ -126,11 +126,14 @@ export const generateSmartSuggestions = (data: AppData): SmartSuggestion[] => {
   }
 
   units.filter(isBlockedUnit).slice(0, 4).forEach((unit) => {
+    const blockedBy = getUnitBlockingReasons(unit)
+      .map(({ label, status }) => `${label}: ${status}`)
+      .join('; ');
     suggestions.push({
       id: createId('suggestion_blocked'),
       type: 'blocked_unit',
       title: `Blocked unit: ${unit.unitNumber}`,
-      description: `Current status: ${unit.overallStatus}. Confirm owner and follow-up time.`,
+      description: `${blockedBy}. Correct the field check or confirm an owner and follow-up time.`,
       priority: 'High',
       relatedEntityType: 'unit',
       relatedEntityId: unit.id,
@@ -141,4 +144,3 @@ export const generateSmartSuggestions = (data: AppData): SmartSuggestion[] => {
 
   return suggestions.slice(0, 16);
 };
-

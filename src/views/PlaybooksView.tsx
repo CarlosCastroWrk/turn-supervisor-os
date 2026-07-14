@@ -13,7 +13,8 @@ export function PlaybooksView({ onNavigate }: PlaybooksViewProps) {
         <div>
           <span className="quiet-label">Repeat the safe routine</span>
           <h1>Turn OS Playbooks</h1>
-          <p>Short guides for using this personal field notebook. They are not official company procedures.</p>
+          <p>Read-only checklists for using this personal field notebook. Opening one takes you to the existing screen; it never changes a Unit, Issue, or Crew record for you.</p>
+          <p>They are not official company procedures.</p>
         </div>
         <BookOpenCheck size={30} aria-hidden="true" />
       </div>

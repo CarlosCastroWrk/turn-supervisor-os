@@ -214,6 +214,13 @@ test('parser-created ready drafts cannot bypass ready safety checks', async () =
   assert.equal(applied.draftActions[0].status, 'failed');
   assert.match(applied.draftActions[0].error ?? '', /Ready is blocked/);
   assert.equal(applied.units.find((item) => item.unitNumber === '104')?.overallStatus, 'Not Started');
+
+  const forcedInput = updateDraftAction({ ...parserData(), draftActions: [readyDraft] }, readyDraft.id, {
+    payload: { ...readyDraft.payload, explicitReadyConfirmation: true },
+  });
+  const forced = applyDraftAction(forcedInput, readyDraft.id);
+  assert.equal(forced.draftActions[0].status, 'failed');
+  assert.match(forced.draftActions[0].error ?? '', /all work checks and final inspection/);
 });
 
 test('parser-created memory candidates inherit the active Turn scope', async () => {

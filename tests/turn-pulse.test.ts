@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
 import { todayISO } from '../src/lib/constants.ts';
-import { getActiveProject } from '../src/lib/metrics.ts';
+import { getActiveProject, getMarkReadyBlockers, getUnitReadyConflicts, isReadyUnit } from '../src/lib/metrics.ts';
 import { buildTurnPulse } from '../src/lib/turnPulse.ts';
 import type { AppData, Issue } from '../src/types.ts';
 
@@ -109,6 +109,47 @@ test('Turn Pulse makes a blocked unit the next safe navigation without mutating 
   assert.equal(pulse.actions[0]?.title, `Blocked unit: ${blockedUnit.unitNumber}`);
   assert.deepEqual(pulse.actions[0]?.target, { view: 'unitDetail', unitId: blockedUnit.id });
   assert.equal(JSON.stringify(data), before);
+});
+
+test('a Ready label does not hide unfinished maintenance or a blocked trash-out check', () => {
+  const { data, project, now } = activeProjectFixture();
+  const unit = data.units.find((item) => item.projectId === project.id);
+  assert.ok(unit);
+  const contradictoryUnit = {
+    ...unit,
+    overallStatus: 'Ready' as const,
+    repairStatus: 'Needed' as const,
+    trashStatus: 'Blocked' as const,
+    updatedAt: now,
+  };
+
+  assert.equal(isReadyUnit(contradictoryUnit), false);
+  assert.deepEqual(getUnitReadyConflicts(contradictoryUnit), [
+    { label: 'Maintenance', status: 'Needed' },
+    { label: 'Trash out', status: 'Blocked' },
+  ]);
+  assert.deepEqual(getMarkReadyBlockers(contradictoryUnit), [
+    { label: 'Maintenance', status: 'Needed' },
+    { label: 'Trash out', status: 'Blocked' },
+  ]);
+});
+
+test('Turn Pulse names the underlying blocked check instead of repeating a contradictory Ready label', () => {
+  const { data, project, now } = activeProjectFixture();
+  const unit = data.units.find((item) => item.projectId === project.id);
+  assert.ok(unit);
+  unit.overallStatus = 'Ready';
+  unit.trashStatus = 'Blocked';
+  unit.updatedAt = now;
+
+  const pulse = buildTurnPulse(data);
+
+  assert.equal(pulse.headline, '1 blocked unit needs an owner or next step.');
+  assert.equal(pulse.actions[0]?.title, `Blocked unit: ${unit.unitNumber}`);
+  assert.equal(
+    pulse.actions[0]?.reason,
+    'Trash out: Blocked. Correct the field check or confirm an owner and follow-up time.',
+  );
 });
 
 test('Turn Pulse reports a clear board without inventing work', () => {

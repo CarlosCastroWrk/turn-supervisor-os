@@ -1,7 +1,6 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3 } from 'lucide-react';
 import type { AppNavigate } from '../lib/routing';
-import type { ActivityLog, AppData, Issue, SmartSuggestion, Unit } from '../types';
-import { generateSmartSuggestions } from '../lib/ai/suggestions';
+import type { ActivityLog, AppData, Issue, Unit } from '../types';
 import { formatDate, localISODateFromDateTime, todayISO } from '../lib/constants';
 import {
   getActiveProject,
@@ -14,6 +13,7 @@ import {
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
 import { StatCard } from '../components/StatCard';
+import { buildTurnPulse, type TurnPulseAction } from '../lib/turnPulse';
 
 interface DashboardViewProps {
   data: AppData;
@@ -72,11 +72,11 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
   const projectIssues = getProjectIssues(data);
   const issues = getPriorityIssues(projectIssues);
   const summary = getUnitSummary(units);
+  const pulse = buildTurnPulse(data);
   const todayLog = data.dailyLogs.find((log) => log.projectId === project.id && log.date === todayISO());
   const priorities = firstLines(todayLog?.tomorrowPriorities || todayLog?.morningPlan || '', 4);
-  const smartSuggestions = generateSmartSuggestions(data)
-    .filter((suggestion) => suggestion.relatedEntityType !== 'dailyLog')
-    .slice(0, 4);
+  const primaryAction = pulse.actions[0];
+  const nextActions = pulse.actions.slice(1);
   const issueUnitIds = new Set(issues.map((issue) => issue.unitId).filter(Boolean));
   const blockedUnits = units.filter((unit) => isBlockedUnit(unit) && !issueUnitIds.has(unit.id));
   const projectCrew = data.crewMembers.filter((crew) => crew.projectId === project.id);
@@ -88,24 +88,11 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
     onNavigate('issues', undefined, { issueId: issue.id });
   };
 
-  const navigateToSuggestion = (suggestion: SmartSuggestion) => {
-    if (suggestion.relatedEntityType === 'unit' && suggestion.relatedEntityId) {
-      onNavigate('unitDetail', suggestion.relatedEntityId);
-      return;
-    }
-
-    if (suggestion.relatedEntityType === 'issue' && suggestion.relatedEntityId) {
-      onNavigate('issues', undefined, { issueId: suggestion.relatedEntityId });
-      return;
-    }
-
-    if (suggestion.relatedEntityType === 'assignment') {
-      onNavigate('assignments');
-      return;
-    }
-
-    onNavigate(suggestion.type === 'access_bottleneck' ? 'issues' : 'units');
-  };
+  const navigateToPulseAction = (action: TurnPulseAction) =>
+    onNavigate(action.target.view, action.target.unitId, {
+      issueId: action.target.issueId,
+      unitStatusFilter: action.target.unitStatusFilter,
+    });
 
   const navigateToActivity = (activity: ActivityLog) => {
     if (activity.entityType === 'Unit') {
@@ -175,6 +162,29 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
         </div>
       </section>
 
+      <section className="turn-pulse-panel" aria-labelledby="turn-pulse-title">
+        <div className="turn-pulse-panel__summary">
+          <span className="quiet-label">Turn Pulse</span>
+          <h2 id="turn-pulse-title">{pulse.headline}</h2>
+          <p>{pulse.evidence}</p>
+        </div>
+        {primaryAction ? (
+          <button className="turn-pulse-panel__action" type="button" onClick={() => navigateToPulseAction(primaryAction)}>
+            <span>
+              <small>Start here · {primaryAction.priority}</small>
+              <strong>{primaryAction.title}</strong>
+              <em>{primaryAction.reason}</em>
+            </span>
+            <ArrowRight size={18} aria-hidden="true" />
+          </button>
+        ) : (
+          <div className="turn-pulse-panel__clear">
+            <CheckCircle2 size={20} aria-hidden="true" />
+            <span>No urgent action surfaced. Keep the board current as the Turn moves.</span>
+          </div>
+        )}
+      </section>
+
       <section className="readiness-panel" aria-label="Turn readiness overview">
         <ProgressBar value={summary.percentComplete} label="Readiness overview" />
         <div className="readiness-panel__legend" aria-hidden="true">
@@ -236,20 +246,20 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
 
       <Section title="Next actions" className="field-home-panel field-home-next">
         <div className="next-action-list">
-          {smartSuggestions.map((suggestion) => (
-            <button key={suggestion.id} type="button" onClick={() => navigateToSuggestion(suggestion)}>
-              <span>{suggestion.title}</span>
-              <small>{suggestion.description}</small>
+          {nextActions.map((action) => (
+            <button key={action.id} type="button" onClick={() => navigateToPulseAction(action)}>
+              <span>{action.title}</span>
+              <small>{action.reason}</small>
               <ArrowRight size={17} aria-hidden="true" />
             </button>
           ))}
-          {smartSuggestions.length === 0 && priorities.map((priority) => (
+          {nextActions.length === 0 && priorities.map((priority) => (
             <div key={priority}>
               <CheckCircle2 size={17} aria-hidden="true" />
               <span>{priority}</span>
             </div>
           ))}
-          {smartSuggestions.length === 0 && priorities.length === 0 ? (
+          {nextActions.length === 0 && priorities.length === 0 ? (
             <div className="field-home-empty"><CheckCircle2 size={20} aria-hidden="true" /><span>No next action queued. Capture the next field update when it happens.</span></div>
           ) : null}
         </div>

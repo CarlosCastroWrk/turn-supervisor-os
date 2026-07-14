@@ -148,6 +148,20 @@ Possible future:
 
 Do not allow Phase H to mutate operational records without Los's existing confirmation boundary.
 
+## Phase I: Personal Turn Operating System
+
+Goal: help Los decide what matters now, repeat good field procedures, and take safe next actions without turning PDS into company software or an autonomous operator.
+
+Slices:
+
+- Grounded Turn Pulse on the existing Home screen with one Start Here action and supporting evidence
+- Reusable field playbooks built from approved, repeatable supervisor workflows
+- Safe-action feedback that lets Los confirm, dismiss, or correct recommendations without silent record mutation
+
+Success gate:
+
+Los can open PDS, understand the current Turn in seconds, follow one grounded next action, and reuse a field procedure while remaining the decision-maker.
+
 ## Possible Company Product
 
 Only after field validation and explicit leadership approval.

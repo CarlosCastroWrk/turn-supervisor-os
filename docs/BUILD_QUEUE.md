@@ -196,6 +196,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 
 ## P1: Should Fix During Training
 
+- [x] I1 Grounded Turn Pulse v1 on the existing Home screen with one evidence-backed Start Here action and no automatic mutation.
 - [x] D1 Clickable Dashboard Stats.
 - [x] D2 Needs Attention Feed with deep links.
 - [x] D3 Units Scan Upgrade.

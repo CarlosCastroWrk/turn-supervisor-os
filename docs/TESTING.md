@@ -31,6 +31,22 @@ npm run test:production-recovery
 
 The production recovery gate uses a fresh unsigned browser profile and disposable local-only `QA_RECOVERY_*` data. It downloads every recovery/export surface, runs invalid/corrupt/cancel/approve restore paths, and never authenticates or uploads to Supabase.
 
+## Account Cache-Switch Gate
+
+Run after changes to Supabase authentication, local cache ownership, record sync, photo sync, restore, or device reset:
+
+```bash
+npm run test:cache-guard-browser
+```
+
+Before release, run the same disposable flow once in a visible Mac browser window:
+
+```bash
+npm run test:cache-guard-browser:visible
+```
+
+Both commands use isolated `QA_CACHE_*` Real Turn data, fake account A/account B sessions, and intercepted local Supabase requests. They never read or change production Supabase data. The gate proves that a cache bound to account A syncs normally for A, pauses with `Cache needs review` after switching to B, starts no B request before approval, and resumes only when an unbound cache is explicitly claimed for its matching account.
+
 ## Automated Capture Workspace Gate
 
 Run after changes to global Capture, voice fallback, attachment staging, Draft Action review, focus handling, or target navigation:

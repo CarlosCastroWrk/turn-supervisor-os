@@ -10,6 +10,7 @@ const baseUrl = `http://${host}:${port}`;
 const supabaseUrl = 'http://127.0.0.1:54329';
 const dataKey = 'turn-supervisor-os:v0.1';
 const ownerKey = 'turn-supervisor-os:cache-owner:v1';
+const visibleReview = process.env.PDS_CACHE_GUARD_VISIBLE === '1';
 
 process.env.VITE_ENABLE_SYNC = 'true';
 process.env.VITE_SUPABASE_URL = supabaseUrl;
@@ -159,6 +160,8 @@ const signIn = async (page, email) => {
 
 const waitForStatus = (page, status) => page.locator('.sync-panel__summary strong').getByText(status, { exact: true }).waitFor();
 
+const holdForVisibleReview = (page) => visibleReview ? page.waitForTimeout(900) : Promise.resolve();
+
 const server = await createServer({
   root: process.cwd(),
   logLevel: 'error',
@@ -168,7 +171,10 @@ let browser;
 
 try {
   await server.listen();
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: !visibleReview,
+    slowMo: visibleReview ? 120 : 0,
+  });
 
   const switchContext = await seedContext(browser, buildRealTurn('ACCOUNT_A'), 'account-a');
   const switchPage = await switchContext.newPage();
@@ -177,6 +183,7 @@ try {
 
   await signIn(switchPage, 'account-a@example.com');
   await waitForStatus(switchPage, 'Synced');
+  await holdForVisibleReview(switchPage);
   assert.ok(switchRequests.length > 0, 'The matching account should retain normal sync behavior.');
   assert.ok(switchRequests.every((request) => authorizationSubject(request.authorization) === 'account-a'));
   const requestsAfterAccountA = switchRequests.length;
@@ -186,6 +193,7 @@ try {
   await waitForStatus(switchPage, 'Sign in');
   await signIn(switchPage, 'account-b@example.com');
   await waitForStatus(switchPage, 'Cache needs review');
+  await holdForVisibleReview(switchPage);
   await switchPage.waitForTimeout(300);
   assert.equal(
     switchRequests.length,
@@ -204,11 +212,13 @@ try {
   await claimPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await signIn(claimPage, 'account-b@example.com');
   await waitForStatus(claimPage, 'Cache needs review');
+  await holdForVisibleReview(claimPage);
   assert.equal(claimRequests.length, 0);
 
   claimPage.once('dialog', (dialog) => dialog.accept());
   await claimPage.getByRole('button', { name: "Claim this device's local data", exact: true }).click();
   await waitForStatus(claimPage, 'Synced');
+  await holdForVisibleReview(claimPage);
   assert.ok(claimRequests.length > 0, 'An explicit claim should restore normal sync for the matching cache.');
   assert.ok(claimRequests.every((request) => authorizationSubject(request.authorization) === 'account-b'));
   assert.equal(

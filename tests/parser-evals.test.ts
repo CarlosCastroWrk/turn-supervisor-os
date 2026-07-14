@@ -202,6 +202,47 @@ test('parser does not turn negated completion notes into ready drafts', async ()
   assert.match(result.warnings.join(' '), /No high-confidence structured action found/);
 });
 
+test('parser treats resolved or unnecessary maintenance as safe status updates', async () => {
+  const cases = [
+    { input: 'Unit 104 no maintenance needed', unitNumber: '104', expectedStatus: 'Not Applicable' },
+    { input: 'Unit 105 maintenance complete', unitNumber: '105', expectedStatus: 'Complete' },
+    { input: 'Unit 203 maintenance is not applicable', unitNumber: '203', expectedStatus: 'Not Applicable' },
+    { input: 'Unit 204 maintenance is good', unitNumber: '204', expectedStatus: 'Complete' },
+  ] as const;
+
+  for (const { input, unitNumber, expectedStatus } of cases) {
+    const result = await parse(input);
+    const statusDraft = findDraft(result, 'UPDATE_UNIT_STATUS', unitNumber);
+
+    assert.equal(statusDraft?.payload.repairStatus, expectedStatus, input);
+    assert.equal(statusDraft?.payload.overallStatus, undefined, input);
+    assert.equal(result.draftActions.some((action) => action.type === 'CREATE_ISSUE'), false, input);
+
+    assert.ok(statusDraft, input);
+    const applied = applyDraftAction({ ...parserData(), draftActions: [statusDraft] }, statusDraft.id);
+    assert.equal(applied.draftActions[0]?.status, 'applied', input);
+    assert.equal(applied.units.find((item) => item.unitNumber === unitNumber)?.repairStatus, expectedStatus, input);
+    assert.equal(applied.units.find((item) => item.unitNumber === unitNumber)?.overallStatus, 'Not Started', input);
+  }
+});
+
+test('parser preserves active maintenance-needed behavior', async () => {
+  const result = await parse('Unit 205 maintenance needed');
+  const statusDraft = findDraft(result, 'UPDATE_UNIT_STATUS', '205');
+
+  assert.equal(statusDraft?.payload.repairStatus, 'Needed');
+  assert.equal(statusDraft?.payload.overallStatus, 'Maintenance Needed');
+  assert.equal(result.draftActions.some((action) => action.type === 'CREATE_ISSUE' && action.payload.unitNumber === '205'), true);
+});
+
+test('parser distinguishes maintenance in progress from maintenance needed', async () => {
+  const result = await parse('Unit 312 maintenance in progress');
+  const statusDraft = findDraft(result, 'UPDATE_UNIT_STATUS', '312');
+
+  assert.equal(statusDraft?.payload.repairStatus, 'In Progress');
+  assert.equal(statusDraft?.payload.overallStatus, 'Maintenance In Progress');
+});
+
 test('parser-created ready drafts cannot bypass ready safety checks', async () => {
   const result = await parse('104 done');
   const readyDraft = findDraft(result, 'UPDATE_UNIT_STATUS', '104');

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { restoreBlockReason } from '../src/lib/restoreSafety.ts';
 
@@ -12,4 +13,15 @@ test('backup restore requires sign-out while a Supabase session is active', () =
 
 test('backup restore unlocks only after auth is resolved and signed out', () => {
   assert.equal(restoreBlockReason({ authReady: true, signedIn: false }), '');
+});
+
+test('backup restore invalidates cache ownership before replacing local records', () => {
+  const source = readFileSync(new URL('../src/views/ExportView.tsx', import.meta.url), 'utf8');
+  const restoreStart = source.indexOf('const restoreBackup');
+  const ownerClear = source.indexOf('clearLocalCacheOwner()', restoreStart);
+  const dataReplacement = source.indexOf('setData(restored)', restoreStart);
+
+  assert.ok(restoreStart >= 0);
+  assert.ok(ownerClear > restoreStart);
+  assert.ok(dataReplacement > ownerClear);
 });

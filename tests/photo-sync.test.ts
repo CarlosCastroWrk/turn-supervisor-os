@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { seedData } from '../src/data/seed.ts';
+import { SyncSessionChangedError } from '../src/lib/supabase/cacheOwnership.ts';
 import {
   buildPhotoStoragePath,
   resolvePhotoBlob,
@@ -141,6 +142,31 @@ test('uploadPendingPhotoFiles uploads only real local photos and preserves unava
   assert.equal(result.data.photoNotes.find((item) => item.id === realLocal.id)?.updatedAt, '2026-07-09T12:05:00.000Z');
   assert.equal(result.data.photoNotes.find((item) => item.id === realMissing.id)?.storagePath, undefined);
   assert.equal(result.data.photoNotes.find((item) => item.id === demoLocal.id)?.storagePath, undefined);
+});
+
+test('photo upload starts no cloud request after the account changes during local file loading', async () => {
+  const uploadCalls: UploadCall[] = [];
+  let active = true;
+  const requestGuard = () => {
+    if (!active) throw new SyncSessionChangedError();
+  };
+
+  await assert.rejects(
+    uploadPendingPhotoFiles(
+      fakePhotoClient({ uploadCalls }),
+      userId,
+      photoData([photo('photo_session_change')]),
+      {
+        loadLocalPhoto: async () => {
+          active = false;
+          return new Blob([Uint8Array.from([1])], { type: 'image/jpeg' });
+        },
+      },
+      requestGuard,
+    ),
+    SyncSessionChangedError,
+  );
+  assert.equal(uploadCalls.length, 0);
 });
 
 test('photo upload failures stay pending without mutating storage metadata', async () => {

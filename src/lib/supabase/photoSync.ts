@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AppData, PhotoNote } from '../../types';
 import { nowISO } from '../constants';
 import { getLocalPhotoBlob, putPhotoBlob } from '../photoStorage';
+import { SyncSessionChangedError } from './cacheOwnership';
 import { getSupabaseClient } from './client';
 import { filterUploadableSyncItems } from './syncBoundary';
 
@@ -123,6 +124,7 @@ export const uploadPendingPhotoFiles = async (
   userId: string,
   data: AppData,
   dependencyOverrides?: Partial<PhotoSyncDependencies>,
+  requestGuard?: () => void,
 ): Promise<PhotoFileUploadResult> => {
   const dependencies = withDependencies(dependencyOverrides);
   const candidates = filterUploadableSyncItems(data, 'photoNotes', data.photoNotes).filter((photo) => !photo.storagePath);
@@ -145,6 +147,7 @@ export const uploadPendingPhotoFiles = async (
 
         const { mimeType } = validateCloudPhoto(blob);
         const storagePath = buildPhotoStoragePath(userId, photo.id, mimeType);
+        requestGuard?.();
         const { error } = await withTimeout(
           client.storage.from(PHOTO_BUCKET).upload(storagePath, blob, {
             cacheControl: '3600',
@@ -153,6 +156,7 @@ export const uploadPendingPhotoFiles = async (
           }),
           dependencies.cloudTimeoutMs,
         );
+        requestGuard?.();
         if (error) {
           throw error;
         }
@@ -163,6 +167,9 @@ export const uploadPendingPhotoFiles = async (
           updatedAt: dependencies.now(),
         });
       } catch (error) {
+        if (error instanceof SyncSessionChangedError) {
+          throw error;
+        }
         failures.push(`${photo.id}: ${photoErrorMessage(error)}`);
       }
     }

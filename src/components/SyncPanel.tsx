@@ -16,6 +16,7 @@ const statusLabel = {
   pending_upload: 'Upload needed',
   offline: 'Offline',
   error: 'Check sync',
+  cache_transition_required: 'Cache needs review',
 };
 
 const triggerLabel = {
@@ -49,7 +50,22 @@ export function SyncPanel({ sync }: SyncPanelProps) {
     setPassword('');
   };
 
-  const Icon = sync.status === 'offline' || sync.status === 'error' || sync.status === 'not_configured' ? CloudOff : Cloud;
+  const claimLocalCache = async () => {
+    const account = sync.email ?? 'the signed-in account';
+    const confirmed = window.confirm(
+      `Link this device's local Turn data to ${account}? Real Turn records and photos may upload to that account. Continue only if this device's records belong there.`,
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    try {
+      await sync.claimLocalCache();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const Icon = sync.status === 'offline' || sync.status === 'error' || sync.status === 'not_configured' || sync.status === 'cache_transition_required' ? CloudOff : Cloud;
   const diagnostics = sync.diagnostics;
   const lastUploadedTables = diagnostics.lastUploadedTables?.length ? diagnostics.lastUploadedTables.join(', ') : 'None';
 
@@ -144,7 +160,18 @@ export function SyncPanel({ sync }: SyncPanelProps) {
             </details>
           ) : null}
 
-          {sync.status === 'signed_out' || sync.status === 'error' || sync.status === 'not_configured' ? (
+          {sync.status === 'cache_transition_required' ? (
+            <div className="button-row">
+              <p>Only claim the local cache if its records belong to this account. Otherwise sign out and use a backup or reset workflow.</p>
+              <Button disabled={syncBusy} onClick={() => void claimLocalCache()} variant="primary">
+                <ShieldCheck size={16} aria-hidden="true" />
+                Claim this device&apos;s local data
+              </Button>
+              <Button disabled={syncBusy} onClick={() => void sync.signOut()} variant="ghost">
+                Sign out safely
+              </Button>
+            </div>
+          ) : sync.status === 'signed_out' || sync.status === 'error' || sync.status === 'not_configured' ? (
             <form className="sync-panel__form" onSubmit={submit}>
               <Field label="Email">
                 <input

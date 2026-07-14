@@ -18,6 +18,7 @@ import { getActiveProject, getIssuesForProject, getUnitsForProject } from '../li
 import { buildJsonBackupWithLocalPhotos } from '../lib/photoBackup';
 import { getProjectDailyLogs, getProjectFollowUpTasks } from '../lib/projectScope';
 import { restoreBlockReason } from '../lib/restoreSafety';
+import { clearLocalCacheOwner } from '../lib/supabase/cacheOwnership';
 import { todayISO } from '../lib/constants';
 import type { AppData } from '../types';
 
@@ -78,10 +79,10 @@ export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: Expor
       return;
     }
 
-    const photoFilesCleared = await clearAppData();
-    if (!photoFilesCleared) {
+    const localDataCleared = await clearAppData();
+    if (!localDataCleared) {
       window.alert(
-        'The app records were reset, but local photo-file cleanup could not be confirmed. Clear this site/app data in browser settings before handing the device to someone else.',
+        'The device reset could not confirm that all local records, account-link metadata, and photo files were cleared. Clear this site/app data in browser settings before handing the device to someone else.',
       );
     }
     window.location.reload();
@@ -110,6 +111,9 @@ export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: Expor
         return;
       }
 
+      if (!clearLocalCacheOwner()) {
+        throw new Error('Could not unlink the current account from this device cache. No backup data was restored. Check browser site-storage settings and try again.');
+      }
       clearInFlightFieldDrafts();
       setData(restored);
       setRestoreMessage(`Restored ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s).`);

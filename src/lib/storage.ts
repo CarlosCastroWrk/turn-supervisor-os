@@ -6,6 +6,7 @@ import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
 import { createFieldDraftStore } from './fieldDraft';
 import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
+import { clearLocalCacheOwner } from './supabase/cacheOwnership';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
@@ -72,14 +73,23 @@ export const clearInFlightFieldDrafts = () => {
 export const clearAppData = async () => {
   appDataWriter.cancel();
   clearInFlightFieldDrafts();
-  window.localStorage.removeItem(STORAGE_KEY);
+  const ownerCleared = clearLocalCacheOwner();
+  let recordsCleared = false;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+    recordsCleared = !hasStoredAppData();
+  } catch (error) {
+    console.warn('Failed to clear local Turn Supervisor OS records during device reset.', error);
+  }
+
+  let photosCleared = false;
   try {
     await clearPhotoBlobs();
-    return true;
+    photosCleared = true;
   } catch (error) {
     console.warn('Failed to clear local photo files during device reset.', error);
-    return false;
   }
+  return ownerCleared && recordsCleared && photosCleared;
 };
 
 export const usePersistentAppData = () => {

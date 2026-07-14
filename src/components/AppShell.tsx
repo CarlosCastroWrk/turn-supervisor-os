@@ -1,4 +1,5 @@
 import {
+  BookOpenCheck,
   ClipboardCheck,
   Download,
   FileText,
@@ -29,6 +30,7 @@ const fieldNav: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'issues', label: 'Issues', icon: ClipboardCheck },
   { view: 'crews', label: 'Crew', icon: Users },
   { view: 'reports', label: 'Reports', icon: FileText },
+  { view: 'playbooks', label: 'Playbooks', icon: BookOpenCheck },
   { view: 'setup', label: 'Setup', icon: Settings },
 ];
 
@@ -36,6 +38,7 @@ const mobilePrimaryNav = fieldNav.filter((item) => ['dashboard', 'units', 'issue
 const mobileMoreNav: { view: AppView; label: string; detail: string; icon: React.ElementType }[] = [
   { view: 'crews', label: 'Crew', detail: 'Contacts and field notes', icon: Users },
   { view: 'reports', label: 'Reports', detail: 'Review and share the day', icon: FileText },
+  { view: 'playbooks', label: 'Playbooks', detail: 'Repeat safe Turn OS routines', icon: BookOpenCheck },
   { view: 'setup', label: 'Setup', detail: 'Project, memory, and AI usage', icon: Settings },
   { view: 'export', label: 'Data & backup', detail: 'Export, restore, and device safety', icon: Download },
 ];
@@ -50,6 +53,7 @@ const viewTitles: Record<AppView, string> = {
   dashboard: 'Home',
   export: 'Export',
   issues: 'Issues',
+  playbooks: 'Playbooks',
   reports: 'Reports',
   setup: 'Setup',
   training: 'Training Questions',
@@ -300,7 +304,7 @@ export function AppShell({ activeView, captureOpen = false, onNavigate, syncSlot
         })}
         <button
           ref={mobileMoreButtonRef}
-          className={`bottom-nav__item ${mobileMoreOpen || ['crews', 'reports', 'setup', 'export'].includes(activeNavView) ? 'is-active' : ''}`}
+          className={`bottom-nav__item ${mobileMoreOpen || ['crews', 'reports', 'playbooks', 'setup', 'export'].includes(activeNavView) ? 'is-active' : ''}`}
           type="button"
           onClick={() => (mobileMoreOpen ? closeMobileMore() : setMobileMoreOpen(true))}
           aria-expanded={mobileMoreOpen}

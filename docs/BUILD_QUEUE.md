@@ -197,6 +197,7 @@ Detailed roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/F
 ## P1: Should Fix During Training
 
 - [x] I1 Grounded Turn Pulse v1 on the existing Home screen with one evidence-backed Start Here action and no automatic mutation.
+- [x] I2 Read-only Turn OS Playbooks for existing app workflows without inventing company process or adding a new data model.
 - [x] D1 Clickable Dashboard Stats.
 - [x] D2 Needs Attention Feed with deep links.
 - [x] D3 Units Scan Upgrade.

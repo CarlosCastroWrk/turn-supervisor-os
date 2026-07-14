@@ -29,6 +29,7 @@ const topLevelViews = new Set<AppView>([
   'daily',
   'reports',
   'copilot',
+  'playbooks',
   'training',
   'export',
 ]);

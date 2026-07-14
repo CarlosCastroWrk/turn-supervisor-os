@@ -110,9 +110,49 @@ const makeMemoryCandidate = (
   };
 };
 
+type MaintenanceIntent = 'not-needed' | 'complete' | 'in-progress' | 'needed' | null;
+
+const maintenanceIntentFromText = (text: string): MaintenanceIntent => {
+  const lower = text.toLowerCase();
+
+  if (
+    /\bno\s+(?:maintenance|repairs?)\s+(?:(?:is|are)\s+)?(?:needed|required)\b/.test(lower) ||
+    /\b(?:maintenance|repairs?)\s+(?:(?:is|are)\s+)?(?:not|isn't|isnt|aren't|arent)\s+(?:needed|required|applicable)\b/.test(lower) ||
+    /\b(?:maintenance|repairs?)\s+(?:(?:is|are)\s+)?n\/?a\b/.test(lower)
+  ) {
+    return 'not-needed';
+  }
+
+  if (
+    /\b(?:maintenance|repairs?)\s+(?:(?:is|are)\s+)?(?:done|complete|completed|finished|good|clear|ok|okay)\b/.test(lower) ||
+    /\b(?:maintenance|repair)\s+(?:was\s+)?(?:fixed|resolved)\b/.test(lower)
+  ) {
+    return 'complete';
+  }
+
+  if (/\b(?:maintenance|repairs?)\s+(?:(?:is|are)\s+)?(?:in progress|started|underway)\b/.test(lower)) {
+    return 'in-progress';
+  }
+
+  if (
+    /\b(?:needs?|requires?)\s+(?:maintenance|repairs?)\b/.test(lower) ||
+    /\b(?:maintenance|repairs?)\s+(?:(?:is|are)\s+)?(?:needed|required)\b/.test(lower) ||
+    /\b(?:maintenance|repair)\s+(?:issue|problem)\b/.test(lower)
+  ) {
+    return 'needed';
+  }
+
+  return null;
+};
+
 const issueFromText = (text: string): { category: IssueCategory; priority: IssuePriority; title: string } | null => {
   const lower = text.toLowerCase();
-  if (/sink|leak|plumb|ac|cooling|broken|repair|maintenance/.test(lower)) {
+  const maintenanceIntent = maintenanceIntentFromText(text);
+  const hasActiveMaintenanceProblem = /sink|leak|plumb|ac|cooling|broken/.test(lower);
+  const mentionsUnresolvedMaintenance =
+    /\brepair\b|\bmaintenance\b/.test(lower) && !['not-needed', 'complete'].includes(maintenanceIntent ?? '');
+
+  if (hasActiveMaintenanceProblem || mentionsUnresolvedMaintenance) {
     return { category: 'Maintenance', priority: /leak|ac|cooling/.test(lower) ? 'High' : 'Medium', title: 'Maintenance issue' };
   }
   if (/\bkeys?\b|\baccess\b|do not enter|occupied|tenant stuff|still inside/.test(lower)) {
@@ -136,6 +176,7 @@ const issueFromText = (text: string): { category: IssueCategory; priority: Issue
 
 const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, sourceText: string): DraftAction[] => {
   const lower = text.toLowerCase();
+  const maintenanceIntent = maintenanceIntentFromText(text);
   const unit = findUnitByNumber(data, unitNumber);
   const drafts: DraftAction[] = [];
   const confidence = confidenceForUnit(unit);
@@ -210,11 +251,29 @@ const statusDraftsForUnit = (data: AppData, unitNumber: string, text: string, so
     );
   }
 
-  if (/\bmaintenance\b|needs?\s+repair|repair\s+(?:needed|required|in progress)|maintenance\s+(?:needed|required|in progress)/.test(lower)) {
+  if (maintenanceIntent === 'not-needed') {
+    addStatusDraft(
+      `Mark Unit ${unitNumber} maintenance not needed`,
+      { repairStatus: 'Not Applicable' },
+      'The note explicitly says maintenance/repair work is not needed or not applicable.',
+    );
+  } else if (maintenanceIntent === 'complete') {
+    addStatusDraft(
+      `Mark Unit ${unitNumber} maintenance complete`,
+      { repairStatus: 'Complete' },
+      'The note explicitly says maintenance/repair work is complete or good.',
+    );
+  } else if (maintenanceIntent === 'in-progress') {
+    addStatusDraft(
+      `Mark Unit ${unitNumber} maintenance in progress`,
+      { repairStatus: 'In Progress', overallStatus: 'Maintenance In Progress' },
+      'The note says maintenance/repair work is in progress.',
+    );
+  } else if (maintenanceIntent === 'needed') {
     addStatusDraft(
       `Mark Unit ${unitNumber} maintenance needed`,
       { repairStatus: 'Needed', overallStatus: 'Maintenance Needed' },
-      'The note mentions maintenance/repair work.',
+      'The note explicitly says maintenance/repair work is needed.',
     );
   }
 

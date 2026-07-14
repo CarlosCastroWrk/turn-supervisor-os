@@ -22,7 +22,12 @@ import { ACTIVITY_LOG_RETENTION_LIMIT } from '../activityRetention';
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { reconcileDailyLogs } from '../dailyLogs';
-import { getSupabaseClient, isSupabaseConfigured, isSyncFeatureEnabled } from './client';
+import {
+  getSessionBoundSupabaseClient,
+  getSupabaseClient,
+  isSupabaseConfigured,
+  isSyncFeatureEnabled,
+} from './client';
 import {
   createDemoSyncBoundary,
   isDemoScopedSyncItem,
@@ -32,12 +37,19 @@ import {
 } from './syncBoundary';
 import { mergePhotoNotes, mergeRows, syncRowFingerprint } from './syncCore';
 import {
+  assertSyncIdentity,
+  cacheBelongsToUser,
+  setLocalCacheOwner,
+  SyncSessionChangedError,
+  type SyncIdentity,
+} from './cacheOwnership';
+import {
   uploadPendingPhotoFiles,
   type PhotoFileUploadResult,
   type PhotoSyncDependencies,
 } from './photoSync';
 
-type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'pending_upload' | 'offline' | 'error';
+type SyncStatus = 'disabled' | 'not_configured' | 'signed_out' | 'syncing' | 'synced' | 'pending_upload' | 'offline' | 'error' | 'cache_transition_required';
 type SyncTrigger = 'startup' | 'manual' | 'pull' | 'upload' | 'realtime' | 'reconnect' | 'local_edit';
 type Row = Record<string, unknown>;
 type SyncedKey = SyncBoundaryKey;
@@ -92,6 +104,7 @@ export interface SyncController {
   syncNow: () => Promise<void>;
   uploadNow: () => Promise<void>;
   pullNow: () => Promise<void>;
+  claimLocalCache: () => Promise<void>;
 }
 
 const stringValue = (row: Row, key: string, fallback = '') => {
@@ -866,7 +879,7 @@ const initialDiagnostics: SyncDiagnostics = {
   runCount: 0,
 };
 
-export const fetchRemoteData = async (client: SupabaseClient) => {
+export const fetchRemoteData = async (client: SupabaseClient, requestGuard?: () => void) => {
   const remote: SyncRemoteData = {};
   let rowCount = 0;
 
@@ -882,7 +895,9 @@ export const fetchRemoteData = async (client: SupabaseClient) => {
       (config.pullOrder ?? [{ column: 'id', ascending: true }]).forEach((order) => {
         query = query.order(order.column, { ascending: order.ascending });
       });
+      requestGuard?.();
       const { data, error } = await query.range(from, to);
+      requestGuard?.();
       if (error) {
         throw error;
       }
@@ -904,7 +919,12 @@ export const fetchRemoteData = async (client: SupabaseClient) => {
   return { remote, rowCount, baseline: baselineFromRemoteData(remote) };
 };
 
-export const uploadLocalData = async (client: SupabaseClient, data: AppData, baseline: SyncBaseline): Promise<UploadLocalDataResult> => {
+export const uploadLocalData = async (
+  client: SupabaseClient,
+  data: AppData,
+  baseline: SyncBaseline,
+  requestGuard?: () => void,
+): Promise<UploadLocalDataResult> => {
   const nextBaseline = cloneBaseline(baseline);
   const boundary = createDemoSyncBoundary(data);
   const failures: string[] = [];
@@ -922,7 +942,9 @@ export const uploadLocalData = async (client: SupabaseClient, data: AppData, bas
     for (let from = 0; from < items.length; from += remoteUploadBatchSize) {
       const batchItems = items.slice(from, from + remoteUploadBatchSize);
       const rows = batchItems.map(config.toRow);
+      requestGuard?.();
       const { error } = await client.from(config.table).upsert(rows, { onConflict: 'id' });
+      requestGuard?.();
       if (error) {
         const firstRow = from + 1;
         const lastRow = from + batchItems.length;
@@ -954,8 +976,10 @@ export const uploadLocalDataWithPhotos = async (
   data: AppData,
   baseline: SyncBaseline,
   photoDependencies?: Partial<PhotoSyncDependencies>,
+  requestGuard?: () => void,
 ): Promise<UploadLocalDataWithPhotosResult> => {
-  const recordUpload = await uploadLocalData(client, data, baseline);
+  const recordUpload = await uploadLocalData(client, data, baseline, requestGuard);
+  requestGuard?.();
   const emptyPhotoUpload: PhotoFileUploadResult = {
     data,
     failedFiles: 0,
@@ -968,12 +992,14 @@ export const uploadLocalDataWithPhotos = async (
     return { ...recordUpload, data, photoUpload: emptyPhotoUpload };
   }
 
-  const photoUpload = await uploadPendingPhotoFiles(client, userId, data, photoDependencies);
+  const photoUpload = await uploadPendingPhotoFiles(client, userId, data, photoDependencies, requestGuard);
+  requestGuard?.();
   if (photoUpload.uploadedFiles === 0) {
     return { ...recordUpload, data, photoUpload };
   }
 
-  const pathUpload = await uploadLocalData(client, photoUpload.data, recordUpload.baseline);
+  const pathUpload = await uploadLocalData(client, photoUpload.data, recordUpload.baseline, requestGuard);
+  requestGuard?.();
   const failures = [...recordUpload.failures, ...pathUpload.failures];
   return {
     baseline: pathUpload.baseline,
@@ -1036,11 +1062,14 @@ export const useSupabaseSync = (
   const syncInFlightRef = useRef(false);
   const pendingSyncRef = useRef(false);
   const pendingSyncOptionsRef = useRef<SyncRunOptions | undefined>(undefined);
+  const pendingSyncGenerationRef = useRef<number | undefined>(undefined);
   const syncNowRef = useRef<((options?: SyncRunOptions) => Promise<void>) | undefined>(undefined);
   const realtimePullTimerRef = useRef<number | undefined>(undefined);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const dataRef = useRef(data);
   const realtimeEventRef = useRef<{ event: string; table: string } | undefined>(undefined);
+  const sessionUserIdRef = useRef<string | null>(null);
+  const sessionGenerationRef = useRef(0);
 
   useEffect(() => {
     dataRef.current = data;
@@ -1049,6 +1078,20 @@ export const useSupabaseSync = (
   useEffect(() => {
     hasStoredDataRef.current = hasStoredData;
   }, [hasStoredData]);
+
+  const updateActiveSession = useCallback((nextSession: Session | null) => {
+    const nextUserId = nextSession?.user.id ?? null;
+    if (sessionUserIdRef.current !== nextUserId) {
+      sessionUserIdRef.current = nextUserId;
+      sessionGenerationRef.current += 1;
+      initializedRef.current = false;
+      syncBaselineRef.current = {};
+      pendingSyncRef.current = false;
+      pendingSyncOptionsRef.current = undefined;
+      pendingSyncGenerationRef.current = undefined;
+    }
+    setSession(nextSession);
+  }, []);
 
   const startDiagnostics = useCallback((trigger: SyncTrigger, quiet = false) => {
     const realtimeEvent = realtimeEventRef.current;
@@ -1095,12 +1138,63 @@ export const useSupabaseSync = (
     }));
   }, []);
 
+  const getSyncIdentity = useCallback((): SyncIdentity | null => {
+    const userId = session?.user.id;
+    if (!userId || sessionUserIdRef.current !== userId) return null;
+    if (cacheBelongsToUser(userId)) {
+      return { generation: sessionGenerationRef.current, userId };
+    }
+    setStatus('cache_transition_required');
+    setMessage('This device\'s local data is not linked to the signed-in account. Claim it explicitly or sign out before syncing.');
+    return null;
+  }, [session]);
+
+  const getSyncContext = useCallback(() => {
+    const identity = getSyncIdentity();
+    if (!identity || !session) return null;
+    const requestClient = getSessionBoundSupabaseClient(session.access_token);
+    if (!requestClient) {
+      setStatus('not_configured');
+      setMessage('Sync is enabled but Supabase environment variables are missing.');
+      return null;
+    }
+    return { identity, requestClient };
+  }, [getSyncIdentity, session]);
+
+  const guardSyncIdentity = useCallback((identity: SyncIdentity) => {
+    assertSyncIdentity(identity, sessionUserIdRef.current, sessionGenerationRef.current);
+  }, []);
+
+  const finishSyncRun = useCallback(() => {
+    syncInFlightRef.current = false;
+    if (!pendingSyncRef.current) return;
+
+    const pendingOptions = pendingSyncOptionsRef.current ?? { trigger: 'manual' };
+    const pendingGeneration = pendingSyncGenerationRef.current;
+    pendingSyncRef.current = false;
+    pendingSyncOptionsRef.current = undefined;
+    pendingSyncGenerationRef.current = undefined;
+
+    if (pendingGeneration !== sessionGenerationRef.current) return;
+    window.setTimeout(() => void syncNowRef.current?.(pendingOptions), 250);
+  }, []);
+
+  const handleInterruptedSync = useCallback((identity: SyncIdentity) => {
+    if (sessionUserIdRef.current === identity.userId && !cacheBelongsToUser(identity.userId)) {
+      setStatus('cache_transition_required');
+      setMessage('This device\'s local data is not linked to the signed-in account. Claim it explicitly or sign out before syncing.');
+    }
+  }, []);
+
   const markQueued = useCallback(() => {
     setDiagnostics((current) => ({ ...current, queued: true }));
   }, []);
 
   const pullNow = useCallback(async () => {
     if (!client || !session) return;
+    const context = getSyncContext();
+    if (!context) return;
+    const { identity, requestClient } = context;
     if (!navigator.onLine) {
       setStatus('offline');
       setMessage('Offline. Changes are saved locally and will sync after reconnect.');
@@ -1110,6 +1204,7 @@ export const useSupabaseSync = (
     if (syncInFlightRef.current) {
       pendingSyncRef.current = true;
       pendingSyncOptionsRef.current = { trigger: 'pull' };
+      pendingSyncGenerationRef.current = identity.generation;
       markQueued();
       setStatus('syncing');
       setMessage('A sync is already running. One more pass is queued.');
@@ -1121,7 +1216,9 @@ export const useSupabaseSync = (
       startDiagnostics('pull');
       setStatus('syncing');
       setMessage('Pulling cloud updates...');
-      const { remote, rowCount, baseline } = await fetchRemoteData(client);
+      const requestGuard = () => guardSyncIdentity(identity);
+      const { remote, rowCount, baseline } = await fetchRemoteData(requestClient, requestGuard);
+      requestGuard();
       const nextData = rowCount > 0
         ? hasStoredDataRef.current
           ? mergeRemoteData(dataRef.current, remote)
@@ -1152,22 +1249,23 @@ export const useSupabaseSync = (
             : 'No cloud records found. No local changes were uploaded.',
       );
     } catch (error) {
+      if (error instanceof SyncSessionChangedError) {
+        handleInterruptedSync(identity);
+        return;
+      }
       failDiagnostics(error);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Pull failed.');
     } finally {
-      syncInFlightRef.current = false;
-      if (pendingSyncRef.current) {
-        pendingSyncRef.current = false;
-        const pendingOptions = pendingSyncOptionsRef.current ?? { trigger: 'manual' };
-        pendingSyncOptionsRef.current = undefined;
-        window.setTimeout(() => void syncNowRef.current?.(pendingOptions), 250);
-      }
+      finishSyncRun();
     }
-  }, [client, failDiagnostics, finishDiagnostics, markQueued, session, setData, startDiagnostics]);
+  }, [client, failDiagnostics, finishDiagnostics, finishSyncRun, getSyncContext, guardSyncIdentity, handleInterruptedSync, markQueued, session, setData, startDiagnostics]);
 
   const uploadNow = useCallback(async (options: SyncRunOptions = { trigger: 'upload' }) => {
     if (!client || !session) return;
+    const context = getSyncContext();
+    if (!context) return;
+    const { identity, requestClient } = context;
     if (!navigator.onLine) {
       setStatus('offline');
       setMessage('Offline. Changes are saved locally and will sync after reconnect.');
@@ -1177,6 +1275,7 @@ export const useSupabaseSync = (
     if (syncInFlightRef.current) {
       pendingSyncRef.current = true;
       pendingSyncOptionsRef.current = options;
+      pendingSyncGenerationRef.current = identity.generation;
       markQueued();
       if (!options.quiet) {
         setStatus('syncing');
@@ -1193,7 +1292,9 @@ export const useSupabaseSync = (
         setMessage('Checking cloud before upload...');
       }
 
-      const { remote, rowCount, baseline } = await fetchRemoteData(client);
+      const requestGuard = () => guardSyncIdentity(identity);
+      const { remote, rowCount, baseline } = await fetchRemoteData(requestClient, requestGuard);
+      requestGuard();
       let nextData = dataRef.current;
       syncBaselineRef.current = baseline;
 
@@ -1210,7 +1311,15 @@ export const useSupabaseSync = (
         }, 0);
       }
 
-      const uploadResult = await uploadLocalDataWithPhotos(client, session.user.id, nextData, syncBaselineRef.current);
+      const uploadResult = await uploadLocalDataWithPhotos(
+        requestClient,
+        identity.userId,
+        nextData,
+        syncBaselineRef.current,
+        undefined,
+        requestGuard,
+      );
+      requestGuard();
       const photoUploadResult = uploadResult.photoUpload;
       nextData = uploadResult.data;
       syncBaselineRef.current = uploadResult.baseline;
@@ -1245,22 +1354,23 @@ export const useSupabaseSync = (
         }${photoMessage ? ` ${photoMessage}` : ''}`,
       );
     } catch (error) {
+      if (error instanceof SyncSessionChangedError) {
+        handleInterruptedSync(identity);
+        return;
+      }
       failDiagnostics(error);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Upload failed.');
     } finally {
-      syncInFlightRef.current = false;
-      if (pendingSyncRef.current) {
-        pendingSyncRef.current = false;
-        const pendingOptions = pendingSyncOptionsRef.current ?? { trigger: 'manual' };
-        pendingSyncOptionsRef.current = undefined;
-        window.setTimeout(() => void syncNowRef.current?.(pendingOptions), 250);
-      }
+      finishSyncRun();
     }
-  }, [client, failDiagnostics, finishDiagnostics, markQueued, session, setData, startDiagnostics]);
+  }, [client, failDiagnostics, finishDiagnostics, finishSyncRun, getSyncContext, guardSyncIdentity, handleInterruptedSync, markQueued, session, setData, startDiagnostics]);
 
   const syncNow = useCallback(async (options: SyncRunOptions = { trigger: 'manual' }) => {
     if (!client || !session) return;
+    const context = getSyncContext();
+    if (!context) return;
+    const { identity, requestClient } = context;
     if (!navigator.onLine) {
       setStatus('offline');
       setMessage('Offline. Changes are saved locally and will sync after reconnect.');
@@ -1270,6 +1380,7 @@ export const useSupabaseSync = (
     if (syncInFlightRef.current) {
       pendingSyncRef.current = true;
       pendingSyncOptionsRef.current = options;
+      pendingSyncGenerationRef.current = identity.generation;
       markQueued();
       if (!options.quiet) {
         setStatus('syncing');
@@ -1285,7 +1396,9 @@ export const useSupabaseSync = (
         setStatus('syncing');
         setMessage('Checking cloud records...');
       }
-      const { remote, rowCount, baseline } = await fetchRemoteData(client);
+      const requestGuard = () => guardSyncIdentity(identity);
+      const { remote, rowCount, baseline } = await fetchRemoteData(requestClient, requestGuard);
+      requestGuard();
       let nextData = dataRef.current;
       syncBaselineRef.current = baseline;
 
@@ -1302,7 +1415,15 @@ export const useSupabaseSync = (
         }, 0);
       }
 
-      const uploadResult = await uploadLocalDataWithPhotos(client, session.user.id, nextData, syncBaselineRef.current);
+      const uploadResult = await uploadLocalDataWithPhotos(
+        requestClient,
+        identity.userId,
+        nextData,
+        syncBaselineRef.current,
+        undefined,
+        requestGuard,
+      );
+      requestGuard();
       const photoUploadResult = uploadResult.photoUpload;
       nextData = uploadResult.data;
       syncBaselineRef.current = uploadResult.baseline;
@@ -1340,19 +1461,31 @@ export const useSupabaseSync = (
         }${photoMessage ? ` ${photoMessage}` : ''}`,
       );
     } catch (error) {
+      if (error instanceof SyncSessionChangedError) {
+        handleInterruptedSync(identity);
+        return;
+      }
       failDiagnostics(error);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Sync failed.');
     } finally {
-      syncInFlightRef.current = false;
-      if (pendingSyncRef.current) {
-        pendingSyncRef.current = false;
-        const pendingOptions = pendingSyncOptionsRef.current ?? { trigger: 'manual' };
-        pendingSyncOptionsRef.current = undefined;
-        window.setTimeout(() => void syncNow(pendingOptions), 250);
-      }
+      finishSyncRun();
     }
-  }, [client, failDiagnostics, finishDiagnostics, markQueued, session, setData, startDiagnostics]);
+  }, [client, failDiagnostics, finishDiagnostics, finishSyncRun, getSyncContext, guardSyncIdentity, handleInterruptedSync, markQueued, session, setData, startDiagnostics]);
+
+  const claimLocalCache = useCallback(async () => {
+    if (!session || sessionUserIdRef.current !== session.user.id) return;
+    if (!setLocalCacheOwner(session.user.id)) {
+      setStatus('cache_transition_required');
+      setMessage('This browser could not securely save the account link. Check site storage settings or sign out; sync remains blocked.');
+      return;
+    }
+    initializedRef.current = false;
+    syncBaselineRef.current = {};
+    setStatus('syncing');
+    setMessage('Local cache claimed for this account. Starting a checked sync...');
+    await syncNow({ trigger: 'manual' });
+  }, [session, syncNow]);
 
   syncNowRef.current = syncNow;
 
@@ -1373,11 +1506,11 @@ export const useSupabaseSync = (
         );
         return;
       }
-      setSession(authData.session);
+      updateActiveSession(authData.session);
       setAuthReady(true);
       setMessage('Signed in. Starting sync...');
     },
-    [client],
+    [client, updateActiveSession],
   );
 
   const signOut = useCallback(async () => {
@@ -1390,12 +1523,11 @@ export const useSupabaseSync = (
       setMessage(`Could not sign out: ${error.message}`);
       return;
     }
-    setSession(null);
+    updateActiveSession(null);
     setAuthReady(true);
-    initializedRef.current = false;
     setStatus('signed_out');
     setMessage('Signed out. This device still keeps its local cache.');
-  }, [client]);
+  }, [client, updateActiveSession]);
 
   useEffect(() => {
     if (!enabled) {
@@ -1413,23 +1545,26 @@ export const useSupabaseSync = (
     }
 
     let active = true;
+    const sessionLookupGeneration = sessionGenerationRef.current;
     setAuthReady(false);
     void client.auth
       .getSession()
       .then(({ data: authData, error }) => {
         if (!active) return;
+        if (sessionLookupGeneration !== sessionGenerationRef.current) return;
         if (error) {
           setStatus('error');
           setMessage('Could not verify the Supabase session. Backup restore remains locked for safety.');
           return;
         }
-        setSession(authData.session);
+        updateActiveSession(authData.session);
         setAuthReady(true);
         setStatus(authData.session ? 'syncing' : 'signed_out');
         setMessage(authData.session ? 'Restoring Supabase session...' : 'Sign in to sync this device.');
       })
       .catch(() => {
         if (!active) return;
+        if (sessionLookupGeneration !== sessionGenerationRef.current) return;
         setStatus('error');
         setMessage('Could not verify the Supabase session. Backup restore remains locked for safety.');
       });
@@ -1437,7 +1572,7 @@ export const useSupabaseSync = (
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((event, nextSession) => {
-      setSession(nextSession);
+      updateActiveSession(nextSession);
       setAuthReady(true);
       setDiagnostics((current) => ({
         ...current,
@@ -1448,6 +1583,13 @@ export const useSupabaseSync = (
       if (!nextSession) {
         setStatus('signed_out');
         setMessage('Sign in to sync this device.');
+        return;
+      }
+
+      if (!cacheBelongsToUser(nextSession.user.id)) {
+        initializedRef.current = false;
+        setStatus('cache_transition_required');
+        setMessage('This device\'s local data is not linked to the signed-in account. Claim it explicitly or sign out before syncing.');
         return;
       }
 
@@ -1464,7 +1606,7 @@ export const useSupabaseSync = (
       active = false;
       subscription.unsubscribe();
     };
-  }, [client, configured, enabled]);
+  }, [client, configured, enabled, updateActiveSession]);
 
   useEffect(() => {
     if (!client || !session || initializedRef.current) return;
@@ -1568,5 +1710,6 @@ export const useSupabaseSync = (
     syncNow,
     uploadNow,
     pullNow,
+    claimLocalCache,
   };
 };

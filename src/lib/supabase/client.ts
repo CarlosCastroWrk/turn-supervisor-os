@@ -15,6 +15,28 @@ export const isSupabaseConfigured = Boolean(
 
 let client: SupabaseClient | null = null;
 
+export const createSessionBoundSupabaseClient = (
+  url: string,
+  anonKey: string,
+  accessToken: string,
+  customFetch?: typeof fetch,
+) => createClient(url, anonKey, {
+  accessToken: async () => accessToken,
+  ...(customFetch ? { global: { fetch: customFetch } } : {}),
+});
+
+export const getSessionBoundSupabaseClient = (accessToken: string) => {
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
+  return createSessionBoundSupabaseClient(
+    supabaseUrl as string,
+    supabaseAnonKey as string,
+    accessToken,
+  );
+};
+
 export const getSupabaseClient = () => {
   if (!isSyncFeatureEnabled || !isSupabaseConfigured) {
     return null;

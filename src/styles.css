@@ -31,8 +31,7 @@
 }
 
 .capture-intent-picker legend {
-  color: var(--ink);
-  font-family: var(--font-display);
+  color: var(--text);
   font-size: clamp(1.25rem, 2.4vw, 1.75rem);
   font-weight: 800;
   padding: 0;
@@ -52,9 +51,9 @@
 .capture-intent-picker__options button {
   align-items: flex-start;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  color: var(--ink);
+  color: var(--text);
   display: flex;
   gap: 0.75rem;
   min-height: 104px;
@@ -64,8 +63,8 @@
 
 .capture-intent-picker__options button:hover,
 .capture-intent-picker__options button:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 18%, transparent);
 }
 
 .capture-intent-picker__options button span {
@@ -116,9 +115,9 @@
 .capture-input-methods button {
   align-items: center;
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  color: var(--ink);
+  color: var(--text);
   display: flex;
   gap: 0.45rem;
   justify-content: center;
@@ -127,16 +126,16 @@
 }
 
 .capture-input-methods button[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--blue) 12%, var(--surface));
+  border-color: var(--blue);
 }
 
 .capture-input-editor textarea,
 .capture-voice-panel textarea {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 14px;
-  color: var(--ink);
+  color: var(--text);
   font: inherit;
   min-height: 140px;
   padding: 0.9rem;
@@ -146,8 +145,8 @@
 
 .capture-voice-panel,
 .capture-proposed-effect {
-  background: var(--surface-soft);
-  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
   border-radius: 16px;
   display: grid;
   gap: 0.9rem;
@@ -165,6 +164,53 @@
   margin: 0.35rem 0 0;
 }
 
+.capture-result-card {
+  background: color-mix(in srgb, var(--green) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--green) 40%, var(--border));
+  border-radius: 16px;
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.capture-result-card.is-error {
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--red) 42%, var(--border));
+}
+
+.capture-result-card__heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.capture-result-card__heading h3,
+.capture-result-card__heading p,
+.capture-result-card__source p {
+  margin: 0.2rem 0 0;
+}
+
+.capture-result-card__heading p {
+  color: var(--muted);
+}
+
+.capture-result-card__source {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem;
+}
+
+.capture-result-card__source p {
+  white-space: pre-wrap;
+}
+
+.capture-result-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 @media (max-width: 680px) {
   .capture-intent-picker__options,
   .capture-input-methods {
@@ -176,7 +222,8 @@
   }
 
   .capture-step__actions,
-  .capture-voice-panel__actions {
+  .capture-voice-panel__actions,
+  .capture-result-card__actions {
     align-items: stretch;
     flex-direction: column;
   }

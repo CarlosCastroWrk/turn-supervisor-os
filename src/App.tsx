@@ -96,8 +96,11 @@ function App() {
         data={data}
         isOpen={captureOpen}
         onClose={() => setCaptureOpen(false)}
+        onOpenBackup={() => navigate('export')}
         onNavigate={navigate}
+        onRetrySave={retrySave}
         presentation="overlay"
+        saveStatus={saveStatus}
         setData={setData}
       />
     </>

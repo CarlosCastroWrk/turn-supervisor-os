@@ -101,12 +101,12 @@ export function DraftActionCard({
               {needsConflictConfirmation ? (
                 <Button variant="primary" onClick={onConfirmConflictAndApply}>
                   <Check size={16} aria-hidden="true" />
-                  Confirm
+                  Confirm &amp; apply
                 </Button>
               ) : (
                 <Button variant="primary" onClick={onApply}>
                   <Check size={16} aria-hidden="true" />
-                  Approve
+                  Apply to my app
                 </Button>
               )}
               <Button variant="ghost" onClick={onReject}>
@@ -140,10 +140,10 @@ export function DraftActionCard({
         <summary>Why this draft exists</summary>
         <p>{draft.why}</p>
       </details>
-      {isStale ? <p className="error-text">This pending draft is from a previous day. Review it by itself before approving.</p> : null}
+      {isStale ? <p className="error-text">This pending draft is from a previous day. Review it by itself before applying it to your app.</p> : null}
       {needsConflictConfirmation ? (
         <p className="error-text">
-          This capture produced more than one possible update for {targetLabel}. Approve only the version that matches the field.
+          This capture produced more than one possible update for {targetLabel}. Apply only the version that matches the field.
         </p>
       ) : null}
       {draft.error ? <p className="error-text">{draft.error}</p> : null}
@@ -172,12 +172,12 @@ export function DraftActionCard({
           {needsConflictConfirmation ? (
             <Button variant="primary" onClick={onConfirmConflictAndApply}>
               <Check size={16} aria-hidden="true" />
-              Confirm & Approve
+              Confirm &amp; apply
             </Button>
           ) : (
             <Button variant="primary" onClick={onApply}>
               <Check size={16} aria-hidden="true" />
-              Approve
+              Apply to my app
             </Button>
           )}
           <Button variant="ghost" onClick={onReject}>

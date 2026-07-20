@@ -86,6 +86,10 @@ try {
   await desktopPage.getByRole('heading', { name: 'Confirm your exact wording', exact: true }).waitFor();
   await desktopPage.getByRole('button', { name: 'Create drafts', exact: true }).click();
   await desktopPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
+  await desktopPage.getByRole('heading', { name: 'Added to Review — 1 Draft Action awaiting approval', exact: true }).waitFor();
+  await desktopPage.getByText('Unit 202 has a sink leak. Maintenance needs to return.', { exact: true }).waitFor();
+  assert.equal(await desktopPage.getByRole('textbox', { name: 'Capture wording', exact: true }).count(), 0, 'Composer did not clear after durable success.');
+  assert.notEqual(await desktopPage.evaluate(() => document.activeElement?.tagName), 'TEXTAREA', 'Keyboard focus remained in the composer after durable success.');
 
   const photoTarget = desktopPage.locator('.capture-photo-review select');
   assert.equal(await photoTarget.count(), 1);
@@ -110,6 +114,34 @@ try {
   assert.match(desktopPage.url(), /#\/units\//);
   assert.deepEqual(desktopFindings, [], `Desktop runtime findings:\n${desktopFindings.join('\n')}`);
   await desktopContext.close();
+
+  const failureContext = await browser.newContext({ viewport: { width: 430, height: 900 } });
+  const failurePage = await failureContext.newPage();
+  const failureFindings = attachRuntimeChecks(failurePage);
+  await failurePage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await failurePage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await failurePage.getByRole('button', { name: /UPDATE/ }).click();
+  await failurePage.getByRole('button', { name: 'Type', exact: true }).click();
+  await failurePage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill('Unit 204 paint is done.');
+  await failurePage.getByRole('button', { name: 'Continue to review', exact: true }).click();
+  await failurePage.evaluate((key) => {
+    const original = Storage.prototype.setItem;
+    window.__restoreCaptureSetItem = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function setItem(storageKey, value) {
+      if (storageKey === key) throw new DOMException('Synthetic quota failure', 'QuotaExceededError');
+      return original.call(this, storageKey, value);
+    };
+  }, storageKey);
+  await failurePage.getByRole('button', { name: 'Create drafts', exact: true }).click();
+  await failurePage.getByRole('heading', { name: 'Draft Actions were not saved', exact: true }).waitFor();
+  await failurePage.getByRole('alert').getByText('Unit 204 paint is done.', { exact: true }).waitFor();
+  assert.equal(await failurePage.getByRole('button', { name: 'Retry', exact: true }).count(), 1);
+  await failurePage.evaluate(() => window.__restoreCaptureSetItem());
+  await failurePage.getByRole('button', { name: 'Retry', exact: true }).click();
+  await failurePage.getByRole('heading', { name: /Added to Review/ }).waitFor();
+  const unexpectedFailureFindings = failureFindings.filter((finding) => !finding.includes('Synthetic quota failure'));
+  assert.deepEqual(unexpectedFailureFindings, [], `Capture failure runtime findings:\n${unexpectedFailureFindings.join('\n')}`);
+  await failureContext.close();
 
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mobilePage = await mobileContext.newPage();

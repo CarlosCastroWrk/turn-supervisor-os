@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { CaptureIntentPicker } from '../components/CaptureIntentPicker';
+import { CaptureResultCard } from '../components/CaptureResultCard';
 import { CaptureVoicePanel } from '../components/CaptureVoicePanel';
 import { DraftActionCard } from '../components/DraftActionCard';
 import { Button, CommittedTextarea, Field } from '../components/FormControls';
@@ -60,13 +61,15 @@ import {
   captureSessionReducer,
   initialCaptureSessionState,
   type CaptureInputMethod,
+  type CaptureResultReceipt,
 } from '../lib/captureSession';
+import { persistCaptureSnapshot } from '../lib/capturePersistence';
 import { getActiveProjectMemoryCandidates, prepareMemoryCandidatesForActiveProject } from '../lib/memory';
 import { preparePhotoFile } from '../lib/photoProcessing';
 import { persistPhotoRecord } from '../lib/photoStorage';
 import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
-import { persistAppDataNow } from '../lib/storage';
+import { persistAppDataNow, type AppDataSaveStatus } from '../lib/storage';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AiUsageEvent, AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
 
@@ -77,6 +80,9 @@ interface CopilotViewProps {
   presentation?: 'page' | 'overlay';
   isOpen?: boolean;
   onClose?: () => void;
+  onOpenBackup?: () => void;
+  onRetrySave?: () => boolean;
+  saveStatus?: AppDataSaveStatus;
 }
 
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
@@ -204,11 +210,16 @@ export function CopilotView({
   presentation = 'page',
   isOpen = true,
   onClose,
+  onOpenBackup,
+  onRetrySave,
+  saveStatus,
 }: CopilotViewProps) {
   const { notify } = useToast();
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
   const quickInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const dataRef = useRef(data);
+  dataRef.current = data;
   const captureWorkspaceRef = useRef<HTMLElement | null>(null);
   const captureCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -223,6 +234,7 @@ export function CopilotView({
   const restartTimerRef = useRef<number | undefined>(undefined);
   const noTranscriptTimerRef = useRef<number | undefined>(undefined);
   const parseInFlightRef = useRef(false);
+  const captureProjectIdRef = useRef(data.activeProjectId);
   const [captureSession, dispatchCaptureSession] = useReducer(captureSessionReducer, initialCaptureSessionState);
   const [pageVoiceOpen, setPageVoiceOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -341,6 +353,12 @@ export function CopilotView({
     setLastChangedDraftId('');
     setLastAiUsage(null);
   }, [data.activeProjectId]);
+
+  useEffect(() => {
+    if (captureSession.step === 'intent') {
+      captureProjectIdRef.current = data.activeProjectId;
+    }
+  }, [captureSession.step, data.activeProjectId]);
   const fallbackVoiceGuidance = useMemo(
     () =>
       getVoiceCaptureGuidance({
@@ -746,7 +764,7 @@ export function CopilotView({
         imageMimeType: attachment.blob.type,
         imageByteSize: attachment.blob.size,
         category: 'Problem',
-        caption: quickInput.trim() || attachment.name,
+        caption: (presentation === 'overlay' ? captureSession.immutableSourceText : quickInput).trim() || attachment.name,
         createdAt: now,
         updatedAt: now,
       };
@@ -811,28 +829,67 @@ export function CopilotView({
     setLastAiUsage(null);
   };
 
-  const parseQuickCapture = async () => {
+  const finishDurableCapture = (nextData: AppData) => {
+    dataRef.current = nextData;
+    setData(nextData);
+    setQuickInput('');
+    setCaptureAttachments((current) => current.filter((attachment) => {
+      const keep = attachment.kind === 'photo' && !attachment.savedPhotoId;
+      if (attachment.kind === 'photo' && !keep) {
+        URL.revokeObjectURL(attachment.previewUrl);
+      }
+      return keep;
+    }));
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
+  const reportCaptureError = (kind: 'save_failed' | 'ambiguous_update' | 'processing_failed', headline: string, detail: string) => {
+    if (presentation === 'overlay') {
+      dispatchCaptureSession({ type: 'FAIL', error: { kind, headline, detail } });
+    } else {
+      notify(`${headline} ${detail}`, { tone: 'error' });
+    }
+  };
+
+  const parseQuickCapture = async (): Promise<CaptureResultReceipt | undefined> => {
     if (!captureInputReady || parseInFlightRef.current) {
       return;
     }
 
     parseInFlightRef.current = true;
     setIsParsingCapture(true);
-    const captureProjectId = data.activeProjectId;
-    const result = await agentProvider
-      .parseQuickCapture(captureSourceInput, data)
-      .finally(() => {
+    if (presentation === 'page') {
+      captureProjectIdRef.current = dataRef.current.activeProjectId;
+    }
+    const sourceText = presentation === 'overlay' ? captureSession.immutableSourceText : captureSourceInput.trim();
+    const captureProjectId = captureProjectIdRef.current || dataRef.current.activeProjectId;
+    let result: Awaited<ReturnType<typeof agentProvider.parseQuickCapture>>;
+    try {
+      result = await agentProvider.parseQuickCapture(sourceText, dataRef.current);
+    } catch {
+      reportCaptureError('processing_failed', 'Capture could not be reviewed', 'Your wording is still here. Retry when the device is ready.');
+      return;
+    } finally {
         parseInFlightRef.current = false;
         setIsParsingCapture(false);
-      });
+    }
+
+    const latest = dataRef.current;
+    if (latest.activeProjectId !== captureProjectId) {
+      reportCaptureError('processing_failed', 'The active Turn changed', 'No Draft Action was saved. Return to Input and confirm the intended Turn.');
+      return;
+    }
+
     const usageEvent = aiUsageEventFromResult(result, captureProjectId);
     setLastAiUsage(usageEvent);
-    const newMemoryCandidates = prepareMemoryCandidatesForActiveProject(data, result.memoryCandidates);
+    const newMemoryCandidates = prepareMemoryCandidatesForActiveProject(latest, result.memoryCandidates);
     const duplicateMemoryCount = result.memoryCandidates.length - newMemoryCandidates.length;
     const summaryParts: string[] = [];
     if (result.draftActions.length > 0) {
       summaryParts.push(
-        `Found ${result.draftActions.length} draft change${result.draftActions.length === 1 ? '' : 's'}. Review below before the board changes.`,
+        `Created ${result.draftActions.length} pending Draft Action${result.draftActions.length === 1 ? '' : 's'}. Nothing was applied.`,
       );
     }
     if (newMemoryCandidates.length > 0) {
@@ -846,7 +903,7 @@ export function CopilotView({
       );
     }
     if (summaryParts.length === 0) {
-      summaryParts.push('No board change or new Memory suggestion was detected.');
+      summaryParts.push('No production Draft Action was detected.');
     }
     if (result.providerNotice) {
       summaryParts.push(result.providerNotice);
@@ -858,18 +915,36 @@ export function CopilotView({
     setLastChangedDraftId('');
     setDraftFilter('pending');
     const batchId = createId('capture_batch');
-    if (result.draftActions.length > 0) {
-      setActiveDraftBatchId(batchId);
+    if (result.draftActions.length === 0) {
+      reportCaptureError(
+        'ambiguous_update',
+        'No clear UPDATE was found',
+        'Nothing was saved or changed. Edit the wording, or explicitly save this as a personal NOTE.',
+      );
+      return;
     }
-    setData((current) => {
-      let next = addDraftActions(current, result.draftActions, captureSourceInput, batchId);
+
+    const persisted = persistCaptureSnapshot(latest, (current) => {
+      let next = addDraftActions(current, result.draftActions, sourceText, batchId);
       next = addMemoryCandidates(next, newMemoryCandidates);
       if (usageEvent) {
         next = addAiUsageEvent(next, usageEvent);
       }
-      return addAgentRun(next, 'quick_capture', captureSourceInput, reviewedResult);
+      return addAgentRun(next, 'quick_capture', sourceText, reviewedResult);
     });
-    const inferredUnitId = inferSingleCaptureUnitId(result.draftActions, data.units, data.activeProjectId);
+
+    if (!persisted.ok) {
+      reportCaptureError(
+        'save_failed',
+        'Draft Actions were not saved',
+        'Your wording and attachments are preserved. Retry, copy the raw wording, or open Data & backup.',
+      );
+      return;
+    }
+
+    setActiveDraftBatchId(batchId);
+    finishDurableCapture(persisted.data);
+    const inferredUnitId = inferSingleCaptureUnitId(result.draftActions, persisted.data.units, captureProjectId);
     if (inferredUnitId) {
       setCaptureAttachments((current) =>
         current.map((attachment) =>
@@ -879,6 +954,13 @@ export function CopilotView({
         ),
       );
     }
+
+    return {
+      destinationKind: result.draftActions.length === 1 ? 'draft_awaiting_approval' : 'review',
+      headline: `Added to Review — ${result.draftActions.length} Draft Action${result.draftActions.length === 1 ? '' : 's'} awaiting approval`,
+      detail: 'Saved as pending changes in Los’s personal app. Nothing was applied to a Unit, paper TurnBoard, inspection, client approval, or payroll.',
+      sourceText,
+    };
   };
 
   const finishVoiceCapture = () => {
@@ -988,31 +1070,74 @@ export function CopilotView({
         draft.type === 'ADD_DAILY_LOG_ENTRY',
     );
 
-  const saveRawNoteOnly = () => {
-    if (!captureSourceInput.trim()) {
+  const persistRawNote = (sourceText: string): CaptureResultReceipt | undefined => {
+    if (!sourceText.trim()) {
       return;
     }
 
-    setData((current) => {
+    const latest = dataRef.current;
+    if (latest.activeProjectId !== captureProjectIdRef.current) {
+      reportCaptureError('processing_failed', 'The active Turn changed', 'No note was saved. Return to Input and confirm the intended Turn.');
+      return;
+    }
+
+    const date = todayISO();
+    const persisted = persistCaptureSnapshot(latest, (current) => {
       const existing =
-        findDailyLog(current.dailyLogs, current.activeProjectId, todayISO()) ??
-        createEmptyDailyLog(current.activeProjectId, todayISO());
+        findDailyLog(current.dailyLogs, current.activeProjectId, date) ??
+        createEmptyDailyLog(current.activeProjectId, date);
       return upsertDailyLog(current, {
         ...existing,
-        middayUpdate: [existing.middayUpdate, `Raw Copilot note: ${captureSourceInput.trim()}`].filter(Boolean).join('\n'),
+        middayUpdate: [existing.middayUpdate, `Raw Copilot note: ${sourceText.trim()}`].filter(Boolean).join('\n'),
       });
     });
-    setParseSummary('Saved raw note to today’s Daily Log.');
+
+    if (!persisted.ok) {
+      reportCaptureError(
+        'save_failed',
+        'Personal note was not saved',
+        'Your wording and attachments are preserved. Retry, copy the raw wording, or open Data & backup.',
+      );
+      return;
+    }
+
+    finishDurableCapture(persisted.data);
+    setParseSummary(`Saved personal note to Daily Log for ${date}.`);
+    return {
+      destinationKind: 'daily_log',
+      headline: `Saved to Daily Log for ${date}`,
+      detail: 'Saved as a personal note only. No Unit status, official paper mark, approval, payroll record, or external message changed.',
+      sourceText: sourceText.trim(),
+      openTarget: { view: 'daily' },
+    };
   };
 
-  const runAskOs = async (question: string) => {
+  const saveRawNoteOnly = () => {
+    captureProjectIdRef.current = dataRef.current.activeProjectId;
+    return persistRawNote(captureSourceInput.trim());
+  };
+
+  const runAskOs = async (question: string): Promise<CaptureResultReceipt | undefined> => {
     if (!question.trim()) {
       return;
     }
 
-    const result = await agentProvider.askOs(question, data);
-    setAskResult(result);
-    setData((current) => {
+    const captureProjectId = captureProjectIdRef.current || dataRef.current.activeProjectId;
+    let result: AskOsResult;
+    try {
+      result = await agentProvider.askOs(question, dataRef.current);
+    } catch {
+      reportCaptureError('processing_failed', 'The question could not be answered', 'Your wording is preserved. Retry when the device is ready.');
+      return;
+    }
+
+    const latest = dataRef.current;
+    if (latest.activeProjectId !== captureProjectId) {
+      reportCaptureError('processing_failed', 'The active Turn changed', 'The answer was not saved. Return to Input and confirm the intended Turn.');
+      return;
+    }
+
+    const persisted = persistCaptureSnapshot(latest, (current) => {
       const withConversation = addCopilotConversation(
         current,
         question,
@@ -1022,9 +1147,30 @@ export function CopilotView({
       );
       return addAgentRun(markMemoriesUsed(withConversation, result.usedMemoryIds ?? []), 'ask_os', question, result);
     });
+
+    if (!persisted.ok) {
+      reportCaptureError(
+        'save_failed',
+        'The answer receipt was not saved',
+        'Your question is preserved. Retry, copy the raw wording, or open Data & backup.',
+      );
+      return;
+    }
+
+    setAskResult(result);
+    finishDurableCapture(persisted.data);
+    return {
+      destinationKind: 'answer',
+      headline: 'Read-only answer',
+      detail: `${result.supportingRecords.length} supporting record${result.supportingRecords.length === 1 ? '' : 's'} referenced. No production record was changed.`,
+      sourceText: question.trim(),
+    };
   };
 
-  const askOs = () => runAskOs(askInput);
+  const askOs = () => {
+    captureProjectIdRef.current = dataRef.current.activeProjectId;
+    return runAskOs(askInput);
+  };
 
   const generateBriefing = async (type: BriefingType) => {
     const result = await agentProvider.generateBriefing(type, data);
@@ -1116,20 +1262,52 @@ export function CopilotView({
   };
 
   const continueCaptureToReview = () => {
+    captureProjectIdRef.current = dataRef.current.activeProjectId;
     dispatchCaptureSession({ type: 'CONTINUE_TO_REVIEW', sourceText: sessionSourceText });
   };
 
   const confirmCaptureReview = async () => {
+    dispatchCaptureSession({ type: 'CLEAR_ERROR' });
+    let receipt: CaptureResultReceipt | undefined;
     if (captureSession.intent === 'update') {
-      await parseQuickCapture();
+      receipt = await parseQuickCapture();
     } else if (captureSession.intent === 'note') {
-      saveRawNoteOnly();
+      receipt = persistRawNote(captureSession.immutableSourceText);
     } else if (captureSession.intent === 'ask') {
-      await runAskOs(captureSession.immutableSourceText);
+      receipt = await runAskOs(captureSession.immutableSourceText);
     } else {
       return;
     }
-    dispatchCaptureSession({ type: 'COMPLETE' });
+    if (receipt) {
+      dispatchCaptureSession({ type: 'COMPLETE', result: receipt });
+    }
+  };
+
+  const saveAmbiguousCaptureAsNote = () => {
+    const receipt = persistRawNote(captureSession.immutableSourceText);
+    if (receipt) {
+      dispatchCaptureSession({ type: 'COMPLETE', result: receipt });
+    }
+  };
+
+  const retryCaptureReview = () => {
+    onRetrySave?.();
+    void confirmCaptureReview();
+  };
+
+  const copyCaptureSource = async () => {
+    try {
+      await navigator.clipboard.writeText(captureSession.immutableSourceText);
+      notify('Raw wording copied.', { tone: 'success' });
+    } catch {
+      notify('Copy failed. Press and hold the raw wording to copy it manually.', { tone: 'error' });
+    }
+  };
+
+  const openCaptureReceiptTarget = () => {
+    const target = captureSession.result?.openTarget;
+    if (!target) return;
+    onNavigate(target.view, target.recordId);
   };
 
   const backCaptureStep = () => {
@@ -1302,6 +1480,20 @@ export function CopilotView({
                   </strong>
                   <p>{captureSession.intent === 'update' ? 'No draft will apply itself. This does not mark paper, inspection, client approval, or payroll.' : 'No official workflow or external message will change.'}</p>
                 </div>
+                {captureSession.error ? (
+                  <CaptureResultCard
+                    intent={captureSession.intent!}
+                    sourceText={captureSession.immutableSourceText}
+                    error={captureSession.error}
+                    onRetry={captureSession.error.kind === 'ambiguous_update' ? undefined : retryCaptureReview}
+                    onSaveAsNote={captureSession.error.kind === 'ambiguous_update' ? saveAmbiguousCaptureAsNote : undefined}
+                    onCopySource={() => void copyCaptureSource()}
+                    onOpenBackup={onOpenBackup}
+                  />
+                ) : null}
+                {saveStatus?.state === 'failed' && !captureSession.error ? (
+                  <p className="error-text" role="alert">This device also reports unsaved app changes. Confirm only after storage is available.</p>
+                ) : null}
                 <div className="capture-step__actions">
                   <Button variant="ghost" onClick={backCaptureStep}>Back</Button>
                   <Button disabled={isParsingCapture} variant="primary" onClick={() => void confirmCaptureReview()}>
@@ -1321,10 +1513,15 @@ export function CopilotView({
                     </h2>
                   </div>
                 </div>
-                <article className="capture-source-card">
-                  <div className="capture-source-card__header"><span className="quiet-label">Raw source</span></div>
-                  <div className="capture-source-card__body"><p>{captureSession.immutableSourceText}</p></div>
-                </article>
+                {captureSession.result ? (
+                  <CaptureResultCard
+                    intent={captureSession.intent!}
+                    sourceText={captureSession.immutableSourceText}
+                    receipt={captureSession.result}
+                    onOpenTarget={captureSession.result.openTarget ? openCaptureReceiptTarget : undefined}
+                    onCopySource={() => void copyCaptureSource()}
+                  />
+                ) : null}
                 {parseSummary ? <p className="success-text" role="status">{parseSummary}</p> : null}
                 {lastAiUsage ? <AiCallReceipt event={lastAiUsage} /> : null}
                 {captureSession.intent === 'ask' && askResult ? (
@@ -1536,7 +1733,7 @@ export function CopilotView({
               currentCaptureDrafts.length > 1 ? (
                 <div className="button-row">
                   <Button disabled={currentCapturePendingDraftIds.length === 0} onClick={applyPendingDrafts}>
-                    Approve Shown
+                    Apply shown to my app
                   </Button>
                   <Button disabled={currentCapturePendingDraftIds.length === 0} variant="ghost" onClick={rejectPendingDrafts}>
                     Reject Shown
@@ -1553,7 +1750,7 @@ export function CopilotView({
                 ) : null}
               </div>
             ) : null}
-            <p className="muted">Approve only what should update the board. Rejected drafts do not change units, issues, or logs.</p>
+            <p className="muted">Apply only what should update your personal app. Rejected drafts do not change Units, Issues, or Daily Logs.</p>
             <div className="draft-list">
               {currentCaptureDrafts.map((draft) => (
                 <DraftActionCard

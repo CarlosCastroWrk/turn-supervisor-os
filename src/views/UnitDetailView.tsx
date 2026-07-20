@@ -6,6 +6,7 @@ import { PhotoCapture } from '../components/PhotoCapture';
 import { PhotoThumbnail } from '../components/PhotoThumbnail';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
+import { UnitTimeline } from '../components/UnitTimeline';
 import { useToast } from '../components/toast-context';
 import { useUndoableUnitUpdate } from '../hooks/useUndoableUnitUpdate';
 import {
@@ -19,14 +20,16 @@ import {
 } from '../lib/actions';
 import { createId, formatTime, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, WORK_STATUSES } from '../lib/constants';
-import { persistAppDataNow } from '../lib/storage';
-import type { AppData, AppView, Issue, IssueCategory, UnitWorkflowStatus, WorkStatus } from '../types';
+import type { AppNavigate } from '../lib/routing';
+import { persistAppDataNow, useAppDataSaveStatus } from '../lib/storage';
+import { projectUnitTimeline } from '../lib/unitTimeline';
+import type { AppData, Issue, IssueCategory, UnitWorkflowStatus, WorkStatus } from '../types';
 
 interface UnitDetailViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
   unitId?: string;
-  onNavigate: (view: AppView) => void;
+  onNavigate: AppNavigate;
 }
 
 const completedLabel = (status: WorkStatus) =>
@@ -43,12 +46,13 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
   const [issueNotes, setIssueNotes] = useState('');
   const [issueBlocksUnit, setIssueBlocksUnit] = useState(false);
   const addIssueButtonRef = useRef<HTMLButtonElement | null>(null);
+  const saveStatus = useAppDataSaveStatus();
 
   if (!unit) {
     return (
       <div className="page">
-        <Button onClick={() => onNavigate('units')}>Back to Units</Button>
-        <p>{unitId ? 'Unit not found. Go back to Units before making edits.' : 'No unit selected.'}</p>
+        <Button onClick={() => onNavigate('units')}>Back to TurnBoard</Button>
+        <p>{unitId ? 'Unit not found. Go back to TurnBoard before making edits.' : 'No unit selected.'}</p>
       </div>
     );
   }
@@ -57,7 +61,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
   const floor = data.floors.find((item) => item.id === unit.floorId);
   const issues = data.issues.filter((issue) => issue.unitId === unit.id);
   const photos = data.photoNotes.filter((photo) => photo.unitId === unit.id);
-  const activity = data.activityLogs.filter((log) => log.entityId === unit.id).slice(0, 8);
+  const timelineItems = projectUnitTimeline(data, unit.id);
   const checks = [
     { label: 'Paint', value: completedLabel(unit.paintStatus) },
     { label: 'Clean', value: completedLabel(unit.cleanStatus) },
@@ -149,7 +153,7 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
         <div className="detail-header">
           <Button onClick={() => onNavigate('units')}>
             <ArrowLeft size={18} aria-hidden="true" />
-            Units
+            TurnBoard
           </Button>
           <div>
             <span className="quiet-label">{building?.name ?? 'Building'} · {floor?.name ?? 'Floor'}</span>
@@ -306,12 +310,12 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           </div>
         </details>
 
-        <Section title="Activity history" kicker={`Last updated ${formatTime(unit.updatedAt)}`} className="unit-activity">
-          <div className="timeline">
-            {activity.map((item) => <article key={item.id}><span>{formatTime(item.createdAt)}</span><strong>{item.action}</strong><p>{item.note}</p></article>)}
-            {activity.length === 0 ? <p className="muted">No activity recorded yet.</p> : null}
-          </div>
-        </Section>
+        <UnitTimeline
+          items={timelineItems}
+          onNavigate={onNavigate}
+          photos={photos}
+          saveFailed={saveStatus.state === 'failed'}
+        />
       </div>
 
       {isIssueOpen ? (

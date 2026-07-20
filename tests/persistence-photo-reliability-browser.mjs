@@ -73,6 +73,12 @@ try {
     originalSupervisor,
   );
 
+  await page.goto(`${baseUrl}/#/unit/${encodeURIComponent(unit.id)}`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Unit history', exact: true }).waitFor();
+  await page.getByText('Current changes may still be in memory. Retry the local save before relying on this history.', { exact: true }).waitFor();
+  await page.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  await unsavedAlert.waitFor();
+
   await unsavedAlert.getByRole('button', { name: 'Retry save', exact: true }).click();
   await unsavedAlert.waitFor();
   await page.evaluate(() => window.__PDS_RELIABILITY_QA__.failAppDataWrites(false));

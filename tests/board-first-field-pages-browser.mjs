@@ -91,7 +91,66 @@ try {
     await crewDialog.waitFor({ state: 'hidden' });
     await assertNoHorizontalOverflow(page, `${target.name} Crew`);
 
+    await page.waitForFunction(() => Boolean(localStorage.getItem('turn-supervisor-os:v0.1')));
+    await page.evaluate(() => {
+      const key = 'turn-supervisor-os:v0.1';
+      const raw = localStorage.getItem(key);
+      if (!raw) throw new Error('Synthetic browser fixture could not find local app data.');
+      const data = JSON.parse(raw);
+      const timestamp = '2026-07-20T12:00:00.000Z';
+      data.activityLogs.unshift({
+        id: 'activity_timeline_browser',
+        projectId: data.activeProjectId,
+        entityType: 'Unit',
+        entityId: 'unit_101',
+        action: 'Synthetic Unit activity',
+        note: 'Exact Unit activity wording',
+        createdAt: timestamp,
+      });
+      data.photoNotes.unshift({
+        id: 'photo_timeline_browser',
+        projectId: data.activeProjectId,
+        unitId: 'unit_101',
+        category: 'Problem',
+        caption: 'Synthetic work photo',
+        localImageAvailable: false,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      data.issues.unshift({
+        id: 'issue_timeline_browser',
+        projectId: data.activeProjectId,
+        unitId: 'unit_101',
+        title: 'Synthetic unit issue',
+        category: 'Access',
+        priority: 'High',
+        owner: 'Los',
+        status: 'Open',
+        dueAt: '',
+        notes: 'Synthetic issue wording',
+        resolutionNotes: '',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      data.draftActions.unshift({
+        id: 'draft_timeline_browser',
+        type: 'ADD_UNIT_NOTE',
+        title: 'Synthetic Unit draft',
+        summary: 'Synthetic Draft Action wording',
+        targetEntityType: 'unit',
+        targetEntityId: 'unit_101',
+        payload: {},
+        confidence: 0.9,
+        why: 'Synthetic browser fixture',
+        sourceText: 'Synthetic browser fixture',
+        status: 'pending',
+        createdAt: timestamp,
+      });
+      localStorage.setItem(key, JSON.stringify(data));
+    });
+
     await page.goto(`${baseUrl}/#/unit/unit_101`, { waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Unit check' }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: 'Beds' }).inputValue(), '3');
     assert.equal(await page.getByText('Manual unit details', { exact: true }).count(), 1);
@@ -106,7 +165,29 @@ try {
       1,
       'Unit detail should keep TurnBoard active in mobile navigation.',
     );
+    await page.getByRole('heading', { name: 'Unit history', exact: true }).waitFor();
+    await page.getByText('Partial history from current app records', { exact: true }).waitFor();
+    for (const source of ['Unit activity', 'Unit notes', 'Photo', 'Issue', 'Draft Action']) {
+      assert.ok(await page.getByText(source, { exact: true }).count() >= 1, `${source} was missing from Unit history.`);
+    }
+    await page.getByRole('button', { name: 'View photo: Synthetic work photo', exact: true }).click();
+    assert.equal(await page.locator('.unit-timeline-photo .photo-thumb').count(), 1);
+    await page.getByRole('button', { name: 'Open Draft Action in Review', exact: true }).click();
+    await page.getByRole('heading', { name: 'REVIEW', exact: true }).waitFor();
+    assert.match(page.url(), /#\/review$/);
+    await page.goBack({ waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Unit history', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open Issue: Synthetic unit issue', exact: true }).click();
+    await page.getByRole('heading', { name: 'Issues', exact: true }).waitFor();
+    assert.match(page.url(), /#\/issues\/issue_timeline_browser$/);
+    await page.goBack({ waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Unit history', exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} Unit detail`);
+
+    await page.goto(`${baseUrl}/#/unit/unit_201`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Unit history', exact: true }).waitFor();
+    await page.getByText('No personal activity is linked to this Unit yet.', { exact: true }).waitFor();
+    await assertNoHorizontalOverflow(page, `${target.name} empty Unit timeline`);
 
     await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'REVIEW', exact: true }).waitFor();

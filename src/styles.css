@@ -23,6 +23,170 @@
   --radius: 8px;
 }
 
+/* Intent-first Capture shell */
+.capture-intent-picker {
+  border: 0;
+  margin: 0;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.capture-intent-picker legend {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  font-weight: 800;
+  padding: 0;
+}
+
+.capture-intent-picker > p {
+  color: var(--muted);
+  margin: 0.4rem 0 1rem;
+}
+
+.capture-intent-picker__options {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.capture-intent-picker__options button {
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--ink);
+  display: flex;
+  gap: 0.75rem;
+  min-height: 104px;
+  padding: 1rem;
+  text-align: left;
+}
+
+.capture-intent-picker__options button:hover,
+.capture-intent-picker__options button:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.capture-intent-picker__options button span {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.capture-intent-picker__options small,
+.capture-safety-copy {
+  color: var(--muted);
+}
+
+.capture-safety-copy {
+  display: block;
+  margin-top: 1rem;
+}
+
+.capture-step {
+  display: grid;
+  gap: 1rem;
+  margin: 0 auto;
+  max-width: 760px;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  width: 100%;
+}
+
+.capture-step__heading,
+.capture-step__actions,
+.capture-voice-panel__header,
+.capture-voice-panel__actions {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.capture-step__heading h2,
+.capture-voice-panel__header h2 {
+  margin: 0.15rem 0 0;
+}
+
+.capture-input-methods {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.capture-input-methods button {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  display: flex;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.65rem;
+}
+
+.capture-input-methods button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--accent);
+}
+
+.capture-input-editor textarea,
+.capture-voice-panel textarea {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 140px;
+  padding: 0.9rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.capture-voice-panel,
+.capture-proposed-effect {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.capture-voice-panel__timer {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.capture-proposed-effect p {
+  color: var(--muted);
+  margin: 0.35rem 0 0;
+}
+
+@media (max-width: 680px) {
+  .capture-intent-picker__options,
+  .capture-input-methods {
+    grid-template-columns: 1fr;
+  }
+
+  .capture-intent-picker__options button {
+    min-height: 78px;
+  }
+
+  .capture-step__actions,
+  .capture-voice-panel__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .capture-step__actions .button,
+  .capture-voice-panel__actions .button {
+    width: 100%;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

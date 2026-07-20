@@ -56,11 +56,15 @@ try {
   await desktopPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
   const desktopDialog = desktopPage.locator('.capture-workspace[role="dialog"]');
   await desktopDialog.waitFor();
-  await desktopPage.locator('.voice-sheet').waitFor();
-  assert.equal(await desktopPage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close voice mode');
+  await desktopPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
+  assert.equal(await desktopPage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close Field Copilot');
   assert.equal(await desktopPage.locator('.capture-workspace').count(), 1);
+  assert.equal(await desktopPage.locator('[role="dialog"]').count(), 1, 'Capture opened more than one dialog.');
+  assert.equal(await desktopPage.locator('.capture-voice-panel').count(), 0, 'Voice opened automatically.');
   assert.equal(await desktopPage.locator('input[type="file"]:visible').count(), 0);
-  const captureInputInsideHiddenBackground = await desktopPage.getByRole('textbox', { name: 'Capture update', exact: true }).evaluate((element) => {
+  await desktopPage.getByRole('button', { name: /UPDATE/ }).click();
+  await desktopPage.getByRole('button', { name: 'Type', exact: true }).click();
+  const captureInputInsideHiddenBackground = await desktopPage.getByRole('textbox', { name: 'Capture wording', exact: true }).evaluate((element) => {
     let current = element.parentElement;
     while (current) {
       if (current.inert || current.getAttribute('aria-hidden') === 'true') {
@@ -71,18 +75,17 @@ try {
     return false;
   });
   assert.equal(captureInputInsideHiddenBackground, false, 'Capture input was placed inside the inert app background.');
-  await desktopPage.getByRole('button', { name: 'Type', exact: true }).click();
-  await desktopPage.locator('.voice-sheet').waitFor({ state: 'hidden' });
-  await desktopPage.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Capture update');
-  assert.equal(await desktopPage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Capture update');
+  assert.equal(await desktopPage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Capture wording');
 
   const attachmentInput = desktopPage.locator('input[type="file"][multiple][accept*=".csv"]');
   assert.equal(await attachmentInput.count(), 1);
   await attachmentInput.setInputFiles({ name: 'unit-202-sink.png', mimeType: 'image/png', buffer: onePixelPng });
   await desktopPage.locator('.capture-attachment-strip').getByText('unit-202-sink.png', { exact: true }).waitFor();
-  await desktopPage.getByRole('textbox', { name: 'Capture update', exact: true }).fill('Unit 202 has a sink leak. Maintenance needs to return.');
-  await desktopPage.getByRole('button', { name: 'Review captured changes', exact: true }).click();
-  await desktopPage.getByRole('heading', { name: /changes ready to review/ }).waitFor();
+  await desktopPage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill('Unit 202 has a sink leak. Maintenance needs to return.');
+  await desktopPage.getByRole('button', { name: 'Continue to review', exact: true }).click();
+  await desktopPage.getByRole('heading', { name: 'Confirm your exact wording', exact: true }).waitFor();
+  await desktopPage.getByRole('button', { name: 'Create drafts', exact: true }).click();
+  await desktopPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
 
   const photoTarget = desktopPage.locator('.capture-photo-review select');
   assert.equal(await photoTarget.count(), 1);
@@ -115,21 +118,23 @@ try {
   await mobilePage.getByRole('button', { name: 'Open Capture', exact: true }).click();
   const mobileDialog = mobilePage.locator('.capture-workspace[role="dialog"]');
   await mobileDialog.waitFor();
-  await mobilePage.locator('.voice-sheet').waitFor();
   await mobilePage.waitForTimeout(220);
   assert.equal(await mobilePage.locator('.capture-workspace').evaluate((element) => getComputedStyle(element).opacity), '1');
-  assert.equal(await mobilePage.locator('.voice-sheet').evaluate((element) => getComputedStyle(element).opacity), '1');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close voice mode');
+  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close Field Copilot');
+  assert.equal(await mobilePage.locator('[role="dialog"]').count(), 1);
+  assert.equal(await mobilePage.locator('.capture-voice-panel').count(), 0);
+  await mobilePage.getByRole('button', { name: /UPDATE/ }).click();
+  await mobilePage.getByRole('button', { name: 'Voice', exact: true }).click();
+  await mobilePage.locator('.capture-voice-panel').waitFor();
+  assert.equal(await mobilePage.locator('.capture-voice-panel.is-recording').count(), 0, 'Voice recording started automatically.');
   await assertNoHorizontalOverflow(mobilePage, 'mobile Capture workspace');
   const mobileBounds = await mobilePage.locator('.capture-workspace').boundingBox();
   assert.ok(mobileBounds);
   assert.ok(mobileBounds.width <= 390 && mobileBounds.height <= 844);
-  const voiceTranscriptControls = await mobilePage.locator('.voice-transcript-panel textarea, .voice-transcript-panel p').count();
+  const voiceTranscriptControls = await mobilePage.locator('.capture-voice-panel .voice-transcript-panel textarea, .capture-voice-panel .voice-transcript-panel p').count();
   assert.equal(voiceTranscriptControls, 1);
   const mobileCaptureScreenshot = path.join(screenshotDirectory, 'mobile-voice-capture.png');
   await mobilePage.screenshot({ path: mobileCaptureScreenshot, fullPage: false });
-  await mobilePage.getByRole('button', { name: 'Finish', exact: true }).click();
-  await mobilePage.locator('.voice-sheet').waitFor({ state: 'hidden' });
   await mobilePage.keyboard.press('Escape');
   await mobileDialog.waitFor({ state: 'hidden' });
   const mobileCaptureButton = mobilePage.getByRole('button', { name: 'Open Capture', exact: true });
@@ -161,9 +166,14 @@ try {
   const tabletHomeScreenshot = path.join(screenshotDirectory, 'ipad-field-home.png');
   await tabletPage.screenshot({ path: tabletHomeScreenshot, fullPage: false });
   await tabletPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
-  await tabletPage.locator('.voice-sheet').waitFor();
+  await tabletPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
+  await tabletPage.getByRole('button', { name: /NOTE/ }).click();
+  await tabletPage.getByRole('button', { name: 'Voice', exact: true }).click();
+  await tabletPage.locator('.capture-voice-panel').waitFor();
   await tabletPage.waitForTimeout(220);
   await assertNoHorizontalOverflow(tabletPage, 'iPad voice Capture');
+  assert.equal(await tabletPage.locator('[role="dialog"]').count(), 1);
+  assert.equal(await tabletPage.locator('.capture-voice-panel.is-recording').count(), 0);
   const tabletCaptureBounds = await tabletPage.locator('.capture-workspace').boundingBox();
   assert.ok(tabletCaptureBounds);
   assert.ok(tabletCaptureBounds.width <= 1180 && tabletCaptureBounds.height <= 820);

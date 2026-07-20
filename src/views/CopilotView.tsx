@@ -57,9 +57,10 @@ import {
 } from '../lib/captureWorkspace';
 import { getActiveProjectMemoryCandidates, prepareMemoryCandidatesForActiveProject } from '../lib/memory';
 import { preparePhotoFile } from '../lib/photoProcessing';
-import { blobToDataUrl, putPhotoBlob } from '../lib/photoStorage';
+import { persistPhotoRecord } from '../lib/photoStorage';
 import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
+import { persistAppDataNow } from '../lib/storage';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AiUsageEvent, AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
 
@@ -76,8 +77,6 @@ type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
 type DraftFilter = 'pending' | 'applied' | 'rejected' | 'failed' | 'all';
 
 const MAX_CAPTURE_TEXT_FILE_BYTES = 2_000_000;
-const MAX_EMBEDDED_PHOTO_FALLBACK_BYTES = 450_000;
-
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 interface SpeechRecognitionAlternativeLike {
@@ -759,82 +758,101 @@ export function CopilotView({
     );
   };
 
-  const saveCapturePhoto = async (attachmentId: string) => {
-    const attachment = captureAttachmentsRef.current.find(
-      (item): item is StagedPhotoAttachment => item.id === attachmentId && item.kind === 'photo',
-    );
-    if (!attachment || attachment.savedPhotoId) {
-      return true;
-    }
-
-    const unit = data.units.find(
-      (item) => item.id === attachment.targetUnitId && item.projectId === data.activeProjectId,
-    );
-    if (!unit) {
-      setCaptureAttachmentError(`Choose a Unit for ${attachment.name} before saving it.`);
-      return false;
-    }
-
-    const now = nowISO();
-    const photoId = createId('photo');
-    let photo: PhotoNote = {
-      id: photoId,
-      projectId: data.activeProjectId,
-      unitId: unit.id,
-      localImageAvailable: true,
-      imageMimeType: attachment.blob.type,
-      imageByteSize: attachment.blob.size,
-      category: 'Problem',
-      caption: quickInput.trim() || attachment.name,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    try {
-      await putPhotoBlob(photoId, attachment.blob);
-    } catch {
-      if (attachment.blob.size > MAX_EMBEDDED_PHOTO_FALLBACK_BYTES) {
-        setCaptureAttachmentError(
-          `${attachment.name} could not be saved in durable photo storage. Keep it staged and try again.`,
-        );
-        return false;
-      }
-
-      photo = {
-        ...photo,
-        imageData: await blobToDataUrl(attachment.blob),
-        localImageAvailable: false,
-      };
-    }
-
-    setData((current) => addPhotoNote(current, photo));
-    setCaptureAttachments((current) =>
-      current.map((item) =>
-        item.id === attachmentId && item.kind === 'photo' ? { ...item, savedPhotoId: photoId } : item,
-      ),
-    );
-    setCaptureAttachmentError('');
-    setDraftNotice(`Saved ${attachment.name} to Unit ${unit.unitNumber}.`);
-    return true;
-  };
-
-  const saveAllCapturePhotos = async () => {
+  const saveCapturePhotos = async (attachmentIds?: string[]) => {
+    const requestedIds = attachmentIds ? new Set(attachmentIds) : undefined;
     const pendingPhotos = captureAttachmentsRef.current.filter(
-      (attachment): attachment is StagedPhotoAttachment => attachment.kind === 'photo' && !attachment.savedPhotoId,
+      (attachment): attachment is StagedPhotoAttachment =>
+        attachment.kind === 'photo' &&
+        !attachment.savedPhotoId &&
+        (!requestedIds || requestedIds.has(attachment.id)),
     );
-    if (pendingPhotos.some((attachment) => !attachment.targetUnitId)) {
-      setCaptureAttachmentError('Choose a Unit for every photo before approving this capture.');
-      return false;
-    }
+    let workingData = data;
+    let savedCount = 0;
+    let failedCount = 0;
+    const failureMessages: string[] = [];
 
     for (const attachment of pendingPhotos) {
-      if (!(await saveCapturePhoto(attachment.id))) {
-        return false;
+      const unit = workingData.units.find(
+        (item) => item.id === attachment.targetUnitId && item.projectId === workingData.activeProjectId,
+      );
+      if (!unit) {
+        const message = `Choose a Unit for ${attachment.name} before saving it.`;
+        failedCount += 1;
+        failureMessages.push(message);
+        setCaptureAttachments((current) => current.map((item) =>
+          item.id === attachment.id && item.kind === 'photo'
+            ? { ...item, saveState: 'failed', saveError: message }
+            : item,
+        ));
+        continue;
       }
+
+      setCaptureAttachments((current) => current.map((item) =>
+        item.id === attachment.id && item.kind === 'photo'
+          ? { ...item, saveState: 'saving', saveError: undefined }
+          : item,
+      ));
+
+      const now = nowISO();
+      const photo: PhotoNote = {
+        id: createId('photo'),
+        projectId: workingData.activeProjectId,
+        unitId: unit.id,
+        localImageAvailable: true,
+        imageMimeType: attachment.blob.type,
+        imageByteSize: attachment.blob.size,
+        category: 'Problem',
+        caption: quickInput.trim() || attachment.name,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const result = await persistPhotoRecord(photo, attachment.blob, (savedPhoto) => {
+        const next = addPhotoNote(workingData, savedPhoto);
+        if (!persistAppDataNow(next)) {
+          return false;
+        }
+        workingData = next;
+        setData(next);
+        return true;
+      });
+
+      if (result.status === 'saved') {
+        savedCount += 1;
+        setCaptureAttachments((current) => current.map((item) =>
+          item.id === attachment.id && item.kind === 'photo'
+            ? { ...item, savedPhotoId: photo.id, saveState: undefined, saveError: undefined }
+            : item,
+        ));
+        continue;
+      }
+
+      failedCount += 1;
+      const message = result.status === 'file_failed'
+        ? `${attachment.name} was not saved because offline photo storage is unavailable.`
+        : `${attachment.name} was not saved because its app record could not be stored.`;
+      const detailedMessage = `${message} Retry or remove this photo; other Draft Actions can still be applied.${result.cleanupFailed ? ' A temporary unreferenced photo file may remain on this device.' : ''}`;
+      failureMessages.push(detailedMessage);
+      setCaptureAttachments((current) => current.map((item) =>
+        item.id === attachment.id && item.kind === 'photo'
+          ? { ...item, saveState: 'failed', saveError: detailedMessage }
+          : item,
+      ));
     }
 
-    return true;
+    setCaptureAttachmentError(failureMessages.join(' '));
+    return { failedCount, savedCount };
   };
+
+  const saveCapturePhoto = async (attachmentId: string) => {
+    const result = await saveCapturePhotos([attachmentId]);
+    if (result.savedCount > 0) {
+      const attachment = captureAttachmentsRef.current.find((item) => item.id === attachmentId);
+      setDraftNotice(`Saved ${attachment?.name ?? 'photo'} offline with its app record.`);
+    }
+    return result.failedCount === 0;
+  };
+
+  const saveAllCapturePhotos = () => saveCapturePhotos();
 
   const clearCapture = () => {
     for (const attachment of captureAttachmentsRef.current) {
@@ -977,13 +995,13 @@ export function CopilotView({
   };
 
   const applyPendingDrafts = async () => {
-    if (!(await saveAllCapturePhotos())) {
-      return;
-    }
+    const photoResult = await saveAllCapturePhotos();
     const count = currentCapturePendingDraftIds.length;
     setData((current) => applyAllPendingDraftActions(current, currentCapturePendingDraftIds));
     setLastChangedDraftId('');
-    setDraftNotice(`Applied ${count} current capture draft(s). Anything blocked still needs review.`);
+    setDraftNotice(
+      `Applied ${count} current capture draft(s). Anything blocked still needs review.${photoResult.failedCount > 0 ? ` ${photoResult.failedCount} photo${photoResult.failedCount === 1 ? '' : 's'} remain unsaved and can be retried or removed.` : ''}`,
+    );
   };
 
   const rejectPendingDrafts = () => {
@@ -1251,26 +1269,36 @@ export function CopilotView({
                       .map((attachment) => {
                         const selectedUnit = activeProjectUnits.find((unit) => unit.id === attachment.targetUnitId);
                         return (
-                          <article className={`capture-photo-review ${attachment.savedPhotoId ? 'is-saved' : ''}`} key={attachment.id}>
+                          <article className={`capture-photo-review ${attachment.savedPhotoId ? 'is-saved' : ''} ${attachment.saveState === 'failed' ? 'is-failed' : ''}`} key={attachment.id}>
                             <img src={attachment.previewUrl} alt={attachment.name} />
                             <div className="capture-photo-review__body">
                               <span className="quiet-label">Photo attachment</span>
-                              <strong>{attachment.savedPhotoId ? `Saved to Unit ${selectedUnit?.unitNumber ?? ''}` : attachment.name}</strong>
+                              <strong>
+                                {attachment.savedPhotoId
+                                  ? `Saved to Unit ${selectedUnit?.unitNumber ?? ''}`
+                                  : attachment.saveState === 'failed'
+                                    ? `${attachment.name} — not saved`
+                                    : attachment.name}
+                              </strong>
                               {attachment.savedPhotoId ? (
                                 <p>Stored offline and ready for Real Turn photo sync.</p>
                               ) : (
-                                <label>
-                                  <span>Save to Unit</span>
-                                  <select
-                                    value={attachment.targetUnitId}
-                                    onChange={(event) => updateCapturePhotoTarget(attachment.id, event.target.value)}
-                                  >
-                                    <option value="">Choose Unit</option>
-                                    {activeProjectUnits.map((unit) => (
-                                      <option key={unit.id} value={unit.id}>Unit {unit.unitNumber}</option>
-                                    ))}
-                                  </select>
-                                </label>
+                                <>
+                                  {attachment.saveError ? <p className="capture-photo-review__error">{attachment.saveError}</p> : null}
+                                  <label>
+                                    <span>Save to Unit</span>
+                                    <select
+                                      disabled={attachment.saveState === 'saving'}
+                                      value={attachment.targetUnitId}
+                                      onChange={(event) => updateCapturePhotoTarget(attachment.id, event.target.value)}
+                                    >
+                                      <option value="">Choose Unit</option>
+                                      {activeProjectUnits.map((unit) => (
+                                        <option key={unit.id} value={unit.id}>Unit {unit.unitNumber}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </>
                               )}
                             </div>
                             <div className="capture-photo-review__actions">
@@ -1278,11 +1306,17 @@ export function CopilotView({
                                 <Button onClick={() => onNavigate('unitDetail', attachment.targetUnitId)}>Open Unit</Button>
                               ) : (
                                 <>
-                                  <Button variant="primary" onClick={() => saveCapturePhoto(attachment.id)}>
-                                    <Check size={17} aria-hidden="true" />
-                                    Save photo
+                                  <Button disabled={attachment.saveState === 'saving'} variant="primary" onClick={() => void saveCapturePhoto(attachment.id)}>
+                                    {attachment.saveState === 'failed'
+                                      ? <RotateCcw size={17} aria-hidden="true" />
+                                      : <Check size={17} aria-hidden="true" />}
+                                    {attachment.saveState === 'saving'
+                                      ? 'Saving...'
+                                      : attachment.saveState === 'failed'
+                                        ? 'Retry photo'
+                                        : 'Save photo'}
                                   </Button>
-                                  <Button variant="ghost" onClick={() => removeCaptureAttachment(attachment.id)}>
+                                  <Button disabled={attachment.saveState === 'saving'} variant="ghost" onClick={() => removeCaptureAttachment(attachment.id)}>
                                     <X size={17} aria-hidden="true" />
                                     Remove
                                   </Button>

@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
 import { applyActivityLogRetention } from './activityRetention';
@@ -7,10 +16,37 @@ import { normalizeAppData } from './dataMigrations';
 import { createFieldDraftStore } from './fieldDraft';
 import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
 import { clearLocalCacheOwner } from './supabase/cacheOwnership';
+import type { CoalescedWriter, CoalescedWriteState } from './coalescedWriter';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
 export const APP_DATA_SAVE_INTERVAL_MS = 500;
+
+export interface AppDataSaveStatus {
+  state: 'saved' | 'pending' | 'failed';
+  canRetry: boolean;
+}
+
+const saveStatusListeners = new Set<() => void>();
+let appDataSaveStatus: AppDataSaveStatus = { state: 'saved', canRetry: false };
+
+const setAppDataSaveStatus = (state: AppDataSaveStatus['state'], canRetry: boolean) => {
+  if (appDataSaveStatus.state === state && appDataSaveStatus.canRetry === canRetry) {
+    return;
+  }
+  appDataSaveStatus = { state, canRetry };
+  saveStatusListeners.forEach((listener) => listener());
+};
+
+export const getAppDataSaveStatus = () => appDataSaveStatus;
+
+export const subscribeToAppDataSaveStatus = (listener: () => void) => {
+  saveStatusListeners.add(listener);
+  return () => saveStatusListeners.delete(listener);
+};
+
+export const useAppDataSaveStatus = () =>
+  useSyncExternalStore(subscribeToAppDataSaveStatus, getAppDataSaveStatus, getAppDataSaveStatus);
 
 export const hasStoredAppData = () => Boolean(window.localStorage.getItem(STORAGE_KEY));
 
@@ -36,30 +72,54 @@ export const loadAppData = (): AppData => {
   }
 };
 
-let storageFailureWarned = false;
-
 export const saveAppData = (data: AppData) => {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(applyActivityLogRetention(data)));
-    storageFailureWarned = false;
     return true;
   } catch (error) {
     console.warn('Failed to save Turn Supervisor OS data.', error);
-    if (!storageFailureWarned) {
-      storageFailureWarned = true;
-      window.alert(
-        'Saving failed — browser record storage is likely full. Export a JSON backup now from Export before making more changes.',
-      );
-    }
     return false;
   }
 };
 
-const appDataWriter = createCoalescedWriter(saveAppData, APP_DATA_SAVE_INTERVAL_MS);
+const handleQueuedWriteState = (state: CoalescedWriteState) => {
+  if (state === 'saved') {
+    setAppDataSaveStatus('saved', false);
+    return;
+  }
+
+  if (state === 'failed' || appDataSaveStatus.state === 'failed') {
+    setAppDataSaveStatus('failed', appDataWriter.hasPending());
+    return;
+  }
+
+  setAppDataSaveStatus('pending', appDataWriter.hasPending());
+};
+
+const appDataWriter: CoalescedWriter<AppData> = createCoalescedWriter(
+  saveAppData,
+  APP_DATA_SAVE_INTERVAL_MS,
+  undefined,
+  handleQueuedWriteState,
+);
+
+export const retryPendingAppDataSave = () => {
+  if (!appDataWriter.hasPending()) {
+    return false;
+  }
+  return appDataWriter.flush();
+};
 
 export const persistAppDataNow = (data: AppData) => {
-  appDataWriter.cancel();
-  return saveAppData(data);
+  const saved = saveAppData(data);
+  if (saved) {
+    appDataWriter.cancel();
+    setAppDataSaveStatus('saved', false);
+    return true;
+  }
+
+  setAppDataSaveStatus('failed', appDataWriter.hasPending());
+  return false;
 };
 
 export const clearInFlightFieldDrafts = () => {
@@ -163,5 +223,11 @@ export const usePersistentAppData = () => {
     };
   }, []);
 
-  return useMemo(() => ({ data, setData, hasStoredData }), [data, hasStoredData, setData]);
+  const saveStatus = useAppDataSaveStatus();
+  const retrySave = useCallback(() => retryPendingAppDataSave(), []);
+
+  return useMemo(
+    () => ({ data, setData, hasStoredData, retrySave, saveStatus }),
+    [data, hasStoredData, retrySave, saveStatus, setData],
+  );
 };

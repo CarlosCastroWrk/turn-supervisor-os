@@ -20,7 +20,7 @@ import { UnitDetailView } from './views/UnitDetailView';
 import { UnitsView } from './views/UnitsView';
 
 function App() {
-  const { data, setData, hasStoredData } = usePersistentAppData();
+  const { data, setData, hasStoredData, retrySave, saveStatus } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [route, setRoute] = useState(() => parseAppHash(typeof window === 'undefined' ? '' : window.location.hash));
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -61,7 +61,15 @@ function App() {
 
   return (
     <>
-      <AppShell activeView={route.view} captureOpen={captureOpen} onNavigate={navigate} syncSlot={<SyncPanel sync={sync} />}>
+      <AppShell
+        activeView={route.view}
+        captureOpen={captureOpen}
+        onNavigate={navigate}
+        onOpenBackup={() => navigate('export')}
+        onRetrySave={retrySave}
+        saveStatus={saveStatus}
+        syncSlot={<SyncPanel sync={sync} />}
+      >
         {route.view === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
         {route.view === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
         {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}

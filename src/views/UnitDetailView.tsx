@@ -19,6 +19,7 @@ import {
 } from '../lib/actions';
 import { createId, formatTime, nowISO } from '../lib/constants';
 import { ISSUE_CATEGORIES, WORK_STATUSES } from '../lib/constants';
+import { persistAppDataNow } from '../lib/storage';
 import type { AppData, AppView, Issue, IssueCategory, UnitWorkflowStatus, WorkStatus } from '../types';
 
 interface UnitDetailViewProps {
@@ -228,7 +229,18 @@ export function UnitDetailView({ data, setData, unitId, onNavigate }: UnitDetail
           </Section>
 
           <Section title="Photos" kicker={`${photos.length} saved`} className="unit-photos-panel">
-            <PhotoCapture projectId={unit.projectId} unitId={unit.id} onAdd={(photo) => setData((current) => addPhotoNote(current, photo))} />
+            <PhotoCapture
+              projectId={unit.projectId}
+              unitId={unit.id}
+              onAdd={(photo) => {
+                const next = addPhotoNote(data, photo);
+                if (!persistAppDataNow(next)) {
+                  return false;
+                }
+                setData(next);
+                return true;
+              }}
+            />
             <div className="photo-grid">
               {photos.slice(0, 6).map((photo) => <PhotoThumbnail key={photo.id} photo={photo} />)}
             </div>

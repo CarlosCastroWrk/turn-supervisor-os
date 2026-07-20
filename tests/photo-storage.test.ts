@@ -7,6 +7,7 @@ import {
   blobToDataUrl,
   dataUrlToBlob,
   migrateLegacyPhotoPayloads,
+  persistPhotoRecord,
 } from '../src/lib/photoStorage.ts';
 import type { AppData, PhotoNote } from '../src/types.ts';
 
@@ -57,6 +58,69 @@ test('legacy photo migration strips only payloads confirmed in durable storage',
   assert.equal(migrated[0].localImageAvailable, true);
   assert.equal(migrated[0].imageByteSize, 3);
   assert.equal(migrated[1].imageData, validData);
+});
+
+test('new photo file failure stays out of AppData and remains independently retryable', async () => {
+  const candidate = photo('photo_new_failure');
+  const blob = new Blob([Uint8Array.from([1, 2, 3])], { type: 'image/jpeg' });
+  const committed: string[] = [];
+  const removed: string[] = [];
+  let storageAvailable = false;
+
+  const persist = () => persistPhotoRecord(
+    candidate,
+    blob,
+    (savedPhoto) => {
+      committed.push(savedPhoto.id);
+      return true;
+    },
+    async () => {
+      if (!storageAvailable) throw new Error('IndexedDB unavailable');
+    },
+    async (photoId) => {
+      removed.push(photoId);
+    },
+  );
+
+  const failed = await persist();
+  assert.deepEqual(failed, { status: 'file_failed', cleanupFailed: false });
+  assert.deepEqual(committed, []);
+  assert.deepEqual(removed, [candidate.id]);
+  assert.equal(candidate.imageData, undefined);
+
+  storageAvailable = true;
+  const retried = await persist();
+  assert.deepEqual(retried, { status: 'saved', cleanupFailed: false });
+  assert.deepEqual(committed, [candidate.id]);
+});
+
+test('photo metadata failure removes the unreferenced file and reports cleanup risk honestly', async () => {
+  const candidate = photo('photo_metadata_failure');
+  const blob = new Blob([Uint8Array.from([4, 5, 6])], { type: 'image/jpeg' });
+  const removed: string[] = [];
+
+  const cleaned = await persistPhotoRecord(
+    candidate,
+    blob,
+    () => false,
+    async () => undefined,
+    async (photoId) => {
+      removed.push(photoId);
+    },
+  );
+  assert.deepEqual(cleaned, { status: 'metadata_failed', cleanupFailed: false });
+  assert.deepEqual(removed, [candidate.id]);
+
+  const orphaned = await persistPhotoRecord(
+    candidate,
+    blob,
+    () => false,
+    async () => undefined,
+    async () => {
+      throw new Error('cleanup unavailable');
+    },
+  );
+  assert.deepEqual(orphaned, { status: 'metadata_failed', cleanupFailed: true });
 });
 
 test('photo-complete JSON backup hydrates available IndexedDB files and reports missing files', async () => {

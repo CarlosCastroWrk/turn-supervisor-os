@@ -27,6 +27,13 @@ export interface LegacyPhotoMigrationResult {
 
 export type PhotoBlobReader = (photoId: string) => Promise<Blob | undefined>;
 export type PhotoBlobWriter = (photoId: string, blob: Blob) => Promise<void>;
+export type PhotoBlobRemover = (photoId: string) => Promise<void>;
+export type PhotoMetadataCommitter = (photo: PhotoNote) => boolean | Promise<boolean>;
+
+export interface PhotoPersistenceResult {
+  status: 'saved' | 'file_failed' | 'metadata_failed';
+  cleanupFailed: boolean;
+}
 
 let databasePromise: Promise<IDBDatabase> | undefined;
 
@@ -89,6 +96,46 @@ export const putPhotoBlob: PhotoBlobWriter = async (photoId, blob) => {
 
   transaction.objectStore(PHOTO_STORE_NAME).put(record);
   await transactionComplete(transaction);
+};
+
+export const deletePhotoBlob: PhotoBlobRemover = async (photoId) => {
+  const database = await openPhotoDatabase();
+  const transaction = database.transaction(PHOTO_STORE_NAME, 'readwrite');
+  transaction.objectStore(PHOTO_STORE_NAME).delete(photoId);
+  await transactionComplete(transaction);
+};
+
+export const persistPhotoRecord = async (
+  photo: PhotoNote,
+  blob: Blob,
+  commitMetadata: PhotoMetadataCommitter,
+  writePhoto: PhotoBlobWriter = putPhotoBlob,
+  removePhoto: PhotoBlobRemover = deletePhotoBlob,
+): Promise<PhotoPersistenceResult> => {
+  const cleanup = async () => {
+    try {
+      await removePhoto(photo.id);
+      return false;
+    } catch {
+      return true;
+    }
+  };
+
+  try {
+    await writePhoto(photo.id, blob);
+  } catch {
+    return { status: 'file_failed', cleanupFailed: await cleanup() };
+  }
+
+  try {
+    if (await commitMetadata(photo)) {
+      return { status: 'saved', cleanupFailed: false };
+    }
+  } catch {
+    // Treat metadata exceptions like an explicit failed commit and remove the unreferenced file below.
+  }
+
+  return { status: 'metadata_failed', cleanupFailed: await cleanup() };
 };
 
 export const getPhotoBlob: PhotoBlobReader = async (photoId) => {

@@ -10,18 +10,22 @@ export interface CoalescedWriter<T> {
   hasPending: () => boolean;
 }
 
+export type CoalescedWriteState = 'pending' | 'saved' | 'failed';
+
 const defaultTimer: CoalescedTimer = {
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   cancel: (handle) => clearTimeout(handle),
 };
 
 export const createCoalescedWriter = <T>(
-  write: (value: T) => void,
+  write: (value: T) => boolean,
   delayMs: number,
   timer: CoalescedTimer = defaultTimer,
+  onStateChange?: (state: CoalescedWriteState) => void,
 ): CoalescedWriter<T> => {
   let pendingValue: T;
   let pending = false;
+  let lastWriteFailed = false;
   let timerHandle: ReturnType<typeof setTimeout> | undefined;
 
   const writePending = () => {
@@ -30,9 +34,17 @@ export const createCoalescedWriter = <T>(
     }
 
     const value = pendingValue;
-    pending = false;
-    write(value);
-    return true;
+    const saved = write(value);
+    if (saved) {
+      pending = false;
+      lastWriteFailed = false;
+      onStateChange?.('saved');
+      return true;
+    }
+
+    lastWriteFailed = true;
+    onStateChange?.('failed');
+    return false;
   };
 
   const flush = () => {
@@ -49,12 +61,16 @@ export const createCoalescedWriter = <T>(
       timerHandle = undefined;
     }
     pending = false;
+    lastWriteFailed = false;
   };
 
   return {
     schedule(value) {
       pendingValue = value;
       pending = true;
+      if (!lastWriteFailed) {
+        onStateChange?.('pending');
+      }
       if (timerHandle !== undefined) {
         return;
       }

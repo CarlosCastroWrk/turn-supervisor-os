@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   ClipboardCheck,
   Download,
   FileText,
@@ -8,17 +9,22 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  RefreshCw,
   Settings,
   Users,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import type { AppDataSaveStatus } from '../lib/storage';
 import type { AppView } from '../types';
 
 interface AppShellProps {
   activeView: AppView;
   captureOpen?: boolean;
   onNavigate: (view: AppView) => void;
+  onOpenBackup?: () => void;
+  onRetrySave?: () => boolean;
+  saveStatus?: AppDataSaveStatus;
   syncSlot?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -69,7 +75,16 @@ const getStoredSidebarState = () => {
   }
 };
 
-export function AppShell({ activeView, captureOpen = false, onNavigate, syncSlot, children }: AppShellProps) {
+export function AppShell({
+  activeView,
+  captureOpen = false,
+  onNavigate,
+  onOpenBackup,
+  onRetrySave,
+  saveStatus,
+  syncSlot,
+  children,
+}: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarState);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
@@ -200,6 +215,33 @@ export function AppShell({ activeView, captureOpen = false, onNavigate, syncSlot
       </header>
 
       <main className="app-main" id="main-content" ref={mainRef} tabIndex={-1} aria-hidden={backgroundHidden || undefined} inert={backgroundHidden || undefined}>
+        {saveStatus?.state === 'failed' ? (
+          <section className="persistence-alert" role="alert" aria-live="assertive">
+            <AlertTriangle size={22} aria-hidden="true" />
+            <div>
+              <strong>Changes are not saved on this device</strong>
+              <p>
+                {saveStatus.canRetry
+                  ? 'Your latest changes are still in memory. Keep this app open, retry the save, or export a backup.'
+                  : 'The last save failed. Retry the action after freeing browser storage, or export a backup of the data still visible here.'}
+              </p>
+            </div>
+            <div className="persistence-alert__actions">
+              {saveStatus.canRetry && onRetrySave ? (
+                <button type="button" onClick={onRetrySave}>
+                  <RefreshCw size={17} aria-hidden="true" />
+                  Retry save
+                </button>
+              ) : null}
+              {onOpenBackup ? (
+                <button type="button" onClick={onOpenBackup}>
+                  <Download size={17} aria-hidden="true" />
+                  Data &amp; backup
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
         {children}
       </main>
 

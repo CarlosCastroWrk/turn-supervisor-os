@@ -15,6 +15,8 @@ export interface StagedPhotoAttachment {
   compressedBytes: number;
   targetUnitId: string;
   savedPhotoId?: string;
+  saveState?: 'saving' | 'failed';
+  saveError?: string;
 }
 
 export interface StagedTextAttachment {

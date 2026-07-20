@@ -1,26 +1,58 @@
 import { useState } from 'react';
-import { Camera, ShieldAlert } from 'lucide-react';
+import { Camera, RotateCcw, ShieldAlert, X } from 'lucide-react';
 import type { EntityId, PhotoCategory, PhotoNote } from '../types';
 import { PHOTO_CATEGORIES, createId, nowISO } from '../lib/constants';
 import { preparePhotoFile } from '../lib/photoProcessing';
-import { blobToDataUrl, putPhotoBlob } from '../lib/photoStorage';
-import { Field } from './FormControls';
+import { persistPhotoRecord } from '../lib/photoStorage';
+import { Button, Field } from './FormControls';
 
 interface PhotoCaptureProps {
   projectId: EntityId;
   unitId?: EntityId;
   issueId?: EntityId;
-  onAdd: (photo: PhotoNote) => void;
+  onAdd: (photo: PhotoNote) => boolean | Promise<boolean>;
 }
 
-const MAX_EMBEDDED_PHOTO_FALLBACK_BYTES = 450_000;
-
 const bytesToKb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+interface PendingPhotoAttempt {
+  blob: Blob;
+  compressedBytes: number;
+  fileName: string;
+  originalBytes: number;
+  photo: PhotoNote;
+}
 
 export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCaptureProps) {
   const [isCompressing, setIsCompressing] = useState(false);
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
+  const [pendingPhoto, setPendingPhoto] = useState<PendingPhotoAttempt>();
+
+  const savePreparedPhoto = async (attempt: PendingPhotoAttempt) => {
+    setIsCompressing(true);
+    setError(undefined);
+    setMessage(undefined);
+
+    const result = await persistPhotoRecord(attempt.photo, attempt.blob, onAdd);
+    if (result.status === 'saved') {
+      setPendingPhoto(undefined);
+      setMessage(
+        `Photo saved offline on this device at ${bytesToKb(attempt.compressedBytes)} instead of ${bytesToKb(attempt.originalBytes)}. Real Turn photos can upload when signed in and online.`,
+      );
+      setIsCompressing(false);
+      return;
+    }
+
+    setPendingPhoto(attempt);
+    const failure = result.status === 'file_failed'
+      ? 'Offline photo storage is unavailable.'
+      : 'The photo file was stored, but its app record could not be saved.';
+    setError(
+      `${failure} This photo is not saved. Retry after freeing browser storage, or remove it and continue without the photo.${result.cleanupFailed ? ' A temporary unreferenced photo file may remain on this device.' : ''}`,
+    );
+    setIsCompressing(false);
+  };
 
   const handleFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
@@ -34,11 +66,10 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
       | undefined;
     const caption = (event.currentTarget.form?.elements.namedItem('photoCaption') as HTMLInputElement | null)?.value ?? '';
 
-    setIsCompressing(true);
-    setError(undefined);
-    setMessage(undefined);
-
     try {
+      setIsCompressing(true);
+      setError(undefined);
+      setMessage(undefined);
       const compressed = await preparePhotoFile(file);
       const now = nowISO();
       const photoId = createId('photo');
@@ -56,24 +87,13 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
         updatedAt: now,
       };
 
-      try {
-        await putPhotoBlob(photoId, compressed.blob);
-        onAdd(photo);
-        setMessage(
-          `Photo saved offline on this device at ${bytesToKb(compressed.compressedBytes)} instead of ${bytesToKb(compressed.originalBytes)}. Real Turn photos can upload when signed in and online.`,
-        );
-      } catch {
-        if (compressed.blob.size > MAX_EMBEDDED_PHOTO_FALLBACK_BYTES) {
-          throw new Error('Durable photo storage is unavailable and this photo is too large for the emergency fallback.');
-        }
-
-        onAdd({
-          ...photo,
-          imageData: await blobToDataUrl(compressed.blob),
-          localImageAvailable: false,
-        });
-        setMessage('Photo saved in limited fallback storage. Export a JSON backup before clearing or reinstalling the app.');
-      }
+      await savePreparedPhoto({
+        blob: compressed.blob,
+        compressedBytes: compressed.compressedBytes,
+        fileName: file.name || 'Field photo',
+        originalBytes: compressed.originalBytes,
+        photo,
+      });
     } catch (compressError) {
       setError(
         compressError instanceof Error
@@ -106,11 +126,36 @@ export function PhotoCapture({ projectId, unitId, issueId, onAdd }: PhotoCapture
       </div>
       <label className="button button--secondary photo-input">
         <Camera size={18} aria-hidden="true" />
-        <span>{isCompressing ? 'Compressing...' : 'Add Photo'}</span>
-        <input accept="image/*" capture="environment" disabled={isCompressing} type="file" onChange={handleFile} />
+        <span>{isCompressing ? 'Saving photo...' : 'Add Photo'}</span>
+        <input accept="image/*" capture="environment" disabled={isCompressing || Boolean(pendingPhoto)} type="file" onChange={handleFile} />
       </label>
+      {pendingPhoto ? (
+        <div className="photo-capture__pending" role="group" aria-label="Failed photo">
+          <div>
+            <strong>{pendingPhoto.fileName}</strong>
+            <small>Not saved. Your notes and other updates can still be saved.</small>
+          </div>
+          <div className="button-row">
+            <Button disabled={isCompressing} onClick={() => void savePreparedPhoto(pendingPhoto)} variant="secondary">
+              <RotateCcw size={17} aria-hidden="true" />
+              Retry photo
+            </Button>
+            <Button
+              disabled={isCompressing}
+              onClick={() => {
+                setPendingPhoto(undefined);
+                setError(undefined);
+              }}
+              variant="ghost"
+            >
+              <X size={17} aria-hidden="true" />
+              Remove
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {message ? <p className="photo-capture__status" aria-live="polite">{message}</p> : null}
-      {error ? <p className="photo-capture__error" aria-live="assertive">{error}</p> : null}
+      {error ? <p className="photo-capture__error" role="alert">{error}</p> : null}
       <p className="muted">Photo files are compressed and stored offline on this device. JSON backup includes files available here.</p>
     </form>
   );

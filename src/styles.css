@@ -433,6 +433,57 @@ small {
   outline-offset: -2px;
 }
 
+.persistence-alert {
+  position: sticky;
+  top: calc(82px + env(safe-area-inset-top));
+  z-index: 19;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 12px;
+  margin-bottom: 16px;
+  border: 2px solid #f59e0b;
+  border-radius: var(--radius);
+  background: #fffbeb;
+  color: #92400e;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+
+.persistence-alert > svg {
+  margin-top: 2px;
+}
+
+.persistence-alert strong,
+.persistence-alert p {
+  color: inherit;
+}
+
+.persistence-alert p {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+}
+
+.persistence-alert__actions {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.persistence-alert__actions button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #d97706;
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: #92400e;
+  padding: 0 12px;
+  font-weight: 800;
+}
+
 .bottom-nav {
   position: fixed;
   right: 0;
@@ -1971,6 +2022,24 @@ small {
   color: #991b1b;
 }
 
+.photo-capture__pending {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #fca5a5;
+  border-radius: var(--radius);
+  background: #fff7ed;
+  padding: 10px;
+}
+
+.photo-capture__pending strong,
+.photo-capture__pending small {
+  display: block;
+}
+
+.photo-capture__pending small {
+  margin-top: 3px;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3200,6 +3269,10 @@ small {
     transition: grid-template-columns 180ms ease;
   }
 
+  .persistence-alert {
+    top: 86px;
+  }
+
   .app-shell.is-sidebar-collapsed {
     grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1180px);
   }
@@ -3763,6 +3836,10 @@ body.capture-workspace-open {
   background: #f0fdf4;
 }
 
+.capture-photo-review.is-failed {
+  background: #fff7ed;
+}
+
 .capture-photo-review > img {
   width: 92px;
   height: 72px;
@@ -3787,6 +3864,13 @@ body.capture-workspace-open {
 
 .capture-photo-review__body select {
   min-height: 44px;
+}
+
+.capture-photo-review__error {
+  margin: 0;
+  color: #991b1b;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .capture-photo-review__actions {

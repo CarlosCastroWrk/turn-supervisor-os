@@ -48,6 +48,17 @@ try {
     const page = await context.newPage();
     const findings = attachRuntimeChecks(page);
 
+    await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'TURNBOARD', exact: true }).waitFor();
+    await page.getByText('Personal Unit view. Verify official work and marks on paper.', { exact: true }).waitFor();
+    assert.equal(await page.locator('.compact-unit-card').count(), 6);
+    assert.equal(await page.locator('.quick-status-row').count(), 0, 'Compact TurnBoard exposed direct status mutations.');
+    assert.equal(await page.getByRole('textbox', { name: 'Search unit', exact: true }).count(), 1);
+    assert.equal(await page.getByText('Board tools, overview, and setup', { exact: true }).count(), 1);
+    await page.getByRole('button', { name: 'Open Unit 101', exact: true }).click();
+    assert.match(page.url(), /#\/units\/unit_101$/);
+    await assertNoHorizontalOverflow(page, `${target.name} TurnBoard`);
+
     await page.goto(`${baseUrl}/#/issues`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Issues', exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Open issues' }).count(), 1);
@@ -85,6 +96,17 @@ try {
     await assertNoHorizontalOverflow(page, `${target.name} Unit detail`);
 
     assert.deepEqual(findings, [], `${target.name} runtime findings:\n${findings.join('\n')}`);
+    await context.close();
+  }
+
+  for (const width of [320, 375, 430, 768]) {
+    const context = await browser.newContext({ viewport: { width, height: 844 } });
+    const page = await context.newPage();
+    const findings = attachRuntimeChecks(page);
+    await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'TURNBOARD', exact: true }).waitFor();
+    await assertNoHorizontalOverflow(page, `${width}px TurnBoard`);
+    assert.deepEqual(findings, [], `${width}px TurnBoard runtime findings:\n${findings.join('\n')}`);
     await context.close();
   }
 

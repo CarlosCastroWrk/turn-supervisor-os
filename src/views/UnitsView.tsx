@@ -1,31 +1,23 @@
 import {
-  AlertTriangle,
-  Brush,
-  CheckCircle2,
-  CheckSquare2,
   Filter,
-  Hammer,
   ListChecks,
   Plus,
   Search,
-  Sparkles,
-  Square,
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BulkUnitUpdatePanel } from '../components/BulkUnitUpdatePanel';
+import { CompactUnitCard } from '../components/CompactUnitCard';
 import { Button, Field, NumberInput } from '../components/FormControls';
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/toast-context';
-import { useUndoableUnitUpdate } from '../hooks/useUndoableUnitUpdate';
 import { createId, nowISO } from '../lib/constants';
-import { addUnits, cleanCompletionPatch, maintenanceNeededPatch, paintCompletionPatch } from '../lib/actions';
+import { addUnits } from '../lib/actions';
 import {
   getBuildingSummary,
   getProjectBuildings,
-  getProjectCrewMembers,
   getProjectIssues,
   getProjectUnits,
   isBlockedUnit,
@@ -35,7 +27,8 @@ import {
 } from '../lib/metrics';
 import type { AppNavigate } from '../lib/routing';
 import { BULK_UNIT_UPDATE_LIMIT } from '../lib/unitBulkUpdate';
-import type { AppData, Building, CrewMember, Floor, Issue, Unit, UnitStatusFilter } from '../types';
+import { projectUnitCards } from '../lib/unitCardProjection';
+import type { AppData, Building, Floor, Issue, Unit, UnitStatusFilter } from '../types';
 
 interface UnitsViewProps {
   data: AppData;
@@ -60,7 +53,6 @@ const unitSort = (a: Unit, b: Unit) => a.unitNumber.localeCompare(b.unitNumber, 
 const UNIT_RENDER_STEP = 100;
 
 const openIssueStatuses = new Set(['Open', 'In Progress', 'Waiting']);
-const issuePriorityWeight: Record<Issue['priority'], number> = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
 const attentionRank = (unit: Unit, openIssues: Issue[]) => {
   if (isBlockedUnit(unit)) return 0;
@@ -73,48 +65,8 @@ const attentionRank = (unit: Unit, openIssues: Issue[]) => {
   return 7;
 };
 
-const sortIssuesByFieldPriority = (a: Issue, b: Issue) => {
-  const priorityDelta = issuePriorityWeight[b.priority] - issuePriorityWeight[a.priority];
-  if (priorityDelta !== 0) return priorityDelta;
-  return b.updatedAt.localeCompare(a.updatedAt);
-};
-
-const latestActivityAt = (unit: Unit, openIssues: Issue[]) =>
-  [unit.updatedAt, ...openIssues.map((issue) => issue.updatedAt)].sort().slice(-1)[0] ?? unit.updatedAt;
-
-const formatFieldTime = (dateTime: string) =>
-  new Date(dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-const blockerSummaryFor = (unit: Unit, openIssues: Issue[]) => {
-  const topIssue = [...openIssues].sort(sortIssuesByFieldPriority)[0];
-  if (topIssue) {
-    return topIssue.title;
-  }
-
-  if (unit.overallStatus.includes('Blocked')) {
-    return unit.overallStatus;
-  }
-
-  const blockedTrades = [
-    unit.paintStatus === 'Blocked' ? 'paint' : undefined,
-    unit.cleanStatus === 'Blocked' ? 'clean' : undefined,
-    unit.repairStatus === 'Blocked' ? 'repair' : undefined,
-    unit.trashStatus === 'Blocked' ? 'trash' : undefined,
-  ].filter(Boolean);
-
-  return blockedTrades.length > 0 ? `${blockedTrades.join(', ')} blocked` : 'No open issue';
-};
-
-const crewSummaryFor = (unit: Unit, crewById: Map<string, CrewMember>) => {
-  const names = unit.assignedCrewIds.map((crewId) => crewById.get(crewId)?.name).filter((name): name is string => Boolean(name));
-  if (names.length === 0) return 'No crew assigned';
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, 2).join(', ')}${names.length > 2 ? ` +${names.length - 2}` : ''}`;
-};
-
 export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'All' }: UnitsViewProps) {
   const { notify } = useToast();
-  const applyUnitUpdate = useUndoableUnitUpdate(setData);
   const [buildingFilter, setBuildingFilter] = useState('All');
   const [floorFilter, setFloorFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState<UnitStatusFilter>(initialStatusFilter);
@@ -132,7 +84,6 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
   const buildings = getProjectBuildings(data);
   const units = getProjectUnits(data);
   const issues = getProjectIssues(data);
-  const crewMembers = getProjectCrewMembers(data);
   const floors = data.floors;
 
   const visibleFloors = useMemo(() => {
@@ -157,7 +108,10 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
     return issueMap;
   }, [issues]);
 
-  const crewById = useMemo(() => new Map(crewMembers.map((crew) => [crew.id, crew])), [crewMembers]);
+  const unitCardById = useMemo(
+    () => new Map(projectUnitCards(data, units).map((projection) => [projection.unitId, projection])),
+    [data, units],
+  );
 
   const queryText = query.trim().toLowerCase();
   const unitsMatchingLocationAndSearch = units
@@ -329,94 +283,57 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
   };
 
   return (
-    <div className="page">
+    <div className="page turnboard-page">
       <div className="page-title">
         <div>
-          <span className="quiet-label">Buildings / Floors / Units</span>
-          <h1>Unit Command</h1>
+          <span className="quiet-label">Los’s private field companion</span>
+          <h1>TURNBOARD</h1>
+          <p className="turnboard-safety-copy">Personal Unit view. Verify official work and marks on paper.</p>
         </div>
       </div>
 
-      <Section title="Building Overview" kicker="Progress by area">
-        <div className="building-grid">
-          {buildings.map((building) => {
-            const summary = getBuildingSummary(building, data.floors, units, issues);
-            return (
-              <article className="building-card" key={building.id}>
-                <div className="building-card__top">
-                  <div>
-                    <h3>{building.name}</h3>
-                    <small>{summary.units.length} units</small>
-                  </div>
-                  <StatusBadge value={`${summary.percentComplete}%`} />
-                </div>
-                <ProgressBar value={summary.percentComplete} label="Ready" />
-                <div className="mini-metrics">
-                  <span>{summary.ready} ready</span>
-                  <span>{summary.inProgress} active</span>
-                  <span>{summary.blocked} blocked</span>
-                  <span>{summary.openIssues} issues</span>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </Section>
-
-      <Section title="Filters" kicker="Find fast">
-        <div className="filter-panel">
+      <section className="turnboard-find" aria-labelledby="turnboard-find-title">
+        <div className="turnboard-find__search">
           <Field label="Search unit">
             <div className="input-with-icon">
               <Search size={17} aria-hidden="true" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="101, 204..." />
             </div>
           </Field>
-          <Field label="Building">
-            <select value={buildingFilter} onChange={(event) => setBuildingFilter(event.target.value)}>
-              <option>All</option>
-              {buildings.map((building) => (
-                <option key={building.id} value={building.id}>
-                  {building.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Floor">
-            <select value={floorFilter} onChange={(event) => setFloorFilter(event.target.value)}>
-              <option>All</option>
-              {visibleFloors.sort(floorSort).map((floor) => (
-                <option key={floor.id} value={floor.id}>
-                  {floor.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Status">
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as UnitStatusFilter)}>
-              {statusFilters.map((filter) => (
-                <option key={filter}>{filter}</option>
-              ))}
-            </select>
-          </Field>
         </div>
-        <div className="status-chip-row" aria-label="Unit status filters">
-          {statusFilters.map((filter) => (
-            <button
-              aria-pressed={statusFilter === filter}
-              className={`status-chip ${statusFilter === filter ? 'is-active' : ''}`}
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
-              type="button"
-            >
-              <span>{filter}</span>
-              <strong>{statusCounts[filter]}</strong>
-            </button>
-          ))}
-        </div>
-      </Section>
+        <details className="turnboard-filters">
+          <summary id="turnboard-find-title"><Filter size={17} aria-hidden="true" /> Filters</summary>
+          <div className="filter-panel">
+            <Field label="Building">
+              <select value={buildingFilter} onChange={(event) => setBuildingFilter(event.target.value)}>
+                <option>All</option>
+                {buildings.map((building) => <option key={building.id} value={building.id}>{building.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Floor">
+              <select value={floorFilter} onChange={(event) => setFloorFilter(event.target.value)}>
+                <option>All</option>
+                {visibleFloors.sort(floorSort).map((floor) => <option key={floor.id} value={floor.id}>{floor.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Personal status">
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as UnitStatusFilter)}>
+                {statusFilters.map((filter) => <option key={filter}>{filter}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div className="status-chip-row" aria-label="Personal Unit status filters">
+            {statusFilters.map((filter) => (
+              <button aria-pressed={statusFilter === filter} className={`status-chip ${statusFilter === filter ? 'is-active' : ''}`} key={filter} onClick={() => setStatusFilter(filter)} type="button">
+                <span>{filter}</span><strong>{statusCounts[filter]}</strong>
+              </button>
+            ))}
+          </div>
+        </details>
+      </section>
 
       <Section
-        title="Units"
+        title="Personal Units"
         kicker={`${visibleUnits.length} of ${filteredUnits.length} shown`}
         action={
           <Button aria-pressed={isBulkMode} onClick={toggleBulkMode} variant={isBulkMode ? 'ghost' : 'secondary'}>
@@ -468,128 +385,52 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
             <Button onClick={() => setVisibleUnitLimit((current) => current + UNIT_RENDER_STEP)}>Show 100 more</Button>
           </div>
         ) : null}
-        <div className="unit-grid">
+        <div className="compact-unit-grid">
           {visibleUnits.map((unit) => {
-            const unitIssues = openIssuesByUnitId.get(unit.id) ?? [];
-            const hasAttention = unitIssues.length > 0 || isBlockedUnit(unit) || isInspectionUnit(unit);
-            const blockerSummary = blockerSummaryFor(unit, unitIssues);
-            const crewSummary = crewSummaryFor(unit, crewById);
-            const latestActivity = formatFieldTime(latestActivityAt(unit, unitIssues));
+            const projection = unitCardById.get(unit.id);
+            if (!projection) return null;
             const isSelected = selectedUnitIds.has(unit.id);
             return (
-              <article
-                className={`unit-card ${hasAttention ? 'unit-card--attention' : ''} ${isSelected ? 'unit-card--selected' : ''}`.trim()}
+              <CompactUnitCard
                 key={unit.id}
-              >
-                <button
-                  aria-label={isBulkMode ? `${isSelected ? 'Deselect' : 'Select'} Unit ${unit.unitNumber}` : undefined}
-                  aria-pressed={isBulkMode ? isSelected : undefined}
-                  className={`unit-card__open ${isBulkMode ? 'unit-card__open--selecting' : ''}`.trim()}
-                  type="button"
-                  onClick={() => (isBulkMode ? toggleUnitSelection(unit.id) : onNavigate('unitDetail', unit.id))}
-                >
-                  <div className="unit-card__main">
-                    <div>
-                      <span className="quiet-label">Unit</span>
-                      <h3>{unit.unitNumber}</h3>
-                      <small>
-                        {unit.bedCount} beds · {unit.bathroomCount} baths
-                      </small>
-                    </div>
-                    <div className="unit-card__state">
-                      <StatusBadge value={unit.overallStatus} />
-                      {isBulkMode ? (
-                        <span className={`unit-select-state ${isSelected ? 'is-selected' : ''}`}>
-                          {isSelected ? <CheckSquare2 size={17} aria-hidden="true" /> : <Square size={17} aria-hidden="true" />}
-                          {isSelected ? 'Selected' : 'Select'}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="unit-card__summary">
-                    <span className={unitIssues.length > 0 || isBlockedUnit(unit) ? 'unit-card__signal is-hot' : 'unit-card__signal'}>
-                      {unitIssues.length > 0 || isBlockedUnit(unit) ? (
-                        <AlertTriangle size={15} aria-hidden="true" />
-                      ) : (
-                        <CheckCircle2 size={15} aria-hidden="true" />
-                      )}
-                      {blockerSummary}
-                    </span>
-                    <span>{crewSummary}</span>
-                    <span>Updated {latestActivity}</span>
-                  </div>
-
-                  <div className="unit-card__statuses">
-                    <span>Paint: {unit.paintStatus}</span>
-                    <span>Clean: {unit.cleanStatus}</span>
-                    <span>Repair: {unit.repairStatus}</span>
-                    <span>Inspect: {unit.inspectionStatus}</span>
-                  </div>
-
-                  <div className="unit-card__footer">
-                    <span className={unitIssues.length > 0 ? 'issue-count issue-count--hot' : 'issue-count'}>
-                      {unitIssues.length > 0 ? <AlertTriangle size={15} aria-hidden="true" /> : <CheckCircle2 size={15} aria-hidden="true" />}
-                      {unitIssues.length === 1 ? '1 open issue' : `${unitIssues.length} open issues`}
-                    </span>
-                    <small>{isBulkMode ? (isSelected ? 'Tap to deselect' : 'Tap to select') : 'Open unit'}</small>
-                  </div>
-                </button>
-
-                {!isBulkMode ? <div className="quick-status-row">
-                  <Button
-                    className="button--compact"
-                    aria-label={`Mark paint complete for Unit ${unit.unitNumber}`}
-                    onClick={() =>
-                      applyUnitUpdate(
-                        unit.id,
-                        paintCompletionPatch(unit),
-                        'Marked paint complete.',
-                        `Unit ${unit.unitNumber}: paint marked complete.`,
-                      )
-                    }
-                  >
-                    <Brush size={15} aria-hidden="true" />
-                    Paint
-                  </Button>
-                  <Button
-                    className="button--compact"
-                    aria-label={`Mark cleaning complete for Unit ${unit.unitNumber}`}
-                    onClick={() =>
-                      applyUnitUpdate(
-                        unit.id,
-                        cleanCompletionPatch(unit),
-                        'Marked clean complete.',
-                        `Unit ${unit.unitNumber}: cleaning marked complete.`,
-                      )
-                    }
-                  >
-                    <Sparkles size={15} aria-hidden="true" />
-                    Clean
-                  </Button>
-                  <Button
-                    className="button--compact"
-                    aria-label={`Mark maintenance needed for Unit ${unit.unitNumber}`}
-                    onClick={() =>
-                      applyUnitUpdate(
-                        unit.id,
-                        maintenanceNeededPatch(unit),
-                        'Marked maintenance needed.',
-                        `Unit ${unit.unitNumber}: maintenance marked needed.`,
-                      )
-                    }
-                  >
-                    <Hammer size={15} aria-hidden="true" />
-                    Repair
-                  </Button>
-                </div> : null}
-              </article>
+                projection={projection}
+                isBulkMode={isBulkMode}
+                isSelected={isSelected}
+                onOpen={() => onNavigate('unitDetail', unit.id)}
+                onToggleSelection={() => toggleUnitSelection(unit.id)}
+              />
             );
           })}
         </div>
       </Section>
 
-      <Section title="Quick Unit Creation" kicker="Editable anytime" action={<Filter size={18} aria-hidden="true" />}>
+      <details className="turnboard-tools">
+        <summary><Filter size={18} aria-hidden="true" /> Board tools, overview, and setup</summary>
+        <div className="turnboard-tools__content">
+          <Section title="Building Overview" kicker="Personal progress by area">
+            <div className="building-grid">
+              {buildings.map((building) => {
+                const summary = getBuildingSummary(building, data.floors, units, issues);
+                return (
+                  <article className="building-card" key={building.id}>
+                    <div className="building-card__top">
+                      <div><h3>{building.name}</h3><small>{summary.units.length} units</small></div>
+                      <StatusBadge value={`${summary.percentComplete}%`} />
+                    </div>
+                    <ProgressBar value={summary.percentComplete} label="Personal Ready state" />
+                    <div className="mini-metrics">
+                      <span>{summary.ready} personal ready</span>
+                      <span>{summary.inProgress} active</span>
+                      <span>{summary.blocked} blocked</span>
+                      <span>{summary.openIssues} issues</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </Section>
+
+      <Section title="Quick Unit Creation" kicker="Setup tool" action={<Filter size={18} aria-hidden="true" />}>
         <div className="form-card">
           <div className="grid three">
             <Field label="Building name">
@@ -617,6 +458,8 @@ export function UnitsView({ data, setData, onNavigate, initialStatusFilter = 'Al
           </Button>
         </div>
       </Section>
+        </div>
+      </details>
     </div>
   );
 }

@@ -51,6 +51,9 @@ try {
     await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'TURNBOARD', exact: true }).waitFor();
     await page.getByText('Personal Unit view. Verify official work and marks on paper.', { exact: true }).waitFor();
+    assert.ok(await page.getByRole('button', { name: 'Today', exact: true }).count() >= 1);
+    assert.ok(await page.getByRole('button', { name: 'TurnBoard', exact: true }).count() >= 1);
+    assert.ok(await page.getByRole('button', { name: 'Review', exact: true }).count() >= 1);
     assert.equal(await page.locator('.compact-unit-card').count(), 6);
     assert.equal(await page.locator('.quick-status-row').count(), 0, 'Compact TurnBoard exposed direct status mutations.');
     assert.equal(await page.getByRole('textbox', { name: 'Search unit', exact: true }).count(), 1);
@@ -61,6 +64,11 @@ try {
 
     await page.goto(`${baseUrl}/#/issues`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Issues', exact: true }).waitFor();
+    assert.equal(
+      await page.locator('.bottom-nav__item.is-active').filter({ hasText: 'Review' }).count(),
+      1,
+      'Focused Issue routes should keep Review active in mobile navigation.',
+    );
     assert.equal(await page.getByRole('heading', { name: 'Open issues' }).count(), 1);
     assert.equal(await page.getByRole('dialog').count(), 0, 'Issue entry should not occupy the board by default.');
     await page.getByRole('button', { name: 'Add issue', exact: true }).click();
@@ -93,7 +101,47 @@ try {
     await unitIssueDialog.waitFor();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await unitIssueDialog.waitFor({ state: 'hidden' });
+    assert.equal(
+      await page.locator('.bottom-nav__item.is-active').filter({ hasText: 'TurnBoard' }).count(),
+      1,
+      'Unit detail should keep TurnBoard active in mobile navigation.',
+    );
     await assertNoHorizontalOverflow(page, `${target.name} Unit detail`);
+
+    await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'REVIEW', exact: true }).waitFor();
+    await page.getByRole('tab', { name: /All/ }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Issues', exact: true }).count(), 1);
+    assert.equal(await page.getByText('Follow-ups', { exact: true }).count(), 0);
+    await assertNoHorizontalOverflow(page, `${target.name} Review`);
+
+    await page.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'TODAY', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'What needs your attention', exact: true }).waitFor();
+    const todayOrder = await page.evaluate(() => {
+      const actionPanel = document.querySelector('.today-action-panel');
+      const analytics = document.querySelector('.readiness-panel');
+      if (!actionPanel || !analytics) return false;
+      return Boolean(actionPanel.compareDocumentPosition(analytics) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    assert.equal(todayOrder, true, 'Today actions should precede readiness analytics.');
+    await assertNoHorizontalOverflow(page, `${target.name} Today`);
+
+    await page.goto(`${baseUrl}/#/sync`, { waitUntil: 'networkidle' });
+    await page.getByRole('heading', { name: 'Sync & diagnostics', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Local-only mode', exact: true }).waitFor();
+    await assertNoHorizontalOverflow(page, `${target.name} Sync diagnostics`);
+
+    if (target.name === 'iphone') {
+      await page.getByRole('button', { name: 'More', exact: true }).click();
+      const moreDialog = page.getByRole('dialog', { name: 'More' });
+      await moreDialog.waitFor();
+      for (const destination of ['Crew / People', 'Reports', 'Training', 'Setup', 'Data & backup', 'Sync & diagnostics']) {
+        assert.equal(await moreDialog.getByRole('button', { name: new RegExp(`^${destination}`) }).count(), 1);
+      }
+      await page.getByRole('button', { name: 'Close More menu', exact: true }).click();
+      await moreDialog.waitFor({ state: 'hidden' });
+    }
 
     assert.deepEqual(findings, [], `${target.name} runtime findings:\n${findings.join('\n')}`);
     await context.close();

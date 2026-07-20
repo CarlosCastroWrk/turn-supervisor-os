@@ -21,6 +21,8 @@ const defaultRoute: AppRoute = {
 
 const topLevelViews = new Set<AppView>([
   'dashboard',
+  'review',
+  'sync',
   'setup',
   'units',
   'issues',

@@ -14,7 +14,9 @@ import { DashboardView } from './views/DashboardView';
 import { ExportView } from './views/ExportView';
 import { IssuesView } from './views/IssuesView';
 import { ReportsView } from './views/ReportsView';
+import { ReviewView } from './views/ReviewView';
 import { SetupView } from './views/SetupView';
+import { SyncDiagnosticsView } from './views/SyncDiagnosticsView';
 import { TrainingQuestionsView } from './views/TrainingQuestionsView';
 import { UnitDetailView } from './views/UnitDetailView';
 import { UnitsView } from './views/UnitsView';
@@ -70,7 +72,9 @@ function App() {
         saveStatus={saveStatus}
         syncSlot={<SyncPanel sync={sync} />}
       >
-        {route.view === 'dashboard' ? <DashboardView data={data} onNavigate={navigate} /> : null}
+        {route.view === 'dashboard' ? (
+          <DashboardView data={data} onNavigate={navigate} saveStatus={saveStatus} sync={sync} />
+        ) : null}
         {route.view === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
         {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
         {route.view === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={route.unitStatusFilter} /> : null}
@@ -78,11 +82,22 @@ function App() {
           <UnitDetailView data={data} setData={setData} unitId={route.unitId} onNavigate={navigate} />
         ) : null}
         {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
+        {route.view === 'review' ? (
+          <ReviewView
+            data={data}
+            onNavigate={navigate}
+            onRetrySave={retrySave}
+            saveStatus={saveStatus}
+            setData={setData}
+            sync={sync}
+          />
+        ) : null}
         {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
         {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
         {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
         {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
         {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
+        {route.view === 'sync' ? <SyncDiagnosticsView sync={sync} /> : null}
         {route.view === 'export' ? (
           <ExportView
             data={data}

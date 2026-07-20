@@ -5,6 +5,7 @@ import { Button, Field } from './FormControls';
 
 interface SyncPanelProps {
   sync: SyncController;
+  presentation?: 'popover' | 'page';
 }
 
 const statusLabel = {
@@ -31,10 +32,10 @@ const triggerLabel = {
 
 const formatTime = (value?: string) => (value ? new Date(value).toLocaleTimeString() : 'Never');
 
-export function SyncPanel({ sync }: SyncPanelProps) {
+export function SyncPanel({ sync, presentation = 'popover' }: SyncPanelProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(presentation === 'page');
   const [busy, setBusy] = useState(false);
   const syncBusy = busy || sync.status === 'syncing';
 
@@ -68,27 +69,32 @@ export function SyncPanel({ sync }: SyncPanelProps) {
   const Icon = sync.status === 'offline' || sync.status === 'error' || sync.status === 'not_configured' || sync.status === 'cache_transition_required' ? CloudOff : Cloud;
   const diagnostics = sync.diagnostics;
   const lastUploadedTables = diagnostics.lastUploadedTables?.length ? diagnostics.lastUploadedTables.join(', ') : 'None';
+  const bodyVisible = presentation === 'page' || open;
 
   return (
-    <section className={`sync-panel sync-panel--${sync.status}`} aria-label="Supabase sync">
-      <button className="sync-panel__summary" type="button" onClick={() => setOpen((value) => !value)}>
-        <Icon size={17} aria-hidden="true" />
-        <span>
-          <strong>{statusLabel[sync.status]}</strong>
-          <small>{sync.email ?? 'Supabase sync'}</small>
-        </span>
-      </button>
+    <section className={`sync-panel sync-panel--${sync.status} sync-panel--${presentation}`} aria-label="Supabase sync">
+      {presentation === 'popover' ? (
+        <button className="sync-panel__summary" type="button" onClick={() => setOpen((value) => !value)}>
+          <Icon size={17} aria-hidden="true" />
+          <span>
+            <strong>{statusLabel[sync.status]}</strong>
+            <small>{sync.email ?? 'Supabase sync'}</small>
+          </span>
+        </button>
+      ) : null}
 
-      {open ? (
+      {bodyVisible ? (
         <div className="sync-panel__body">
           <div className="sync-panel__top">
             <div>
               <strong>{sync.email ? 'Sync this device' : 'Sign in to sync'}</strong>
               <p>{sync.message}</p>
             </div>
-            <button className="sync-panel__close" type="button" onClick={() => setOpen(false)} aria-label="Close sync panel">
-              <X size={18} aria-hidden="true" />
-            </button>
+            {presentation === 'popover' ? (
+              <button className="sync-panel__close" type="button" onClick={() => setOpen(false)} aria-label="Close sync panel">
+                <X size={18} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
           {sync.lastSyncedAt ? <small>Last sync: {new Date(sync.lastSyncedAt).toLocaleTimeString()}</small> : null}
 

@@ -11,6 +11,7 @@ import {
   PanelLeftOpen,
   RefreshCw,
   Settings,
+  ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
@@ -30,21 +31,34 @@ interface AppShellProps {
 }
 
 const fieldNav: { view: AppView; label: string; icon: React.ElementType }[] = [
-  { view: 'dashboard', label: 'Home', icon: Home },
-  { view: 'units', label: 'Units', icon: ListChecks },
-  { view: 'issues', label: 'Issues', icon: ClipboardCheck },
-  { view: 'crews', label: 'Crew', icon: Users },
+  { view: 'dashboard', label: 'Today', icon: Home },
+  { view: 'units', label: 'TurnBoard', icon: ListChecks },
+  { view: 'review', label: 'Review', icon: ClipboardCheck },
+  { view: 'crews', label: 'Crew / People', icon: Users },
   { view: 'reports', label: 'Reports', icon: FileText },
   { view: 'setup', label: 'Setup', icon: Settings },
 ];
 
-const mobilePrimaryNav = fieldNav.filter((item) => ['dashboard', 'units', 'issues'].includes(item.view));
+const mobilePrimaryNav = fieldNav.filter((item) => ['dashboard', 'units', 'review'].includes(item.view));
 const mobileMoreNav: { view: AppView; label: string; detail: string; icon: React.ElementType }[] = [
-  { view: 'crews', label: 'Crew', detail: 'Contacts and field notes', icon: Users },
+  { view: 'crews', label: 'Crew / People', detail: 'Contacts and field notes', icon: Users },
   { view: 'reports', label: 'Reports', detail: 'Review and share the day', icon: FileText },
+  { view: 'training', label: 'Training', detail: 'Questions and field evidence', icon: ClipboardCheck },
   { view: 'setup', label: 'Setup', detail: 'Project, memory, and AI usage', icon: Settings },
   { view: 'export', label: 'Data & backup', detail: 'Export, restore, and device safety', icon: Download },
+  { view: 'sync', label: 'Sync & diagnostics', detail: 'Local save and optional sync health', icon: ShieldCheck },
 ];
+
+const mobileMoreViews = new Set<AppView>([
+  'assignments',
+  'crews',
+  'daily',
+  'export',
+  'reports',
+  'setup',
+  'sync',
+  'training',
+]);
 
 const SIDEBAR_COLLAPSED_KEY = 'turn-supervisor-os:sidebar-collapsed';
 
@@ -53,14 +67,16 @@ const viewTitles: Record<AppView, string> = {
   copilot: 'Capture',
   crews: 'Crews',
   daily: 'Daily Log',
-  dashboard: 'Home',
+  dashboard: 'Today',
   export: 'Export',
   issues: 'Issues',
+  review: 'Review',
   reports: 'Reports',
   setup: 'Setup',
+  sync: 'Sync & Diagnostics',
   training: 'Training Questions',
   unitDetail: 'Unit Detail',
-  units: 'Units',
+  units: 'TurnBoard',
 };
 
 const getStoredSidebarState = () => {
@@ -96,7 +112,7 @@ export function AppShell({
   const restoreMobileMoreFocusRef = useRef(false);
   const captureOriginViewRef = useRef<AppView | null>(null);
   const previousViewRef = useRef(activeView);
-  const activeNavView = activeView === 'unitDetail' ? 'units' : activeView;
+  const activeNavView = activeView === 'unitDetail' ? 'units' : activeView === 'issues' ? 'review' : activeView;
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -342,7 +358,7 @@ export function AppShell({
         })}
         <button
           ref={mobileMoreButtonRef}
-          className={`bottom-nav__item ${mobileMoreOpen || ['crews', 'reports', 'setup', 'export'].includes(activeNavView) ? 'is-active' : ''}`}
+          className={`bottom-nav__item ${mobileMoreOpen || mobileMoreViews.has(activeNavView) ? 'is-active' : ''}`}
           type="button"
           onClick={() => (mobileMoreOpen ? closeMobileMore() : setMobileMoreOpen(true))}
           aria-expanded={mobileMoreOpen}
@@ -359,7 +375,7 @@ export function AppShell({
         aria-hidden={backgroundHidden || undefined}
         inert={backgroundHidden || undefined}
       >
-        <button className="side-nav__brand" type="button" onClick={() => navigateTo('dashboard')} aria-label="Open Home">
+        <button className="side-nav__brand" type="button" onClick={() => navigateTo('dashboard')} aria-label="Open Today">
           <span className="brand-mark">TS</span>
           <span aria-hidden={sidebarCollapsed}>
             <strong>Turn Field Copilot</strong>

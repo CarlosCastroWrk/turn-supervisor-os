@@ -1,23 +1,26 @@
 import { AlertTriangle, ArrowRight, CheckCircle2, Clock3 } from 'lucide-react';
 import type { AppNavigate } from '../lib/routing';
-import type { ActivityLog, AppData, Issue, SmartSuggestion, Unit } from '../types';
+import type { AppDataSaveStatus } from '../lib/storage';
+import type { SyncController } from '../lib/supabase/sync';
+import type { ActivityLog, AppData, SmartSuggestion, Unit } from '../types';
 import { generateSmartSuggestions } from '../lib/ai/suggestions';
 import { formatDate, localISODateFromDateTime, todayISO } from '../lib/constants';
 import {
   getActiveProject,
-  getPriorityIssues,
-  getProjectIssues,
   getProjectUnits,
   getUnitSummary,
-  isBlockedUnit,
 } from '../lib/metrics';
+import { buildTodayProjection, type TodayActionItem } from '../lib/todayProjection';
 import { ProgressBar } from '../components/ProgressBar';
 import { Section } from '../components/Section';
 import { StatCard } from '../components/StatCard';
+import { StatusBadge } from '../components/StatusBadge';
 
 interface DashboardViewProps {
   data: AppData;
   onNavigate: AppNavigate;
+  saveStatus: AppDataSaveStatus;
+  sync: Pick<SyncController, 'message' | 'status'>;
 }
 
 const getTurnDay = (startDate: string, endDate: string) => {
@@ -53,40 +56,19 @@ const formatActivityTime = (value: string) => {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
-const relativeTime = (value: string) => {
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) {
-    return '';
-  }
-  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return formatDate(value.slice(0, 10));
-};
-
-export function DashboardView({ data, onNavigate }: DashboardViewProps) {
+export function DashboardView({ data, onNavigate, saveStatus, sync }: DashboardViewProps) {
   const project = getActiveProject(data);
   const units = getProjectUnits(data);
-  const projectIssues = getProjectIssues(data);
-  const issues = getPriorityIssues(projectIssues);
   const summary = getUnitSummary(units);
+  const today = buildTodayProjection(data, saveStatus, sync);
   const todayLog = data.dailyLogs.find((log) => log.projectId === project.id && log.date === todayISO());
   const priorities = firstLines(todayLog?.tomorrowPriorities || todayLog?.morningPlan || '', 4);
   const smartSuggestions = generateSmartSuggestions(data)
     .filter((suggestion) => suggestion.relatedEntityType !== 'dailyLog')
     .slice(0, 4);
-  const issueUnitIds = new Set(issues.map((issue) => issue.unitId).filter(Boolean));
-  const blockedUnits = units.filter((unit) => isBlockedUnit(unit) && !issueUnitIds.has(unit.id));
-  const projectCrew = data.crewMembers.filter((crew) => crew.projectId === project.id);
   const todayActivity = data.activityLogs
     .filter((activity) => activity.projectId === project.id && localISODateFromDateTime(activity.createdAt) === todayISO())
     .slice(0, 7);
-
-  const navigateToIssue = (issue: Issue) => {
-    onNavigate('issues', undefined, { issueId: issue.id });
-  };
 
   const navigateToSuggestion = (suggestion: SmartSuggestion) => {
     if (suggestion.relatedEntityType === 'unit' && suggestion.relatedEntityId) {
@@ -128,33 +110,17 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
     }
   };
 
-  const attentionItems = [
-    ...issues.slice(0, 5).map((issue) => {
-      const unit = issue.unitId ? units.find((item) => item.id === issue.unitId) : undefined;
-      return {
-        id: `issue_${issue.id}`,
-        unit: unit ? `Unit ${unit.unitNumber}` : issue.category,
-        title: issue.title,
-        owner: issue.owner || 'Unassigned',
-        updated: relativeTime(issue.updatedAt),
-        onClick: () => navigateToIssue(issue),
-      };
-    }),
-    ...blockedUnits.slice(0, 3).map((unit) => {
-      const assignedCrew = unit.assignedCrewIds
-        .map((crewId) => projectCrew.find((crew) => crew.id === crewId)?.name)
-        .filter(Boolean)
-        .join(', ');
-      return {
-        id: `blocked_${unit.id}`,
-        unit: `Unit ${unit.unitNumber}`,
-        title: unit.notes || unit.overallStatus,
-        owner: assignedCrew || 'No crew assigned',
-        updated: relativeTime(unit.updatedAt),
-        onClick: () => onNavigate('unitDetail', unit.id),
-      };
-    }),
-  ].slice(0, 6);
+  const openTodayItem = (item: TodayActionItem) => {
+    if (item.target.view === 'unitDetail') {
+      onNavigate('unitDetail', item.target.recordId);
+      return;
+    }
+    if (item.target.view === 'issues' && item.target.recordId) {
+      onNavigate('issues', undefined, { issueId: item.target.recordId });
+      return;
+    }
+    onNavigate(item.target.view);
+  };
 
   const activityUnitLabel = (activity: ActivityLog) => {
     if (activity.entityType !== 'Unit') return activity.entityType;
@@ -166,14 +132,52 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
     <div className="page page--dashboard">
       <section className="field-home-header">
         <div>
-          <h1>{project.name}</h1>
-          <p>{project.propertyName || project.location || 'Current Turn'}</p>
+          <span className="quiet-label">Los&apos;s personal field view</span>
+          <h1>TODAY</h1>
+          <p>{project.name} · {project.propertyName || project.location || 'Current Turn'}</p>
         </div>
         <div className="field-home-header__meta">
           <span>{getTurnDay(project.startDate, project.endDate)}</span>
           <small>{project.mode === 'real' ? 'Real Turn' : 'Demo Mode'} · {formatDate(todayISO())}</small>
         </div>
       </section>
+
+      <Section
+        title="What needs your attention"
+        kicker="Personal app records only"
+        action={<button className="section-link" type="button" onClick={() => onNavigate('review')}>Open Review <ArrowRight size={15} aria-hidden="true" /></button>}
+        className="today-action-panel"
+      >
+        <div className="today-counts" aria-label="Today attention counts">
+          <span><strong>{today.draftCount}</strong> Drafts</span>
+          <span><strong>{today.issueCount}</strong> Issues</span>
+          <span><strong>{today.followUpCount}</strong> Follow-ups</span>
+          <span><strong>{today.reliabilityCount}</strong> Save / Sync</span>
+        </div>
+        <div className="today-action-list">
+          {today.items.slice(0, 8).map((item) => (
+            <button key={item.id} type="button" onClick={() => openTodayItem(item)}>
+              <AlertTriangle size={17} aria-hidden="true" />
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.detail}</small>
+              </span>
+              <StatusBadge value={item.sourceStatus} size="sm" />
+              <ArrowRight size={16} aria-hidden="true" />
+            </button>
+          ))}
+          {today.items.length === 0 ? (
+            <div className="field-home-empty">
+              <CheckCircle2 size={20} aria-hidden="true" />
+              <span>No unresolved personal app items are visible right now. Verify the paper TurnBoard separately.</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="today-action-panel__links">
+          <button type="button" onClick={() => onNavigate('units')}>Open TurnBoard</button>
+          <button type="button" onClick={() => onNavigate('review')}>Open full Review</button>
+        </div>
+      </Section>
 
       <section className="readiness-panel" aria-label="Turn readiness overview">
         <ProgressBar value={summary.percentComplete} label="Readiness overview" />
@@ -195,28 +199,6 @@ export function DashboardView({ data, onNavigate }: DashboardViewProps) {
       </div>
 
       <div className="field-home-grid">
-        <Section
-          title="Needs attention"
-          action={<button className="section-link" type="button" onClick={() => onNavigate('issues')}>View all <ArrowRight size={15} aria-hidden="true" /></button>}
-          className="field-home-panel"
-        >
-          <div className="attention-list">
-            {attentionItems.map((item) => (
-              <button key={item.id} type="button" onClick={item.onClick}>
-                <AlertTriangle size={17} aria-hidden="true" />
-                <span className="attention-list__unit">{item.unit}</span>
-                <span className="attention-list__issue">{item.title}</span>
-                <small>{item.owner}</small>
-                <time>{item.updated}</time>
-                <ArrowRight size={16} aria-hidden="true" />
-              </button>
-            ))}
-            {attentionItems.length === 0 ? (
-              <div className="field-home-empty"><CheckCircle2 size={20} aria-hidden="true" /><span>No active blockers or open issues.</span></div>
-            ) : null}
-          </div>
-        </Section>
-
         <Section title="Today's movement" className="field-home-panel">
           <div className="movement-list">
             {todayActivity.map((activity) => (

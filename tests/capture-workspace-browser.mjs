@@ -178,7 +178,7 @@ try {
   assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More menu');
   assert.equal(await mobilePage.locator('main[inert]').count(), 1, 'More menu did not isolate the field workspace.');
   await mobilePage.keyboard.press('Shift+Tab');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.textContent?.trim()), 'Data & backupExport, restore, and device safety');
+  assert.equal(await mobilePage.evaluate(() => document.activeElement?.textContent?.trim()), 'Sync & diagnosticsLocal save and optional sync health');
   await mobilePage.keyboard.press('Tab');
   assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More menu');
   await mobilePage.keyboard.press('Escape');

@@ -12,3 +12,4 @@ All notable project changes should be recorded here.
 - Applied the approved E4 project-scoped Memory migration and released the active-Turn boundary, field-scale, persistence, commit-on-blur, and three-device convergence train.
 - Added deterministic Daily Log project/date identity, legacy cloud-row reconciliation, and a signed-out JSON restore guard.
 - Upgraded local Vercel CLI to `55.0.0`.
+- Normalized legacy `#/copilot` bookmarks into the single Capture overlay so one close returns safely to Today without stacked Capture surfaces.

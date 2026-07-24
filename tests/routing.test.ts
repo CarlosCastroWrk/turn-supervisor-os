@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAppHash, parseAppHash, routeForNavigation } from '../src/lib/routing.ts';
+import { buildAppHash, parseAppHash, resolveAppHash, routeForNavigation } from '../src/lib/routing.ts';
 
 test('parseAppHash defaults to the dashboard route for empty or unknown hashes', () => {
   assert.deepEqual(parseAppHash(''), { view: 'dashboard', unitStatusFilter: 'All' });
@@ -11,6 +11,20 @@ test('parseAppHash preserves unit list status filters', () => {
   assert.deepEqual(parseAppHash('#/units?status=Needs+Inspection'), {
     view: 'units',
     unitStatusFilter: 'Needs Inspection',
+  });
+});
+
+test('resolveAppHash turns the legacy Capture route into one overlay request over Today', () => {
+  assert.deepEqual(resolveAppHash('#/copilot'), {
+    route: { view: 'dashboard', unitStatusFilter: 'All' },
+    captureRequested: true,
+  });
+});
+
+test('resolveAppHash leaves ordinary routes available without opening Capture', () => {
+  assert.deepEqual(resolveAppHash('#/units?status=Blocked'), {
+    route: { view: 'units', unitStatusFilter: 'Blocked' },
+    captureRequested: false,
   });
 });
 

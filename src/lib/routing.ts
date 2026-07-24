@@ -12,6 +12,11 @@ export interface NavigateOptions {
   issueId?: string;
 }
 
+export interface ResolvedAppHash {
+  route: AppRoute;
+  captureRequested: boolean;
+}
+
 export type AppNavigate = (view: AppView, unitId?: string, options?: NavigateOptions) => void;
 
 const defaultRoute: AppRoute = {
@@ -100,6 +105,22 @@ export const parseAppHash = (hash: string): AppRoute => {
   }
 
   return { ...defaultRoute };
+};
+
+export const resolveAppHash = (hash: string): ResolvedAppHash => {
+  const route = parseAppHash(hash);
+
+  if (route.view === 'copilot') {
+    return {
+      route: { ...defaultRoute },
+      captureRequested: true,
+    };
+  }
+
+  return {
+    route,
+    captureRequested: false,
+  };
 };
 
 export const buildAppHash = (route: AppRoute) => {

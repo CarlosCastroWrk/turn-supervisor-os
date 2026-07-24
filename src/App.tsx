@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
 import { motionSafeScrollBehavior } from './lib/accessibility';
-import { buildAppHash, parseAppHash, routeForNavigation } from './lib/routing';
+import { buildAppHash, resolveAppHash, routeForNavigation } from './lib/routing';
 import type { AppNavigate } from './lib/routing';
 import { usePersistentAppData } from './lib/storage';
 import { useSupabaseSync } from './lib/supabase/sync';
@@ -21,20 +21,65 @@ import { TrainingQuestionsView } from './views/TrainingQuestionsView';
 import { UnitDetailView } from './views/UnitDetailView';
 import { UnitsView } from './views/UnitsView';
 
+const LEGACY_CAPTURE_HISTORY_KEY = 'turnOsLegacyCapture';
+
+const readHistoryState = (): Record<string, unknown> => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  const state = window.history.state;
+  return state && typeof state === 'object' ? state as Record<string, unknown> : {};
+};
+
+const historyRequestsCapture = () => readHistoryState()[LEGACY_CAPTURE_HISTORY_KEY] === true;
+
+const clearLegacyCaptureHistoryState = () => {
+  if (typeof window === 'undefined' || !historyRequestsCapture()) {
+    return;
+  }
+
+  const nextState = { ...readHistoryState() };
+  delete nextState[LEGACY_CAPTURE_HISTORY_KEY];
+  window.history.replaceState(
+    Object.keys(nextState).length > 0 ? nextState : null,
+    '',
+    window.location.href,
+  );
+};
+
 function App() {
   const { data, setData, hasStoredData, retrySave, saveStatus } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
-  const [route, setRoute] = useState(() => parseAppHash(typeof window === 'undefined' ? '' : window.location.hash));
-  const [captureOpen, setCaptureOpen] = useState(false);
+  const [route, setRoute] = useState(
+    () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
+  );
+  const [captureOpen, setCaptureOpen] = useState(
+    () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).captureRequested
+      || historyRequestsCapture(),
+  );
 
   useEffect(() => {
     const handleRouteChange = () => {
-      setRoute(parseAppHash(window.location.hash));
+      const nextLocation = resolveAppHash(window.location.hash);
+
+      if (nextLocation.captureRequested) {
+        const safeHash = buildAppHash(nextLocation.route);
+        window.history.replaceState(
+          { ...readHistoryState(), [LEGACY_CAPTURE_HISTORY_KEY]: true },
+          '',
+          safeHash,
+        );
+      }
+
+      setCaptureOpen(nextLocation.captureRequested || historyRequestsCapture());
+      setRoute(nextLocation.route);
       window.scrollTo({ top: 0, behavior: 'auto' });
     };
 
     window.addEventListener('hashchange', handleRouteChange);
     window.addEventListener('popstate', handleRouteChange);
+    handleRouteChange();
 
     return () => {
       window.removeEventListener('hashchange', handleRouteChange);
@@ -48,6 +93,7 @@ function App() {
       return;
     }
 
+    clearLegacyCaptureHistoryState();
     setCaptureOpen(false);
 
     const nextRoute = routeForNavigation(view, unitId, options);
@@ -59,6 +105,11 @@ function App() {
 
     setRoute(nextRoute);
     window.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
+  }, []);
+
+  const closeCapture = useCallback(() => {
+    clearLegacyCaptureHistoryState();
+    setCaptureOpen(false);
   }, []);
 
   return (
@@ -75,7 +126,6 @@ function App() {
         {route.view === 'dashboard' ? (
           <DashboardView data={data} onNavigate={navigate} saveStatus={saveStatus} sync={sync} />
         ) : null}
-        {route.view === 'copilot' ? <CopilotView data={data} setData={setData} onNavigate={navigate} /> : null}
         {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
         {route.view === 'units' ? <UnitsView data={data} setData={setData} onNavigate={navigate} initialStatusFilter={route.unitStatusFilter} /> : null}
         {route.view === 'unitDetail' ? (
@@ -110,7 +160,7 @@ function App() {
       <CopilotView
         data={data}
         isOpen={captureOpen}
-        onClose={() => setCaptureOpen(false)}
+        onClose={closeCapture}
         onOpenBackup={() => navigate('export')}
         onNavigate={navigate}
         onRetrySave={retrySave}

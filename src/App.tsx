@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
 import { motionSafeScrollBehavior } from './lib/accessibility';
@@ -6,6 +6,7 @@ import { buildAppHash, resolveAppHash, routeForNavigation } from './lib/routing'
 import type { AppNavigate } from './lib/routing';
 import { usePersistentAppData } from './lib/storage';
 import { useSupabaseSync } from './lib/supabase/sync';
+import { buildTurnCommandUnitOptions, type TurnCommandSourceRequest } from './lib/turnCommand';
 import { AssignmentsView } from './views/AssignmentsView';
 import { CopilotView } from './views/CopilotView';
 import { CrewsView } from './views/CrewsView';
@@ -58,6 +59,10 @@ function App() {
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).captureRequested
       || historyRequestsCapture(),
   );
+  const commandRequestIdRef = useRef(0);
+  const [commandSourceRequest, setCommandSourceRequest] = useState<TurnCommandSourceRequest>();
+  const [acceptedCommandRequestId, setAcceptedCommandRequestId] = useState<number>();
+  const commandUnits = useMemo(() => buildTurnCommandUnitOptions(data), [data]);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -112,14 +117,33 @@ function App() {
     setCaptureOpen(false);
   }, []);
 
+  const submitCommand = useCallback((sourceText: string) => {
+    commandRequestIdRef.current += 1;
+    const request = {
+      id: commandRequestIdRef.current,
+      sourceText,
+    };
+    setCommandSourceRequest(request);
+    setCaptureOpen(true);
+    return request.id;
+  }, []);
+
+  const acceptCommandSource = useCallback((requestId: number) => {
+    setAcceptedCommandRequestId(requestId);
+  }, []);
+
   return (
     <>
       <AppShell
+        acceptedCommandRequestId={acceptedCommandRequestId}
         activeView={route.view}
         captureOpen={captureOpen}
+        commandContextUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
+        commandUnits={commandUnits}
         onNavigate={navigate}
         onOpenBackup={() => navigate('export')}
         onRetrySave={retrySave}
+        onSubmitCommand={submitCommand}
         saveStatus={saveStatus}
         syncSlot={<SyncPanel sync={sync} />}
       >
@@ -158,8 +182,10 @@ function App() {
         ) : null}
       </AppShell>
       <CopilotView
+        commandSourceRequest={commandSourceRequest}
         data={data}
         isOpen={captureOpen}
+        onCommandSourceAccepted={acceptCommandSource}
         onClose={closeCapture}
         onOpenBackup={() => navigate('export')}
         onNavigate={navigate}

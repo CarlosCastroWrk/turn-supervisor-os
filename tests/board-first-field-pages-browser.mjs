@@ -53,7 +53,7 @@ try {
     await page.getByText('Personal Unit view. Verify official work and marks on paper.', { exact: true }).waitFor();
     assert.ok(await page.getByRole('button', { name: 'Today', exact: true }).count() >= 1);
     assert.ok(await page.getByRole('button', { name: 'TurnBoard', exact: true }).count() >= 1);
-    assert.ok(await page.getByRole('button', { name: 'Review', exact: true }).count() >= 1);
+    assert.ok(await page.getByRole('button', { name: 'Queue', exact: true }).count() >= 1);
     assert.equal(await page.locator('.compact-unit-card').count(), 6);
     assert.equal(await page.locator('.quick-status-row').count(), 0, 'Compact TurnBoard exposed direct status mutations.');
     assert.equal(await page.getByRole('textbox', { name: 'Search unit', exact: true }).count(), 1);
@@ -65,9 +65,9 @@ try {
     await page.goto(`${baseUrl}/#/issues`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Issues', exact: true }).waitFor();
     assert.equal(
-      await page.locator('.bottom-nav__item.is-active').filter({ hasText: 'Review' }).count(),
+      await page.locator('.bottom-nav__item.is-active').filter({ hasText: 'Queue' }).count(),
       1,
-      'Focused Issue routes should keep Review active in mobile navigation.',
+      'Focused Issue routes should keep Queue active in mobile navigation.',
     );
     assert.equal(await page.getByRole('heading', { name: 'Open issues' }).count(), 1);
     assert.equal(await page.getByRole('dialog').count(), 0, 'Issue entry should not occupy the board by default.');

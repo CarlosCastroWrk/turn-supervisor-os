@@ -70,12 +70,15 @@ import { persistPhotoRecord } from '../lib/photoStorage';
 import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
 import { persistAppDataNow, type AppDataSaveStatus } from '../lib/storage';
+import type { TurnCommandSourceRequest } from '../lib/turnCommand';
 import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AiUsageEvent, AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
 
 interface CopilotViewProps {
+  commandSourceRequest?: TurnCommandSourceRequest;
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
+  onCommandSourceAccepted?: (requestId: number) => void;
   onNavigate: AppNavigate;
   presentation?: 'page' | 'overlay';
   isOpen?: boolean;
@@ -204,8 +207,10 @@ function AiCallReceipt({ event }: { event: AiUsageEvent }) {
 }
 
 export function CopilotView({
+  commandSourceRequest,
   data,
   setData,
+  onCommandSourceAccepted,
   onNavigate,
   presentation = 'page',
   isOpen = true,
@@ -234,6 +239,7 @@ export function CopilotView({
   const restartTimerRef = useRef<number | undefined>(undefined);
   const noTranscriptTimerRef = useRef<number | undefined>(undefined);
   const parseInFlightRef = useRef(false);
+  const lastAcceptedCommandRequestIdRef = useRef<number | undefined>(undefined);
   const captureProjectIdRef = useRef(data.activeProjectId);
   const [captureSession, dispatchCaptureSession] = useReducer(captureSessionReducer, initialCaptureSessionState);
   const [pageVoiceOpen, setPageVoiceOpen] = useState(false);
@@ -251,6 +257,7 @@ export function CopilotView({
   const [lastChangedDraftId, setLastChangedDraftId] = useState('');
   const [captureAttachments, setCaptureAttachments] = useState<StagedCaptureAttachment[]>([]);
   const [captureAttachmentError, setCaptureAttachmentError] = useState('');
+  const [commandSourceNotice, setCommandSourceNotice] = useState('');
   const [isPreparingAttachment, setIsPreparingAttachment] = useState(false);
   const [askInput, setAskInput] = useState('');
   const [askResult, setAskResult] = useState<AskOsResult | null>(null);
@@ -408,6 +415,47 @@ export function CopilotView({
   useEffect(() => {
     captureAttachmentsRef.current = captureAttachments;
   }, [captureAttachments]);
+
+  useEffect(() => {
+    if (
+      presentation !== 'overlay'
+      || !isOpen
+      || !commandSourceRequest
+      || lastAcceptedCommandRequestIdRef.current === commandSourceRequest.id
+    ) {
+      return;
+    }
+
+    const sourceText = commandSourceRequest.sourceText.trim();
+    const existingSource = quickInput.trim();
+    const hasProtectedSession =
+      captureSession.step === 'review'
+      || captureSession.step === 'result'
+      || captureAttachments.length > 0
+      || (existingSource.length > 0 && existingSource !== sourceText);
+
+    if (hasProtectedSession) {
+      setCommandSourceNotice(
+        'Your earlier in-memory Capture is still here. Finish it or start over first; the new wording remains in the command bar.',
+      );
+      return;
+    }
+
+    if (existingSource !== sourceText) {
+      setQuickInput(sourceText);
+    }
+    setCommandSourceNotice('');
+    lastAcceptedCommandRequestIdRef.current = commandSourceRequest.id;
+    onCommandSourceAccepted?.(commandSourceRequest.id);
+  }, [
+    captureAttachments.length,
+    captureSession.step,
+    commandSourceRequest,
+    isOpen,
+    onCommandSourceAccepted,
+    presentation,
+    quickInput,
+  ]);
 
   useEffect(
     () => () => {
@@ -1371,6 +1419,11 @@ export function CopilotView({
           </header>
 
           <div className="capture-workspace__timeline" aria-live="polite">
+            {commandSourceNotice ? (
+              <p className="capture-command-source-notice" role="status">
+                {commandSourceNotice}
+              </p>
+            ) : null}
             {captureSession.step === 'intent' ? (
               <CaptureIntentPicker onSelect={(intent) => dispatchCaptureSession({ type: 'SELECT_INTENT', intent })} />
             ) : null}

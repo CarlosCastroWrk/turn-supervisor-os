@@ -5,7 +5,6 @@ import {
   FileText,
   Home,
   ListChecks,
-  Mic,
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
@@ -16,15 +15,22 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { TurnCommandBar, type TurnCommandEntry } from './TurnCommandBar';
+import type { AppNavigate } from '../lib/routing';
 import type { AppDataSaveStatus } from '../lib/storage';
+import type { TurnCommandUnitOption } from '../lib/turnCommand';
 import type { AppView } from '../types';
 
 interface AppShellProps {
+  acceptedCommandRequestId?: number;
   activeView: AppView;
   captureOpen?: boolean;
-  onNavigate: (view: AppView) => void;
+  commandContextUnitId?: string;
+  commandUnits: TurnCommandUnitOption[];
+  onNavigate: AppNavigate;
   onOpenBackup?: () => void;
   onRetrySave?: () => boolean;
+  onSubmitCommand: (sourceText: string) => number;
   saveStatus?: AppDataSaveStatus;
   syncSlot?: React.ReactNode;
   children: React.ReactNode;
@@ -33,7 +39,7 @@ interface AppShellProps {
 const fieldNav: { view: AppView; label: string; icon: React.ElementType }[] = [
   { view: 'dashboard', label: 'Today', icon: Home },
   { view: 'units', label: 'TurnBoard', icon: ListChecks },
-  { view: 'review', label: 'Review', icon: ClipboardCheck },
+  { view: 'review', label: 'Queue', icon: ClipboardCheck },
   { view: 'crews', label: 'Crew / People', icon: Users },
   { view: 'reports', label: 'Reports', icon: FileText },
   { view: 'setup', label: 'Setup', icon: Settings },
@@ -70,7 +76,7 @@ const viewTitles: Record<AppView, string> = {
   dashboard: 'Today',
   export: 'Export',
   issues: 'Issues',
-  review: 'Review',
+  review: 'Queue',
   reports: 'Reports',
   setup: 'Setup',
   sync: 'Sync & Diagnostics',
@@ -91,12 +97,18 @@ const getStoredSidebarState = () => {
   }
 };
 
+const commandBarViews = new Set<AppView>(['dashboard', 'review', 'unitDetail', 'units']);
+
 export function AppShell({
+  acceptedCommandRequestId,
   activeView,
   captureOpen = false,
+  commandContextUnitId,
+  commandUnits,
   onNavigate,
   onOpenBackup,
   onRetrySave,
+  onSubmitCommand,
   saveStatus,
   syncSlot,
   children,
@@ -104,8 +116,8 @@ export function AppShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getStoredSidebarState);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const mainRef = useRef<HTMLElement | null>(null);
-  const captureButtonRef = useRef<HTMLButtonElement | null>(null);
-  const mobileCaptureButtonRef = useRef<HTMLButtonElement | null>(null);
+  const commandMicrophoneRef = useRef<HTMLButtonElement | null>(null);
+  const captureOriginElementRef = useRef<HTMLElement | null>(null);
   const mobileMoreButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileMoreCloseRef = useRef<HTMLButtonElement | null>(null);
   const mobileMoreSheetRef = useRef<HTMLElement | null>(null);
@@ -141,10 +153,11 @@ export function AppShell({
     }
 
     if (captureOriginViewRef.current === activeView) {
-      const visibleTrigger = [mobileCaptureButtonRef.current, captureButtonRef.current]
-        .find((button) => button && button.getClientRects().length > 0);
+      const visibleTrigger = [captureOriginElementRef.current, commandMicrophoneRef.current]
+        .find((element) => element?.isConnected && element.getClientRects().length > 0);
       visibleTrigger?.focus({ preventScroll: true });
     }
+    captureOriginElementRef.current = null;
     captureOriginViewRef.current = null;
   }, [activeView, captureOpen]);
 
@@ -205,15 +218,31 @@ export function AppShell({
     onNavigate(view);
   };
 
+  const openCapture = (_entry: TurnCommandEntry, trigger: HTMLElement) => {
+    captureOriginElementRef.current = trigger;
+    onNavigate('copilot');
+  };
+
+  const submitCommand = (sourceText: string, trigger: HTMLElement) => {
+    captureOriginElementRef.current = trigger;
+    return onSubmitCommand(sourceText);
+  };
+
+  const openUnit = (unitId: string) => {
+    setMobileMoreOpen(false);
+    onNavigate('unitDetail', unitId);
+  };
+
   const closeMobileMore = () => {
     restoreMobileMoreFocusRef.current = true;
     setMobileMoreOpen(false);
   };
 
   const backgroundHidden = captureOpen || mobileMoreOpen;
+  const commandBarVisible = commandBarViews.has(activeView);
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''} ${captureOpen ? 'is-capture-open' : ''}`}>
+    <div className={`app-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : ''} ${captureOpen ? 'is-capture-open' : ''} ${mobileMoreOpen ? 'is-more-open' : ''} ${commandBarVisible ? 'has-turn-command-bar' : ''}`}>
       <a className="skip-link" href="#main-content" onClick={focusMainContent}>
         Skip to main content
       </a>
@@ -258,23 +287,20 @@ export function AppShell({
             </div>
           </section>
         ) : null}
+        {commandBarVisible ? (
+          <TurnCommandBar
+            acceptedCommandRequestId={acceptedCommandRequestId}
+            captureOpen={captureOpen}
+            contextUnitId={commandContextUnitId}
+            microphoneRef={commandMicrophoneRef}
+            onOpenCapture={openCapture}
+            onOpenUnit={openUnit}
+            onSubmitCommand={submitCommand}
+            units={commandUnits}
+          />
+        ) : null}
         {children}
       </main>
-
-      <button
-        ref={captureButtonRef}
-        className={`floating-capture ${activeView === 'copilot' || captureOpen ? 'is-active' : ''}`}
-        type="button"
-        onClick={() => onNavigate('copilot')}
-        aria-label="Open Capture"
-        aria-expanded={captureOpen}
-        aria-haspopup="dialog"
-        aria-hidden={backgroundHidden || undefined}
-        tabIndex={backgroundHidden ? -1 : undefined}
-      >
-        <Mic size={24} aria-hidden="true" />
-        <span>Capture</span>
-      </button>
 
       {mobileMoreOpen && !captureOpen ? (
         <div className="mobile-more-backdrop" role="presentation" onMouseDown={closeMobileMore}>
@@ -314,34 +340,7 @@ export function AppShell({
       ) : null}
 
       <nav className="bottom-nav mobile-nav" aria-label="Primary navigation" aria-hidden={backgroundHidden || undefined} inert={backgroundHidden || undefined}>
-        {mobilePrimaryNav.slice(0, 2).map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.view}
-              className={`bottom-nav__item ${activeNavView === item.view ? 'is-active' : ''}`}
-              type="button"
-              onClick={() => navigateTo(item.view)}
-              aria-current={activeNavView === item.view ? 'page' : undefined}
-            >
-              <Icon size={21} aria-hidden="true" />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-        <button
-          ref={mobileCaptureButtonRef}
-          className="bottom-nav__capture"
-          type="button"
-          onClick={() => navigateTo('copilot')}
-          aria-label="Open Capture"
-          aria-expanded={captureOpen}
-          aria-haspopup="dialog"
-        >
-          <span><Mic size={25} aria-hidden="true" /></span>
-          <strong>Capture</strong>
-        </button>
-        {mobilePrimaryNav.slice(2).map((item) => {
+        {mobilePrimaryNav.map((item) => {
           const Icon = item.icon;
           return (
             <button

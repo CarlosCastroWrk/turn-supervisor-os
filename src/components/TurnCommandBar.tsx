@@ -73,6 +73,8 @@ export function TurnCommandBar({
   }, [activeMatchIndex, matches.length]);
 
   const openUnit = (unit: TurnCommandUnitOption) => {
+    inputRef.current?.blur();
+    setInputFocused(false);
     setQuery('');
     setStatus(`Opened Unit ${unit.unitNumber}. No status changed.`);
     setActiveMatchIndex(-1);

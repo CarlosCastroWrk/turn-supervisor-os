@@ -130,9 +130,28 @@ try {
     );
     assert.equal(await page.locator('[role="dialog"]').count(), 0, 'Unit selection opened Capture or changed status.');
     const contextInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
+    await contextInput.fill('102');
+    await page.getByRole('option', { name: /Unit 102/ }).click();
+    await page.waitForFunction(() => window.location.hash === '#/units/unit_102');
+    assert.match(await contextChip.innerText(), /^Unit 102/);
+    assert.equal(
+      await contextInput.inputValue(),
+      '',
+      `${target.name} did not clear Unit search after Unit-to-Unit navigation.`,
+    );
+    assert.equal(
+      await page.getByRole('listbox', { name: 'Current Turn Unit matches' }).count(),
+      0,
+      `${target.name} kept Unit suggestions open after Unit-to-Unit navigation.`,
+    );
+    assert.equal(
+      await contextInput.evaluate((element) => document.activeElement === element),
+      false,
+      `${target.name} kept the command input focused after Unit-to-Unit navigation.`,
+    );
     const preservedContextWording = 'Keep this wording while context changes.';
     await contextInput.fill(preservedContextWording);
-    await page.getByRole('button', { name: 'Remove Unit 101 context', exact: true }).click();
+    await page.getByRole('button', { name: 'Remove Unit 102 context', exact: true }).click();
     assert.equal(
       await contextInput.inputValue(),
       preservedContextWording,
@@ -141,7 +160,7 @@ try {
     assert.equal(await contextChip.count(), 0, `${target.name} did not remove Unit context.`);
     assert.equal(
       await page.evaluate(() => window.location.hash),
-      '#/units/unit_101',
+      '#/units/unit_102',
       `${target.name} navigated while removing Unit context.`,
     );
     await contextInput.fill('');

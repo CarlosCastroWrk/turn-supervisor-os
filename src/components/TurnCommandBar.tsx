@@ -1,7 +1,6 @@
-import { Mic, Plus, Search, X } from 'lucide-react';
+import { ArrowUp, Mic, Plus, Search, X } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  findExactTurnCommandUnitMatches,
   findTurnCommandUnitMatches,
   type TurnCommandUnitOption,
 } from '../lib/turnCommand';
@@ -36,6 +35,7 @@ export function TurnCommandBar({
 }: TurnCommandBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const pendingSubmissionRef = useRef<PendingCommandSubmission | null>(null);
+  const formId = useId();
   const listboxId = useId();
   const statusId = useId();
   const [query, setQuery] = useState('');
@@ -44,13 +44,10 @@ export function TurnCommandBar({
   const [contextDismissed, setContextDismissed] = useState(false);
   const [status, setStatus] = useState('');
   const matches = useMemo(() => findTurnCommandUnitMatches(units, query), [query, units]);
-  const exactMatches = useMemo(
-    () => findExactTurnCommandUnitMatches(units, query),
-    [query, units],
-  );
   const contextUnit = units.find((unit) => unit.unitId === contextUnitId);
+  const hasCommandText = query.trim().length > 0;
   const showContext = Boolean(contextUnit && !contextDismissed);
-  const suggestionsOpen = inputFocused && query.trim().length > 0 && matches.length > 0;
+  const suggestionsOpen = inputFocused && hasCommandText && matches.length > 0;
 
   useEffect(() => {
     setContextDismissed(false);
@@ -82,26 +79,25 @@ export function TurnCommandBar({
     onOpenUnit(unit.unitId);
   };
 
-  const submitCommand = () => {
+  const submitCommand = (trigger: HTMLElement) => {
     const sourceText = query.trim();
     if (!sourceText) {
       return;
     }
 
-    if (exactMatches.length === 1) {
-      openUnit(exactMatches[0]);
-      return;
-    }
-
-    if (exactMatches.length > 1) {
-      setStatus('More than one Unit has that number. Choose the correct Unit match.');
-      setActiveMatchIndex(0);
-      return;
-    }
-
-    const requestId = onSubmitCommand(sourceText, inputRef.current ?? document.body);
+    const requestId = onSubmitCommand(sourceText, trigger);
     pendingSubmissionRef.current = { id: requestId, sourceText };
     setStatus('Opening Capture with your exact wording.');
+  };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    submitCommand(
+      submitter instanceof HTMLElement
+        ? submitter
+        : inputRef.current ?? document.body,
+    );
   };
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -131,7 +127,7 @@ export function TurnCommandBar({
         openUnit(matches[activeMatchIndex]);
         return;
       }
-      submitCommand();
+      event.currentTarget.form?.requestSubmit();
     }
   };
 
@@ -148,10 +144,15 @@ export function TurnCommandBar({
         <Plus size={22} aria-hidden="true" />
       </button>
 
-      <div className="turn-command-bar__input-wrap">
+      <form
+        className="turn-command-bar__input-wrap"
+        id={formId}
+        onSubmit={handleSubmit}
+      >
         {showContext ? (
           <span className="turn-command-bar__context">
-            Context: Unit {contextUnit?.unitNumber}
+            <span>Unit {contextUnit?.unitNumber}</span>
+            <span className="visually-hidden">Personal Turn OS context.</span>
             <button
               type="button"
               onClick={() => setContextDismissed(true)}
@@ -177,6 +178,7 @@ export function TurnCommandBar({
             onBlur={() => window.setTimeout(() => setInputFocused(false), 0)}
             onKeyDown={handleInputKeyDown}
             placeholder="Ask or update Turn OS…"
+            enterKeyHint="send"
             aria-label="Ask, update, or search Turn OS"
             role="combobox"
             aria-autocomplete="list"
@@ -216,19 +218,30 @@ export function TurnCommandBar({
         <span className="visually-hidden" id={statusId} role="status" aria-live="polite">
           {status}
         </span>
-      </div>
+      </form>
 
-      <button
-        ref={microphoneRef}
-        className="turn-command-bar__action turn-command-bar__microphone"
-        type="button"
-        onClick={(event) => onOpenCapture('microphone', event.currentTarget)}
-        aria-label="Open Capture"
-        aria-expanded={captureOpen}
-        aria-haspopup="dialog"
-      >
-        <Mic size={22} aria-hidden="true" />
-      </button>
+      {hasCommandText ? (
+        <button
+          className="turn-command-bar__action turn-command-bar__send"
+          type="submit"
+          form={formId}
+          aria-label="Send to Turn OS"
+        >
+          <ArrowUp size={22} aria-hidden="true" />
+        </button>
+      ) : (
+        <button
+          ref={microphoneRef}
+          className="turn-command-bar__action turn-command-bar__microphone"
+          type="button"
+          onClick={(event) => onOpenCapture('microphone', event.currentTarget)}
+          aria-label="Open Capture"
+          aria-expanded={captureOpen}
+          aria-haspopup="dialog"
+        >
+          <Mic size={22} aria-hidden="true" />
+        </button>
+      )}
     </section>
   );
 }

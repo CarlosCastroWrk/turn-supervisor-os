@@ -6262,7 +6262,8 @@ body.capture-workspace-open {
   color: #0f172a;
 }
 
-.turn-command-bar__microphone {
+.turn-command-bar__microphone,
+.turn-command-bar__send {
   border-color: #1d4ed8;
   background: #1d4ed8;
   color: #ffffff;

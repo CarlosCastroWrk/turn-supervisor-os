@@ -6350,7 +6350,11 @@ body.capture-workspace-open {
   z-index: 4;
   display: grid;
   max-height: min(44dvh, 340px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid #cbd5e1;
   border-radius: 14px;
   background: #ffffff;

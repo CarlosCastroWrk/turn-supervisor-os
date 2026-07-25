@@ -273,6 +273,115 @@ try {
   assert.deepEqual(exactFindings, [], `Exact Unit runtime findings:\n${exactFindings.join('\n')}`);
   await exactContext.close();
 
+  const prefixData = structuredClone(seedData);
+  const prefixSource = prefixData.units.find((unit) => unit.id === 'unit_101');
+  assert.ok(prefixSource, 'Unit-prefix test source was missing.');
+  for (let index = 0; index < 16; index += 1) {
+    prefixData.units.push({
+      ...prefixSource,
+      id: `unit_prefix_${index}`,
+      unitNumber: String(300 + index),
+    });
+  }
+
+  const prefixContext = await browser.newContext({ viewport: { width: 390, height: 500 } });
+  await prefixContext.addInitScript(
+    ({ key, data }) => window.localStorage.setItem(key, JSON.stringify(data)),
+    { key: storageKey, data: prefixData },
+  );
+  const prefixPage = await prefixContext.newPage();
+  const prefixFindings = attachRuntimeChecks(prefixPage);
+  await prefixPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  const prefixInput = prefixPage.getByRole('combobox', {
+    name: 'Ask, update, or search Turn OS',
+    exact: true,
+  });
+
+  for (const query of ['U', 'UN', 'UNI', 'UNIT']) {
+    await prefixInput.fill(query);
+    assert.equal(
+      await prefixPage.getByRole('option').count(),
+      12,
+      `${query} did not retain the bounded Unit suggestion set.`,
+    );
+    assert.equal(
+      await prefixPage.evaluate(() => window.location.hash),
+      '#/dashboard',
+      `${query} navigated without an explicit Unit selection.`,
+    );
+    assert.equal(
+      await prefixPage.locator('[role="option"][aria-selected="true"]').count(),
+      0,
+      `${query} selected a Unit without keyboard or tap intent.`,
+    );
+  }
+
+  await prefixInput.fill('UNIT 30');
+  assert.equal(
+    await prefixPage.getByRole('option').count(),
+    10,
+    'UNIT 30 did not narrow suggestions to the matching numeric prefix.',
+  );
+
+  await prefixInput.fill('U');
+  const prefixMatches = prefixPage.getByRole('listbox', { name: 'Current Turn Unit matches' });
+  const scrollState = await prefixMatches.evaluate((element) => {
+    const computed = window.getComputedStyle(element);
+    return {
+      clientHeight: element.clientHeight,
+      overflowX: computed.overflowX,
+      overflowY: computed.overflowY,
+      overscrollBehavior: computed.overscrollBehavior,
+      scrollHeight: element.scrollHeight,
+      touchAction: computed.touchAction,
+    };
+  });
+  assert.ok(
+    scrollState.scrollHeight > scrollState.clientHeight,
+    'Broad Unit suggestions did not create a vertical scroll range.',
+  );
+  assert.equal(scrollState.overflowX, 'hidden', 'Unit suggestions allowed horizontal scrolling.');
+  assert.equal(scrollState.overflowY, 'auto', 'Unit suggestions did not allow vertical scrolling.');
+  assert.equal(scrollState.overscrollBehavior, 'contain', 'Unit suggestions did not contain scroll gestures.');
+  assert.equal(scrollState.touchAction, 'pan-y', 'Unit suggestions did not preserve vertical touch gestures.');
+
+  const prefixBox = await prefixMatches.boundingBox();
+  assert.ok(prefixBox, 'Unit suggestions did not render a measurable scroll surface.');
+  await prefixPage.mouse.move(
+    prefixBox.x + prefixBox.width / 2,
+    prefixBox.y + prefixBox.height / 2,
+  );
+  await prefixPage.mouse.wheel(0, 240);
+  await prefixPage.waitForFunction(
+    () => (document.querySelector('.turn-command-bar__matches')?.scrollTop ?? 0) > 0,
+  );
+  assert.equal(
+    await prefixPage.evaluate(() => window.location.hash),
+    '#/dashboard',
+    'Scrolling Unit suggestions navigated without an explicit selection.',
+  );
+  assert.equal(
+    await prefixPage.locator('[role="dialog"]').count(),
+    0,
+    'Scrolling Unit suggestions opened Capture.',
+  );
+  assert.equal(
+    await prefixPage.locator('[role="option"][aria-selected="true"]').count(),
+    0,
+    'Scrolling Unit suggestions selected a Unit.',
+  );
+
+  await prefixPage.getByRole('option', { name: /Unit 305/ }).click();
+  await prefixPage.waitForFunction(() => window.location.hash === '#/units/unit_prefix_5');
+  assert.equal(
+    await prefixPage.locator('[role="dialog"]').count(),
+    0,
+    'Explicit Unit-prefix selection opened Capture.',
+  );
+  await assertNoHorizontalOverflow(prefixPage, 'Unit-prefix search iPhone');
+  assert.deepEqual(prefixFindings, [], `Unit-prefix runtime findings:\n${prefixFindings.join('\n')}`);
+  await prefixContext.close();
+
   const duplicateData = structuredClone(seedData);
   const duplicateSource = duplicateData.units.find((unit) => unit.id === 'unit_101');
   assert.ok(duplicateSource, 'Duplicate Unit test source was missing.');

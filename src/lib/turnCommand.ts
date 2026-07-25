@@ -14,8 +14,27 @@ export interface TurnCommandSourceRequest {
 
 const normalized = (value: string) => value.trim().toLocaleLowerCase();
 
+const parseTurnCommandUnitQuery = (value: string) => {
+  const query = normalized(value);
+  const explicitUnitPrefix = query.match(
+    /^(?:unit|uni|un|u)(?:\s*#?\s*([0-9][a-z0-9-]*))?$/i,
+  );
+
+  if (explicitUnitPrefix) {
+    return {
+      explicitUnitPrefix: true,
+      query: explicitUnitPrefix[1]?.trim() ?? '',
+    };
+  }
+
+  return {
+    explicitUnitPrefix: false,
+    query: query.replace(/^unit\s*#?\s*/i, '').trim(),
+  };
+};
+
 export const normalizeTurnCommandUnitQuery = (value: string) =>
-  normalized(value).replace(/^unit\s*#?\s*/i, '').trim();
+  parseTurnCommandUnitQuery(value).query;
 
 export const buildTurnCommandUnitOptions = (
   data: Pick<AppData, 'activeProjectId' | 'buildings' | 'floors' | 'units'>,
@@ -50,18 +69,33 @@ const matchScore = (option: TurnCommandUnitOption, query: string) => {
   return Number.POSITIVE_INFINITY;
 };
 
+const unitNumberMatchScore = (option: TurnCommandUnitOption, query: string) => {
+  const unitNumber = normalized(option.unitNumber);
+
+  if (!query) return 0;
+  if (unitNumber === query) return 0;
+  if (unitNumber.startsWith(query)) return 1;
+  if (unitNumber.includes(query)) return 2;
+  return Number.POSITIVE_INFINITY;
+};
+
 export const findTurnCommandUnitMatches = (
   options: TurnCommandUnitOption[],
   rawQuery: string,
-  limit = 5,
+  limit = 12,
 ) => {
-  const query = normalizeTurnCommandUnitQuery(rawQuery);
-  if (!query) {
+  const { explicitUnitPrefix, query } = parseTurnCommandUnitQuery(rawQuery);
+  if (!query && !explicitUnitPrefix) {
     return [];
   }
 
   return options
-    .map((option) => ({ option, score: matchScore(option, query) }))
+    .map((option) => ({
+      option,
+      score: explicitUnitPrefix
+        ? unitNumberMatchScore(option, query)
+        : matchScore(option, query),
+    }))
     .filter((match) => Number.isFinite(match.score))
     .sort((left, right) =>
       left.score - right.score

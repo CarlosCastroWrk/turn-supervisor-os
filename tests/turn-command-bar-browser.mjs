@@ -101,7 +101,7 @@ try {
         `${target.name} ${route.name} did not expose one Plus action.`,
       );
       assert.equal(
-        await commandBar.getByRole('button', { name: 'Open Capture', exact: true }).count(),
+        await commandBar.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
         1,
         `${target.name} ${route.name} did not expose one microphone action.`,
       );
@@ -170,7 +170,7 @@ try {
     await sourceInput.fill(sourceText);
     const commandBar = page.getByRole('region', { name: 'Turn OS command bar' });
     assert.equal(
-      await commandBar.getByRole('button', { name: 'Open Capture', exact: true }).count(),
+      await commandBar.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
       0,
       `${target.name} kept the microphone after command text was entered.`,
     );
@@ -188,7 +188,7 @@ try {
     await closeCommand(
       page,
       '#/units',
-      'Open Capture',
+      'Start voice capture',
       `${target.name} typed command`,
     );
 
@@ -221,15 +221,21 @@ try {
       `${target.name} exposed Send for whitespace-only wording.`,
     );
     assert.equal(
-      await commandBar.getByRole('button', { name: 'Open Capture', exact: true }).count(),
+      await commandBar.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
       1,
       `${target.name} did not restore the microphone for whitespace-only wording.`,
     );
     await sourceInput.fill('');
 
-    await page.getByRole('button', { name: 'Open Capture', exact: true }).click();
+    await page.getByRole('button', { name: 'Start voice capture', exact: true }).click();
     await assertSingleCommandSurface(page, `${target.name} microphone entry`);
-    await closeCommand(page, '#/units', 'Open Capture', `${target.name} microphone entry`);
+    await page.getByRole('heading', { name: 'Capture your exact wording', exact: true }).waitFor();
+    assert.equal(
+      await page.getByRole('group', { name: 'What do you want to capture?' }).count(),
+      0,
+      `${target.name} microphone entry asked for intent before source.`,
+    );
+    await closeCommand(page, '#/units', 'Start voice capture', `${target.name} microphone entry`);
 
     await page.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
     await assertSingleCommandSurface(page, `${target.name} Plus entry`);
@@ -243,7 +249,7 @@ try {
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
     await assertSingleCommandSurface(page, `${target.name} legacy entry`);
     assert.equal(await page.evaluate(() => window.location.hash), '#/dashboard');
-    await closeCommand(page, '#/dashboard', 'Open Capture', `${target.name} legacy entry`);
+    await closeCommand(page, '#/dashboard', 'Start voice capture', `${target.name} legacy entry`);
 
     if (target.name === 'iPhone') {
       const primaryNav = page.getByRole('navigation', { name: 'Primary navigation' });
@@ -255,7 +261,7 @@ try {
         );
       }
       assert.equal(
-        await primaryNav.getByRole('button', { name: 'Open Capture', exact: true }).count(),
+        await primaryNav.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
         0,
         'iPhone retained a second Capture owner in primary navigation.',
       );
@@ -287,7 +293,7 @@ try {
     '202',
     'Exact Unit Send did not preserve the complete wording.',
   );
-  await closeCommand(exactPage, '#/units', 'Open Capture', 'Exact Unit Send');
+  await closeCommand(exactPage, '#/units', 'Start voice capture', 'Exact Unit Send');
   await assertNoHorizontalOverflow(exactPage, 'Exact Unit Send iPhone');
   assert.deepEqual(exactFindings, [], `Exact Unit runtime findings:\n${exactFindings.join('\n')}`);
   await exactContext.close();

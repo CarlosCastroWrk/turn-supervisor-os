@@ -28,6 +28,7 @@ interface AppShellProps {
   commandContextUnitId?: string;
   commandUnits: TurnCommandUnitOption[];
   onNavigate: AppNavigate;
+  onOpenCapture: (entry: TurnCommandEntry) => void;
   onOpenBackup?: () => void;
   onRetrySave?: () => boolean;
   onSubmitCommand: (sourceText: string) => number;
@@ -106,6 +107,7 @@ export function AppShell({
   commandContextUnitId,
   commandUnits,
   onNavigate,
+  onOpenCapture,
   onOpenBackup,
   onRetrySave,
   onSubmitCommand,
@@ -218,9 +220,9 @@ export function AppShell({
     onNavigate(view);
   };
 
-  const openCapture = (_entry: TurnCommandEntry, trigger: HTMLElement) => {
+  const openCapture = (entry: TurnCommandEntry, trigger: HTMLElement) => {
     captureOriginElementRef.current = trigger;
-    onNavigate('copilot');
+    onOpenCapture(entry);
   };
 
   const submitCommand = (sourceText: string, trigger: HTMLElement) => {

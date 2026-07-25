@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  appendVoiceTranscript,
   formatVoiceDuration,
   getVoiceCaptureGuidance,
   isAppleTouchDevice,
@@ -15,7 +16,7 @@ test('getVoiceCaptureGuidance prefers browser speech when available', () => {
   assert.equal(guidance.mode, 'browserSpeech');
   assert.equal(guidance.idleButtonLabel, 'Voice Mode');
   assert.equal(guidance.sheetPrimaryAction, 'Stop');
-  assert.match(guidance.description, /Short pauses are okay/);
+  assert.match(guidance.description, /browser confirms microphone access/);
   assert.match(guidance.privacyNote, /browser\/OS/);
 });
 
@@ -61,7 +62,7 @@ test('getVoiceCaptureGuidance falls back to manual entry on unsupported desktop 
   assert.equal(guidance.mode, 'manualEntry');
   assert.equal(guidance.idleButtonLabel, 'Open note');
   assert.equal(guidance.sheetPrimaryAction, 'Type note');
-  assert.match(guidance.privacyNote, /Nothing changes/);
+  assert.match(guidance.privacyNote, /Nothing is interpreted, sent, or changed/);
 });
 
 test('isAppleTouchDevice detects modern iPadOS desktop-like user agents', () => {
@@ -80,6 +81,15 @@ test('formatVoiceDuration returns a stable minute and second display', () => {
   assert.equal(formatVoiceDuration(7), '0:07');
   assert.equal(formatVoiceDuration(72), '1:12');
   assert.equal(formatVoiceDuration(-12), '0:00');
+});
+
+test('appendVoiceTranscript preserves existing and captured wording', () => {
+  assert.equal(
+    appendVoiceTranscript('Unit 413 A/C crew-complete.', 'D needs a touch-up behind the door.'),
+    'Unit 413 A/C crew-complete. D needs a touch-up behind the door.',
+  );
+  assert.equal(appendVoiceTranscript('', '  B is renewal — do not enter.  '), 'B is renewal — do not enter.');
+  assert.equal(appendVoiceTranscript('Keep this source.', '   '), 'Keep this source.');
 });
 
 test('isRestartableSpeechError only restarts on ordinary browser endings and pauses', () => {

@@ -29,7 +29,7 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
       mode: 'keyboardDictation',
       title: 'Keyboard dictation fallback',
       description: 'Installed iPhone/iPad apps can block browser voice capture. Use the keyboard mic so your words appear here.',
-      privacyNote: 'Keyboard dictation is handled by iOS/iPadOS. This app only saves the text you leave in the note box.',
+      privacyNote: 'Keyboard dictation is handled by iOS/iPadOS. This step only keeps the editable text you leave here.',
       idleButtonLabel: 'Voice Mode',
       unavailableStatus: 'Installed app voice capture needs keyboard dictation. Tap Use keyboard mic, then talk.',
       sheetPrimaryAction: 'Use keyboard mic',
@@ -40,8 +40,8 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
     return {
       mode: 'browserSpeech',
       title: 'Browser voice capture',
-      description: 'Tap Record. Short pauses are okay; the app will keep listening when the browser allows it.',
-      privacyNote: 'Speech transcription is handled by the browser/OS. This app only turns saved text into draft actions.',
+      description: 'Recording begins only after the browser confirms microphone access. Short pauses are okay.',
+      privacyNote: 'Speech transcription is handled by the browser/OS. This step only keeps editable source text.',
       idleButtonLabel: 'Voice Mode',
       unavailableStatus: 'Browser voice capture is ready.',
       sheetPrimaryAction: 'Stop',
@@ -53,7 +53,7 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
       mode: 'keyboardDictation',
       title: 'Keyboard dictation fallback',
       description: 'Open voice mode first. Use the keyboard mic only when you are ready to dictate.',
-      privacyNote: 'Keyboard dictation is handled by iOS/iPadOS. This app only saves the text you leave in the note box.',
+      privacyNote: 'Keyboard dictation is handled by iOS/iPadOS. This step only keeps the editable text you leave here.',
       idleButtonLabel: 'Voice Mode',
       unavailableStatus: 'Voice mode is ready. Tap Use keyboard mic when you want iOS/iPadOS dictation.',
       sheetPrimaryAction: 'Use keyboard mic',
@@ -64,7 +64,7 @@ export const getVoiceCaptureGuidance = (context: VoiceCaptureContext): VoiceCapt
     mode: 'manualEntry',
     title: 'Text capture fallback',
     description: 'Browser voice capture is unavailable here. Type, paste, or use your device dictation into the note box.',
-    privacyNote: 'Nothing changes on the board until you create and approve draft actions.',
+    privacyNote: 'This step only keeps editable source text. Nothing is interpreted, sent, or changed.',
     idleButtonLabel: 'Open note',
     unavailableStatus: 'Note box focused. Type, paste, or use system dictation.',
     sheetPrimaryAction: 'Type note',
@@ -78,6 +78,16 @@ export const formatVoiceDuration = (totalSeconds: number) => {
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = String(safeSeconds % 60).padStart(2, '0');
   return `${minutes}:${seconds}`;
+};
+
+export const appendVoiceTranscript = (sourceText: string, capturedSegment: string) => {
+  const segment = capturedSegment.trim();
+  if (!segment) {
+    return sourceText;
+  }
+
+  const source = sourceText.trimEnd();
+  return source ? `${source} ${segment}` : segment;
 };
 
 export const isRestartableSpeechError = (error?: string) => !error || error === 'no-speech';

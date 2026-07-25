@@ -8,7 +8,7 @@ import { usePersistentAppData } from './lib/storage';
 import { useSupabaseSync } from './lib/supabase/sync';
 import { buildTurnCommandUnitOptions, type TurnCommandSourceRequest } from './lib/turnCommand';
 import { AssignmentsView } from './views/AssignmentsView';
-import { CopilotView } from './views/CopilotView';
+import { CopilotView, type CopilotViewHandle } from './views/CopilotView';
 import { CrewsView } from './views/CrewsView';
 import { DailyLogView } from './views/DailyLogView';
 import { DashboardView } from './views/DashboardView';
@@ -60,6 +60,7 @@ function App() {
       || historyRequestsCapture(),
   );
   const commandRequestIdRef = useRef(0);
+  const copilotRef = useRef<CopilotViewHandle | null>(null);
   const [commandSourceRequest, setCommandSourceRequest] = useState<TurnCommandSourceRequest>();
   const [acceptedCommandRequestId, setAcceptedCommandRequestId] = useState<number>();
   const commandUnits = useMemo(() => buildTurnCommandUnitOptions(data), [data]);
@@ -117,12 +118,22 @@ function App() {
     setCaptureOpen(false);
   }, []);
 
+  const openCapture = useCallback((entry: 'plus' | 'microphone') => {
+    setCaptureOpen(true);
+    if (entry === 'microphone') {
+      copilotRef.current?.openVoiceSource();
+      return;
+    }
+    copilotRef.current?.openDefaultCapture();
+  }, []);
+
   const submitCommand = useCallback((sourceText: string) => {
     commandRequestIdRef.current += 1;
     const request = {
       id: commandRequestIdRef.current,
       sourceText,
     };
+    copilotRef.current?.openDefaultCapture();
     setCommandSourceRequest(request);
     setCaptureOpen(true);
     return request.id;
@@ -141,6 +152,7 @@ function App() {
         commandContextUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
         commandUnits={commandUnits}
         onNavigate={navigate}
+        onOpenCapture={openCapture}
         onOpenBackup={() => navigate('export')}
         onRetrySave={retrySave}
         onSubmitCommand={submitCommand}
@@ -182,6 +194,7 @@ function App() {
         ) : null}
       </AppShell>
       <CopilotView
+        ref={copilotRef}
         commandSourceRequest={commandSourceRequest}
         data={data}
         isOpen={captureOpen}

@@ -63,14 +63,14 @@ const assertSingleCapture = async (page, label) => {
   assert.notEqual(await currentHash(page), '#/copilot', `${label} did not normalize the legacy Capture route.`);
 };
 
-const closeCaptureOnce = async (page, expectedHash, label) => {
+const closeCaptureOnce = async (page, expectedHash, label, expectedFocusLabel = 'Start voice capture') => {
   await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
   await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('[role="dialog"]').count(), 0, `${label} still had a dialog after one close.`);
   assert.equal(await currentHash(page), expectedHash, `${label} did not restore its origin route.`);
   assert.equal(
     await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
-    'Open Capture',
+    expectedFocusLabel,
     `${label} did not return focus to its visible Capture trigger.`,
   );
 };
@@ -93,7 +93,7 @@ try {
 
     for (const origin of origins) {
       await page.goto(`${baseUrl}/${origin.hash}`, { waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: 'Open Capture', exact: true }).click();
+      await page.getByRole('button', { name: 'Start voice capture', exact: true }).click();
       const label = `${viewport.name} ${origin.name}`;
       await assertSingleCapture(page, label);
       await assertNoHorizontalOverflow(page, `${label} Capture`);
@@ -128,7 +128,7 @@ try {
   await historyPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
   await historyPage.getByRole('button', { name: 'TurnBoard', exact: true }).click();
   await historyPage.waitForFunction(() => window.location.hash === '#/units');
-  await historyPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await historyPage.getByRole('button', { name: 'Start voice capture', exact: true }).click();
   await assertSingleCapture(historyPage, 'browser history origin');
   await historyPage.goBack();
   await historyPage.waitForFunction(() => window.location.hash === '#/dashboard');
@@ -144,7 +144,7 @@ try {
   const sessionPage = await sessionContext.newPage();
   const sessionFindings = attachRuntimeChecks(sessionPage);
   await sessionPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
-  await sessionPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await sessionPage.getByRole('button', { name: /UPDATE/ }).click();
   await sessionPage.getByRole('button', { name: 'Type', exact: true }).click();
   await sessionPage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill(sourceText);
@@ -154,9 +154,9 @@ try {
     buffer: Buffer.from('Synthetic field note only.'),
   });
   await sessionPage.getByText(attachmentName, { exact: true }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/dashboard', 'in-memory source close');
+  await closeCaptureOnce(sessionPage, '#/dashboard', 'in-memory source close', 'Open Capture attachments');
 
-  await sessionPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await assertSingleCapture(sessionPage, 'reopened in-memory source');
   assert.equal(
     await sessionPage.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
@@ -191,9 +191,9 @@ try {
   await sessionPage.getByRole('button', { name: 'Create drafts', exact: true }).click();
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   await sessionPage.getByRole('heading', { name: /Added to Review/ }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/dashboard', 'Draft result close');
+  await closeCaptureOnce(sessionPage, '#/dashboard', 'Draft result close', 'Open Capture attachments');
 
-  await sessionPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await assertSingleCapture(sessionPage, 'reopened Draft result');
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   const preservedResultSource = sessionPage.locator('.capture-result-card__source p');
@@ -202,7 +202,7 @@ try {
   assert.match(preservedResultText, /Unit 202 paint is done\./, 'Completed Draft result lost its source wording.');
   assert.match(preservedResultText, /unit-202-field-note\.txt/, 'Completed Draft result lost its attachment reference.');
   assert.match(preservedResultText, /Synthetic field note only\./, 'Completed Draft result lost its attachment text.');
-  await closeCaptureOnce(sessionPage, '#/dashboard', 'reopened Draft result');
+  await closeCaptureOnce(sessionPage, '#/dashboard', 'reopened Draft result', 'Open Capture attachments');
   assert.deepEqual(sessionFindings, [], `Session runtime findings:\n${sessionFindings.join('\n')}`);
   await sessionContext.close();
 

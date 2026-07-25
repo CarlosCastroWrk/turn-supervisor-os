@@ -53,7 +53,7 @@ try {
   const desktopPage = await desktopContext.newPage();
   const desktopFindings = attachRuntimeChecks(desktopPage);
   await desktopPage.goto(baseUrl, { waitUntil: 'networkidle' });
-  await desktopPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await desktopPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   const desktopDialog = desktopPage.locator('.capture-workspace[role="dialog"]');
   await desktopDialog.waitFor();
   await desktopPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
@@ -119,7 +119,7 @@ try {
   const failurePage = await failureContext.newPage();
   const failureFindings = attachRuntimeChecks(failurePage);
   await failurePage.goto(baseUrl, { waitUntil: 'networkidle' });
-  await failurePage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await failurePage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await failurePage.getByRole('button', { name: /UPDATE/ }).click();
   await failurePage.getByRole('button', { name: 'Type', exact: true }).click();
   await failurePage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill('Unit 204 paint is done.');
@@ -147,7 +147,7 @@ try {
   const mobilePage = await mobileContext.newPage();
   const mobileFindings = attachRuntimeChecks(mobilePage);
   await mobilePage.goto(baseUrl, { waitUntil: 'networkidle' });
-  await mobilePage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await mobilePage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   const mobileDialog = mobilePage.locator('.capture-workspace[role="dialog"]');
   await mobileDialog.waitFor();
   await mobilePage.waitForTimeout(220);
@@ -169,9 +169,9 @@ try {
   await mobilePage.screenshot({ path: mobileCaptureScreenshot, fullPage: false });
   await mobilePage.keyboard.press('Escape');
   await mobileDialog.waitFor({ state: 'hidden' });
-  const mobileCaptureButton = mobilePage.getByRole('button', { name: 'Open Capture', exact: true });
+  const mobileCaptureButton = mobilePage.getByRole('button', { name: 'Open Capture attachments', exact: true });
   assert.equal(await mobileCaptureButton.getAttribute('aria-expanded'), 'false');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Open Capture');
+  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Open Capture attachments');
   await mobilePage.getByRole('button', { name: 'More', exact: true }).click();
   const mobileMoreDialog = mobilePage.getByRole('dialog', { name: 'More', exact: true });
   await mobileMoreDialog.waitFor();
@@ -197,7 +197,7 @@ try {
   await assertNoHorizontalOverflow(tabletPage, 'iPad field home');
   const tabletHomeScreenshot = path.join(screenshotDirectory, 'ipad-field-home.png');
   await tabletPage.screenshot({ path: tabletHomeScreenshot, fullPage: false });
-  await tabletPage.getByRole('button', { name: 'Open Capture', exact: true }).click();
+  await tabletPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await tabletPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
   await tabletPage.getByRole('button', { name: /NOTE/ }).click();
   await tabletPage.getByRole('button', { name: 'Voice', exact: true }).click();

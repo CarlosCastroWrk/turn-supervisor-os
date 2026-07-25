@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useReducer, useRef, useState } from 'react';
 import { CaptureIntentPicker } from '../components/CaptureIntentPicker';
 import { CaptureResultCard } from '../components/CaptureResultCard';
 import { CaptureVoicePanel } from '../components/CaptureVoicePanel';
@@ -71,7 +71,7 @@ import { getProjectDraftActions } from '../lib/projectScope';
 import type { AppNavigate } from '../lib/routing';
 import { persistAppDataNow, type AppDataSaveStatus } from '../lib/storage';
 import type { TurnCommandSourceRequest } from '../lib/turnCommand';
-import { formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
+import { appendVoiceTranscript, formatVoiceDuration, getVoiceCaptureGuidance, isRestartableSpeechError, shouldAutoFocusCaptureText, voiceErrorStatus } from '../lib/voiceCapture';
 import type { AiUsageEvent, AppData, BriefingType, DraftAction, DraftActionStatus, MemoryCandidate, PhotoNote } from '../types';
 
 interface CopilotViewProps {
@@ -86,6 +86,11 @@ interface CopilotViewProps {
   onOpenBackup?: () => void;
   onRetrySave?: () => boolean;
   saveStatus?: AppDataSaveStatus;
+}
+
+export interface CopilotViewHandle {
+  openDefaultCapture: () => void;
+  openVoiceSource: () => void;
 }
 
 type CopilotMode = 'quick' | 'ask' | 'briefings' | 'memory';
@@ -123,6 +128,7 @@ interface SpeechRecognitionLike {
   onend: (() => void) | null;
   onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onstart: (() => void) | null;
   abort: () => void;
   start: () => void;
   stop: () => void;
@@ -206,7 +212,7 @@ function AiCallReceipt({ event }: { event: AiUsageEvent }) {
   );
 }
 
-export function CopilotView({
+export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(function CopilotView({
   commandSourceRequest,
   data,
   setData,
@@ -218,7 +224,7 @@ export function CopilotView({
   onOpenBackup,
   onRetrySave,
   saveStatus,
-}: CopilotViewProps) {
+}: CopilotViewProps, ref) {
   const { notify } = useToast();
   const [mode, setMode] = useState<CopilotMode>('quick');
   const [quickInput, setQuickInput] = useState('');
@@ -234,6 +240,7 @@ export function CopilotView({
   const voiceModeButtonRef = useRef<HTMLButtonElement | null>(null);
   const voiceTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const interimTranscriptRef = useRef('');
   const keepListeningRef = useRef(false);
   const lastSpeechErrorRef = useRef<string | undefined>(undefined);
   const restartTimerRef = useRef<number | undefined>(undefined);
@@ -243,6 +250,8 @@ export function CopilotView({
   const captureProjectIdRef = useRef(data.activeProjectId);
   const [captureSession, dispatchCaptureSession] = useReducer(captureSessionReducer, initialCaptureSessionState);
   const [pageVoiceOpen, setPageVoiceOpen] = useState(false);
+  const [voiceSourceOpen, setVoiceSourceOpen] = useState(false);
+  const [isStartingVoice, setIsStartingVoice] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFallbackActive, setVoiceFallbackActive] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -264,9 +273,10 @@ export function CopilotView({
   const [briefing, setBriefing] = useState<BriefingResult | null>(null);
   const [briefingText, setBriefingText] = useState('');
   const [copied, setCopied] = useState(false);
-  const voicePanelOpen = presentation === 'overlay'
+  const sessionVoicePanelOpen = presentation === 'overlay'
     ? captureSession.step === 'input' && captureSession.inputMethod === 'voice'
     : pageVoiceOpen;
+  const voicePanelOpen = voiceSourceOpen || sessionVoicePanelOpen;
   const smartSuggestions = useMemo(() => generateSmartSuggestions(data), [data]);
   const projectDraftActions = useMemo(
     () => getProjectDraftActions(data, data.activeProjectId),
@@ -375,11 +385,10 @@ export function CopilotView({
     [deviceCaptureContext],
   );
   const activeVoiceGuidance = voiceFallbackActive ? fallbackVoiceGuidance : voiceGuidance;
-  const canUseBrowserSpeech = speechSupported && activeVoiceGuidance.mode === 'browserSpeech';
+  const browserSpeechAvailable = speechSupported && voiceGuidance.mode === 'browserSpeech';
+  const canUseBrowserSpeech = browserSpeechAvailable && !voiceFallbackActive;
   const canAutoFocusCaptureText = useMemo(() => shouldAutoFocusCaptureText(deviceCaptureContext), [deviceCaptureContext]);
   const voiceDuration = formatVoiceDuration(voiceElapsedSeconds);
-  const voiceTranscriptPreview = [quickInput.trim(), interimTranscript.trim()].filter(Boolean).join(' ');
-
   useEffect(() => {
     if (presentation !== 'page' || mode !== 'quick' || !canAutoFocusCaptureText) {
       return;
@@ -489,6 +498,22 @@ export function CopilotView({
     }
   };
 
+  const setPendingInterimTranscript = (transcript: string) => {
+    interimTranscriptRef.current = transcript;
+    setInterimTranscript(transcript);
+  };
+
+  const preservePendingInterimTranscript = () => {
+    const pendingTranscript = interimTranscriptRef.current;
+    if (!pendingTranscript.trim()) {
+      setPendingInterimTranscript('');
+      return;
+    }
+
+    setQuickInput((current) => appendVoiceTranscript(current, pendingTranscript));
+    setPendingInterimTranscript('');
+  };
+
   const switchToDictationFallback = (message: string) => {
     keepListeningRef.current = false;
     clearNoTranscriptTimer();
@@ -496,10 +521,12 @@ export function CopilotView({
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = undefined;
     }
+    lastSpeechErrorRef.current = 'fallback';
+    preservePendingInterimTranscript();
     recognitionRef.current?.abort();
     recognitionRef.current = null;
+    setIsStartingVoice(false);
     setIsRecording(false);
-    setInterimTranscript('');
     setVoiceFallbackActive(true);
     setVoiceStatus(message);
   };
@@ -511,17 +538,24 @@ export function CopilotView({
       window.clearTimeout(restartTimerRef.current);
       restartTimerRef.current = undefined;
     }
-    recognitionRef.current?.stop();
+    lastSpeechErrorRef.current = undefined;
+    setIsStartingVoice(false);
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      preservePendingInterimTranscript();
+      recognitionRef.current = null;
+    }
     setIsRecording(false);
-    setInterimTranscript('');
-    setVoiceStatus('Stopped. Review the text, then create drafts or save the raw note.');
+    setVoiceStatus('Stopping. Preserving your captured wording…');
   };
 
   const focusFallbackDictation = () => {
     keepListeningRef.current = false;
     clearNoTranscriptTimer();
+    preservePendingInterimTranscript();
+    setIsStartingVoice(false);
     setIsRecording(false);
-    setInterimTranscript('');
     setVoiceFallbackActive(true);
     setVoiceStatus(activeVoiceGuidance.unavailableStatus);
     window.requestAnimationFrame(() => {
@@ -550,6 +584,7 @@ export function CopilotView({
       recognitionRef.current.onend = null;
       recognitionRef.current.onerror = null;
       recognitionRef.current.onresult = null;
+      recognitionRef.current.onstart = null;
       recognitionRef.current.abort();
       recognitionRef.current = null;
     }
@@ -557,6 +592,29 @@ export function CopilotView({
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
+    recognition.onstart = () => {
+      if (!keepListeningRef.current) {
+        recognition.stop();
+        return;
+      }
+
+      lastSpeechErrorRef.current = undefined;
+      setIsStartingVoice(false);
+      setIsRecording(true);
+      setVoiceStatus('Listening. Speak naturally; short pauses are okay.');
+      clearNoTranscriptTimer();
+      noTranscriptTimerRef.current = window.setTimeout(() => {
+        if (!keepListeningRef.current) {
+          return;
+        }
+
+        switchToDictationFallback(
+          fallbackVoiceGuidance.mode === 'keyboardDictation'
+            ? 'No words came through from browser voice capture. Tap Use keyboard mic, then talk.'
+            : 'No words came through from browser voice capture. Type into the note box or use system dictation.',
+        );
+      }, 7000);
+    };
     recognition.onresult = (event) => {
       let finalTranscript = '';
       let interim = '';
@@ -573,38 +631,44 @@ export function CopilotView({
 
       if (finalTranscript) {
         clearNoTranscriptTimer();
-        setQuickInput((current) => [current.trim(), finalTranscript].filter(Boolean).join(current.trim() ? ' ' : ''));
+        setQuickInput((current) => appendVoiceTranscript(current, finalTranscript));
       }
       if (interim) {
         clearNoTranscriptTimer();
       }
-      setInterimTranscript(interim);
+      setPendingInterimTranscript(interim);
     };
     recognition.onerror = (event) => {
       lastSpeechErrorRef.current = event.error;
+      preservePendingInterimTranscript();
       if (isRestartableSpeechError(event.error) && keepListeningRef.current) {
-        setVoiceStatus('Still listening. Pauses are okay.');
+        setVoiceStatus('Voice paused. Reconnecting…');
+        setIsRecording(false);
         return;
       }
 
       keepListeningRef.current = false;
       clearNoTranscriptTimer();
+      setIsStartingVoice(false);
       setVoiceFallbackActive(true);
       setVoiceStatus(voiceErrorStatus(event.error, event.message));
       setIsRecording(false);
     };
     recognition.onend = () => {
-      setInterimTranscript('');
+      preservePendingInterimTranscript();
+      setIsStartingVoice(false);
       if (keepListeningRef.current && isRestartableSpeechError(lastSpeechErrorRef.current)) {
+        setIsRecording(false);
+        setVoiceStatus('Voice paused. Reconnecting…');
         restartTimerRef.current = window.setTimeout(() => {
           try {
             lastSpeechErrorRef.current = undefined;
+            setIsStartingVoice(true);
             recognition.start();
-            setIsRecording(true);
-            setVoiceStatus('Still listening. Pauses are okay.');
           } catch {
             keepListeningRef.current = false;
             clearNoTranscriptTimer();
+            setIsStartingVoice(false);
             setIsRecording(false);
             setVoiceFallbackActive(true);
             setVoiceStatus('Voice capture paused by the browser. Tap Use keyboard mic, then talk.');
@@ -614,32 +678,57 @@ export function CopilotView({
       }
 
       setIsRecording(false);
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null;
+      }
+      if (!lastSpeechErrorRef.current) {
+        setVoiceStatus('Stopped. Your captured wording is preserved and editable.');
+      }
     };
     recognitionRef.current = recognition;
     keepListeningRef.current = true;
+    setIsStartingVoice(true);
     setVoiceElapsedSeconds(0);
-    noTranscriptTimerRef.current = window.setTimeout(() => {
-      if (!keepListeningRef.current) {
-        return;
-      }
-
-      switchToDictationFallback(
-        fallbackVoiceGuidance.mode === 'keyboardDictation'
-          ? 'No words came through from browser voice capture. Tap Use keyboard mic, then talk.'
-          : 'No words came through from browser voice capture. Type into the note box or use system dictation.',
-      );
-    }, 7000);
-    setVoiceStatus('Listening. Speak naturally; short pauses are okay.');
+    setVoiceStatus('Requesting microphone access. Waiting for the browser to start…');
     try {
       recognition.start();
-      setIsRecording(true);
     } catch {
       keepListeningRef.current = false;
       clearNoTranscriptTimer();
+      recognitionRef.current = null;
+      setIsStartingVoice(false);
       setVoiceFallbackActive(true);
       setVoiceStatus('Voice capture could not start. Tap Use keyboard mic, then talk.');
     }
   };
+
+  const openDefaultCapture = () => {
+    if (isRecording || keepListeningRef.current) {
+      stopVoiceCapture();
+    }
+    setVoiceSourceOpen(false);
+  };
+
+  const openVoiceSource = () => {
+    setVoiceSourceOpen(true);
+    setVoiceElapsedSeconds(0);
+    preservePendingInterimTranscript();
+    setVoiceFallbackActive(false);
+
+    if (browserSpeechAvailable) {
+      startVoiceCapture();
+      return;
+    }
+
+    setVoiceFallbackActive(true);
+    setIsStartingVoice(false);
+    setVoiceStatus(voiceGuidance.unavailableStatus);
+  };
+
+  useImperativeHandle(ref, () => ({
+    openDefaultCapture,
+    openVoiceSource,
+  }));
 
   const openVoicePanel = () => {
     if (presentation === 'overlay') {
@@ -649,7 +738,7 @@ export function CopilotView({
     }
     setVoiceElapsedSeconds(0);
     setVoiceFallbackActive(false);
-    setInterimTranscript('');
+    setPendingInterimTranscript('');
     setVoiceStatus(voiceGuidance.mode === 'browserSpeech' ? 'Ready. Tap Record when you are prepared.' : voiceGuidance.unavailableStatus);
   };
 
@@ -662,7 +751,7 @@ export function CopilotView({
     } else {
       setPageVoiceOpen(false);
     }
-    setInterimTranscript('');
+    setPendingInterimTranscript('');
     if (quickInput.trim()) {
       setVoiceStatus('Voice wording is in the editable text box. Review it before continuing.');
     }
@@ -1424,11 +1513,45 @@ export function CopilotView({
                 {commandSourceNotice}
               </p>
             ) : null}
-            {captureSession.step === 'intent' ? (
+            {voiceSourceOpen ? (
+              <section className="capture-step capture-voice-source" aria-labelledby="voice-source-title">
+                <div className="capture-step__heading">
+                  <div>
+                    <span className="quiet-label">Source only</span>
+                    <h2 id="voice-source-title">Capture your exact wording</h2>
+                  </div>
+                </div>
+                <p className="capture-voice-source__intro">
+                  Stop, review, and edit the transcript. This step does not decide what your words mean or change any record.
+                </p>
+                <CaptureVoicePanel
+                  guidance={activeVoiceGuidance}
+                  canUseBrowserSpeech={canUseBrowserSpeech}
+                  isStarting={isStartingVoice}
+                  isRecording={isRecording}
+                  duration={voiceDuration}
+                  interimTranscript={interimTranscript}
+                  input={quickInput}
+                  onInputChange={setQuickInput}
+                  inputRef={voiceTextareaRef}
+                  status={voiceStatus}
+                  dictationPlaceholder="Speak, use the keyboard mic, or type your field wording here."
+                  onStart={startVoiceCapture}
+                  onStop={stopVoiceCapture}
+                  onFallback={focusFallbackDictation}
+                  onType={focusFallbackDictation}
+                />
+                <p className="capture-safety-copy">
+                  Closing Capture keeps this wording in memory. Nothing is interpreted, sent, approved, or applied.
+                </p>
+              </section>
+            ) : null}
+
+            {!voiceSourceOpen && captureSession.step === 'intent' ? (
               <CaptureIntentPicker onSelect={(intent) => dispatchCaptureSession({ type: 'SELECT_INTENT', intent })} />
             ) : null}
 
-            {captureSession.step === 'input' ? (
+            {!voiceSourceOpen && captureSession.step === 'input' ? (
               <section className="capture-step" aria-labelledby="capture-input-title">
                 <div className="capture-step__heading">
                   <div>
@@ -1458,9 +1581,10 @@ export function CopilotView({
                   <CaptureVoicePanel
                     guidance={activeVoiceGuidance}
                     canUseBrowserSpeech={canUseBrowserSpeech}
+                    isStarting={isStartingVoice}
                     isRecording={isRecording}
                     duration={voiceDuration}
-                    transcriptPreview={voiceTranscriptPreview}
+                    interimTranscript={interimTranscript}
                     input={quickInput}
                     onInputChange={setQuickInput}
                     inputRef={voiceTextareaRef}
@@ -1510,7 +1634,7 @@ export function CopilotView({
               </section>
             ) : null}
 
-            {captureSession.step === 'review' ? (
+            {!voiceSourceOpen && captureSession.step === 'review' ? (
               <section className="capture-step" aria-labelledby="capture-review-title">
                 <div className="capture-step__heading">
                   <div>
@@ -1556,7 +1680,7 @@ export function CopilotView({
               </section>
             ) : null}
 
-            {captureSession.step === 'result' ? (
+            {!voiceSourceOpen && captureSession.step === 'result' ? (
               <section className="capture-step" aria-labelledby="capture-result-title">
                 <div className="capture-step__heading">
                   <div>
@@ -1763,9 +1887,10 @@ export function CopilotView({
             <CaptureVoicePanel
               guidance={activeVoiceGuidance}
               canUseBrowserSpeech={canUseBrowserSpeech}
+              isStarting={isStartingVoice}
               isRecording={isRecording}
               duration={voiceDuration}
-              transcriptPreview={voiceTranscriptPreview}
+              interimTranscript={interimTranscript}
               input={quickInput}
               onInputChange={setQuickInput}
               inputRef={voiceTextareaRef}
@@ -2019,4 +2144,4 @@ export function CopilotView({
       ) : null}
     </div>
   );
-}
+});

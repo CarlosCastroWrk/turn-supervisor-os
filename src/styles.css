@@ -159,6 +159,27 @@
   font-weight: 800;
 }
 
+.capture-voice-source__intro {
+  color: var(--muted);
+  margin: 0;
+}
+
+.capture-voice-panel.is-recording .capture-voice-panel__actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.capture-voice-panel__actions .capture-voice-panel__stop {
+  min-height: 64px;
+  width: 100%;
+  font-size: 1rem;
+}
+
+.capture-voice-panel textarea[readonly] {
+  cursor: default;
+  opacity: 1;
+}
+
 .capture-proposed-effect p {
   color: var(--muted);
   margin: 0.35rem 0 0;

@@ -237,7 +237,7 @@ export function TurnCommandBar({
           className="turn-command-bar__action turn-command-bar__microphone"
           type="button"
           onClick={(event) => onOpenCapture('microphone', event.currentTarget)}
-          aria-label="Open Capture"
+          aria-label="Start voice capture"
           aria-expanded={captureOpen}
           aria-haspopup="dialog"
         >

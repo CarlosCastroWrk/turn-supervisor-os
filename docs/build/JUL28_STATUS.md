@@ -22,9 +22,19 @@ Last updated: 2026-07-26
 | Integration worktree | `/Users/los/Documents/PDS-jul28-pattern-candidate` |
 | Integration branch | `codex/jul28-pattern-candidate` |
 | Base | `a3f6b3d0c6133c32b403fe21f12c1e31258f1770` |
-| Current state | Shared documentation in progress |
-| Latest commit | Pending documentation commit |
+| Current state | Shared documentation sealed; visual references prepared; track setup next |
+| Documentation checkpoint | `d9a114c6f147f793139d57d33082d48f4ef96844` |
 | Production touched | No |
+
+## Shared Visual References
+
+| Reference | Purpose | Authority |
+| --- | --- | --- |
+| `docs/05_quality/design-concepts/iphone-today-needs-me.png` | Three-second Today hierarchy and actionable Needs Me view | Visual direction only |
+| `docs/05_quality/design-concepts/iphone-turnboard-unit.png` | Paint/Clean card view and Unit workspace hierarchy | Visual direction only |
+| `docs/05_quality/design-concepts/ipad-mac-responsive.png` | iPad two-pane and Mac review/setup/reporting adaptation | Visual direction only |
+
+Operational semantics remain governed by the product constitution, field-truth model, and source-separated evidence—not by generated imagery.
 
 ## Track Ledger
 

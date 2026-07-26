@@ -22,8 +22,9 @@ Last updated: 2026-07-26
 | Integration worktree | `/Users/los/Documents/PDS-jul28-pattern-candidate` |
 | Integration branch | `codex/jul28-pattern-candidate` |
 | Base | `a3f6b3d0c6133c32b403fe21f12c1e31258f1770` |
-| Current state | Shared documentation sealed; visual references prepared; track setup next |
+| Current state | Shared documentation and visual references sealed; four isolated tracks running |
 | Documentation checkpoint | `d9a114c6f147f793139d57d33082d48f4ef96844` |
+| Visual-reference checkpoint | `dc2240a8a4d33ffdc7299a86ec932f59f8a89e1d` |
 | Production touched | No |
 
 ## Shared Visual References
@@ -40,18 +41,18 @@ Operational semantics remain governed by the product constitution, field-truth m
 
 | Track | Worktree | Branch | State | Latest commit | Tests | Blocker | Review | Integration | Preview |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A Field shell | `/Users/los/Documents/PDS-jul28-field-shell` | `codex/jul28-field-shell` | Not started | — | — | — | — | — | — |
-| B Paint/Clean TurnBoard | `/Users/los/Documents/PDS-jul28-turnboard` | `codex/jul28-turnboard` | Not started | — | — | — | — | — | — |
-| C Voice/Whisper | `/Users/los/Documents/PDS-jul28-voice` | `codex/jul28-voice-whisper` | Not started | — | — | — | — | — | — |
-| D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Not started | — | — | — | — | — | — |
-| E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Not started | — | — | — | — | — | — |
-| F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Not started | — | — | — | — | — | — |
+| A Field shell | `/Users/los/Documents/PDS-jul28-field-shell` | `codex/jul28-field-shell` | Running | Base `dc2240a` | In progress | — | Pending | Pending | — |
+| B Paint/Clean TurnBoard | `/Users/los/Documents/PDS-jul28-turnboard` | `codex/jul28-turnboard` | Running — Wave 1 only | Base `dc2240a` | In progress | — | Pending | Pending | — |
+| C Voice/Whisper | `/Users/los/Documents/PDS-jul28-voice` | `codex/jul28-voice-whisper` | Queued — four-agent cap | — | — | Wave 1 first | — | — | — |
+| D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Running — foundation only | Base `dc2240a` | In progress | — | Pending | Wave 2 only | — |
+| E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Running — foundation only | Base `dc2240a` | In progress | — | Pending | Later wave only | — |
+| F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Queued — four-agent cap | — | — | Track commits required | — | — | — |
 
 ## Wave Ledger
 
 | Wave | State | Integrated commits | Verification | Preview | Physical test |
 | --- | --- | --- | --- | --- | --- |
-| 1 Field pattern | Not started | — | — | — | — |
+| 1 Field pattern | Track implementation running | — | — | — | — |
 | 2 Workflow pattern | Not started | — | — | — | — |
 | 3 Experimental intelligence | Not started | — | — | — | — |
 

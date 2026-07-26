@@ -10,10 +10,13 @@ import type {
   AssignmentIntakeSection,
   AssignmentIntakeSourceKind,
   AssignmentIntakeTrade,
+  AssignmentRelationshipIssue,
+  AssignmentRelationshipResolution,
 } from './types';
 
 export const ASSIGNMENT_INTAKE_MAX_BYTES = 2 * 1024 * 1024;
 export const ASSIGNMENT_INTAKE_MAX_ROWS = 5_000;
+export const ASSIGNMENT_INTAKE_PREVIEW_PAGE_SIZE = 25;
 
 const MAX_UNIT_LENGTH = 40;
 const MAX_CREW_LENGTH = 120;
@@ -94,11 +97,18 @@ const hashText = (value: string) => {
   return (hash >>> 0).toString(36);
 };
 
+const createLocalDraftId = (createdAt: string) => {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  if (uuid) return `assignment-intake-${uuid}`;
+  return `assignment-intake-${createdAt.replace(/[^0-9]/g, '')}-${Math.random().toString(36).slice(2)}`;
+};
+
 const containsUnsafeControlCharacter = (value: string) =>
   Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
     return code === 127 || (code >= 0 && code <= 31 && code !== 9 && code !== 10 && code !== 13);
   });
+const startsLikeSpreadsheetFormula = (value: string) => /^[=+\-@]/.test(value.trimStart());
 
 const createFlag = (
   code: AssignmentIntakeFlag['code'],
@@ -162,9 +172,15 @@ const parseDelimitedInput = async (text: string): Promise<ParsedDelimitedInput> 
   const errors: Array<{ code: string; message: string; row?: number }> = [];
   let delimiter = '';
   let previousCursor = 0;
+  let rowLimitExceeded = false;
   Papa.parse<string[]>(text, {
     skipEmptyLines: 'greedy',
-    step(result) {
+    step(result, parser) {
+      if (records.length >= ASSIGNMENT_INTAKE_MAX_ROWS + 1) {
+        rowLimitExceeded = true;
+        parser.abort();
+        return;
+      }
       delimiter = result.meta.delimiter || delimiter;
       records.push({
         cells: result.data.map((cell) => String(cell ?? '')),
@@ -174,6 +190,11 @@ const parseDelimitedInput = async (text: string): Promise<ParsedDelimitedInput> 
       errors.push(...result.errors);
     },
   });
+  if (rowLimitExceeded) {
+    return emptyDelimitedInput([
+      `Source has more than ${ASSIGNMENT_INTAKE_MAX_ROWS.toLocaleString()} rows.`,
+    ]);
+  }
   const delimiterWarnings = errors.filter((error) => error.code === 'UndetectableDelimiter');
   const parseErrors = errors.filter((error) => error.code !== 'UndetectableDelimiter');
   if (parseErrors.length > 0) {
@@ -211,8 +232,11 @@ interface RecordInputs {
   tradeInput: string;
   crewInput: string;
   notesInput: string;
+  unparsedWording?: string[];
   corrections?: AssignmentIntakeRecord['corrections'];
+  relationshipResolution?: AssignmentRelationshipResolution;
   positionalInterpretation?: boolean;
+  checkFormulaPrefixes?: boolean;
 }
 
 const buildRecord = (input: RecordInputs): AssignmentIntakeRecord => {
@@ -221,6 +245,7 @@ const buildRecord = (input: RecordInputs): AssignmentIntakeRecord => {
   const trade = canonicalTrade(input.tradeInput);
   const crewName = normalizeSpace(input.crewInput);
   const notes = input.notesInput.trim();
+  const unparsedWording = [...(input.unparsedWording ?? [])];
   const flags: AssignmentIntakeFlag[] = [];
 
   if (!unitNumber) {
@@ -286,6 +311,42 @@ const buildRecord = (input: RecordInputs): AssignmentIntakeRecord => {
       ),
     );
   }
+  const unresolvedWording = unparsedWording.filter((wording) => {
+    const exact = wording.trim();
+    return exact && !notes.includes(exact);
+  });
+  if (unresolvedWording.length > 0) {
+    flags.push(
+      createFlag(
+        'unparsed-wording',
+        'blocking',
+        `Unparsed source wording must be preserved in Notes or corrected at the source: ${unresolvedWording.join(
+          ' | ',
+        )}`,
+        'notesInput',
+      ),
+    );
+  }
+  if (input.checkFormulaPrefixes) {
+    const formulaFields: Array<[AssignmentEditableField, string, string]> = [
+      ['unitInput', input.unitInput, 'Unit'],
+      ['sectionInput', input.sectionInput, 'Section'],
+      ['tradeInput', input.tradeInput, 'Trade'],
+      ['crewInput', input.crewInput, 'Crew'],
+      ['notesInput', input.notesInput, 'Notes'],
+    ];
+    formulaFields.forEach(([field, value, label]) => {
+      if (!startsLikeSpreadsheetFormula(value)) return;
+      flags.push(
+        createFlag(
+          'formula-like-value',
+          'blocking',
+          `${label} begins with a spreadsheet formula character. Replace it with reviewed plain text before confirmation.`,
+          field,
+        ),
+      );
+    });
+  }
   if (crewName.length > MAX_CREW_LENGTH) {
     flags.push(
       createFlag(
@@ -322,9 +383,16 @@ const buildRecord = (input: RecordInputs): AssignmentIntakeRecord => {
     ...(crewName ? { crewName } : {}),
     notesInput: input.notesInput,
     ...(notes ? { notes } : {}),
+    unparsedWording,
     flags,
     corrections: input.corrections ? [...input.corrections] : [],
-    reviewState: flags.some((item) => item.severity === 'blocking') ? 'blocked' : 'ready-for-confirmation',
+    ...(input.relationshipResolution ? { relationshipResolution: input.relationshipResolution } : {}),
+    reviewState:
+      input.relationshipResolution?.status === 'excluded'
+        ? 'excluded'
+        : flags.some((item) => item.severity === 'blocking')
+          ? 'blocked'
+          : 'ready-for-confirmation',
     confirmationState: 'not-confirmed',
   };
 };
@@ -334,20 +402,86 @@ const relationFlagCodes = new Set<AssignmentIntakeFlag['code']>([
   'assignment-conflict',
 ]);
 
+const withoutRelationshipResolution = (record: AssignmentIntakeRecord) => {
+  const next = { ...record };
+  delete next.relationshipResolution;
+  return next;
+};
+
+const assignmentRelationshipKey = (record: AssignmentIntakeRecord) => {
+  if (!record.unitNumber || !record.section || !record.trade) return undefined;
+  return [
+    normalizeKey(record.unitNumber),
+    record.section.toLocaleLowerCase('en-US'),
+    record.trade.toLocaleLowerCase('en-US'),
+  ].join('|');
+};
+
+const relationshipIssueForGroup = (group: AssignmentIntakeRecord[]): AssignmentRelationshipIssue => {
+  const crewKeys = new Set(group.map((record) => normalizeKey(record.crewName ?? '')));
+  return crewKeys.size > 1 ? 'assignment-conflict' : 'duplicate-assignment';
+};
+
+const normalizeRelationshipResolutions = (records: AssignmentIntakeRecord[]) => {
+  const groups = new Map<string, AssignmentIntakeRecord[]>();
+  records.forEach((record) => {
+    const key = assignmentRelationshipKey(record);
+    if (!key) return;
+    const group = groups.get(key) ?? [];
+    group.push(record);
+    groups.set(key, group);
+  });
+
+  const invalidRecordIds = new Set<string>();
+  groups.forEach((group) => {
+    const resolved = group.filter((record) => record.relationshipResolution);
+    if (resolved.length === 0) return;
+    const groupIds = new Set(group.map((record) => record.id));
+    const supportedIds = new Set(
+      resolved.map((record) => record.relationshipResolution?.supportedRecordId),
+    );
+    const expectedIssue = relationshipIssueForGroup(group);
+    const supportedId = supportedIds.size === 1 ? [...supportedIds][0] : undefined;
+    const valid =
+      resolved.length === group.length &&
+      Boolean(supportedId && groupIds.has(supportedId)) &&
+      group.filter(
+        (record) =>
+          record.id === supportedId && record.relationshipResolution?.status === 'supported',
+      ).length === 1 &&
+      group.every((record) => {
+        const resolution = record.relationshipResolution;
+        if (!resolution || resolution.issue !== expectedIssue) return false;
+        if (record.id !== supportedId && resolution.status !== 'excluded') return false;
+        const expectedRelated = [...groupIds].filter((id) => id !== record.id).sort();
+        return (
+          resolution.relatedRecordIds.length === expectedRelated.length &&
+          [...resolution.relatedRecordIds].sort().every((id, index) => id === expectedRelated[index])
+        );
+      });
+    if (!valid) group.forEach((record) => invalidRecordIds.add(record.id));
+  });
+
+  return invalidRecordIds.size === 0
+    ? records
+    : records.map((record) =>
+        invalidRecordIds.has(record.id) ? withoutRelationshipResolution(record) : record,
+      );
+};
+
 const analyzeRecordRelationships = (records: AssignmentIntakeRecord[]) => {
-  const next = records.map((record) => ({
-    ...record,
-    flags: record.flags.filter((item) => !relationFlagCodes.has(item.code)),
-  }));
+  const next = normalizeRelationshipResolutions(
+    records.map((record) => ({
+      ...record,
+      flags: record.flags.filter((item) => !relationFlagCodes.has(item.code)),
+    })),
+  );
   const groups = new Map<string, AssignmentIntakeRecord[]>();
 
   next.forEach((record) => {
-    if (!record.unitNumber || !record.section || !record.trade) return;
-    const key = [
-      normalizeKey(record.unitNumber),
-      record.section.toLocaleLowerCase('en-US'),
-      record.trade.toLocaleLowerCase('en-US'),
-    ].join('|');
+    if (record.relationshipResolution?.status === 'excluded') return;
+    const key = assignmentRelationshipKey(record);
+    if (!key) return;
     const group = groups.get(key) ?? [];
     group.push(record);
     groups.set(key, group);
@@ -355,10 +489,8 @@ const analyzeRecordRelationships = (records: AssignmentIntakeRecord[]) => {
 
   groups.forEach((group) => {
     if (group.length < 2) return;
-    const crewKeys = new Set(group.map((record) => normalizeKey(record.crewName ?? '')));
-    const isConflict = crewKeys.size > 1;
-    const code: AssignmentIntakeFlag['code'] = isConflict ? 'assignment-conflict' : 'duplicate-assignment';
-    const message = isConflict
+    const code = relationshipIssueForGroup(group);
+    const message = code === 'assignment-conflict'
       ? 'Multiple crews claim the same Unit, Section, and Trade. Resolve the conflict before confirmation.'
       : 'This Unit, Section, and Trade appears more than once. Resolve the duplicate before confirmation.';
     const relatedRecordIds = group.map((record) => record.id);
@@ -378,9 +510,12 @@ const analyzeRecordRelationships = (records: AssignmentIntakeRecord[]) => {
 
   return next.map((record) => ({
     ...record,
-    reviewState: record.flags.some((item) => item.severity === 'blocking')
-      ? ('blocked' as const)
-      : ('ready-for-confirmation' as const),
+    reviewState:
+      record.relationshipResolution?.status === 'excluded'
+        ? ('excluded' as const)
+        : record.flags.some((item) => item.severity === 'blocking')
+          ? ('blocked' as const)
+          : ('ready-for-confirmation' as const),
   }));
 };
 
@@ -405,8 +540,16 @@ const buildDelimitedRecords = (
       tradeInput: readMappedCell(cells, mapping, 'trade'),
       crewInput: readMappedCell(cells, mapping, 'crew'),
       notesInput: readMappedCell(cells, mapping, 'notes'),
+      checkFormulaPrefixes: true,
     }),
   );
+
+const LABELED_FIELD_SOURCE =
+  'unit(?:\\s+(?:number|no))?|apartment|apt|section|room|bedroom|area|trade|service|scope|crew|team|vendor|notes?|comments?';
+const LABELED_SEPARATOR = new RegExp(
+  `\\t|\\||;|,(?=\\s*(?:${LABELED_FIELD_SOURCE})\\s*[:#=-])`,
+  'i',
+);
 
 const parseLabeledSegment = (segment: string) => {
   const match = segment.match(
@@ -418,7 +561,7 @@ const parseLabeledSegment = (segment: string) => {
 };
 
 const parseLabeledLine = (draftId: string, originalWording: string, sourceRow: number) => {
-  const separated = originalWording.split(/\t|\||;|,/);
+  const labeledSegments = originalWording.split(LABELED_SEPARATOR);
   const fields: Record<AssignmentColumnField, string> = {
     unit: '',
     section: '',
@@ -426,16 +569,35 @@ const parseLabeledLine = (draftId: string, originalWording: string, sourceRow: n
     crew: '',
     notes: '',
   };
+  const unparsedWording: string[] = [];
+  const seenFields = new Set<AssignmentColumnField>();
   let labeledCount = 0;
 
-  separated.forEach((segment) => {
+  labeledSegments.forEach((segment) => {
     const labeled = parseLabeledSegment(segment.trim());
-    if (!labeled) return;
-    fields[labeled.field] = labeled.value;
+    if (!labeled) {
+      if (segment.trim()) unparsedWording.push(segment.trim());
+      return;
+    }
+    if (seenFields.has(labeled.field)) {
+      unparsedWording.push(segment.trim());
+      return;
+    }
+    seenFields.add(labeled.field);
+    let value = labeled.value;
+    if (labeled.field !== 'notes') {
+      const commaIndex = value.indexOf(',');
+      if (commaIndex >= 0) {
+        const unparsed = value.slice(commaIndex + 1).trim();
+        value = value.slice(0, commaIndex);
+        if (unparsed) unparsedWording.push(unparsed);
+      }
+    }
+    fields[labeled.field] = value;
     labeledCount += 1;
   });
 
-  if (labeledCount === 0 && separated.length === 1) {
+  if (labeledCount === 0 && labeledSegments.length === 1) {
     const unit = originalWording.match(/\b(?:unit|apartment|apt)\s*[:#=-]?\s*([a-z0-9._-]+)/i);
     const section = originalWording.match(/\b(?:section|room|bedroom|area)\s*[:#=-]?\s*(common|[a-z])\b/i);
     const trade = originalWording.match(/\b(?:trade|service|scope)\s*[:#=-]?\s*([a-z]+)\b/i);
@@ -444,15 +606,19 @@ const parseLabeledLine = (draftId: string, originalWording: string, sourceRow: n
     fields.section = section?.[1] ?? '';
     fields.trade = trade?.[1] ?? '';
     fields.crew = crew?.[1] ?? '';
+    unparsedWording.length = 0;
+    if (unit || section || trade || crew) unparsedWording.push(originalWording.trim());
   }
 
-  const positionalInterpretation = labeledCount === 0 && separated.length >= 3;
+  const positionalSegments = labeledCount === 0 ? originalWording.split(/\t|\||;|,/) : [];
+  const positionalInterpretation = labeledCount === 0 && positionalSegments.length >= 3;
   if (positionalInterpretation) {
-    fields.unit = separated[0] ?? '';
-    fields.section = separated[1] ?? '';
-    fields.trade = separated[2] ?? '';
-    fields.crew = separated[3] ?? '';
-    fields.notes = separated.slice(4).join(',').trim();
+    fields.unit = positionalSegments[0] ?? '';
+    fields.section = positionalSegments[1] ?? '';
+    fields.trade = positionalSegments[2] ?? '';
+    fields.crew = positionalSegments[3] ?? '';
+    fields.notes = positionalSegments.slice(4).join(',').trim();
+    unparsedWording.length = 0;
   }
 
   return buildRecord({
@@ -464,16 +630,39 @@ const parseLabeledLine = (draftId: string, originalWording: string, sourceRow: n
     tradeInput: fields.trade,
     crewInput: fields.crew,
     notesInput: fields.notes,
+    unparsedWording,
     positionalInterpretation,
   });
 };
 
-const buildPasteRecords = (draftId: string, text: string) =>
-  text
-    .split(/\r?\n/)
-    .map((originalWording, index) => ({ originalWording, sourceRow: index + 1 }))
-    .filter(({ originalWording }) => originalWording.trim())
-    .map(({ originalWording, sourceRow }) => parseLabeledLine(draftId, originalWording, sourceRow));
+interface BoundedPasteRecords {
+  records: AssignmentIntakeRecord[];
+  rowLimitExceeded: boolean;
+}
+
+const buildPasteRecords = (draftId: string, text: string): BoundedPasteRecords => {
+  const records: AssignmentIntakeRecord[] = [];
+  let lineStart = 0;
+  let sourceRow = 1;
+
+  const addLine = (lineEnd: number) => {
+    const originalWording = text.slice(lineStart, lineEnd).replace(/\r$/, '');
+    if (originalWording.trim()) {
+      if (records.length >= ASSIGNMENT_INTAKE_MAX_ROWS) return false;
+      records.push(parseLabeledLine(draftId, originalWording, sourceRow));
+    }
+    return true;
+  };
+
+  for (let index = 0; index <= text.length; index += 1) {
+    if (index < text.length && text[index] !== '\n') continue;
+    if (!addLine(index)) return { records: [], rowLimitExceeded: true };
+    lineStart = index + 1;
+    sourceRow += 1;
+  }
+
+  return { records, rowLimitExceeded: false };
+};
 
 const validateMapping = (headers: string[], mapping: AssignmentColumnMapping) => {
   const fatalErrors: string[] = [];
@@ -522,7 +711,7 @@ export async function createAssignmentIntakeDraft(
   input: CreateAssignmentIntakeDraftInput,
 ): Promise<AssignmentIntakeDraft> {
   const createdAt = input.createdAt ?? new Date().toISOString();
-  const draftId = input.draftId ?? `assignment-intake-${hashText(`${input.sourceKind}:${input.text}:${createdAt}`)}`;
+  const draftId = input.draftId ?? createLocalDraftId(createdAt);
   const sourceLabel = input.sourceLabel?.trim() || 'Pasted assignment source';
   const source = {
     id: `${draftId}:source`,
@@ -570,16 +759,15 @@ export async function createAssignmentIntakeDraft(
 
   const useDelimitedParser = input.sourceKind !== 'paste-text' || isLikelyHeaderPaste(input.text);
   if (!useDelimitedParser) {
-    const records = buildPasteRecords(draftId, input.text);
-    const exceedsRowLimit = records.length > ASSIGNMENT_INTAKE_MAX_ROWS;
+    const parsedPaste = buildPasteRecords(draftId, input.text);
     return {
       ...base,
       headers: [],
       mapping: {},
       ignoredHeaders: [],
-      records: exceedsRowLimit ? [] : analyzeRecordRelationships(records),
+      records: parsedPaste.rowLimitExceeded ? [] : analyzeRecordRelationships(parsedPaste.records),
       warnings: [],
-      fatalErrors: exceedsRowLimit
+      fatalErrors: parsedPaste.rowLimitExceeded
         ? [`Source has more than ${ASSIGNMENT_INTAKE_MAX_ROWS.toLocaleString()} rows.`]
         : [],
     };
@@ -597,11 +785,6 @@ export async function createAssignmentIntakeDraft(
   const mappingErrors = validateMapping(parsed.headers, mapping);
   const ignoredHeaders = parsed.headers.filter((_, index) => !Object.values(mapping).includes(index));
   const fatalErrors = [...parsed.fatalErrors, ...mappingErrors];
-  if (parsed.rows.length > ASSIGNMENT_INTAKE_MAX_ROWS) {
-    fatalErrors.push(
-      `Source has ${parsed.rows.length.toLocaleString()} rows. The maximum is ${ASSIGNMENT_INTAKE_MAX_ROWS.toLocaleString()}.`,
-    );
-  }
   const records =
     fatalErrors.length === 0
       ? analyzeRecordRelationships(buildDelimitedRecords(draftId, parsed.rows, mapping))
@@ -617,7 +800,11 @@ export async function createAssignmentIntakeDraft(
     warnings: [
       ...parsed.warnings,
       ...(ignoredHeaders.length > 0
-        ? [`Unmapped columns stay out of the draft: ${ignoredHeaders.join(', ')}. The full source remains preserved.`]
+        ? [
+            `Unmapped columns stay out of normalized records: ${ignoredHeaders.join(
+              ', ',
+            )}. Raw source remains only in the local review draft and never crosses confirmation.`,
+          ]
         : []),
     ],
     fatalErrors,
@@ -632,13 +819,29 @@ export interface AssignmentRecordPatch {
   notesInput?: string;
 }
 
+const relationshipRecordIds = (record: AssignmentIntakeRecord) => {
+  const ids = new Set<string>([record.id]);
+  record.relationshipResolution?.relatedRecordIds.forEach((id) => ids.add(id));
+  if (record.relationshipResolution?.supportedRecordId) {
+    ids.add(record.relationshipResolution.supportedRecordId);
+  }
+  record.flags.forEach((flag) => flag.relatedRecordIds?.forEach((id) => ids.add(id)));
+  return ids;
+};
+
 export const updateAssignmentDraftRecord = (
   draft: AssignmentIntakeDraft,
   recordId: string,
   patch: AssignmentRecordPatch,
 ): AssignmentIntakeDraft => {
+  const target = draft.records.find((record) => record.id === recordId);
+  if (!target) return draft;
+  const relationshipIds = relationshipRecordIds(target);
   const records = draft.records.map((record) => {
-    if (record.id !== recordId) return record;
+    if (record.id !== recordId) {
+      if (!relationshipIds.has(record.id) || !record.relationshipResolution) return record;
+      return withoutRelationshipResolution(record);
+    }
     const corrections = [...record.corrections];
     (Object.keys(patch) as AssignmentEditableField[]).forEach((field) => {
       const nextValue = patch[field];
@@ -665,11 +868,91 @@ export const updateAssignmentDraftRecord = (
       tradeInput: patch.tradeInput ?? record.tradeInput,
       crewInput: patch.crewInput ?? record.crewInput,
       notesInput: patch.notesInput ?? record.notesInput,
+      unparsedWording: record.unparsedWording,
       corrections,
       positionalInterpretation: record.flags.some((item) => item.code === 'positional-interpretation'),
+      checkFormulaPrefixes: Boolean(record.sourceCells),
     });
   });
   return { ...draft, status: 'draft', records: analyzeRecordRelationships(records) };
+};
+
+export const resolveAssignmentRelationship = (
+  draft: AssignmentIntakeDraft,
+  supportedRecordId: string,
+): AssignmentIntakeDraft => {
+  const supportedRecord = draft.records.find((record) => record.id === supportedRecordId);
+  if (!supportedRecord) return draft;
+  const relationshipFlag = supportedRecord.flags.find(
+    (flag): flag is AssignmentIntakeFlag & { code: AssignmentRelationshipIssue } =>
+      flag.code === 'duplicate-assignment' || flag.code === 'assignment-conflict',
+  );
+  if (!relationshipFlag?.relatedRecordIds?.length) return draft;
+
+  const groupIds = new Set([supportedRecordId, ...relationshipFlag.relatedRecordIds]);
+  const records = draft.records.map((record) => {
+    if (!groupIds.has(record.id)) return record;
+    const resolution: AssignmentRelationshipResolution = {
+      status: record.id === supportedRecordId ? 'supported' : 'excluded',
+      supportedRecordId,
+      relatedRecordIds: [...groupIds].filter((id) => id !== record.id),
+      issue: relationshipFlag.code,
+    };
+    return { ...record, relationshipResolution: resolution };
+  });
+  return { ...draft, status: 'draft', records: analyzeRecordRelationships(records) };
+};
+
+export const clearAssignmentRelationshipResolution = (
+  draft: AssignmentIntakeDraft,
+  recordId: string,
+): AssignmentIntakeDraft => {
+  const record = draft.records.find((item) => item.id === recordId);
+  if (!record?.relationshipResolution) return draft;
+  const groupIds = relationshipRecordIds(record);
+  const records = draft.records.map((item) => {
+    if (!groupIds.has(item.id) || !item.relationshipResolution) return item;
+    return withoutRelationshipResolution(item);
+  });
+  return { ...draft, status: 'draft', records: analyzeRecordRelationships(records) };
+};
+
+export const updateAssignmentDraftSourceLabel = (
+  draft: AssignmentIntakeDraft,
+  sourceLabel: string,
+): AssignmentIntakeDraft => ({
+  ...draft,
+  status: 'draft',
+  source: {
+    ...draft.source,
+    label: sourceLabel.trim() || 'Pasted assignment source',
+  },
+});
+
+export const sliceAssignmentIntakePreview = (
+  records: AssignmentIntakeRecord[],
+  page: number,
+  pageSize = ASSIGNMENT_INTAKE_PREVIEW_PAGE_SIZE,
+) => {
+  const boundedPageSize = Math.max(1, Math.min(ASSIGNMENT_INTAKE_PREVIEW_PAGE_SIZE, Math.floor(pageSize)));
+  const boundedPage = Number.isSafeInteger(page) && page > 0 ? page : 0;
+  const start = boundedPage * boundedPageSize;
+  return records.slice(start, start + boundedPageSize);
+};
+
+export const getAssignmentFieldAccessibility = (
+  record: AssignmentIntakeRecord,
+  field: AssignmentEditableField,
+) => {
+  const messages = record.flags
+    .filter((flag) => flag.field === field && flag.severity === 'blocking')
+    .map((flag) => flag.message);
+  const safeRecordId = record.id.replace(/[^a-zA-Z0-9_-]/g, '-');
+  return {
+    invalid: messages.length > 0,
+    errorId: `${safeRecordId}-${field}-errors`,
+    messages,
+  };
 };
 
 export interface ConfirmAssignmentIntakeRequest {
@@ -715,7 +998,13 @@ export const confirmAssignmentIntakeDraft = (
       kind: 'assignment-intake-confirmation',
       id: `${draft.id}:confirmation-${hashText(`${confirmedAt}:${uniqueIds.join('|')}`)}`,
       draftId: draft.id,
-      source: draft.source,
+      source: {
+        id: draft.source.id,
+        kind: draft.source.kind,
+        label: draft.source.label,
+        ...(draft.source.attachment ? { attachment: { ...draft.source.attachment } } : {}),
+        paperRemainsAuthoritative: true,
+      },
       confirmedAt,
       confirmedBy: 'Los',
       scope: 'personal-candidate-only',
@@ -724,12 +1013,23 @@ export const confirmAssignmentIntakeDraft = (
       records: selected.map((record) => ({
         sourceRecordId: record.id,
         sourceRow: record.sourceRow,
-        originalWording: record.originalWording,
         unitNumber: record.unitNumber as string,
         section: record.section as AssignmentIntakeSection,
         trade: record.trade as AssignmentIntakeTrade,
         ...(record.crewName ? { crewName: record.crewName } : {}),
         ...(record.notes ? { notes: record.notes } : {}),
+        corrections: record.corrections.map((correction) => ({
+          field: correction.field,
+          correctedValue: correction.nextValue,
+        })),
+        ...(record.relationshipResolution
+          ? {
+              relationshipResolution: {
+                ...record.relationshipResolution,
+                relatedRecordIds: [...record.relationshipResolution.relatedRecordIds],
+              },
+            }
+          : {}),
       })),
     },
   };

@@ -78,6 +78,13 @@
   color: #0a0d12;
 }
 
+.jul28-assignment-intake input:disabled,
+.jul28-assignment-intake select:disabled,
+.jul28-assignment-intake textarea:disabled {
+  background: #f2f4f7;
+  color: #667085;
+}
+
 .jul28-assignment-intake textarea {
   resize: vertical;
 }
@@ -198,6 +205,24 @@
   gap: 12px;
 }
 
+.jul28-assignment-intake__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--intake-border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.jul28-assignment-intake__pagination span {
+  color: var(--intake-muted);
+  font-size: 0.84rem;
+  font-weight: 750;
+  text-align: center;
+}
+
 .jul28-assignment-intake__record {
   display: grid;
   gap: 12px;
@@ -205,6 +230,10 @@
   border: 1px solid var(--intake-border);
   border-radius: 14px;
   background: #fbfcfe;
+}
+
+.jul28-assignment-intake__record[data-state='excluded'] {
+  background: #f4f5f7;
 }
 
 .jul28-assignment-intake__record > header {
@@ -242,6 +271,11 @@
   color: #a82b22;
 }
 
+.jul28-assignment-intake__record > header span[data-state='excluded'] {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
 .jul28-assignment-intake__record blockquote {
   margin: 0;
   padding: 10px 12px;
@@ -262,6 +296,29 @@
 
 .jul28-assignment-intake__record small {
   color: var(--intake-muted);
+}
+
+.jul28-assignment-intake__field-error {
+  color: var(--intake-danger);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.jul28-assignment-intake__resolution {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eef2f7;
+  color: #3f4a5a;
+  font-size: 0.82rem;
+}
+
+.jul28-assignment-intake__record > button.secondary {
+  justify-self: start;
 }
 
 .jul28-assignment-intake__alert,
@@ -321,14 +378,27 @@
   }
 
   .jul28-assignment-intake__review-heading,
-  .jul28-assignment-intake__record > header {
+  .jul28-assignment-intake__record > header,
+  .jul28-assignment-intake__resolution {
     align-items: stretch;
     flex-direction: column;
   }
 
   .jul28-assignment-intake__actions button,
-  .jul28-assignment-intake__confirm button {
+  .jul28-assignment-intake__confirm button,
+  .jul28-assignment-intake__pagination button,
+  .jul28-assignment-intake__record > button.secondary {
     width: 100%;
+  }
+
+  .jul28-assignment-intake__pagination {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .jul28-assignment-intake__pagination span {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 }
 

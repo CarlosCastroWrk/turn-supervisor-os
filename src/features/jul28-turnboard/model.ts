@@ -58,6 +58,7 @@ export interface Jul28AssignmentEpisode {
 }
 
 export type Jul28HistoryKind =
+  | 'authorization'
   | 'assignment'
   | 'access'
   | 'crew-report'
@@ -73,6 +74,25 @@ export interface Jul28HistoryEvent {
   wording: string;
   sourceLabel: string;
 }
+
+export type Jul28FactKey =
+  | 'applicability'
+  | 'authorization'
+  | 'assignment-evidence'
+  | 'access'
+  | 'crew-report'
+  | 'los-inspection'
+  | 'property-walk'
+  | 'paper-review';
+
+export interface Jul28FactProvenance {
+  sourceKind: 'synthetic-fixture' | 'synthetic-assignment' | 'synthetic-observation';
+  sourceLabel: string;
+  recordedAt: string;
+  wording: string;
+}
+
+export type Jul28FactProvenanceMap = Record<Jul28FactKey, Jul28FactProvenance>;
 
 export interface Jul28SectionTradeRecord {
   id: string;
@@ -90,12 +110,14 @@ export interface Jul28SectionTradeRecord {
   fullPaint: boolean;
   restrictionLabel?: string;
   updatedAt: string;
+  provenance: Jul28FactProvenanceMap;
   history: Jul28HistoryEvent[];
 }
 
 export interface Jul28UnitRecord {
   id: string;
   unitNumber: string;
+  unitTypeLabel: string;
   buildingLabel: string;
   floorLabel: string;
   sectionOrder: Jul28Section[];
@@ -118,6 +140,7 @@ export interface Jul28LayerProjection {
 }
 
 export interface Jul28UnitLayerProjection {
+  authorization: Jul28LayerProjection;
   assignmentEvidence: Jul28LayerProjection;
   crewReported: Jul28LayerProjection;
   losInspection: Jul28LayerProjection;
@@ -125,33 +148,98 @@ export interface Jul28UnitLayerProjection {
   paperReview: Jul28LayerProjection;
 }
 
+export interface Jul28SourceCoverageProjection {
+  complete: boolean;
+  expectedRecordCount: number;
+  actualRecordCount: number;
+  missingKeys: string[];
+  duplicateKeys: string[];
+  label: 'Source coverage complete' | 'Source coverage incomplete';
+}
+
 export type Jul28AttentionKind =
+  | 'source-coverage-incomplete'
   | 'assignment-conflict'
   | 'duplicate-assignment'
   | 'inspection-blocked'
+  | 'access-blocked'
   | 'callback-required'
   | 'ready-for-my-walk'
   | 'added-scope'
+  | 'property-walk'
   | 'in-progress'
   | 'awaiting-crew'
   | 'paper-review';
 
+export interface Jul28TradeSummaryProjection {
+  trade: Jul28Trade;
+  sourceCoverageComplete: boolean;
+  applicableSectionCount: number | null;
+  readyForMyWalkSections: Jul28Section[];
+  readyForMyWalkCount: number | null;
+  losPassedSectionCount: number | null;
+  pendingInspectionCount: number | null;
+  attentionKind: Jul28AttentionKind;
+  attentionLabel: string;
+  readinessLabel: string;
+}
+
 export interface Jul28UnitCardProjection {
   unitId: string;
   unitNumber: string;
+  unitTypeLabel: string;
   locationLabel: string;
   trade: Jul28Trade;
+  sourceCoverage: Jul28SourceCoverageProjection;
+  tradeSummaries: Record<Jul28Trade, Jul28TradeSummaryProjection>;
   applicableSections: Jul28Section[];
   notApplicableSections: Jul28Section[];
   restrictedSections: Jul28Section[];
+  accessBlockedSections: Jul28Section[];
+  maintenanceBlockedSections: Jul28Section[];
   fullPaintSections: Jul28Section[];
   crewNames: string[];
   duplicateAssignmentSections: Jul28Section[];
   addedScopeSections: Jul28Section[];
+  readyForMyWalkSections: Jul28Section[];
+  readyForMyWalkCount: number | null;
   attentionKind: Jul28AttentionKind;
   attentionLabel: string;
   layers: Jul28UnitLayerProjection;
   updatedAt: string;
 }
 
-export type Jul28TurnBoardFilter = 'all' | 'needs-me' | 'crew-reported' | 'my-walk';
+export type Jul28AttentionFilter =
+  | 'all'
+  | 'needs-inspection'
+  | 'callback'
+  | 'property-walk'
+  | 'access-blocked'
+  | 'assignment-conflict';
+
+export interface Jul28TurnBoardFilters {
+  attention: Jul28AttentionFilter;
+  buildingFloor: string;
+  crew: string;
+}
+
+export type Jul28BlockerKind =
+  | 'source-coverage'
+  | 'authorization'
+  | 'assignment'
+  | 'occupied-or-restricted'
+  | 'access-blocked'
+  | 'maintenance-blocked'
+  | 'crew-report'
+  | 'callback'
+  | 'reinspection'
+  | 'paper-review';
+
+export interface Jul28BlockerProjection {
+  kind: Jul28BlockerKind;
+  label: string;
+  owner: string;
+  nextAction: string;
+  resolution: string;
+  tone: 'attention' | 'pending';
+}

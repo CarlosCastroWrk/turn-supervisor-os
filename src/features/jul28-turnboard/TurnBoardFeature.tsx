@@ -5,27 +5,42 @@ import {
   ChevronRight,
   Clock3,
   FileText,
-  Filter,
+  PaintRoller,
   Search,
   ShieldCheck,
+  Sparkles,
   Users,
+  Wrench,
 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import type {
+  Jul28AttentionFilter,
   Jul28LayerProjection,
   Jul28Section,
   Jul28Trade,
-  Jul28TurnBoardFilter,
+  Jul28TradeSummaryProjection,
+  Jul28TurnBoardFilters,
   Jul28TurnBoardRepository,
   Jul28UnitCardProjection,
   Jul28UnitRecord,
 } from './model';
 import {
+  projectJul28Blocker,
+  projectJul28FilterOptions,
   projectJul28SectionFacts,
   projectJul28TradeProgress,
   projectJul28TurnBoard,
   projectJul28UnitHistory,
   recordsForTrade,
+  validateJul28SourceCoverage,
 } from './projections';
 import { jul28SyntheticTurnBoardRepository } from './syntheticRepository';
 import './turnBoardFeature.css';
@@ -35,22 +50,26 @@ interface TurnBoardFeatureProps {
   initialTrade?: Jul28Trade;
   initialUnitId?: string;
   onUnitSelected?: (unitId: string) => void;
+  onUnitClose?: (unitId: string) => void;
 }
 
 const tradeLabels: Record<Jul28Trade, string> = { paint: 'Paint', clean: 'Clean' };
-const filterLabels: Record<Jul28TurnBoardFilter, string> = {
+const attentionFilterLabels: Record<Jul28AttentionFilter, string> = {
   all: 'All',
-  'needs-me': 'Needs me',
-  'crew-reported': 'Crew reported',
-  'my-walk': 'My walk',
+  'needs-inspection': 'Needs inspection',
+  callback: 'Callback',
+  'property-walk': 'Property walk',
+  'access-blocked': 'Access blocked',
+  'assignment-conflict': 'Assignment conflict',
 };
 
-const layerLabels: Array<[keyof Jul28UnitCardProjection['layers'], string, string]> = [
-  ['assignmentEvidence', 'Assignment evidence', 'AE'],
-  ['crewReported', 'Crew reported', 'CR'],
-  ['losInspection', 'My inspection', 'MI'],
-  ['propertyWalk', 'Property walk', 'PW'],
-  ['paperReview', 'Paper review', 'PR'],
+const layerLabels: Array<[keyof Jul28UnitCardProjection['layers'], string]> = [
+  ['authorization', 'Authorization'],
+  ['assignmentEvidence', 'Assignment evidence'],
+  ['crewReported', 'Crew report'],
+  ['losInspection', 'My inspection'],
+  ['propertyWalk', 'Property walk'],
+  ['paperReview', 'Paper review'],
 ];
 
 const sectionLabel = (section: Jul28Section) => section === 'common' ? 'Common' : section;
@@ -64,6 +83,11 @@ const formatDateTime = (value?: string) => {
     minute: '2-digit',
   });
 };
+
+const tradeIcon = (trade: Jul28Trade) =>
+  trade === 'paint'
+    ? <PaintRoller size={17} aria-hidden="true" />
+    : <Sparkles size={17} aria-hidden="true" />;
 
 const layerIcon = (layer: Jul28LayerProjection): ReactNode => {
   if (layer.tone === 'recorded') return <CheckCircle2 size={16} aria-hidden="true" />;
@@ -83,7 +107,7 @@ function TradeToggle({ trade, onChange }: { trade: Jul28Trade; onChange: (trade:
           onClick={() => onChange(option)}
           type="button"
         >
-          <span aria-hidden="true">{option === 'paint' ? '▰' : '✦'}</span>
+          {tradeIcon(option)}
           {tradeLabels[option]}
         </button>
       ))}
@@ -94,11 +118,11 @@ function TradeToggle({ trade, onChange }: { trade: Jul28Trade; onChange: (trade:
 function LayerRail({ projection }: { projection: Jul28UnitCardProjection }) {
   return (
     <dl className="jul28-layer-rail" aria-label={`${tradeLabels[projection.trade]} factual layers for Unit ${projection.unitNumber}`}>
-      {layerLabels.map(([key, label, shortLabel]) => {
+      {layerLabels.map(([key, label]) => {
         const layer = projection.layers[key];
         return (
-          <div className={`jul28-layer-rail__item is-${layer.tone}`} key={key} title={`${label}: ${layer.label}`}>
-            <dt><span className="jul28-layer-rail__long">{label}</span><span className="jul28-layer-rail__short" aria-hidden="true">{shortLabel}</span></dt>
+          <div className={`jul28-layer-rail__item is-${layer.tone}`} key={key}>
+            <dt>{label}</dt>
             <dd>{layerIcon(layer)}<span>{layer.label}</span></dd>
           </div>
         );
@@ -107,42 +131,108 @@ function LayerRail({ projection }: { projection: Jul28UnitCardProjection }) {
   );
 }
 
-function UnitCard({ projection, onOpen }: { projection: Jul28UnitCardProjection; onOpen: () => void }) {
-  const sectionSummary = projection.applicableSections.map(sectionLabel).join(' / ') || 'No applicable scope';
+function TradeSummary({
+  summary,
+  selected,
+  asButton = false,
+  onSelect,
+}: {
+  summary: Jul28TradeSummaryProjection;
+  selected: boolean;
+  asButton?: boolean;
+  onSelect?: () => void;
+}) {
+  const body = (
+    <>
+      <span className="jul28-trade-summary__heading">{tradeIcon(summary.trade)} {tradeLabels[summary.trade]}</span>
+      <strong>
+        {summary.sourceCoverageComplete
+          ? `${summary.readyForMyWalkCount} of ${summary.applicableSectionCount} ready for my walk`
+          : 'Source coverage incomplete'}
+      </strong>
+      <small>{summary.attentionLabel}</small>
+    </>
+  );
+
+  return asButton ? (
+    <button
+      aria-pressed={selected}
+      className={`jul28-trade-summary is-${summary.trade} ${selected ? 'is-selected' : ''}`}
+      onClick={onSelect}
+      type="button"
+    >
+      {body}
+    </button>
+  ) : (
+    <div className={`jul28-trade-summary is-${summary.trade} ${selected ? 'is-selected' : ''}`}>
+      {body}
+    </div>
+  );
+}
+
+function UnitCard({
+  projection,
+  onOpen,
+}: {
+  projection: Jul28UnitCardProjection;
+  onOpen: (trigger: HTMLButtonElement) => void;
+}) {
   const crewSummary = projection.crewNames.length > 0 ? projection.crewNames.join(', ') : 'No crew evidence';
 
   return (
     <article className={`jul28-unit-card is-${projection.attentionKind}`}>
-      <button type="button" className="jul28-unit-card__open" onClick={onOpen} aria-label={`Open Unit ${projection.unitNumber} ${tradeLabels[projection.trade]} workspace`}>
+      <button
+        type="button"
+        className="jul28-unit-card__open"
+        onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
+        aria-label={`Open Unit ${projection.unitNumber} workspace`}
+      >
         <div className="jul28-unit-card__heading">
           <div>
             <span className="jul28-unit-card__number">{projection.unitNumber}</span>
-            <span className="jul28-unit-card__location">{projection.locationLabel}</span>
+            <span className="jul28-unit-card__location">{projection.locationLabel} · {projection.unitTypeLabel}</span>
           </div>
           <span className={`jul28-attention-label is-${projection.attentionKind}`}>{projection.attentionLabel}</span>
           <ChevronRight className="jul28-unit-card__chevron" size={22} aria-hidden="true" />
         </div>
 
-        <div className="jul28-unit-card__scope">
-          <span><strong>{tradeLabels[projection.trade]}</strong> · {sectionSummary}</span>
-          <span><Users size={15} aria-hidden="true" /> {crewSummary}</span>
+        <div className="jul28-unit-card__trade-grid" aria-label={`Paint and Clean summary for Unit ${projection.unitNumber}`}>
+          <TradeSummary summary={projection.tradeSummaries.paint} selected={projection.trade === 'paint'} />
+          <TradeSummary summary={projection.tradeSummaries.clean} selected={projection.trade === 'clean'} />
+        </div>
+
+        <div className="jul28-unit-card__crew">
+          <Users size={15} aria-hidden="true" />
+          <span><strong>{tradeLabels[projection.trade]} crew evidence:</strong> {crewSummary}</span>
         </div>
 
         {projection.restrictedSections.length > 0 ? (
           <p className="jul28-unit-card__warning">
             <AlertTriangle size={16} aria-hidden="true" />
-            Restricted: {projection.restrictedSections.map(sectionLabel).join(', ')} — do not enter without clarification
+            Occupied / restricted: {projection.restrictedSections.map(sectionLabel).join(', ')} — do not enter until clarified
+          </p>
+        ) : null}
+        {projection.accessBlockedSections.length > 0 ? (
+          <p className="jul28-unit-card__warning">
+            <AlertTriangle size={16} aria-hidden="true" />
+            Access blocked: {projection.accessBlockedSections.map(sectionLabel).join(', ')}
+          </p>
+        ) : null}
+        {projection.maintenanceBlockedSections.length > 0 ? (
+          <p className="jul28-unit-card__maintenance">
+            <Wrench size={16} aria-hidden="true" />
+            Maintenance blocked: {projection.maintenanceBlockedSections.map(sectionLabel).join(', ')}
           </p>
         ) : null}
         {projection.addedScopeSections.length > 0 ? (
           <p className="jul28-unit-card__added-scope">
-            Added scope: {projection.addedScopeSections.map(sectionLabel).join(', ')} · recorded as a new episode, not an original miss
+            Added scope: {projection.addedScopeSections.map(sectionLabel).join(', ')} · new episode, not an original miss
           </p>
         ) : null}
         {projection.duplicateAssignmentSections.length > 0 ? (
           <p className="jul28-unit-card__warning">
             <AlertTriangle size={16} aria-hidden="true" />
-            Conflicting active crew claims: {projection.duplicateAssignmentSections.map(sectionLabel).join(', ')}
+            Conflicting active assignment evidence: {projection.duplicateAssignmentSections.map(sectionLabel).join(', ')}
           </p>
         ) : null}
 
@@ -166,6 +256,7 @@ function UnitWorkspace({
   unit,
   trade,
   selectedSection,
+  headingRef,
   onTradeChange,
   onSectionChange,
   onClose,
@@ -173,6 +264,7 @@ function UnitWorkspace({
   unit: Jul28UnitRecord;
   trade: Jul28Trade;
   selectedSection: Jul28Section;
+  headingRef: RefObject<HTMLHeadingElement | null>;
   onTradeChange: (trade: Jul28Trade) => void;
   onSectionChange: (section: Jul28Section) => void;
   onClose: () => void;
@@ -181,17 +273,21 @@ function UnitWorkspace({
   const selectedRecord = records.find((record) => record.section === selectedSection) ?? records[0];
   const facts = selectedRecord ? projectJul28SectionFacts(selectedRecord) : [];
   const history = selectedRecord ? projectJul28UnitHistory(unit, trade, selectedRecord.section) : [];
+  const coverage = validateJul28SourceCoverage(unit);
   const progress = projectJul28TradeProgress(unit, trade);
+  const paintProgress = projectJul28TradeProgress(unit, 'paint');
+  const cleanProgress = projectJul28TradeProgress(unit, 'clean');
+  const blocker = selectedRecord ? projectJul28Blocker(selectedRecord, coverage) : null;
 
   return (
     <section className="jul28-unit-workspace" aria-labelledby="jul28-unit-workspace-title">
       <header className="jul28-unit-workspace__header">
-        <button type="button" className="jul28-icon-button jul28-unit-workspace__back" onClick={onClose} aria-label="Return to TurnBoard list">
+        <button type="button" className="jul28-icon-button jul28-unit-workspace__back" onClick={onClose} aria-label="Close Unit workspace and return to TurnBoard list">
           <ArrowLeft size={22} aria-hidden="true" />
         </button>
         <div>
-          <h2 id="jul28-unit-workspace-title">Unit {unit.unitNumber}</h2>
-          <p>{unit.buildingLabel} · {unit.floorLabel}</p>
+          <h2 id="jul28-unit-workspace-title" ref={headingRef} tabIndex={-1}>Unit {unit.unitNumber}</h2>
+          <p>{unit.buildingLabel} · {unit.floorLabel} · {unit.unitTypeLabel}</p>
         </div>
         <span className="jul28-read-only-label">Wave 1 · read only</span>
       </header>
@@ -201,34 +297,123 @@ function UnitWorkspace({
         <div><strong>Paper TurnBoard remains authoritative.</strong><span>This personal view does not approve work, reconcile payroll, or change paper.</span></div>
       </div>
 
-      <TradeToggle trade={trade} onChange={onTradeChange} />
+      {!coverage.complete ? (
+        <div className="jul28-source-warning" role="alert">
+          <AlertTriangle size={19} aria-hidden="true" />
+          <div>
+            <strong>Source coverage incomplete</strong>
+            <span>Readiness and completion counts are withheld until every expected Paint/Clean section has exactly one source record.</span>
+          </div>
+        </div>
+      ) : null}
 
-      <div className="jul28-progress-summary" aria-label={`${tradeLabels[trade]} inspection progress`}>
-        <span><strong>{progress.losPassedSectionCount}</strong> my inspections recorded</span>
-        <span><strong>{progress.pendingSectionCount}</strong> sections still pending</span>
-        <p>{progress.label}</p>
-      </div>
+      <section className="jul28-workspace-trades" aria-labelledby="jul28-workspace-trades-title">
+        <div className="jul28-workspace-section-heading">
+          <h3 id="jul28-workspace-trades-title">Paint and Clean</h3>
+          <p>Choose a trade for section details. Both remain independent.</p>
+        </div>
+        <div className="jul28-workspace-trades__grid">
+          <TradeSummary
+            asButton
+            selected={trade === 'paint'}
+            summary={{
+              trade: 'paint',
+              sourceCoverageComplete: paintProgress.sourceCoverageComplete,
+              applicableSectionCount: paintProgress.applicableSectionCount,
+              readyForMyWalkSections: paintProgress.readyForMyWalkSections,
+              readyForMyWalkCount: paintProgress.readyForMyWalkCount,
+              losPassedSectionCount: paintProgress.losPassedSectionCount,
+              pendingInspectionCount: paintProgress.pendingSectionCount,
+              attentionKind: coverage.complete ? 'in-progress' : 'source-coverage-incomplete',
+              attentionLabel: paintProgress.label,
+              readinessLabel: paintProgress.label,
+            }}
+            onSelect={() => onTradeChange('paint')}
+          />
+          <TradeSummary
+            asButton
+            selected={trade === 'clean'}
+            summary={{
+              trade: 'clean',
+              sourceCoverageComplete: cleanProgress.sourceCoverageComplete,
+              applicableSectionCount: cleanProgress.applicableSectionCount,
+              readyForMyWalkSections: cleanProgress.readyForMyWalkSections,
+              readyForMyWalkCount: cleanProgress.readyForMyWalkCount,
+              losPassedSectionCount: cleanProgress.losPassedSectionCount,
+              pendingInspectionCount: cleanProgress.pendingSectionCount,
+              attentionKind: coverage.complete ? 'in-progress' : 'source-coverage-incomplete',
+              attentionLabel: cleanProgress.label,
+              readinessLabel: cleanProgress.label,
+            }}
+            onSelect={() => onTradeChange('clean')}
+          />
+        </div>
+      </section>
 
-      <div className="jul28-section-picker" aria-label={`${tradeLabels[trade]} Unit sections`} role="group">
-        {records.map((record) => {
-          const isRestricted = record.applicability === 'applicable' && record.access !== 'accessible';
-          const isNotApplicable = record.applicability === 'not-applicable';
-          const detail = isNotApplicable ? 'not applicable' : isRestricted ? 'restricted' : 'applicable';
-          return (
-            <button
-              aria-pressed={selectedRecord?.section === record.section}
-              aria-label={`${sectionLabel(record.section)}, ${detail}`}
-              className={`jul28-section-button ${isRestricted ? 'is-restricted' : ''} ${isNotApplicable ? 'is-not-applicable' : ''}`}
-              key={record.section}
-              onClick={() => onSectionChange(record.section)}
-              type="button"
-            >
-              <span>{sectionLabel(record.section)}</span>
-              {record.fullPaint ? <small>Full paint</small> : isRestricted ? <small>Restricted</small> : isNotApplicable ? <small>N/A</small> : null}
-            </button>
-          );
-        })}
-      </div>
+      <section className="jul28-selected-trade" aria-labelledby="jul28-selected-trade-title">
+        <div className="jul28-workspace-section-heading">
+          <h3 id="jul28-selected-trade-title">{tradeLabels[trade]} section details</h3>
+          <p>{progress.label}</p>
+        </div>
+
+        <div className="jul28-progress-summary" aria-label={`${tradeLabels[trade]} inspection progress`}>
+          <span><strong>{progress.losPassedSectionCount ?? '—'}</strong> my inspections recorded</span>
+          <span><strong>{progress.readyForMyWalkCount ?? '—'}</strong> sections ready for my walk</span>
+          <p>
+            {progress.sourceCoverageComplete
+              ? `${progress.readyForMyWalkCount} of ${progress.applicableSectionCount} applicable sections are ready for my walk.`
+              : 'Source coverage incomplete — no positive or zero-ready result is shown.'}
+          </p>
+        </div>
+
+        <div className="jul28-section-picker" aria-label={`${tradeLabels[trade]} Unit sections`} role="group">
+          {records.map((record) => {
+            const isNotApplicable = record.applicability === 'not-applicable';
+            const stateLabel = isNotApplicable
+              ? 'not applicable'
+              : record.access === 'occupied-or-restricted'
+                ? 'occupied or restricted'
+                : record.access === 'access-blocked'
+                  ? 'access blocked'
+                  : record.access === 'maintenance-blocked'
+                    ? 'maintenance blocked'
+                    : 'accessible';
+            return (
+              <button
+                aria-pressed={selectedRecord?.section === record.section}
+                aria-label={`${sectionLabel(record.section)}, ${stateLabel}`}
+                className={`jul28-section-button is-${record.access} ${isNotApplicable ? 'is-not-applicable' : ''}`}
+                key={record.section}
+                onClick={() => onSectionChange(record.section)}
+                type="button"
+              >
+                <span>{sectionLabel(record.section)}</span>
+                {record.fullPaint
+                  ? <small>Full paint</small>
+                  : isNotApplicable
+                    ? <small>N/A</small>
+                    : record.access !== 'accessible'
+                      ? <small>{stateLabel}</small>
+                      : null}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {blocker ? (
+        <section className={`jul28-blocker is-${blocker.tone}`} aria-labelledby="jul28-blocker-title">
+          <div className="jul28-blocker__heading">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <div><span>Current blocker</span><strong id="jul28-blocker-title">{blocker.label}</strong></div>
+          </div>
+          <dl>
+            <div><dt>Owner</dt><dd>{blocker.owner}</dd></div>
+            <div><dt>Next action</dt><dd>{blocker.nextAction}</dd></div>
+            <div><dt>Resolved when</dt><dd>{blocker.resolution}</dd></div>
+          </dl>
+        </section>
+      ) : null}
 
       <div className="jul28-fact-list">
         {facts.map((fact) => (
@@ -238,6 +423,9 @@ function UnitWorkspace({
               <span className="jul28-fact-row__heading">{fact.heading}</span>
               <strong>{fact.label}</strong>
               <p>{fact.detail}</p>
+              <small className="jul28-fact-row__provenance">
+                Source: {fact.provenance.sourceLabel} · {formatDateTime(fact.provenance.recordedAt)}
+              </small>
             </div>
           </article>
         ))}
@@ -272,45 +460,81 @@ export function TurnBoardFeature({
   initialTrade = 'paint',
   initialUnitId,
   onUnitSelected,
+  onUnitClose,
 }: TurnBoardFeatureProps) {
   const [trade, setTrade] = useState<Jul28Trade>(initialTrade);
-  const [filter, setFilter] = useState<Jul28TurnBoardFilter>('all');
+  const [filters, setFilters] = useState<Jul28TurnBoardFilters>({
+    attention: 'all',
+    buildingFloor: 'all',
+    crew: 'all',
+  });
   const [query, setQuery] = useState('');
   const [selectedUnitId, setSelectedUnitId] = useState(initialUnitId ?? '');
   const [selectedSection, setSelectedSection] = useState<Jul28Section>('common');
+  const lastUnitTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const workspaceHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const listHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const units = repository.listUnits();
   const projections = useMemo(
-    () => projectJul28TurnBoard(units, trade, filter, query),
-    [filter, query, trade, units],
+    () => projectJul28TurnBoard(units, trade, filters, query),
+    [filters, query, trade, units],
   );
+  const filterOptions = useMemo(() => projectJul28FilterOptions(units, trade), [trade, units]);
   const selectedUnit = selectedUnitId ? repository.getUnit(selectedUnitId) : undefined;
 
+  useEffect(() => {
+    if (selectedUnit) workspaceHeadingRef.current?.focus();
+  }, [selectedUnit]);
+
   const changeTrade = (nextTrade: Jul28Trade) => {
+    const nextCrewOptions = projectJul28FilterOptions(units, nextTrade).crews;
     setTrade(nextTrade);
+    setFilters((current) => ({
+      ...current,
+      crew: nextCrewOptions.includes(current.crew) ? current.crew : 'all',
+    }));
     if (selectedUnit) {
-      const nextSection = recordsForTrade(selectedUnit, nextTrade).find((record) => record.applicability === 'applicable')?.section;
+      const nextSection = recordsForTrade(selectedUnit, nextTrade)
+        .find((record) => record.applicability === 'applicable')?.section;
       if (nextSection) setSelectedSection(nextSection);
     }
   };
 
-  const openUnit = (unitId: string) => {
+  const openUnit = (unitId: string, trigger: HTMLButtonElement) => {
     const unit = repository.getUnit(unitId);
-    const firstSection = unit && recordsForTrade(unit, trade).find((record) => record.applicability === 'applicable')?.section;
+    const firstSection = unit && recordsForTrade(unit, trade)
+      .find((record) => record.applicability === 'applicable')?.section;
+    lastUnitTriggerRef.current = trigger;
     setSelectedUnitId(unitId);
     if (firstSection) setSelectedSection(firstSection);
     onUnitSelected?.(unitId);
   };
 
+  const closeUnit = () => {
+    const closingUnitId = selectedUnitId;
+    setSelectedUnitId('');
+    if (closingUnitId) onUnitClose?.(closingUnitId);
+    requestAnimationFrame(() => {
+      (lastUnitTriggerRef.current ?? listHeadingRef.current)?.focus();
+    });
+  };
+
   const filterCounts = useMemo(() => {
-    const filters: Jul28TurnBoardFilter[] = ['all', 'needs-me', 'crew-reported', 'my-walk'];
-    return Object.fromEntries(filters.map((option) => [option, projectJul28TurnBoard(units, trade, option).length])) as Record<Jul28TurnBoardFilter, number>;
-  }, [trade, units]);
+    const options = Object.keys(attentionFilterLabels) as Jul28AttentionFilter[];
+    return Object.fromEntries(options.map((attention) => [
+      attention,
+      projectJul28TurnBoard(units, trade, { ...filters, attention }, query).length,
+    ])) as Record<Jul28AttentionFilter, number>;
+  }, [filters, query, trade, units]);
 
   return (
     <div className={`jul28-turnboard ${selectedUnit ? 'has-selected-unit' : ''}`} data-source={repository.source}>
       <section className="jul28-turnboard__list" aria-labelledby="jul28-turnboard-title">
         <header className="jul28-turnboard__header">
-          <div><h1 id="jul28-turnboard-title">TurnBoard</h1><p>Personal Paint/Clean view · verify official work on paper</p></div>
+          <div>
+            <h1 id="jul28-turnboard-title" ref={listHeadingRef} tabIndex={-1}>TurnBoard</h1>
+            <p>Personal Paint/Clean view · verify official work on paper</p>
+          </div>
           <span className="jul28-synthetic-label">Synthetic candidate</span>
         </header>
 
@@ -318,25 +542,63 @@ export function TurnBoardFeature({
 
         <div className="jul28-turnboard__tools">
           <label className="jul28-search">
-            <span className="jul28-visually-hidden">Filter Units</span>
+            <span className="jul28-visually-hidden">Search Units or crew</span>
             <Search size={18} aria-hidden="true" />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter units or crew" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search units or crew" />
           </label>
-          <span className="jul28-filter-icon" aria-hidden="true"><Filter size={18} /></span>
+          <div className="jul28-select-filter">
+            <label>
+              <span>Building / floor</span>
+              <select
+                aria-label="Building / floor"
+                value={filters.buildingFloor}
+                onChange={(event) => setFilters((current) => ({ ...current, buildingFloor: event.target.value }))}
+              >
+                <option value="all">All locations</option>
+                {filterOptions.buildingFloors.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Crew</span>
+              <select
+                aria-label="Crew"
+                value={filters.crew}
+                onChange={(event) => setFilters((current) => ({ ...current, crew: event.target.value }))}
+              >
+                <option value="all">All crews</option>
+                {filterOptions.crews.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+          </div>
         </div>
 
-        <div className="jul28-filter-row" aria-label={`${tradeLabels[trade]} TurnBoard filters`} role="group">
-          {(Object.keys(filterLabels) as Jul28TurnBoardFilter[]).map((option) => (
-            <button aria-pressed={filter === option} key={option} onClick={() => setFilter(option)} type="button">
-              {filterLabels[option]} <strong>{filterCounts[option]}</strong>
+        <div className="jul28-filter-row" aria-label={`${tradeLabels[trade]} TurnBoard attention filters`} role="group">
+          {(Object.keys(attentionFilterLabels) as Jul28AttentionFilter[]).map((option) => (
+            <button
+              aria-pressed={filters.attention === option}
+              key={option}
+              onClick={() => setFilters((current) => ({ ...current, attention: option }))}
+              type="button"
+            >
+              {attentionFilterLabels[option]} <strong>{filterCounts[option]}</strong>
             </button>
           ))}
         </div>
 
         <div className="jul28-unit-list" aria-live="polite">
-          {projections.map((projection) => <UnitCard key={projection.unitId} projection={projection} onOpen={() => openUnit(projection.unitId)} />)}
+          {projections.map((projection) => (
+            <UnitCard
+              key={projection.unitId}
+              projection={projection}
+              onOpen={(trigger) => openUnit(projection.unitId, trigger)}
+            />
+          ))}
           {projections.length === 0 ? (
-            <div className="jul28-unit-list__empty"><Search size={28} aria-hidden="true" /><strong>No matching Units</strong><p>Clear the search or choose another factual filter.</p></div>
+            <div className="jul28-unit-list__empty">
+              <Search size={28} aria-hidden="true" />
+              <strong>No matching Units</strong>
+              <p>Clear search or change a building, crew, or attention filter.</p>
+            </div>
           ) : null}
         </div>
       </section>
@@ -347,9 +609,10 @@ export function TurnBoardFeature({
             unit={selectedUnit}
             trade={trade}
             selectedSection={selectedSection}
+            headingRef={workspaceHeadingRef}
             onTradeChange={changeTrade}
             onSectionChange={setSelectedSection}
-            onClose={() => setSelectedUnitId('')}
+            onClose={closeUnit}
           />
         ) : <WorkspaceEmpty />}
       </aside>

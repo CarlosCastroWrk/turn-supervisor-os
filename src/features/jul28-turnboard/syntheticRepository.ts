@@ -2,6 +2,8 @@ import {
   JUL28_SECTIONS,
   JUL28_TRADES,
   type Jul28AssignmentEpisode,
+  type Jul28FactProvenance,
+  type Jul28FactProvenanceMap,
   type Jul28HistoryEvent,
   type Jul28Section,
   type Jul28SectionTradeRecord,
@@ -10,7 +12,7 @@ import {
   type Jul28UnitRecord,
 } from './model';
 
-type RecordOverrides = Partial<Omit<Jul28SectionTradeRecord, 'id' | 'unitId' | 'trade' | 'section' | 'history'>> & {
+type RecordOverrides = Partial<Omit<Jul28SectionTradeRecord, 'id' | 'unitId' | 'trade' | 'section' | 'provenance' | 'history'>> & {
   history?: Jul28HistoryEvent[];
 };
 
@@ -38,6 +40,16 @@ const createHistory = (
   recordId: string,
   overrides: RecordOverrides,
 ): Jul28HistoryEvent[] => {
+  const authorizationHistory: Jul28HistoryEvent[] = overrides.authorization && overrides.authorization !== 'not-released'
+    ? [{
+        id: `${recordId}:authorization`,
+        kind: 'authorization',
+        recordedAt: overrides.updatedAt ?? at(21, 8),
+        title: 'Authorization fact recorded',
+        wording: `Synthetic authorization state recorded as ${overrides.authorization.replaceAll('-', ' ')}.`,
+        sourceLabel: 'Synthetic authorization source',
+      }]
+    : [];
   const assignmentHistory = (overrides.assignmentEpisodes ?? []).map((assignment) => ({
     id: `${recordId}:assignment:${assignment.id}`,
     kind: 'assignment' as const,
@@ -64,7 +76,7 @@ const createHistory = (
         kind: 'crew-report',
         recordedAt: overrides.updatedAt ?? at(21, 10),
         title: 'Crew reported complete',
-        wording: 'Crew report recorded. This is not Los inspection or property acceptance.',
+        wording: 'Crew report recorded. This is not Los inspection or a property-walk result.',
         sourceLabel: 'Synthetic crew report',
       }]
     : [];
@@ -92,6 +104,7 @@ const createHistory = (
     : [];
 
   return [
+    ...authorizationHistory,
     ...assignmentHistory,
     ...accessHistory,
     ...crewHistory,
@@ -99,6 +112,77 @@ const createHistory = (
     ...paperHistory,
     ...(overrides.history ?? []),
   ].sort((left, right) => left.recordedAt.localeCompare(right.recordedAt));
+};
+
+const provenance = (
+  sourceKind: Jul28FactProvenance['sourceKind'],
+  sourceLabel: string,
+  recordedAt: string,
+  wording: string,
+): Jul28FactProvenance => ({ sourceKind, sourceLabel, recordedAt, wording });
+
+const createProvenance = (values: RecordOverrides): Jul28FactProvenanceMap => {
+  const recordedAt = values.updatedAt ?? at(20, 8);
+  const currentAssignment = [...(values.assignmentEpisodes ?? [])]
+    .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))[0];
+  const access = values.access ?? 'accessible';
+  const authorization = values.authorization ?? 'not-released';
+  const applicability = values.applicability ?? 'applicable';
+  const crewExecution = values.crewExecution ?? 'unassigned';
+  const inspection = values.inspection ?? 'inspection-pending';
+  const propertyWalk = values.propertyWalk ?? 'walk-not-ready';
+  const paperReview = values.paperReview ?? 'needs-paper-review';
+
+  return {
+    applicability: provenance(
+      'synthetic-fixture',
+      'Synthetic section map',
+      recordedAt,
+      applicability === 'applicable' ? 'Section position is applicable.' : 'Section position is not applicable.',
+    ),
+    authorization: provenance(
+      'synthetic-fixture',
+      'Synthetic authorization source',
+      recordedAt,
+      `Authorization fact recorded as ${authorization.replaceAll('-', ' ')}.`,
+    ),
+    'assignment-evidence': provenance(
+      currentAssignment ? 'synthetic-assignment' : 'synthetic-fixture',
+      currentAssignment?.sourceLabel ?? 'Synthetic assignment fixture',
+      currentAssignment?.recordedAt ?? recordedAt,
+      currentAssignment?.wording ?? 'No active assignment evidence is recorded.',
+    ),
+    access: provenance(
+      access === 'accessible' ? 'synthetic-fixture' : 'synthetic-observation',
+      access === 'accessible' ? 'Synthetic access fixture' : 'Synthetic access observation',
+      recordedAt,
+      values.restrictionLabel ?? `Access fact recorded as ${access.replaceAll('-', ' ')}.`,
+    ),
+    'crew-report': provenance(
+      'synthetic-fixture',
+      crewExecution === 'crew-reported-complete' ? 'Synthetic crew report' : 'Synthetic crew-state fixture',
+      recordedAt,
+      `Crew execution fact recorded as ${crewExecution.replaceAll('-', ' ')}.`,
+    ),
+    'los-inspection': provenance(
+      'synthetic-fixture',
+      'Synthetic personal inspection fixture',
+      recordedAt,
+      `Los inspection fact recorded as ${inspection.replaceAll('-', ' ')}.`,
+    ),
+    'property-walk': provenance(
+      'synthetic-fixture',
+      'Synthetic property-walk fixture',
+      recordedAt,
+      `Read-only property-walk fact recorded as ${propertyWalk.replaceAll('-', ' ')}.`,
+    ),
+    'paper-review': provenance(
+      'synthetic-fixture',
+      'Synthetic paper-review fixture',
+      recordedAt,
+      `Personal paper-review fact recorded as ${paperReview.replaceAll('-', ' ')}.`,
+    ),
+  };
 };
 
 const record = (
@@ -138,6 +222,7 @@ const record = (
     fullPaint: values.fullPaint ?? false,
     restrictionLabel: values.restrictionLabel,
     updatedAt: values.updatedAt ?? at(20, 8),
+    provenance: createProvenance(values),
     history: createHistory(id, values),
   };
 };
@@ -151,19 +236,21 @@ const notApplicable = (unitId: string, trade: Jul28Trade, section: Jul28Section)
 const createUnit = (
   id: string,
   unitNumber: string,
+  unitTypeLabel: string,
   buildingLabel: string,
   floorLabel: string,
   records: Jul28SectionTradeRecord[],
 ): Jul28UnitRecord => ({
   id,
   unitNumber,
+  unitTypeLabel,
   buildingLabel,
   floorLabel,
   sectionOrder: [...JUL28_SECTIONS],
   records,
 });
 
-const unit602 = createUnit('jul28-unit-602', '602', 'Building A', 'Level 06', [
+const unit602 = createUnit('jul28-unit-602', '602', '4-bedroom', 'Building A', 'Level 06', [
   record('jul28-unit-602', 'paint', 'common', {
     authorization: 'released',
     assignmentEpisodes: [episode('602-p-common', 'initial', 'Bluebird Paint', at(20, 8, 12), 'Original Paint scope recorded from synthetic assignment evidence.')],
@@ -228,7 +315,7 @@ const unit602 = createUnit('jul28-unit-602', '602', 'Building A', 'Level 06', [
   notApplicable('jul28-unit-602', 'clean', 'E'),
 ]);
 
-const unit603 = createUnit('jul28-unit-603', '603', 'Building A', 'Level 06', [
+const unit603 = createUnit('jul28-unit-603', '603', '4-bedroom', 'Building A', 'Level 06', [
   ...(['common', 'A', 'B', 'D'] as Jul28Section[]).map((section) => record('jul28-unit-603', 'paint', section, {
     authorization: 'released',
     assignmentEpisodes: [episode(`603-p-${section}`, 'initial', 'Northline Paint', at(20, 8, 20), 'Paint assignment evidence recorded.')],
@@ -266,7 +353,7 @@ const unit603 = createUnit('jul28-unit-603', '603', 'Building A', 'Level 06', [
   notApplicable('jul28-unit-603', 'clean', 'E'),
 ]);
 
-const unit604 = createUnit('jul28-unit-604', '604', 'Building A', 'Level 06', [
+const unit604 = createUnit('jul28-unit-604', '604', '3-bedroom', 'Building A', 'Level 06', [
   ...(['common', 'A'] as Jul28Section[]).map((section) => record('jul28-unit-604', 'paint', section, {
     authorization: 'released',
     assignmentEpisodes: [episode(`604-p-${section}`, 'initial', 'Atlas Paint', at(19, 8, 35), 'Paint assignment evidence recorded.')],
@@ -311,7 +398,7 @@ const unit604 = createUnit('jul28-unit-604', '604', 'Building A', 'Level 06', [
   notApplicable('jul28-unit-604', 'clean', 'E'),
 ]);
 
-const unit1305 = createUnit('jul28-unit-1305', '1305', 'Building B', 'Level 13', [
+const unit1305 = createUnit('jul28-unit-1305', '1305', '3-bedroom', 'Building B', 'Level 13', [
   ...(['common', 'A', 'B'] as Jul28Section[]).map((section) => record('jul28-unit-1305', 'paint', section, {
     authorization: 'released',
     assignmentEpisodes: [episode(`1305-p-${section}`, 'initial', 'Northline Paint', at(22, 7, 45), 'Paint assignment evidence recorded.')],
@@ -349,7 +436,17 @@ const unit1305 = createUnit('jul28-unit-1305', '1305', 'Building B', 'Level 13',
   notApplicable('jul28-unit-1305', 'clean', 'E'),
 ]);
 
-const syntheticUnits: readonly Jul28UnitRecord[] = [unit602, unit603, unit604, unit1305];
+const deepFreeze = <T>(value: T): T => {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    for (const nested of Object.values(value as Record<string, unknown>)) {
+      deepFreeze(nested);
+    }
+    Object.freeze(value);
+  }
+  return value;
+};
+
+const syntheticUnits: readonly Jul28UnitRecord[] = deepFreeze([unit602, unit603, unit604, unit1305]);
 
 export const jul28SyntheticTurnBoardRepository: Jul28TurnBoardRepository = {
   source: 'synthetic-jul28-pattern-candidate',
@@ -359,6 +456,6 @@ export const jul28SyntheticTurnBoardRepository: Jul28TurnBoardRepository = {
 
 export const assertSyntheticFixtureCompleteness = () => syntheticUnits.every((unit) =>
   JUL28_TRADES.every((trade) => JUL28_SECTIONS.every((section) =>
-    unit.records.some((candidate) => candidate.trade === trade && candidate.section === section),
+    unit.records.filter((candidate) => candidate.trade === trade && candidate.section === section).length === 1,
   )),
 );

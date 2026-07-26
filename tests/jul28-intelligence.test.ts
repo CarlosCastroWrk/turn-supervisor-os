@@ -60,11 +60,12 @@ test('inspection answers require explicit crew completion and preserve access re
   assert.equal(result.status, 'answered');
   if (result.status !== 'answered') return;
   assert.deepEqual(result.records.map((record) => `${record.unitRef}${record.section}-${record.trade}`), ['603C-Paint']);
-  assert.deepEqual(result.records[0].facts, [
+  assert.deepEqual(result.records[0].facts.map(({ layer, value }) => ({ layer, value })), [
     { layer: 'crew-execution', value: 'crew-reported-complete' },
     { layer: 'los-inspection', value: 'inspection-pending' },
     { layer: 'access', value: 'occupied-or-restricted' },
   ]);
+  assert.equal(result.records[0].facts.every((fact) => fact.provenance.sourceKind === 'synthetic-fixture'), true);
 });
 
 test('callbacks and property-walk readiness remain distinct explicit layers', () => {
@@ -84,6 +85,78 @@ test('callbacks and property-walk readiness remain distinct explicit layers', ()
     '1305B-Clean',
   ]);
   assert.equal(walk.records.some((record) => record.unitRef === '603'), false);
+  assert.deepEqual(walk.records[0].facts.map(({ layer }) => layer), [
+    'authorization',
+    'access',
+    'crew-execution',
+    'los-inspection',
+    'property-walk',
+  ]);
+  assert.equal(walk.records[0].facts.every((fact) => fact.provenance.confidence === 'fixture-only'), true);
+});
+
+test('property-wide zero answers fail closed when snapshot coverage is partial or unknown', () => {
+  for (const status of ['partial', 'unknown'] as const) {
+    const snapshot = cloneSnapshot();
+    snapshot.units = snapshot.units.filter((unit) => unit.unitRef === '706');
+    snapshot.coverage = {
+      ...snapshot.coverage,
+      status,
+      includedUnitRefs: status === 'partial' ? ['706'] : [],
+    };
+
+    const result = answerDeterministicTurnQuestion(snapshot, 'Which Units have callbacks?');
+    assert.equal(result.status, 'not-answered');
+    if (result.status === 'not-answered') {
+      assert.equal(result.reason, 'insufficient-evidence');
+      assert.match(result.message, /zero result cannot be confirmed/);
+    }
+  }
+});
+
+test('property-wide zero answers require coherent and resolved complete-coverage evidence', () => {
+  const mismatched = cloneSnapshot();
+  mismatched.units = mismatched.units.filter((unit) => unit.unitRef === '706');
+  const mismatchedResult = answerDeterministicTurnQuestion(mismatched, 'Which Units have callbacks?');
+  assert.equal(mismatchedResult.status, 'not-answered');
+  if (mismatchedResult.status === 'not-answered') {
+    assert.equal(mismatchedResult.reason, 'insufficient-evidence');
+    assert.match(mismatchedResult.message, /zero result cannot be confirmed/);
+  }
+
+  const unresolved = cloneSnapshot();
+  unresolved.units = unresolved.units.filter((unit) => unit.unitRef === '706');
+  unresolved.coverage = {
+    ...unresolved.coverage,
+    includedUnitRefs: ['706'],
+    provenance: {
+      sourceKind: 'unresolved-evidence',
+      confidence: 'unresolved',
+      label: 'Coverage has not been established',
+      recordedAt: '2026-07-28T18:00:00.000Z',
+    },
+  };
+  const unresolvedResult = answerDeterministicTurnQuestion(unresolved, 'Which Units have callbacks?');
+  assert.equal(unresolvedResult.status, 'not-answered');
+  if (unresolvedResult.status === 'not-answered') {
+    assert.equal(unresolvedResult.reason, 'insufficient-evidence');
+    assert.match(unresolvedResult.message, /zero result cannot be confirmed/);
+  }
+});
+
+test('property-walk readiness fails closed when a walk-pending scope has authority conflicts', () => {
+  const snapshot = cloneSnapshot();
+  snapshot.units = snapshot.units.filter((unit) => unit.unitRef === '603');
+  snapshot.coverage = { ...snapshot.coverage, includedUnitRefs: ['603'] };
+  const scope = snapshot.units[0].scopes[0];
+  scope.propertyWalk = 'walk-pending';
+
+  const result = answerDeterministicTurnQuestion(snapshot, 'Which Units are ready for a property walk?');
+  assert.equal(result.status, 'not-answered');
+  if (result.status === 'not-answered') {
+    assert.equal(result.reason, 'insufficient-evidence');
+    assert.match(result.message, /conflicts with authorization, access, crew completion, Los inspection/);
+  }
 });
 
 test('Unit history reports each authority layer without resolving the 604C conflict', () => {
@@ -97,6 +170,7 @@ test('Unit history reports each authority layer without resolving the 604C confl
   assert.ok(current);
   assert.equal(current.facts.some((fact) => fact.layer === 'authorization' && fact.value === 'assignment-conflict'), true);
   assert.equal(current.facts.some((fact) => fact.layer === 'access' && fact.value === 'occupied-or-restricted'), true);
+  assert.equal(current.facts.every((fact) => fact.provenance.sourceKind === 'synthetic-fixture'), true);
   assert.equal(current.facts.some((fact) => fact.value === 'property-accepted'), false);
   assert.deepEqual(
     result.records
@@ -104,6 +178,42 @@ test('Unit history reports each authority layer without resolving the 604C confl
       .map((record) => record.facts[0].value),
     ['assignment-released', 'assignment-conflict-recorded', 'access-restriction-recorded'],
   );
+});
+
+test('current scope facts preserve source-separated provenance without claiming authority', () => {
+  const snapshot = cloneSnapshot();
+  const scope = snapshot.units.find((unit) => unit.unitRef === '604')?.scopes[0];
+  assert.ok(scope);
+  const sources = [
+    ['authorization', 'property-instruction', 'source-supported'],
+    ['access', 'official-document', 'source-supported'],
+    ['crew-execution', 'los-manual-record', 'recorded'],
+    ['los-inspection', 'synthetic-fixture', 'fixture-only'],
+    ['property-walk', 'unresolved-evidence', 'unresolved'],
+    ['paper-reconciliation', 'los-manual-record', 'recorded'],
+  ] as const;
+  sources.forEach(([layer, sourceKind, confidence]) => {
+    scope.provenance[layer] = {
+      sourceKind,
+      confidence,
+      label: `Synthetic provenance example for ${layer}`,
+      recordedAt: '2026-07-28T18:00:00.000Z',
+      evidenceRef: `fixture://provenance/${layer}`,
+    };
+  });
+
+  const result = answerDeterministicTurnQuestion(snapshot, 'What happened with Unit 604C?');
+  assert.equal(result.status, 'answered');
+  if (result.status !== 'answered') return;
+  const current = result.records.find((record) => record.recordKind === 'current-scope');
+  assert.ok(current);
+  assert.deepEqual(new Set(current.facts.map((fact) => fact.provenance.sourceKind)), new Set([
+    'synthetic-fixture',
+    'los-manual-record',
+    'property-instruction',
+    'official-document',
+    'unresolved-evidence',
+  ]));
 });
 
 test('unsupported, missing-evidence, and payroll questions fail closed', () => {
@@ -151,7 +261,9 @@ test('property acceptance never silently becomes paper reconciliation', () => {
   if (paper.status !== 'answered') return;
   const record = paper.records.find((item) => item.unitRef === '603');
   assert.ok(record);
-  assert.deepEqual(record.facts, [{ layer: 'paper-reconciliation', value: 'needs-paper-review' }]);
+  assert.deepEqual(record.facts.map(({ layer, value }) => ({ layer, value })), [
+    { layer: 'paper-reconciliation', value: 'needs-paper-review' },
+  ]);
 });
 
 test('activity projection is stable, deduplicated, and authority-layered', () => {
@@ -216,6 +328,23 @@ test('usage metrics calculate capture methods, proposal outcomes, and confirm du
   });
   assert.equal(summary.preservedSourceCount, 1);
   assert.equal(summary.orphanResolutionCount, 1);
+  assert.equal(summary.mismatchedResolutionCount, 0);
+});
+
+test('usage metrics reject proposal resolutions joined to a different capture', () => {
+  const events: UsageLedgerEvent[] = [
+    { id: 'm1', propertyScopeRef: 'property-synthetic-01', captureId: 'capture-a', eventType: 'capture-started', method: 'typed', occurredAt: '2026-07-28T10:00:00.000Z' },
+    { id: 'm2', propertyScopeRef: 'property-synthetic-01', captureId: 'capture-a', eventType: 'proposal-created', proposalId: 'proposal-reused', occurredAt: '2026-07-28T10:00:01.000Z' },
+    { id: 'm3', propertyScopeRef: 'property-synthetic-01', captureId: 'capture-b', eventType: 'capture-started', method: 'manual', occurredAt: '2026-07-28T10:01:00.000Z' },
+    { id: 'm4', propertyScopeRef: 'property-synthetic-01', captureId: 'capture-b', eventType: 'proposal-resolved', proposalId: 'proposal-reused', outcome: 'confirmed', occurredAt: '2026-07-28T10:01:05.000Z' },
+  ];
+
+  const summary = summarizeUsageLedger(events);
+  assert.equal(summary.mismatchedResolutionCount, 1);
+  assert.equal(summary.orphanResolutionCount, 0);
+  assert.equal(summary.proposalOutcomes.confirmed, 0);
+  assert.equal(summary.proposalOutcomes.pending, 1);
+  assert.equal(summary.captureToConfirm.sampleCount, 0);
 });
 
 test('model/API cost summary uses receipts only and does not select or call a model', () => {
@@ -336,4 +465,9 @@ test('synthetic fixtures stay inside Paint/Clean and Common plus A-E', () => {
     unit.applicableSections.forEach((section) => assert.equal(allowedSections.has(section), true));
     unit.scopes.forEach((scope) => assert.equal(allowedTrades.has(scope.trade), true));
   });
+  assert.equal(syntheticTurnContextSnapshot.coverage.status, 'complete');
+  assert.deepEqual(
+    [...syntheticTurnContextSnapshot.coverage.includedUnitRefs].sort(),
+    syntheticTurnContextSnapshot.units.map((unit) => unit.unitRef).sort(),
+  );
 });

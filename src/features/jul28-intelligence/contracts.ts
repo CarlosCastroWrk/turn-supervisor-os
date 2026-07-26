@@ -35,6 +35,37 @@ export interface PropertyScope {
   dataClass: 'synthetic' | 'personal-redacted';
 }
 
+export type ActivityAuthorityLayer =
+  | 'authorization'
+  | 'access'
+  | 'crew-execution'
+  | 'los-inspection'
+  | 'property-walk'
+  | 'paper-reconciliation';
+
+export type OperationalFactSourceKind =
+  | 'synthetic-fixture'
+  | 'los-manual-record'
+  | 'property-instruction'
+  | 'official-document'
+  | 'unresolved-evidence';
+
+export type OperationalFactConfidence =
+  | 'fixture-only'
+  | 'recorded'
+  | 'source-supported'
+  | 'unresolved';
+
+export interface OperationalFactProvenance {
+  sourceKind: OperationalFactSourceKind;
+  confidence: OperationalFactConfidence;
+  label: string;
+  recordedAt: string;
+  evidenceRef?: string;
+}
+
+export type ScopeFactProvenance = Record<ActivityAuthorityLayer, OperationalFactProvenance>;
+
 export interface TradeScopeSnapshot {
   scopeId: string;
   unitRef: string;
@@ -46,6 +77,7 @@ export interface TradeScopeSnapshot {
   losInspection: LosInspectionState;
   propertyWalk: PropertyWalkState;
   paperReconciliation: PaperReconciliationState;
+  provenance: ScopeFactProvenance;
   activeCrewClaimCount: number;
   assignmentEpisodeRefs: string[];
   lastChangedAt: string;
@@ -73,7 +105,7 @@ export interface MemoryEvidenceSource {
 
 export type MemoryApprovalStatus = 'pending' | 'approved' | 'rejected';
 
-export interface ApprovedMemoryCandidate {
+export interface MemoryCandidate {
   id: string;
   propertyScope: PropertyScope;
   statement: string;
@@ -84,14 +116,6 @@ export interface ApprovedMemoryCandidate {
   reviewedAt?: string;
   reviewedBy?: 'Los';
 }
-
-export type ActivityAuthorityLayer =
-  | 'authorization'
-  | 'access'
-  | 'crew-execution'
-  | 'los-inspection'
-  | 'property-walk'
-  | 'paper-reconciliation';
 
 export type TurnActivityEventType =
   | 'assignment-released'
@@ -123,6 +147,15 @@ export interface TurnActivityEvent {
   source: 'synthetic-fixture' | 'los-manual-record';
 }
 
+export type SnapshotCoverageStatus = 'complete' | 'partial' | 'unknown';
+
+export interface SnapshotCoverage {
+  scope: 'property-wide';
+  status: SnapshotCoverageStatus;
+  includedUnitRefs: string[];
+  provenance: OperationalFactProvenance;
+}
+
 export interface TurnContextSnapshot {
   version: typeof TURN_CONTEXT_SNAPSHOT_VERSION;
   snapshotId: string;
@@ -130,9 +163,10 @@ export interface TurnContextSnapshot {
   asOf: string;
   paperAuthority: 'official-paper-turnboard';
   payrollAvailability: 'unavailable-not-inferred';
+  coverage: SnapshotCoverage;
   units: TurnUnitSnapshot[];
   activityEvents: TurnActivityEvent[];
-  memoryCandidates: ApprovedMemoryCandidate[];
+  memoryCandidates: MemoryCandidate[];
 }
 
 export type CaptureMethod = 'typed' | 'browser-speech' | 'keyboard-dictation' | 'attachment' | 'manual';
@@ -209,6 +243,7 @@ export interface ModelApiCostReceipt extends ModelApiUsageInput {
 export interface GroundedFact {
   layer: ActivityAuthorityLayer;
   value: string;
+  provenance: OperationalFactProvenance;
 }
 
 export interface GroundedAnswerRecord {
@@ -232,6 +267,7 @@ export interface AnsweredTurnQuestion {
   questionKind: SupportedTurnQuestionKind;
   asOf: string;
   propertyScopeRef: string;
+  coverageStatus: SnapshotCoverageStatus;
   summary: string;
   records: GroundedAnswerRecord[];
 }

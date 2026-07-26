@@ -1,7 +1,7 @@
-import type { ApprovedMemoryCandidate, MemoryApprovalStatus } from './contracts.js';
+import type { MemoryApprovalStatus, MemoryCandidate } from './contracts.js';
 
 export type NewMemoryCandidate = Omit<
-  ApprovedMemoryCandidate,
+  MemoryCandidate,
   'approvalStatus' | 'reviewedAt' | 'reviewedBy'
 >;
 
@@ -11,7 +11,7 @@ const assertConfidence = (confidence: number) => {
   }
 };
 
-export const createMemoryCandidate = (input: NewMemoryCandidate): ApprovedMemoryCandidate => {
+export const createMemoryCandidate = (input: NewMemoryCandidate): MemoryCandidate => {
   assertConfidence(input.confidence);
   if (!input.statement.trim()) {
     throw new Error('Memory candidate statement is required.');
@@ -25,10 +25,10 @@ export const createMemoryCandidate = (input: NewMemoryCandidate): ApprovedMemory
 };
 
 export const reviewMemoryCandidate = (
-  candidate: ApprovedMemoryCandidate,
+  candidate: MemoryCandidate,
   decision: Exclude<MemoryApprovalStatus, 'pending'>,
   reviewedAt: string,
-): ApprovedMemoryCandidate => {
+): MemoryCandidate => {
   if (candidate.approvalStatus !== 'pending') {
     return candidate;
   }

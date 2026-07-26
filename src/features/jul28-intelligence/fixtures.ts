@@ -1,4 +1,6 @@
 import type {
+  OperationalFactProvenance,
+  ScopeFactProvenance,
   TradeScopeSnapshot,
   TurnActivityEvent,
   TurnContextSnapshot,
@@ -18,6 +20,33 @@ export const syntheticPropertyScope = {
   dataClass: 'synthetic' as const,
 };
 
+const syntheticProvenance = (label: string, evidenceRef: string): OperationalFactProvenance => ({
+  sourceKind: 'synthetic-fixture',
+  confidence: 'fixture-only',
+  label,
+  recordedAt: AS_OF,
+  evidenceRef,
+});
+
+const syntheticScopeProvenance = (
+  unitRef: string,
+  section: TurnSection,
+  trade: TurnTrade,
+): ScopeFactProvenance => {
+  const scopeRef = `${unitRef}-${section}-${trade}`.toLowerCase();
+  return {
+    authorization: syntheticProvenance('Synthetic authorization fixture', `fixture://${scopeRef}/authorization`),
+    access: syntheticProvenance('Synthetic access fixture', `fixture://${scopeRef}/access`),
+    'crew-execution': syntheticProvenance('Synthetic crew fixture', `fixture://${scopeRef}/crew-execution`),
+    'los-inspection': syntheticProvenance('Synthetic inspection fixture', `fixture://${scopeRef}/los-inspection`),
+    'property-walk': syntheticProvenance('Synthetic property-walk fixture', `fixture://${scopeRef}/property-walk`),
+    'paper-reconciliation': syntheticProvenance(
+      'Synthetic paper-reconciliation fixture',
+      `fixture://${scopeRef}/paper-reconciliation`,
+    ),
+  };
+};
+
 const scope = (
   unitRef: string,
   section: TurnSection,
@@ -34,6 +63,7 @@ const scope = (
   losInspection: 'inspection-pending',
   propertyWalk: 'walk-not-ready',
   paperReconciliation: 'needs-paper-review',
+  provenance: syntheticScopeProvenance(unitRef, section, trade),
   activeCrewClaimCount: 1,
   assignmentEpisodeRefs: [`assignment-${unitRef}-${section}-${trade}`.toLowerCase()],
   lastChangedAt: AS_OF,
@@ -71,6 +101,12 @@ export const syntheticTurnContextSnapshot: TurnContextSnapshot = {
   asOf: AS_OF,
   paperAuthority: 'official-paper-turnboard',
   payrollAvailability: 'unavailable-not-inferred',
+  coverage: {
+    scope: 'property-wide',
+    status: 'complete',
+    includedUnitRefs: ['602', '603', '604', '706', '1305'],
+    provenance: syntheticProvenance('Complete synthetic fixture coverage', 'fixture://snapshot-jul28-synthetic/coverage'),
+  },
   units: [
     unit('602', ['A'], [
       scope('602', 'A', 'Paint', {

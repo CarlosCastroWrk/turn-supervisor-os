@@ -57,7 +57,19 @@ export interface UsageLedgerSummary {
   captureToConfirm: DurationMetrics;
   proposalOutcomes: Record<ProposalOutcome | 'pending', number>;
   orphanResolutionCount: number;
+  mismatchedResolutionCount: number;
 }
+
+const captureKey = (event: Pick<UsageLedgerEvent, 'propertyScopeRef' | 'captureId'>) =>
+  JSON.stringify([event.propertyScopeRef, event.captureId]);
+
+const proposalKey = (
+  event: Pick<UsageLedgerEvent, 'propertyScopeRef' | 'captureId'> & { proposalId: string },
+) => JSON.stringify([event.propertyScopeRef, event.captureId, event.proposalId]);
+
+const proposalIdentityKey = (
+  event: Pick<UsageLedgerEvent, 'propertyScopeRef'> & { proposalId: string },
+) => JSON.stringify([event.propertyScopeRef, event.proposalId]);
 
 const summarizeDurations = (durations: number[]): DurationMetrics => {
   if (durations.length === 0) {
@@ -81,18 +93,24 @@ export const summarizeUsageLedger = (events: UsageLedgerEvent[]): UsageLedgerSum
   const ledger = createUsageLedger(events);
   const starts = new Map<string, Extract<UsageLedgerEvent, { eventType: 'capture-started' }>>();
   const preservedCaptures = new Set<string>();
-  const createdProposals = new Set<string>();
+  const createdProposals = new Map<string, Extract<UsageLedgerEvent, { eventType: 'proposal-created' }>>();
+  const createdCapturesByProposal = new Map<string, Set<string>>();
   const resolvedProposals = new Map<string, Extract<UsageLedgerEvent, { eventType: 'proposal-resolved' }>>();
 
   ledger.entries.forEach((event) => {
-    if (event.eventType === 'capture-started' && !starts.has(event.captureId)) {
-      starts.set(event.captureId, event);
+    if (event.eventType === 'capture-started' && !starts.has(captureKey(event))) {
+      starts.set(captureKey(event), event);
     } else if (event.eventType === 'source-preserved') {
-      preservedCaptures.add(event.captureId);
+      preservedCaptures.add(captureKey(event));
     } else if (event.eventType === 'proposal-created') {
-      createdProposals.add(event.proposalId);
-    } else if (event.eventType === 'proposal-resolved' && !resolvedProposals.has(event.proposalId)) {
-      resolvedProposals.set(event.proposalId, event);
+      const key = proposalKey(event);
+      if (!createdProposals.has(key)) createdProposals.set(key, event);
+      const identityKey = proposalIdentityKey(event);
+      const captures = createdCapturesByProposal.get(identityKey) ?? new Set<string>();
+      captures.add(event.captureId);
+      createdCapturesByProposal.set(identityKey, captures);
+    } else if (event.eventType === 'proposal-resolved' && !resolvedProposals.has(proposalKey(event))) {
+      resolvedProposals.set(proposalKey(event), event);
     }
   });
 
@@ -109,24 +127,28 @@ export const summarizeUsageLedger = (events: UsageLedgerEvent[]): UsageLedgerSum
     ['pending', 0] as const,
   ]) as Record<ProposalOutcome | 'pending', number>;
   let orphanResolutionCount = 0;
+  let mismatchedResolutionCount = 0;
   const confirmDurations: number[] = [];
 
-  resolvedProposals.forEach((resolution, proposalId) => {
-    if (!createdProposals.has(proposalId)) {
-      orphanResolutionCount += 1;
+  resolvedProposals.forEach((resolution, key) => {
+    const creation = createdProposals.get(key);
+    if (!creation) {
+      const knownCaptures = createdCapturesByProposal.get(proposalIdentityKey(resolution));
+      if (knownCaptures?.size) mismatchedResolutionCount += 1;
+      else orphanResolutionCount += 1;
       return;
     }
     proposalOutcomes[resolution.outcome] += 1;
 
     if (resolution.outcome !== 'confirmed' && resolution.outcome !== 'edited-and-confirmed') return;
-    const started = starts.get(resolution.captureId);
+    const started = starts.get(captureKey(creation));
     const startedAt = started ? eventTime(started.occurredAt) : null;
     const resolvedAt = eventTime(resolution.occurredAt);
     if (startedAt === null || resolvedAt === null || resolvedAt < startedAt) return;
     confirmDurations.push(resolvedAt - startedAt);
   });
 
-  proposalOutcomes.pending = [...createdProposals].filter((proposalId) => !resolvedProposals.has(proposalId)).length;
+  proposalOutcomes.pending = [...createdProposals.keys()].filter((key) => !resolvedProposals.has(key)).length;
 
   return {
     captureCount: starts.size,
@@ -135,6 +157,7 @@ export const summarizeUsageLedger = (events: UsageLedgerEvent[]): UsageLedgerSum
     captureToConfirm: summarizeDurations(confirmDurations),
     proposalOutcomes,
     orphanResolutionCount,
+    mismatchedResolutionCount,
   };
 };
 

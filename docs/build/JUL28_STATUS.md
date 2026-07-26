@@ -22,7 +22,7 @@ Last updated: 2026-07-26
 | Integration worktree | `/Users/los/Documents/PDS-jul28-pattern-candidate` |
 | Integration branch | `codex/jul28-pattern-candidate` |
 | Base | `a3f6b3d0c6133c32b403fe21f12c1e31258f1770` |
-| Current state | Shared documentation and visual references sealed; four isolated tracks running |
+| Current state | Shared documentation and visual references sealed; Wave 1 track commits under independent review |
 | Documentation checkpoint | `d9a114c6f147f793139d57d33082d48f4ef96844` |
 | Visual-reference checkpoint | `dc2240a8a4d33ffdc7299a86ec932f59f8a89e1d` |
 | Production touched | No |
@@ -52,11 +52,11 @@ Operational semantics remain governed by the product constitution, field-truth m
 
 | Track | Worktree | Branch | State | Latest commit | Tests | Blocker | Review | Integration | Preview |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| A Field shell | `/Users/los/Documents/PDS-jul28-field-shell` | `codex/jul28-field-shell` | Running | Base `dc2240a` | In progress | — | Pending | Pending | — |
-| B Paint/Clean TurnBoard | `/Users/los/Documents/PDS-jul28-turnboard` | `codex/jul28-turnboard` | Running — Wave 1 only | Base `dc2240a` | In progress | — | Pending | Pending | — |
+| A Field shell | `/Users/los/Documents/PDS-jul28-field-shell` | `codex/jul28-field-shell` | Committed — bounded correction running | `f80215d` | 5/5 focused; responsive browser gate; 256/256 existing; lint/build pass | HOLD: property/date, nine-group Needs Me taxonomy, decision context, flexible Today IA | Correction in progress | Pending | — |
+| B Paint/Clean TurnBoard | `/Users/los/Documents/PDS-jul28-turnboard` | `codex/jul28-turnboard` | Committed — bounded correction running | `141e392` | 9/9 focused; 256/256 existing; responsive browser checks; lint/build pass | HOLD: partial-ready wording, release/assignment collapse, incomplete-coverage false completion, mutable fixtures, blocker copy, filter/focus gaps | Correction in progress | Pending | — |
 | C Voice/Whisper | `/Users/los/Documents/PDS-jul28-voice` | `codex/jul28-voice-whisper` | Queued — four-agent cap | — | — | Wave 1 first | — | — | — |
-| D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Running — foundation only | Base `dc2240a` | In progress | — | Pending | Wave 2 only | — |
-| E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Committed — review running | `a978ccd` | 11/11 focused; 256/256 existing; lint/build pass | — | In progress | Later wave only | — |
+| D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Committed — bounded repair running | `794847d` | 9/9 focused; 256/256 existing; lint/build pass | HOLD: silent text loss, conflict resolution, early bounds, confirmation privacy, formula trust, accessibility | Correction in progress | Wave 2 only | — |
+| E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Repaired — second bounded correction running | `0cc29d6` after `a978ccd` | 16/16 focused; 256/256 existing; lint/build pass | HOLD: incomplete coverage false-zero answers, Track B fixture drift, unsupported acceptance states | Correction in progress | Later wave only | — |
 | F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Queued — four-agent cap | — | — | Track commits required | — | — | — |
 
 ## Wave Ledger

@@ -20,18 +20,23 @@ export function Preview() {
               setStatus(`Exact wording preserved: ${sourceText}`);
               return 1;
             }}
-            units={JUL28_SYNTHETIC_FIELD_SHELL.tasks.map((task) => ({
-              unitId: `synthetic-unit-${task.unitNumber}`,
-              unitNumber: task.unitNumber,
-              buildingName: 'Synthetic Building',
-              floorName: 'Synthetic Floor',
-            }))}
+            units={Object.values(JUL28_SYNTHETIC_FIELD_SHELL.personalPlan).flatMap((task) => (
+              task
+                ? [{
+                    unitId: `synthetic-unit-${task.unitNumber}`,
+                    unitNumber: task.unitNumber,
+                    buildingName: 'Synthetic Building',
+                    floorName: 'Synthetic Floor',
+                  }]
+                : []
+            ))}
           />
         )}
         onNavigate={(destination) => setStatus(`Navigation requested: ${destination}.`)}
         onOpenTask={(task) => setStatus(`Personal task opened: Unit ${task.unitNumber}, ${task.label}.`)}
+        onOpenWorkspace={(destination) => setStatus(`Workspace requested: ${destination.label}.`)}
         onSelectMore={(destination) => setStatus(`Selected ${destination.label}.`)}
-        onSelectNeed={(item) => setStatus(`Personal reminder opened: ${item.title}, ${item.actionLabel}.`)}
+        onSelectNeed={(item) => setStatus(`Personal reminder opened: Unit ${item.unitNumber}, ${item.destination.label}.`)}
       />
       <p className="j28-preview-status" role="status" aria-live="polite">{status}</p>
     </>

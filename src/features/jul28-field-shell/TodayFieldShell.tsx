@@ -8,6 +8,7 @@ import type {
   FieldDestination,
   FieldShellModel,
   FieldTask,
+  FieldWorkspaceDestination,
   MoreDestination,
   NeedsMeItem,
 } from './types';
@@ -18,6 +19,7 @@ interface TodayFieldShellProps {
   model: FieldShellModel;
   onNavigate: (destination: Exclude<FieldDestination, 'more'>) => void;
   onOpenTask: (task: FieldTask) => void;
+  onOpenWorkspace: (destination: FieldWorkspaceDestination) => void;
   onSelectMore: (destination: MoreDestination) => void;
   onSelectNeed: (item: NeedsMeItem) => void;
 }
@@ -29,6 +31,7 @@ export function TodayFieldShell({
   model,
   onNavigate,
   onOpenTask,
+  onOpenWorkspace,
   onSelectMore,
   onSelectNeed,
 }: TodayFieldShellProps) {
@@ -60,13 +63,21 @@ export function TodayFieldShell({
       <div aria-hidden={dialogOpen || undefined} inert={dialogOpen || undefined}>
         <FieldShellHeader
           attentionCount={model.needsMe.length}
+          context={model.context}
           onOpenNeedsMe={() => setOpenSheet('needs-me')}
         />
         <main className="j28-field-shell__main" id="j28-main">
           <TodaySurface
+            assignedWork={model.assignedWork}
+            context={model.context}
+            endOfDayPaperReconciliation={model.endOfDayPaperReconciliation}
             needsMe={model.needsMe}
-            tasks={model.tasks}
+            nextPropertyWalk={model.nextPropertyWalk}
+            personalPlan={model.personalPlan}
+            progressingWork={model.progressingWork}
+            recentActivity={model.recentActivity}
             onOpenNeedsMe={() => setOpenSheet('needs-me')}
+            onOpenWorkspace={onOpenWorkspace}
             onSelectNeed={selectNeed}
             onSelectTask={onOpenTask}
           />

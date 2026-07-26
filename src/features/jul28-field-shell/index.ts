@@ -1,9 +1,11 @@
 export { JUL28_SYNTHETIC_FIELD_SHELL } from './fixtures';
 export {
   FIELD_NAVIGATION,
+  NEEDS_ME_CATEGORY_ORDER,
   NEEDS_ME_LABELS,
+  PERSONAL_PLAN_SLOT_ORDER,
   groupNeedsMeItems,
-  orderFieldTasks,
+  orderPersonalPlan,
   summarizeNeedsMe,
   validateFieldShellModel,
 } from './projection';
@@ -15,11 +17,18 @@ export { NeedsMeSheet } from './components/NeedsMeSheet';
 export { TodaySurface } from './components/TodaySurface';
 export type {
   FieldDestination,
+  FieldPersonalPlan,
+  FieldRecentActivityItem,
   FieldSection,
   FieldShellModel,
+  FieldScheduleItem,
   FieldTask,
   FieldTaskSlot,
+  FieldTodayContext,
   FieldTrade,
+  FieldWorkItem,
+  FieldWorkspaceDestination,
+  FieldWorkspaceId,
   MoreDestination,
   NeedsMeCategory,
   NeedsMeItem,

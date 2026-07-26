@@ -37,6 +37,17 @@ Last updated: 2026-07-26
 
 Operational semantics remain governed by the product constitution, field-truth model, and source-separated evidence—not by generated imagery.
 
+## Program-Base Verification
+
+| Check | Result |
+| --- | --- |
+| Lint | Pass |
+| Deterministic suite | 256/256 pass |
+| Production build | Pass |
+| Command-bar browser gate | Pass — Mac, iPad landscape, iPhone viewports |
+| One-Capture-owner browser gate | Pass |
+| Board-first browser gate | Pass — desktop, iPad, iPhone viewports |
+
 ## Track Ledger
 
 | Track | Worktree | Branch | State | Latest commit | Tests | Blocker | Review | Integration | Preview |
@@ -45,7 +56,7 @@ Operational semantics remain governed by the product constitution, field-truth m
 | B Paint/Clean TurnBoard | `/Users/los/Documents/PDS-jul28-turnboard` | `codex/jul28-turnboard` | Running — Wave 1 only | Base `dc2240a` | In progress | — | Pending | Pending | — |
 | C Voice/Whisper | `/Users/los/Documents/PDS-jul28-voice` | `codex/jul28-voice-whisper` | Queued — four-agent cap | — | — | Wave 1 first | — | — | — |
 | D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Running — foundation only | Base `dc2240a` | In progress | — | Pending | Wave 2 only | — |
-| E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Running — foundation only | Base `dc2240a` | In progress | — | Pending | Later wave only | — |
+| E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Committed — review running | `a978ccd` | 11/11 focused; 256/256 existing; lint/build pass | — | In progress | Later wave only | — |
 | F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Queued — four-agent cap | — | — | Track commits required | — | — | — |
 
 ## Wave Ledger

@@ -2,9 +2,11 @@ import {
   FIELD_DESTINATIONS,
   FIELD_SECTIONS,
   type FieldDestination,
+  type FieldPersonalPlan,
   type FieldShellModel,
   type FieldTask,
   type FieldTaskSlot,
+  type FieldTrade,
   type NeedsMeCategory,
   type NeedsMeItem,
 } from './types';
@@ -16,19 +18,34 @@ export const FIELD_NAVIGATION: ReadonlyArray<{ id: FieldDestination; label: stri
   }));
 
 export const NEEDS_ME_LABELS: Record<NeedsMeCategory, string> = {
-  'ready-for-my-walk': 'Ready for my walk',
-  'missing-follow-up-owner': 'Missing follow-up owner',
-  'needs-paper-review': 'Needs paper review',
-  'saved-on-this-device': 'Saved on this device',
+  'needs-confirmation': 'Needs Confirmation',
+  'needs-my-inspection': 'Needs My Inspection',
+  callbacks: 'Callbacks',
+  'property-walks': 'Property Walks',
+  'assignment-conflicts': 'Assignment Conflicts',
+  'access-blockers': 'Access Blockers',
+  'maintenance-blockers': 'Maintenance Blockers',
+  'save-or-sync-problems': 'Save or Sync Problems',
+  'paper-reconciliation': 'Paper Reconciliation',
 };
 
-const taskSlotOrder: FieldTaskSlot[] = ['current', 'next', 'backup'];
-const needsMeCategoryOrder: NeedsMeCategory[] = [
-  'ready-for-my-walk',
-  'missing-follow-up-owner',
-  'needs-paper-review',
-  'saved-on-this-device',
+export const PERSONAL_PLAN_SLOT_ORDER: FieldTaskSlot[] = ['now', 'next', 'backup'];
+export const NEEDS_ME_CATEGORY_ORDER: NeedsMeCategory[] = [
+  'needs-confirmation',
+  'needs-my-inspection',
+  'callbacks',
+  'property-walks',
+  'assignment-conflicts',
+  'access-blockers',
+  'maintenance-blockers',
+  'save-or-sync-problems',
+  'paper-reconciliation',
 ];
+
+export interface PersonalPlanEntry {
+  slot: FieldTaskSlot;
+  task?: FieldTask;
+}
 
 export interface NeedsMeGroup {
   category: NeedsMeCategory;
@@ -36,11 +53,11 @@ export interface NeedsMeGroup {
   items: NeedsMeItem[];
 }
 
-export const orderFieldTasks = (tasks: FieldTask[]) =>
-  taskSlotOrder.flatMap((slot) => tasks.filter((task) => task.slot === slot));
+export const orderPersonalPlan = (plan: FieldPersonalPlan): PersonalPlanEntry[] =>
+  PERSONAL_PLAN_SLOT_ORDER.map((slot) => ({ slot, task: plan[slot] }));
 
 export const groupNeedsMeItems = (items: NeedsMeItem[]): NeedsMeGroup[] =>
-  needsMeCategoryOrder.flatMap((category) => {
+  NEEDS_ME_CATEGORY_ORDER.flatMap((category) => {
     const categoryItems = items.filter((item) => item.category === category);
     return categoryItems.length > 0
       ? [{ category, label: NEEDS_ME_LABELS[category], items: categoryItems }]
@@ -54,29 +71,53 @@ export const summarizeNeedsMe = (items: NeedsMeItem[]) =>
     count: group.items.length,
   }));
 
+const validateTradeAndScope = (
+  errors: string[],
+  recordId: string,
+  trade: FieldTrade | undefined,
+  scope: string[],
+) => {
+  const sectionSet = new Set<string>(FIELD_SECTIONS);
+  if (trade && trade !== 'Paint' && trade !== 'Clean') {
+    errors.push(`Unsupported trade on ${recordId}.`);
+  }
+  if (scope.some((section) => !sectionSet.has(section))) {
+    errors.push(`Unsupported Unit section on ${recordId}.`);
+  }
+};
+
 export const validateFieldShellModel = (model: FieldShellModel) => {
   const errors: string[] = [];
-  const sectionSet = new Set<string>(FIELD_SECTIONS);
 
-  for (const slot of taskSlotOrder) {
-    const matches = model.tasks.filter((task) => task.slot === slot);
-    if (matches.length !== 1) {
-      errors.push(`Expected one ${slot} task; received ${matches.length}.`);
+  if (!model.context.propertyName.trim()) {
+    errors.push('Current property is required.');
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(model.context.dateISO) || !model.context.dateLabel.trim()) {
+    errors.push('An explicit Today date is required.');
+  }
+
+  for (const { task } of orderPersonalPlan(model.personalPlan)) {
+    if (task) {
+      validateTradeAndScope(errors, `personal plan task ${task.id}`, task.trade, task.scope);
     }
   }
 
-  for (const task of model.tasks) {
-    if (task.trade && task.trade !== 'Paint' && task.trade !== 'Clean') {
-      errors.push(`Unsupported trade on task ${task.id}.`);
-    }
-    if (task.scope.some((section) => !sectionSet.has(section))) {
-      errors.push(`Unsupported Unit section on task ${task.id}.`);
-    }
+  for (const item of [...model.assignedWork, ...model.progressingWork]) {
+    validateTradeAndScope(errors, `work item ${item.id}`, item.trade, item.scope);
   }
 
   for (const item of model.needsMe) {
-    if (item.trade && item.trade !== 'Paint' && item.trade !== 'Clean') {
-      errors.push(`Unsupported trade on Needs Me item ${item.id}.`);
+    validateTradeAndScope(
+      errors,
+      `Needs Me item ${item.id}`,
+      item.trade,
+      item.section ? [item.section] : [],
+    );
+    if (!item.unitNumber.trim() || !item.whyLosIsNeeded.trim() || !item.nextAction.trim()) {
+      errors.push(`Needs Me item ${item.id} is missing required context.`);
+    }
+    if (!item.destination.workspace || !item.destination.label.trim()) {
+      errors.push(`Needs Me item ${item.id} is missing an exact destination workspace.`);
     }
   }
 

@@ -5,11 +5,29 @@ export const FIELD_SECTIONS = ['Common', 'A', 'B', 'C', 'D', 'E'] as const;
 export type FieldSection = (typeof FIELD_SECTIONS)[number];
 
 export type FieldTrade = 'Paint' | 'Clean';
-export type FieldTaskSlot = 'current' | 'next' | 'backup';
+export type FieldTaskSlot = 'now' | 'next' | 'backup';
+
+export interface FieldTodayContext {
+  propertyName: string;
+  dateISO: string;
+  dateLabel: string;
+}
+
+export type FieldWorkspaceId =
+  | 'today'
+  | 'turnboard'
+  | 'unit-workspace'
+  | 'capture-review'
+  | 'sync-diagnostics'
+  | 'paper-reconciliation';
+
+export interface FieldWorkspaceDestination {
+  workspace: FieldWorkspaceId;
+  label: string;
+}
 
 export interface FieldTask {
   id: string;
-  slot: FieldTaskSlot;
   unitNumber: string;
   label: string;
   scope: FieldSection[];
@@ -17,20 +35,56 @@ export interface FieldTask {
   warning?: string;
 }
 
+export type FieldPersonalPlan = Partial<Record<FieldTaskSlot, FieldTask>>;
+
+export interface FieldWorkItem {
+  id: string;
+  unitNumber: string;
+  scope: FieldSection[];
+  trade: FieldTrade;
+  detail: string;
+  responsibleCrew?: string;
+  destination: FieldWorkspaceDestination;
+}
+
 export type NeedsMeCategory =
-  | 'ready-for-my-walk'
-  | 'missing-follow-up-owner'
-  | 'needs-paper-review'
-  | 'saved-on-this-device';
+  | 'needs-confirmation'
+  | 'needs-my-inspection'
+  | 'callbacks'
+  | 'property-walks'
+  | 'assignment-conflicts'
+  | 'access-blockers'
+  | 'maintenance-blockers'
+  | 'save-or-sync-problems'
+  | 'paper-reconciliation';
 
 export interface NeedsMeItem {
   id: string;
   category: NeedsMeCategory;
-  title: string;
-  detail: string;
-  actionLabel: string;
-  unitNumber?: string;
+  unitNumber: string;
+  section?: FieldSection;
   trade?: FieldTrade;
+  whyLosIsNeeded: string;
+  responsibleParty?: string;
+  nextAction: string;
+  destination: FieldWorkspaceDestination;
+}
+
+export interface FieldScheduleItem {
+  id: string;
+  title: string;
+  timeLabel: string;
+  unitNumber: string;
+  detail: string;
+  destination: FieldWorkspaceDestination;
+}
+
+export interface FieldRecentActivityItem {
+  id: string;
+  timeLabel: string;
+  unitNumber: string;
+  summary: string;
+  destination: FieldWorkspaceDestination;
 }
 
 export interface MoreDestination {
@@ -40,7 +94,13 @@ export interface MoreDestination {
 }
 
 export interface FieldShellModel {
-  tasks: FieldTask[];
+  context: FieldTodayContext;
+  personalPlan: FieldPersonalPlan;
+  assignedWork: FieldWorkItem[];
+  progressingWork: FieldWorkItem[];
   needsMe: NeedsMeItem[];
+  nextPropertyWalk: FieldScheduleItem;
+  endOfDayPaperReconciliation: FieldScheduleItem;
+  recentActivity: FieldRecentActivityItem[];
   moreDestinations: MoreDestination[];
 }

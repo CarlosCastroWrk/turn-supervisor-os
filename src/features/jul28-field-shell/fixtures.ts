@@ -1,0 +1,75 @@
+import type { FieldShellModel } from './types';
+
+export const JUL28_SYNTHETIC_FIELD_SHELL: FieldShellModel = {
+  tasks: [
+    {
+      id: 'task-602-paint-walk',
+      slot: 'current',
+      unitNumber: '602',
+      label: 'Paint walk',
+      trade: 'Paint',
+      scope: ['Common', 'A', 'C', 'D'],
+      warning: 'B: Restricted — do not enter',
+    },
+    {
+      id: 'task-603-clean-walk',
+      slot: 'next',
+      unitNumber: '603',
+      label: 'Clean walk',
+      trade: 'Clean',
+      scope: ['Common', 'A', 'B', 'D'],
+    },
+    {
+      id: 'task-604-access-check',
+      slot: 'backup',
+      unitNumber: '604',
+      label: 'Access check',
+      scope: ['C'],
+    },
+  ],
+  needsMe: [
+    {
+      id: 'need-602-walk',
+      category: 'ready-for-my-walk',
+      title: 'Unit 602',
+      detail: 'Crew reported; my walk is not recorded.',
+      actionLabel: 'Open Unit',
+      unitNumber: '602',
+      trade: 'Paint',
+    },
+    {
+      id: 'need-603-owner',
+      category: 'missing-follow-up-owner',
+      title: 'Unit 603',
+      detail: 'Personal follow-up has no owner.',
+      actionLabel: 'Add owner',
+      unitNumber: '603',
+      trade: 'Clean',
+    },
+    {
+      id: 'need-604-paper',
+      category: 'needs-paper-review',
+      title: 'Unit 604',
+      detail: 'Personal notes still need comparison with paper.',
+      actionLabel: 'Review paper',
+      unitNumber: '604',
+      trade: 'Paint',
+    },
+    {
+      id: 'need-605-device',
+      category: 'saved-on-this-device',
+      title: 'Unit 605',
+      detail: 'Capture is saved on this device and not synced.',
+      actionLabel: 'View capture',
+      unitNumber: '605',
+      trade: 'Clean',
+    },
+  ],
+  moreDestinations: [
+    { id: 'crews', label: 'Crew / People', detail: 'Contacts and personal crew notes' },
+    { id: 'reports', label: 'Reports', detail: 'Review your field summary' },
+    { id: 'setup', label: 'Setup', detail: 'Property and app preferences' },
+    { id: 'backup', label: 'Data & backup', detail: 'Export and device recovery' },
+    { id: 'sync', label: 'Sync & diagnostics', detail: 'Local save and optional sync health' },
+  ],
+};

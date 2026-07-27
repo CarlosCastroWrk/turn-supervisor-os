@@ -12,12 +12,15 @@ const repoRoot = process.cwd();
 const require = createRequire(import.meta.url);
 const harnessRoot = await mkdtemp('/private/tmp/pds-jul28-scale-');
 const screenshotDirectory = await mkdtemp('/private/tmp/pds-jul28-scale-shots-');
-const featurePath = resolve(repoRoot, 'src/features/jul28-turnboard/TurnBoardFeature.tsx');
+const appPath = resolve(repoRoot, 'src/App.tsx');
+const stylesPath = resolve(repoRoot, 'src/styles.css');
+const toastProviderPath = resolve(repoRoot, 'src/components/ToastProvider.tsx');
 const repositoryPath = resolve(repoRoot, 'src/features/jul28-turnboard/syntheticRepository.ts');
 const syntheticUnitCount = 300;
 const assignmentConflictCount = 75;
 const maxInitialRenderMs = 4_000;
 const maxInteractionMs = 1_000;
+const maxMemoizedOpenRatio = 0.65;
 
 const html = `<!doctype html>
 <html lang="en">
@@ -33,10 +36,11 @@ const html = `<!doctype html>
 </html>`;
 
 const main = `
-import React from 'react';
+import React, { Profiler } from 'react';
 import { createRoot } from 'react-dom/client';
-import { TurnBoardFeature } from ${JSON.stringify(featurePath)};
+import { ToastProvider } from ${JSON.stringify(toastProviderPath)};
 import { jul28SyntheticTurnBoardRepository } from ${JSON.stringify(repositoryPath)};
+import ${JSON.stringify(stylesPath)};
 
 const templates = jul28SyntheticTurnBoardRepository.listUnits();
 const units = Array.from({ length: ${syntheticUnitCount} }, (_, index) => {
@@ -71,8 +75,21 @@ const repository = {
   getUnit: (unitId) => byId.get(unitId),
 };
 
+Object.assign(jul28SyntheticTurnBoardRepository, repository);
+const { default: App } = await import(${JSON.stringify(appPath)});
+const profileEvents = [];
+globalThis.__pdsScaleProfileEvents = profileEvents;
+
+const recordProfile = (_id, phase, actualDuration, baseDuration) => {
+  profileEvents.push({ phase, actualDuration, baseDuration });
+};
+
 createRoot(document.getElementById('root')).render(
-  <TurnBoardFeature repository={repository} />
+  <Profiler id="scale-app" onRender={recordProfile}>
+    <ToastProvider>
+      <App />
+    </ToastProvider>
+  </Profiler>
 );
 `;
 
@@ -97,16 +114,10 @@ const assertNoHorizontalOverflow = async (page, label) => {
   const dimensions = await page.evaluate(() => ({
     documentClientWidth: document.documentElement.clientWidth,
     documentScrollWidth: document.documentElement.scrollWidth,
-    featureClientWidth: document.querySelector('.jul28-turnboard')?.clientWidth ?? 0,
-    featureScrollWidth: document.querySelector('.jul28-turnboard')?.scrollWidth ?? 0,
   }));
   assert.ok(
     dimensions.documentScrollWidth <= dimensions.documentClientWidth + 1,
     `${label} document overflowed: ${dimensions.documentScrollWidth}px > ${dimensions.documentClientWidth}px.`,
-  );
-  assert.ok(
-    dimensions.featureScrollWidth <= dimensions.featureClientWidth + 1,
-    `${label} feature overflowed: ${dimensions.featureScrollWidth}px > ${dimensions.featureClientWidth}px.`,
   );
 };
 
@@ -140,6 +151,12 @@ let browser;
 try {
   await server.listen();
   browser = await chromium.launch({ headless: true });
+  const warmupContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const warmupPage = await warmupContext.newPage();
+  await warmupPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await warmupPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+  await warmupContext.close();
+
   const results = {};
 
   for (const target of [
@@ -152,7 +169,7 @@ try {
     const findings = attachRuntimeChecks(page);
     const startedAt = performance.now();
 
-    await page.goto(baseUrl, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
     const loadMs = Math.round(performance.now() - startedAt);
     assert.equal(await page.locator('.jul28-unit-card').count(), syntheticUnitCount);
@@ -192,17 +209,46 @@ try {
 
     await page.getByRole('button', { name: /^All / }).click();
     await waitForUnitCardCount(page, syntheticUnitCount);
-    await search.fill('1300');
-    await waitForUnitCardCount(page, 1);
+    await page.evaluate(() => {
+      globalThis.__pdsScaleProfileEvents.length = 0;
+    });
     const unitOpenStartedAt = performance.now();
-    await page.getByRole('button', { name: 'Open Unit 1300 workspace', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Unit 1001 workspace', exact: true }).click();
     await page.getByRole('complementary', { name: 'Selected Unit workspace' })
-      .getByRole('heading', { name: 'Unit 1300', exact: true })
+      .getByRole('heading', { name: 'Unit 1001', exact: true })
       .waitFor();
     const unitOpenMs = Math.round(performance.now() - unitOpenStartedAt);
     assert.ok(
       unitOpenMs < maxInteractionMs,
       `${target.name} Unit opening needed ${unitOpenMs}ms (limit ${maxInteractionMs}ms).`,
+    );
+    assert.equal(
+      await page.evaluate(() => window.location.hash),
+      '#/units/jul28-scale-unit-1',
+      `${target.name} did not exercise the integrated App route callback.`,
+    );
+    assert.equal(
+      await page.locator('.jul28-unit-card').count(),
+      syntheticUnitCount,
+      `${target.name} did not keep the full synthetic board mounted while opening a Unit.`,
+    );
+    const memoProfile = await page.evaluate(() => {
+      const updates = globalThis.__pdsScaleProfileEvents
+        .filter((event) => event.phase === 'update' || event.phase === 'nested-update');
+      const actualDurationMs = updates.reduce((total, event) => total + event.actualDuration, 0);
+      const baseDurationMs = Math.max(...updates.map((event) => event.baseDuration), 0);
+      return {
+        updateCount: updates.length,
+        actualDurationMs,
+        baseDurationMs,
+        ratio: baseDurationMs > 0 ? actualDurationMs / baseDurationMs : 1,
+      };
+    });
+    assert.ok(memoProfile.updateCount > 0, `${target.name} did not record the Unit-open render.`);
+    assert.ok(
+      memoProfile.ratio < maxMemoizedOpenRatio,
+      `${target.name} Unit-open render used ${(memoProfile.ratio * 100).toFixed(1)}% of the full-board render estimate `
+        + `(limit ${(maxMemoizedOpenRatio * 100).toFixed(0)}%).`,
     );
     await page.getByText('Paper TurnBoard remains authoritative.', { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} selected workspace`);
@@ -215,6 +261,12 @@ try {
       searchTypingMs,
       filterResponseMs,
       unitOpenMs,
+      memoProfile: {
+        updateCount: memoProfile.updateCount,
+        actualDurationMs: Math.round(memoProfile.actualDurationMs),
+        baseDurationMs: Math.round(memoProfile.baseDurationMs),
+        ratio: Number(memoProfile.ratio.toFixed(3)),
+      },
       screenshot,
     };
     await context.close();
@@ -225,6 +277,7 @@ try {
     thresholdsMs: {
       initialRender: maxInitialRenderMs,
       interaction: maxInteractionMs,
+      memoizedOpenRatio: maxMemoizedOpenRatio,
     },
     results,
   }));

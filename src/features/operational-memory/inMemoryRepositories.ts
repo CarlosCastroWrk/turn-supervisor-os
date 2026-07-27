@@ -50,6 +50,9 @@ const assertScope = (expected: OperationalScope, actual: OperationalScope, label
   }
 };
 
+const scopedRecordKey = (scope: OperationalScope, id: string): string =>
+  JSON.stringify([scope.accountId, scope.projectId, id]);
+
 const assertGrounded = (record: ScopedRecord & { readonly sourceRefs?: readonly unknown[] }, label: string) => {
   const groundingRequired = new Set([
     'Operational event',
@@ -69,11 +72,13 @@ class InMemoryScopedRepository<RecordType extends ScopedRecord> {
   constructor(seed: readonly RecordType[], label: string) {
     this.label = label;
     for (const record of seed) {
-      if (this.records.has(record.id)) {
+      assertScope(record, record, label);
+      const key = scopedRecordKey(record, record.id);
+      if (this.records.has(key)) {
         throw new Error(`${label} seed contains duplicate ID ${record.id}.`);
       }
       assertGrounded(record, label);
-      this.records.set(record.id, cloneAndFreeze(record));
+      this.records.set(key, cloneAndFreeze(record));
     }
   }
 
@@ -87,7 +92,8 @@ class InMemoryScopedRepository<RecordType extends ScopedRecord> {
   }
 
   get(scope: OperationalScope, id: string): RecordType | undefined {
-    const record = this.records.get(id);
+    assertScope(scope, scope, this.label);
+    const record = this.records.get(scopedRecordKey(scope, id));
     if (!record) return undefined;
     assertScope(scope, record, `${this.label} record ${id}`);
     return cloneAndFreeze(record);
@@ -96,21 +102,23 @@ class InMemoryScopedRepository<RecordType extends ScopedRecord> {
   append(scope: OperationalScope, record: RecordType): RecordType {
     assertScope(scope, record, this.label);
     assertGrounded(record, this.label);
-    if (this.records.has(record.id)) {
+    const key = scopedRecordKey(scope, record.id);
+    if (this.records.has(key)) {
       throw new Error(`${this.label} record ${record.id} already exists.`);
     }
     const stored = cloneAndFreeze(record);
-    this.records.set(record.id, stored);
+    this.records.set(key, stored);
     return cloneAndFreeze(stored);
   }
 
   upsert(scope: OperationalScope, record: RecordType): RecordType {
     assertScope(scope, record, this.label);
     assertGrounded(record, this.label);
-    const existing = this.records.get(record.id);
+    const key = scopedRecordKey(scope, record.id);
+    const existing = this.records.get(key);
     if (existing) assertScope(scope, existing, `${this.label} record ${record.id}`);
     const stored = cloneAndFreeze(record);
-    this.records.set(record.id, stored);
+    this.records.set(key, stored);
     return cloneAndFreeze(stored);
   }
 }

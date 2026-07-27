@@ -19,6 +19,8 @@ import type {
   BoardFirstAssistantAction,
   BoardFirstAssistantState,
   BoardFirstAttentionProjection,
+  BoardFirstCaptureReceipt,
+  BoardFirstCaptureRequest,
   BoardFirstSectionAction,
   BoardFirstSectionProjection,
   BoardFirstTone,
@@ -239,14 +241,14 @@ const action = (
 const noteAction = action(
   'add-note-photo',
   'Add Note or Photo',
-  'Hand this section context to the existing Capture owner. This sheet does not save evidence.',
+  'Request the existing Capture owner with this section context. No handoff or save is assumed.',
   { captureKind: 'note' },
 );
 
 const blockerAction = action(
   'add-blocker',
   'Add Blocker',
-  'Hand a blocker draft to the existing Capture owner. No operational state changes here.',
+  'Request a blocker draft from the existing Capture owner. No handoff or state change is assumed.',
   { captureKind: 'blocker' },
 );
 
@@ -273,17 +275,20 @@ export const selectBoardFirstSectionActions = (
       noteAction,
     ];
   }
+  if (record.access !== 'accessible') {
+    return [
+      action('request-access', 'Request Access Clarification', 'Record a personal follow-up without claiming access was restored.'),
+      ...(record.authorization === 'not-released'
+        ? [action('clarify-release', 'Clarify Release', 'Record a follow-up request; this prototype cannot release scope.')]
+        : []),
+      blockerAction,
+      noteAction,
+    ];
+  }
   if (record.authorization === 'not-released') {
     return [
       action('clarify-release', 'Clarify Release', 'Record a follow-up request; this prototype cannot release scope.'),
       noteAction,
-    ];
-  }
-  if (record.access !== 'accessible') {
-    return [
-      action('request-access', 'Request Access Clarification', 'Record a personal follow-up without claiming access was restored.'),
-      noteAction,
-      blockerAction,
     ];
   }
   if (record.inspection === 'callback-required') {
@@ -296,9 +301,22 @@ export const selectBoardFirstSectionActions = (
     return [
       action('pass-reinspection', 'Pass My Reinspection', 'Create a read-only prototype proposal for Los review.'),
       action('create-callback', 'Create Callback', 'Create a callback proposal; the original record remains unchanged.'),
-      action('inspection-blocked', 'Inspection Blocked', 'Hand a blocker draft to the existing Capture owner.', { captureKind: 'blocker' }),
+      action(
+        'inspection-blocked',
+        'Inspection Blocked',
+        'Request a blocker draft from the existing Capture owner. No handoff or save is assumed.',
+        { captureKind: 'blocker' },
+      ),
       noteAction,
     ];
+  }
+  if (PASSED_INSPECTIONS.has(record.inspection)) {
+    return record.paperReview === 'needs-paper-review'
+      ? [
+          action('review-paper', 'Review Against Paper', 'Open a personal reminder. Paper remains authoritative.'),
+          noteAction,
+        ]
+      : [noteAction];
   }
   if (assignments.length === 0) {
     return [
@@ -316,17 +334,16 @@ export const selectBoardFirstSectionActions = (
     return [
       action('pass-inspection', 'Pass My Inspection', 'Create a read-only prototype proposal for Los review.'),
       action('create-callback', 'Create Callback', 'Create a callback proposal; the source record remains unchanged.'),
-      action('inspection-blocked', 'Inspection Blocked', 'Hand a blocker draft to the existing Capture owner.', { captureKind: 'blocker' }),
+      action(
+        'inspection-blocked',
+        'Inspection Blocked',
+        'Request a blocker draft from the existing Capture owner. No handoff or save is assumed.',
+        { captureKind: 'blocker' },
+      ),
       noteAction,
     ];
   }
-  if (PASSED_INSPECTIONS.has(record.inspection) && record.paperReview === 'needs-paper-review') {
-    return [
-      action('review-paper', 'Review Against Paper', 'Open a personal reminder. Paper remains authoritative.'),
-      noteAction,
-    ];
-  }
-  return [noteAction, blockerAction];
+  return [blockerAction, noteAction];
 };
 
 export const createBoardFirstActionProposal = (
@@ -344,9 +361,13 @@ export const createBoardFirstActionProposal = (
   unitId,
 });
 
-export const listBoardFirstCrewOptions = (repository: Jul28TurnBoardRepository): string[] => [
+export const listBoardFirstCrewOptions = (
+  repository: Jul28TurnBoardRepository,
+  trade: Jul28Trade,
+): string[] => [
   ...new Set(repository.listUnits().flatMap((unit) =>
-    unit.records.flatMap((record) => activeAssignments(record).map((episode) => episode.crewName)),
+    recordsForTrade(unit, trade)
+      .flatMap((record) => activeAssignments(record).map((episode) => episode.crewName)),
   )),
 ].sort();
 
@@ -354,7 +375,13 @@ export const eligibleAssignmentSections = (
   unit: Jul28UnitRecord,
   trade: Jul28Trade,
 ): Jul28Section[] => recordsForTrade(unit, trade)
-  .filter((record) => record.applicability === 'applicable' && record.authorization === 'released')
+  .filter((record) => (
+    record.applicability === 'applicable'
+    && record.authorization === 'released'
+    // In this model, passed inspections are the records that may still await
+    // paper reconciliation. Neither passed nor awaiting-paper work is assignable.
+    && !PASSED_INSPECTIONS.has(record.inspection)
+  ))
   .map((record) => record.section);
 
 export const createBoardFirstAssignmentProposal = (
@@ -422,6 +449,80 @@ export const projectBoardFirstUnitActivity = (
   activity: readonly BoardFirstActivityItem[],
   unitId: string,
 ) => activity.filter((item) => item.unitId === unitId);
+
+export const createBoardFirstActionActivityItem = (
+  proposal: BoardFirstActionProposal,
+  unitNumber: string,
+  receiptId: string,
+  recordedAt: string,
+): BoardFirstActivityItem => ({
+  id: `wave1r-action-receipt:${receiptId}`,
+  kind: 'action-proposal',
+  nonpersisted: true,
+  receiptId,
+  recordedAt,
+  section: proposal.section,
+  sourceLabel: 'Local synthetic receipt · nonpersisted',
+  synthetic: true,
+  title: `${proposal.action.label} proposed`,
+  trade: proposal.trade,
+  unitId: proposal.unitId,
+  unitNumber,
+  wording: proposal.disclaimer,
+});
+
+export const createBoardFirstAssignmentActivityItem = (
+  proposal: BoardFirstAssignmentProposal,
+  unitNumber: string,
+  receiptId: string,
+  recordedAt: string,
+): BoardFirstActivityItem => ({
+  id: `wave1r-assignment-receipt:${receiptId}`,
+  kind: 'assignment-proposal',
+  nonpersisted: true,
+  receiptId,
+  recordedAt,
+  sourceLabel: 'Local synthetic receipt · nonpersisted',
+  synthetic: true,
+  title: 'Assignment proposal confirmed',
+  trade: proposal.trade,
+  unitId: proposal.unitId,
+  unitNumber,
+  wording: `${proposal.crewName} was proposed for ${tradeLabel(proposal.trade)} ${proposal.sections.map(sectionLabel).join(', ')}. ${proposal.disclaimer}`,
+});
+
+export const projectBoardFirstCaptureReceiptActivity = (
+  request: BoardFirstCaptureRequest,
+  receipt: BoardFirstCaptureReceipt,
+  recordedAt: string,
+): BoardFirstActivityItem | null => {
+  if (!receipt.accepted) return null;
+  if (receipt.activityItem) {
+    return {
+      ...receipt.activityItem,
+      receiptId: receipt.receiptId,
+      section: receipt.activityItem.section ?? request.section,
+      trade: receipt.activityItem.trade ?? request.trade,
+      unitId: receipt.activityItem.unitId ?? request.unitId,
+      unitNumber: receipt.activityItem.unitNumber ?? request.unitNumber,
+    };
+  }
+  return {
+    id: `wave1r-capture-receipt:${receipt.receiptId}`,
+    kind: 'capture-receipt',
+    nonpersisted: true,
+    receiptId: receipt.receiptId,
+    recordedAt,
+    section: request.section,
+    sourceLabel: 'Accepted Capture handoff receipt · local only',
+    synthetic: true,
+    title: 'Capture handoff accepted',
+    trade: request.trade,
+    unitId: request.unitId,
+    unitNumber: request.unitNumber,
+    wording: 'The host accepted this handoff request. This local receipt does not claim that content was permanently saved.',
+  };
+};
 
 export const initialBoardFirstAssistantState: BoardFirstAssistantState = {
   draft: '',

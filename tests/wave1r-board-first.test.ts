@@ -5,15 +5,22 @@ import { recordsForTrade } from '../src/features/jul28-turnboard/projections.ts'
 import { jul28SyntheticTurnBoardRepository } from '../src/features/jul28-turnboard/syntheticRepository.ts';
 import { WAVE1R_SYNTHETIC_ACTIVITY } from '../src/features/wave1r-board-first/fixtures.ts';
 import {
+  createBoardFirstActionActivityItem,
+  createBoardFirstActionProposal,
+  createBoardFirstAssignmentActivityItem,
   createBoardFirstAssignmentProposal,
+  eligibleAssignmentSections,
   initialBoardFirstAssistantState,
+  listBoardFirstCrewOptions,
   projectBoardFirstActivity,
   projectBoardFirstBoard,
+  projectBoardFirstCaptureReceiptActivity,
   projectBoardFirstUnitActivity,
   reduceBoardFirstAssistant,
   selectBoardFirstSectionActions,
 } from '../src/features/wave1r-board-first/projections.ts';
 import {
+  BOARD_FIRST_HOST_DESTINATIONS,
   BOARD_FIRST_NAVIGATION,
   DEFAULT_BOARD_FIRST_VIEW,
 } from '../src/features/wave1r-board-first/types.ts';
@@ -43,6 +50,18 @@ test('TurnBoard is the default and primary navigation is exactly TurnBoard, Acti
     { id: 'activity', label: 'Activity' },
     { id: 'more', label: 'More' },
   ]);
+  assert.deepEqual(BOARD_FIRST_HOST_DESTINATIONS, [
+    { id: 'crews', label: 'Crews' },
+    { id: 'reports', label: 'Reports' },
+    { id: 'setup', label: 'Setup' },
+    { id: 'backup', label: 'Backup' },
+    { id: 'sync', label: 'Sync' },
+  ]);
+  assert.equal(
+    BOARD_FIRST_NAVIGATION.some(({ label }) =>
+      ['Training', 'Daily', 'Issues', 'Assignments'].includes(label)),
+    false,
+  );
 });
 
 test('dense board rows preserve identity, both trades, crew visibility, sections, and one immediate attention', () => {
@@ -95,6 +114,52 @@ test('state-aware section actions expose only valid next actions', () => {
     'Add Note or Photo',
   ]);
   assert.equal(conflictActions.some((action) => action.id === 'pass-inspection'), false);
+
+  const accessAndReleaseBlocked: Jul28SectionTradeRecord = {
+    ...getRecord('602', 'paint', 'B'),
+    authorization: 'not-released',
+    access: 'occupied-or-restricted',
+  };
+  assert.deepEqual(
+    selectBoardFirstSectionActions(accessAndReleaseBlocked).map((action) => action.label),
+    [
+      'Request Access Clarification',
+      'Clarify Release',
+      'Add Blocker',
+      'Add Note or Photo',
+    ],
+  );
+
+  const passedAwaitingPaper: Jul28SectionTradeRecord = {
+    ...getRecord('602', 'clean', 'D'),
+    authorization: 'released',
+    inspection: 'los-passed',
+    paperReview: 'needs-paper-review',
+    assignmentEpisodes: [],
+  };
+  assert.deepEqual(
+    selectBoardFirstSectionActions(passedAwaitingPaper).map((action) => action.label),
+    ['Review Against Paper', 'Add Note or Photo'],
+  );
+  assert.deepEqual(
+    selectBoardFirstSectionActions({
+      ...passedAwaitingPaper,
+      paperReview: 'paper-reviewed',
+    }).map((action) => action.label),
+    ['Add Note or Photo'],
+  );
+});
+
+test('assignment choices are trade-compatible and omit passed or unresolved sections', () => {
+  assert.deepEqual(
+    listBoardFirstCrewOptions(jul28SyntheticTurnBoardRepository, 'paint'),
+    ['Atlas Paint', 'Bluebird Paint', 'Northline Paint'],
+  );
+  assert.deepEqual(
+    listBoardFirstCrewOptions(jul28SyntheticTurnBoardRepository, 'clean'),
+    ['Cedar Clean', 'Harbor Clean'],
+  );
+  assert.deepEqual(eligibleAssignmentSections(getUnit('604'), 'paint'), ['D']);
 });
 
 test('global Activity and Unit history share Unit-linked notes, transcripts, and events', () => {
@@ -134,6 +199,109 @@ test('synthetic assignment proposal detects responsibility and cannot claim pers
   assert.match(proposal.disclaimer, /Synthetic assignment proposal only/i);
   assert.match(proposal.disclaimer, /No official or persisted assignment/i);
   assert.equal(JSON.stringify(unit), before);
+});
+
+test('confirmed synthetic proposals create local nonpersisted receipts mirrored into Unit history', () => {
+  const unit = getUnit('602');
+  const sectionAction = selectBoardFirstSectionActions(getRecord('602', 'paint', 'common'))[0];
+  assert.ok(sectionAction);
+  const actionProposal = createBoardFirstActionProposal(
+    unit.id,
+    'paint',
+    'common',
+    sectionAction,
+  );
+  const assignmentProposal = createBoardFirstAssignmentProposal(
+    unit,
+    'paint',
+    'Atlas Paint',
+    ['common'],
+  );
+  const actionReceipt = createBoardFirstActionActivityItem(
+    actionProposal,
+    unit.unitNumber,
+    'action-test-1',
+    '2026-07-26T15:00:00.000Z',
+  );
+  const assignmentReceipt = createBoardFirstAssignmentActivityItem(
+    assignmentProposal,
+    unit.unitNumber,
+    'assignment-test-1',
+    '2026-07-26T15:01:00.000Z',
+  );
+  const activity = projectBoardFirstActivity(
+    jul28SyntheticTurnBoardRepository,
+    [actionReceipt, assignmentReceipt],
+  );
+  const unitHistory = projectBoardFirstUnitActivity(activity, unit.id);
+
+  assert.equal(actionReceipt.nonpersisted, true);
+  assert.equal(assignmentReceipt.nonpersisted, true);
+  assert.match(actionReceipt.sourceLabel, /nonpersisted/i);
+  assert.match(assignmentReceipt.sourceLabel, /nonpersisted/i);
+  assert.ok(activity.some((item) => item.id === actionReceipt.id));
+  assert.ok(activity.some((item) => item.id === assignmentReceipt.id));
+  assert.ok(unitHistory.some((item) => item.id === actionReceipt.id));
+  assert.ok(unitHistory.some((item) => item.id === assignmentReceipt.id));
+});
+
+test('Capture activity exists only for an accepted receipt and preserves returned Unit context', () => {
+  const request = {
+    kind: 'note' as const,
+    origin: 'section-sheet' as const,
+    requestId: 'capture-test-1',
+    returnFocus: {
+      triggerId: 'w1r-section-jul28-unit-604-paint-D',
+      unitId: 'jul28-unit-604',
+    },
+    section: 'D' as const,
+    trade: 'paint' as const,
+    unitId: 'jul28-unit-604',
+    unitNumber: '604',
+  };
+  assert.equal(
+    projectBoardFirstCaptureReceiptActivity(
+      request,
+      { accepted: false, message: 'Rejected' },
+      '2026-07-26T15:02:00.000Z',
+    ),
+    null,
+  );
+
+  const accepted = projectBoardFirstCaptureReceiptActivity(
+    request,
+    { accepted: true, receiptId: 'capture-receipt-1' },
+    '2026-07-26T15:02:00.000Z',
+  );
+  assert.ok(accepted);
+  assert.equal(accepted.kind, 'capture-receipt');
+  assert.equal(accepted.unitId, request.unitId);
+  assert.equal(accepted.nonpersisted, true);
+  assert.match(accepted.wording, /does not claim.*permanently saved/i);
+
+  const returnedItem = projectBoardFirstCaptureReceiptActivity(
+    request,
+    {
+      accepted: true,
+      receiptId: 'capture-receipt-2',
+      activityItem: {
+        id: 'host-note-1',
+        kind: 'note',
+        recordedAt: '2026-07-26T15:03:00.000Z',
+        sourceLabel: 'Host Capture receipt',
+        synthetic: true,
+        title: 'Returned note',
+        wording: 'Returned by the host.',
+      },
+    },
+    '2026-07-26T15:03:00.000Z',
+  );
+  assert.ok(returnedItem);
+  assert.equal(returnedItem.receiptId, 'capture-receipt-2');
+  assert.equal(returnedItem.unitId, request.unitId);
+  assert.equal(returnedItem.unitNumber, request.unitNumber);
+  assert.equal(returnedItem.trade, request.trade);
+  assert.equal(returnedItem.section, request.section);
 });
 
 test('assistant collapse and re-expand preserves the exact typed draft', () => {

@@ -14,6 +14,10 @@ const harnessRoot = await mkdtemp('/private/tmp/pds-jul28-scale-');
 const screenshotDirectory = await mkdtemp('/private/tmp/pds-jul28-scale-shots-');
 const featurePath = resolve(repoRoot, 'src/features/jul28-turnboard/TurnBoardFeature.tsx');
 const repositoryPath = resolve(repoRoot, 'src/features/jul28-turnboard/syntheticRepository.ts');
+const syntheticUnitCount = 300;
+const assignmentConflictCount = 75;
+const maxInitialRenderMs = 4_000;
+const maxInteractionMs = 1_000;
 
 const html = `<!doctype html>
 <html lang="en">
@@ -35,7 +39,7 @@ import { TurnBoardFeature } from ${JSON.stringify(featurePath)};
 import { jul28SyntheticTurnBoardRepository } from ${JSON.stringify(repositoryPath)};
 
 const templates = jul28SyntheticTurnBoardRepository.listUnits();
-const units = Array.from({ length: 300 }, (_, index) => {
+const units = Array.from({ length: ${syntheticUnitCount} }, (_, index) => {
   const template = structuredClone(templates[index % templates.length]);
   const unitId = \`jul28-scale-unit-\${index + 1}\`;
   const unitNumber = String(1001 + index);
@@ -106,6 +110,11 @@ const assertNoHorizontalOverflow = async (page, label) => {
   );
 };
 
+const waitForUnitCardCount = (page, expectedCount) => page.waitForFunction(
+  (count) => document.querySelectorAll('.jul28-unit-card').length === count,
+  expectedCount,
+);
+
 const server = await createServer({
   root: harnessRoot,
   logLevel: 'error',
@@ -146,8 +155,11 @@ try {
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
     const loadMs = Math.round(performance.now() - startedAt);
-    assert.equal(await page.locator('.jul28-unit-card').count(), 300);
-    assert.ok(loadMs < 15_000, `${target.name} needed ${loadMs}ms to render 300 synthetic Units.`);
+    assert.equal(await page.locator('.jul28-unit-card').count(), syntheticUnitCount);
+    assert.ok(
+      loadMs < maxInitialRenderMs,
+      `${target.name} needed ${loadMs}ms to render ${syntheticUnitCount} synthetic Units (limit ${maxInitialRenderMs}ms).`,
+    );
     assert.equal(
       await page.getByRole('button', { name: /property accepted|property rejected|PDS Approved|mark done/i }).count(),
       0,
@@ -156,23 +168,66 @@ try {
     await assertNoHorizontalOverflow(page, target.name);
 
     const search = page.getByPlaceholder('Search units or crew');
+    await search.click();
+    const searchStartedAt = performance.now();
+    await search.type('1300');
+    await waitForUnitCardCount(page, 1);
+    const searchTypingMs = Math.round(performance.now() - searchStartedAt);
+    assert.ok(
+      searchTypingMs < maxInteractionMs,
+      `${target.name} search typing needed ${searchTypingMs}ms (limit ${maxInteractionMs}ms).`,
+    );
+
+    await search.fill('');
+    await waitForUnitCardCount(page, syntheticUnitCount);
+    const conflictFilter = page.getByRole('button', { name: /Assignment conflict/ });
+    const filterStartedAt = performance.now();
+    await conflictFilter.click();
+    await waitForUnitCardCount(page, assignmentConflictCount);
+    const filterResponseMs = Math.round(performance.now() - filterStartedAt);
+    assert.ok(
+      filterResponseMs < maxInteractionMs,
+      `${target.name} filter response needed ${filterResponseMs}ms (limit ${maxInteractionMs}ms).`,
+    );
+
+    await page.getByRole('button', { name: /^All / }).click();
+    await waitForUnitCardCount(page, syntheticUnitCount);
     await search.fill('1300');
-    assert.equal(await page.locator('.jul28-unit-card').count(), 1);
+    await waitForUnitCardCount(page, 1);
+    const unitOpenStartedAt = performance.now();
     await page.getByRole('button', { name: 'Open Unit 1300 workspace', exact: true }).click();
     await page.getByRole('complementary', { name: 'Selected Unit workspace' })
       .getByRole('heading', { name: 'Unit 1300', exact: true })
       .waitFor();
+    const unitOpenMs = Math.round(performance.now() - unitOpenStartedAt);
+    assert.ok(
+      unitOpenMs < maxInteractionMs,
+      `${target.name} Unit opening needed ${unitOpenMs}ms (limit ${maxInteractionMs}ms).`,
+    );
     await page.getByText('Paper TurnBoard remains authoritative.', { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} selected workspace`);
 
     const screenshot = path.join(screenshotDirectory, `${target.name}.png`);
     await page.screenshot({ path: screenshot, fullPage: false });
     assert.deepEqual(findings, [], `${target.name} runtime findings:\n${findings.join('\n')}`);
-    results[target.name] = { loadMs, screenshot };
+    results[target.name] = {
+      loadMs,
+      searchTypingMs,
+      filterResponseMs,
+      unitOpenMs,
+      screenshot,
+    };
     await context.close();
   }
 
-  console.log(JSON.stringify({ unitCount: 300, results }));
+  console.log(JSON.stringify({
+    unitCount: syntheticUnitCount,
+    thresholdsMs: {
+      initialRender: maxInitialRenderMs,
+      interaction: maxInteractionMs,
+    },
+    results,
+  }));
 } finally {
   await browser?.close();
   await server.close();

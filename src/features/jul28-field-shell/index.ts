@@ -9,7 +9,7 @@ export {
   summarizeNeedsMe,
   validateFieldShellModel,
 } from './projection';
-export { TodayFieldShell } from './TodayFieldShell';
+// TodayFieldShell is a preview-only harness imported directly by preview.tsx.
 export { FieldNavigation } from './components/FieldNavigation';
 export { FieldShellHeader } from './components/FieldShellHeader';
 export { MoreSheet } from './components/MoreSheet';

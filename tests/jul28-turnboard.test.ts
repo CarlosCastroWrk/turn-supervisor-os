@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Jul28SectionTradeRecord, Jul28UnitRecord } from '../src/features/jul28-turnboard/model.ts';
 import {
+  filterJul28TurnBoard,
+  projectJul28AttentionCounts,
   projectJul28Blocker,
   projectJul28SectionFacts,
   projectJul28TradeProgress,
   projectJul28TurnBoard,
+  projectJul28TurnBoardUnits,
   projectJul28UnitCard,
   projectJul28UnitHistory,
   recordsForTrade,
@@ -147,7 +150,7 @@ test('Unit 603 reports partial section readiness and never whole-Unit readiness'
   assert.equal(facts.find((fact) => fact.key === 'crew-report')?.label, 'Crew reported complete');
   assert.equal(facts.find((fact) => fact.key === 'los-inspection')?.label, 'My inspection pending');
   assert.match(facts.find((fact) => fact.key === 'los-inspection')?.detail ?? '', /access prevents/i);
-  assert.equal(blocker?.owner, 'Property contact / Tony');
+  assert.equal(blocker?.owner, 'Accountable property access source');
   assert.match(blocker?.nextAction ?? '', /work window/i);
 });
 
@@ -284,6 +287,35 @@ test('all requested filters and search are deterministic and non-mutating', () =
   assert.equal(crew.some((projection) => projection.unitNumber === '1305'), true);
   assert.deepEqual(searched.map((projection) => projection.unitNumber), ['1305']);
   assert.equal(jul28SyntheticTurnBoardRepository.listUnits(), units);
+});
+
+test('attention counts and search reuse the single projected Unit set', () => {
+  const units = jul28SyntheticTurnBoardRepository.listUnits();
+  const projectedUnits = projectJul28TurnBoardUnits(units, 'paint');
+  const filters = { attention: 'all', buildingFloor: 'all', crew: 'all' } as const;
+  const counts = projectJul28AttentionCounts(projectedUnits, filters);
+  const conflictMatches = filterJul28TurnBoard(
+    projectedUnits,
+    { ...filters, attention: 'assignment-conflict' },
+  );
+  const searchedMatches = filterJul28TurnBoard(projectedUnits, filters, '3-bedroom 1305');
+
+  assert.deepEqual(counts, {
+    all: 4,
+    'needs-inspection': 2,
+    callback: 0,
+    'property-walk': 2,
+    'access-blocked': 1,
+    'assignment-conflict': 1,
+  });
+  assert.equal(
+    conflictMatches[0],
+    projectedUnits.find(({ projection }) => projection.unitNumber === '604')?.projection,
+  );
+  assert.equal(
+    searchedMatches[0],
+    projectedUnits.find(({ projection }) => projection.unitNumber === '1305')?.projection,
+  );
 });
 
 test('access-blocked attention filter matches only exact access-blocked facts', () => {

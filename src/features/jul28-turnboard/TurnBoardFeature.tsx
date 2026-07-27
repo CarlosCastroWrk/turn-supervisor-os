@@ -13,6 +13,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -33,11 +35,13 @@ import type {
   Jul28UnitRecord,
 } from './model';
 import {
+  filterJul28TurnBoard,
+  projectJul28AttentionCounts,
   projectJul28Blocker,
   projectJul28FilterOptions,
   projectJul28SectionFacts,
   projectJul28TradeProgress,
-  projectJul28TurnBoard,
+  projectJul28TurnBoardUnits,
   projectJul28UnitHistory,
   recordsForTrade,
   validateJul28SourceCoverage,
@@ -170,12 +174,12 @@ function TradeSummary({
   );
 }
 
-function UnitCard({
+const UnitCard = memo(function UnitCard({
   projection,
   onOpen,
 }: {
   projection: Jul28UnitCardProjection;
-  onOpen: (trigger: HTMLButtonElement) => void;
+  onOpen: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   const crewSummary = projection.crewNames.length > 0 ? projection.crewNames.join(', ') : 'No crew evidence';
 
@@ -237,7 +241,7 @@ function UnitCard({
         <button
           type="button"
           className="jul28-unit-card__open"
-          onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
+          onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(projection.unitId, event.currentTarget)}
           aria-label={`Open Unit ${projection.unitNumber} workspace`}
         >
           <span>Open Unit workspace</span>
@@ -246,7 +250,7 @@ function UnitCard({
       </div>
     </article>
   );
-}
+});
 
 function WorkspaceEmpty() {
   return (
@@ -480,10 +484,14 @@ export function TurnBoardFeature({
   const lastUnitTriggerRef = useRef<HTMLButtonElement | null>(null);
   const workspaceHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const listHeadingRef = useRef<HTMLHeadingElement | null>(null);
-  const units = repository.listUnits();
+  const units = useMemo(() => repository.listUnits(), [repository]);
+  const projectedUnits = useMemo(
+    () => projectJul28TurnBoardUnits(units, trade),
+    [trade, units],
+  );
   const projections = useMemo(
-    () => projectJul28TurnBoard(units, trade, filters, query),
-    [filters, query, trade, units],
+    () => filterJul28TurnBoard(projectedUnits, filters, query),
+    [filters, projectedUnits, query],
   );
   const filterOptions = useMemo(() => projectJul28FilterOptions(units, trade), [trade, units]);
   const selectedUnit = selectedUnitId ? repository.getUnit(selectedUnitId) : undefined;
@@ -520,7 +528,7 @@ export function TurnBoardFeature({
     }
   };
 
-  const openUnit = (unitId: string, trigger: HTMLButtonElement) => {
+  const openUnit = useCallback((unitId: string, trigger: HTMLButtonElement) => {
     const unit = repository.getUnit(unitId);
     const firstSection = unit && recordsForTrade(unit, trade)
       .find((record) => record.applicability === 'applicable')?.section;
@@ -528,7 +536,7 @@ export function TurnBoardFeature({
     setSelectedUnitId(unitId);
     if (firstSection) setSelectedSection(firstSection);
     onUnitSelected?.(unitId);
-  };
+  }, [onUnitSelected, repository, trade]);
 
   const closeUnit = () => {
     const closingUnitId = selectedUnitId;
@@ -540,12 +548,15 @@ export function TurnBoardFeature({
   };
 
   const filterCounts = useMemo(() => {
-    const options = Object.keys(attentionFilterLabels) as Jul28AttentionFilter[];
-    return Object.fromEntries(options.map((attention) => [
-      attention,
-      projectJul28TurnBoard(units, trade, { ...filters, attention }, query).length,
-    ])) as Record<Jul28AttentionFilter, number>;
-  }, [filters, query, trade, units]);
+    return projectJul28AttentionCounts(
+      projectedUnits,
+      {
+        buildingFloor: filters.buildingFloor,
+        crew: filters.crew,
+      },
+      query,
+    );
+  }, [filters.buildingFloor, filters.crew, projectedUnits, query]);
 
   return (
     <div className={`jul28-turnboard ${selectedUnit ? 'has-selected-unit' : ''}`} data-source={repository.source}>
@@ -610,7 +621,7 @@ export function TurnBoardFeature({
             <UnitCard
               key={projection.unitId}
               projection={projection}
-              onOpen={(trigger) => openUnit(projection.unitId, trigger)}
+              onOpen={openUnit}
             />
           ))}
           {projections.length === 0 ? (

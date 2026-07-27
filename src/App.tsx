@@ -31,6 +31,7 @@ import { TrainingQuestionsView } from './views/TrainingQuestionsView';
 import { UnitDetailView } from './views/UnitDetailView';
 
 const LEGACY_CAPTURE_HISTORY_KEY = 'turnOsLegacyCapture';
+const FIELD_SHEET_HISTORY_KEY = 'turnOsFieldSheet';
 const JUL28_TURNBOARD_UNITS = jul28SyntheticTurnBoardRepository.listUnits();
 const JUL28_COMMAND_UNITS: TurnCommandUnitOption[] = JUL28_TURNBOARD_UNITS
   .map((unit) => ({
@@ -59,6 +60,13 @@ const readHistoryState = (): Record<string, unknown> => {
 };
 
 const historyRequestsCapture = () => readHistoryState()[LEGACY_CAPTURE_HISTORY_KEY] === true;
+
+const historyRequestedFieldSheet = (): Exclude<FieldSheet, null> | null => {
+  const requestedSheet = readHistoryState()[FIELD_SHEET_HISTORY_KEY];
+  return requestedSheet === 'needs-me' || requestedSheet === 'more'
+    ? requestedSheet
+    : null;
+};
 
 const clearLegacyCaptureHistoryState = () => {
   if (typeof window === 'undefined' || !historyRequestsCapture()) {
@@ -103,7 +111,7 @@ function App() {
         );
       }
 
-      setFieldSheet(null);
+      setFieldSheet(historyRequestedFieldSheet());
       setCaptureOpen(nextLocation.captureRequested || historyRequestsCapture());
       setRoute(nextLocation.route);
       window.scrollTo({ top: 0, behavior: 'auto' });
@@ -126,6 +134,7 @@ function App() {
       return;
     }
 
+    const replacesFieldSheetEntry = historyRequestedFieldSheet() !== null;
     clearLegacyCaptureHistoryState();
     setFieldSheet(null);
     setCaptureOpen(false);
@@ -133,7 +142,15 @@ function App() {
     const nextRoute = routeForNavigation(view, unitId, options);
     const nextHash = buildAppHash(nextRoute);
 
-    if (window.location.hash !== nextHash) {
+    if (replacesFieldSheetEntry) {
+      const nextState = { ...readHistoryState() };
+      delete nextState[FIELD_SHEET_HISTORY_KEY];
+      window.history.replaceState(
+        Object.keys(nextState).length > 0 ? nextState : null,
+        '',
+        nextHash,
+      );
+    } else if (window.location.hash !== nextHash) {
       window.history.pushState(null, '', nextHash);
     }
 
@@ -144,6 +161,26 @@ function App() {
   const closeCapture = useCallback(() => {
     clearLegacyCaptureHistoryState();
     setCaptureOpen(false);
+  }, []);
+
+  const openFieldSheet = useCallback((sheet: Exclude<FieldSheet, null>) => {
+    const nextState = {
+      ...readHistoryState(),
+      [FIELD_SHEET_HISTORY_KEY]: sheet,
+    };
+    if (historyRequestedFieldSheet()) {
+      window.history.replaceState(nextState, '', window.location.href);
+    } else {
+      window.history.pushState(nextState, '', window.location.href);
+    }
+    setFieldSheet(sheet);
+  }, []);
+
+  const closeFieldSheet = useCallback(() => {
+    setFieldSheet(null);
+    if (historyRequestedFieldSheet()) {
+      window.history.back();
+    }
   }, []);
 
   const openCapture = useCallback((entry: 'plus' | 'microphone') => {
@@ -231,11 +268,11 @@ function App() {
         commandUnits={JUL28_COMMAND_UNITS}
         fieldShellModel={JUL28_SYNTHETIC_FIELD_SHELL}
         fieldSheet={fieldSheet}
-        onCloseFieldSheet={() => setFieldSheet(null)}
+        onCloseFieldSheet={closeFieldSheet}
         onNavigate={navigate}
         onOpenCapture={openCapture}
         onOpenBackup={() => navigate('export')}
-        onOpenFieldSheet={setFieldSheet}
+        onOpenFieldSheet={openFieldSheet}
         onRetrySave={retrySave}
         onSelectFieldMore={selectFieldMore}
         onSelectFieldNeed={selectFieldNeed}
@@ -253,7 +290,7 @@ function App() {
             personalPlan={JUL28_SYNTHETIC_FIELD_SHELL.personalPlan}
             progressingWork={JUL28_SYNTHETIC_FIELD_SHELL.progressingWork}
             recentActivity={JUL28_SYNTHETIC_FIELD_SHELL.recentActivity}
-            onOpenNeedsMe={() => setFieldSheet('needs-me')}
+            onOpenNeedsMe={() => openFieldSheet('needs-me')}
             onOpenWorkspace={openFieldWorkspace}
             onSelectNeed={selectFieldNeed}
             onSelectTask={selectFieldTask}

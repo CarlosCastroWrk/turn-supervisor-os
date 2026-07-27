@@ -115,6 +115,17 @@ try {
     const needsMe = page.getByRole('dialog', { name: 'Needs Me' });
     await needsMe.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 1);
+    const sheetOriginHash = await page.evaluate(() => window.location.hash);
+    await page.goBack();
+    await needsMe.waitFor({ state: 'hidden' });
+    assert.equal(
+      await page.evaluate(() => window.location.hash),
+      sheetOriginHash,
+      `${target.name} browser Back closed Needs Me and changed route.`,
+    );
+    await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+    await page.getByRole('button', { name: /Open Needs Me/ }).click();
+    await needsMe.waitFor();
     await needsMe.getByRole('button', { name: /Unit 603, Section C, Clean/ }).click();
     await page.getByRole('complementary', { name: 'Selected Unit workspace' })
       .getByRole('heading', { name: 'Unit 603', exact: true })

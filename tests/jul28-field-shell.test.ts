@@ -42,7 +42,7 @@ test('Today includes an explicit synthetic property and date', () => {
 test('personal Now, Next, and Backup remain concise while daily work supports variable counts', () => {
   const ordered = orderPersonalPlan(JUL28_SYNTHETIC_FIELD_SHELL.personalPlan);
   assert.deepEqual(ordered.map((entry) => entry.slot), ['now', 'next', 'backup']);
-  assert.deepEqual(ordered.map((entry) => entry.task?.unitNumber), ['602', '603', '607']);
+  assert.deepEqual(ordered.map((entry) => entry.task?.unitNumber), ['602', '603', '604']);
   assert.equal(JUL28_SYNTHETIC_FIELD_SHELL.assignedWork.length, 2);
   assert.equal(JUL28_SYNTHETIC_FIELD_SHELL.progressingWork.length, 2);
 

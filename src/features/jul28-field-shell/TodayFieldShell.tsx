@@ -19,7 +19,7 @@ interface TodayFieldShellProps {
   model: FieldShellModel;
   onNavigate: (destination: Exclude<FieldDestination, 'more'>) => void;
   onOpenTask: (task: FieldTask) => void;
-  onOpenWorkspace: (destination: FieldWorkspaceDestination) => void;
+  onOpenWorkspace: (destination: FieldWorkspaceDestination, unitNumber: string) => void;
   onSelectMore: (destination: MoreDestination) => void;
   onSelectNeed: (item: NeedsMeItem) => void;
 }

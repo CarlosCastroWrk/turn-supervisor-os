@@ -41,7 +41,7 @@ interface TodaySurfaceProps {
   progressingWork: FieldWorkItem[];
   recentActivity: FieldRecentActivityItem[];
   onOpenNeedsMe: () => void;
-  onOpenWorkspace: (destination: FieldWorkspaceDestination) => void;
+  onOpenWorkspace: (destination: FieldWorkspaceDestination, unitNumber: string) => void;
   onSelectNeed: (item: NeedsMeItem) => void;
   onSelectTask: (task: FieldTask) => void;
 }
@@ -81,7 +81,7 @@ const WorkList = ({
 }: {
   heading: string;
   items: FieldWorkItem[];
-  onOpenWorkspace: (destination: FieldWorkspaceDestination) => void;
+  onOpenWorkspace: (destination: FieldWorkspaceDestination, unitNumber: string) => void;
 }) => (
   <section className="j28-work-group" aria-label={heading}>
     <div className="j28-work-group__heading">
@@ -95,7 +95,7 @@ const WorkList = ({
             key={item.id}
             data-j28-touch="true"
             type="button"
-            onClick={() => onOpenWorkspace(item.destination)}
+            onClick={() => onOpenWorkspace(item.destination, item.unitNumber)}
             aria-label={`Open ${item.destination.label}. Unit ${item.unitNumber}, ${item.trade}, scope ${item.scope.join(', ')}.`}
           >
             <span className={`j28-work-list__icon ${item.trade === 'Clean' ? 'is-clean' : ''}`}>
@@ -124,13 +124,13 @@ const ScheduleCard = ({
   onOpenWorkspace,
 }: {
   item: FieldScheduleItem;
-  onOpenWorkspace: (destination: FieldWorkspaceDestination) => void;
+  onOpenWorkspace: (destination: FieldWorkspaceDestination, unitNumber: string) => void;
 }) => (
   <button
     className="j28-schedule-card"
     data-j28-touch="true"
     type="button"
-    onClick={() => onOpenWorkspace(item.destination)}
+    onClick={() => onOpenWorkspace(item.destination, item.unitNumber)}
     aria-label={`${item.title}, ${item.timeLabel}, Unit ${item.unitNumber}. Open ${item.destination.label}.`}
   >
     <CalendarClock size={22} aria-hidden="true" />
@@ -284,7 +284,7 @@ export function TodaySurface({
               key={item.id}
               data-j28-touch="true"
               type="button"
-              onClick={() => onOpenWorkspace(item.destination)}
+              onClick={() => onOpenWorkspace(item.destination, item.unitNumber)}
             >
               <time>{item.timeLabel}</time>
               <span><strong>Unit {item.unitNumber}</strong>{item.summary}</span>

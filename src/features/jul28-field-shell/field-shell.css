@@ -1037,6 +1037,49 @@
   }
 }
 
+.app-shell.j28-field-shell {
+  display: block;
+  padding-inline: 0;
+}
+
+.j28-shell-background {
+  min-width: 0;
+  min-height: 100dvh;
+}
+
+.app-shell.j28-field-shell .app-main.j28-field-shell__main {
+  grid-row: auto;
+  grid-column: auto;
+  width: min(100%, 1180px);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px max(16px, env(safe-area-inset-right)) calc(202px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+.j28-sync-slot {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.j28-sync-slot:empty {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .app-shell.j28-field-shell {
+    display: block;
+    padding-right: 0;
+    padding-left: 214px;
+  }
+
+  .app-shell.j28-field-shell .app-main.j28-field-shell__main {
+    width: min(100%, 1180px);
+    padding: 22px 24px calc(126px + env(safe-area-inset-bottom));
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .j28-field-shell button:hover {
     border-color: #9ac2ff;

@@ -275,10 +275,37 @@ test('Activity and Unit history share event identity and cover proposal, undo, a
   assert.deepEqual(projectUnitHistory(repositories.events, scope, 'unit-synthetic-101'), unitHistory);
 });
 
-test('every repository rejects cross-account record access', () => {
+test('scoped repositories allow the same ID in different scopes without cross-scope disclosure', () => {
+  const sharedId = 'event-shared-id';
+  const scopeAEvent = noteEvent(sharedId);
+  const scopeBEvent: OperationalEvent = {
+    ...noteEvent(sharedId),
+    ...otherScope,
+    wording: 'Synthetic wording for account B.',
+  };
+  const repositories = createInMemoryOperationalMemoryRepositories({
+    events: [scopeAEvent, scopeBEvent],
+  });
+  const missingScope: OperationalScope = {
+    accountId: 'account-synthetic-c',
+    projectId: scope.projectId,
+  };
+
+  assert.equal(repositories.events.get(scope, sharedId)?.wording, scopeAEvent.wording);
+  assert.equal(repositories.events.get(otherScope, sharedId)?.wording, scopeBEvent.wording);
+  assert.deepEqual(repositories.events.list(scope).map((record) => record.wording), [scopeAEvent.wording]);
+  assert.deepEqual(
+    repositories.events.list(otherScope).map((record) => record.wording),
+    [scopeBEvent.wording],
+  );
+  assert.equal(repositories.events.get(missingScope, sharedId), undefined);
+});
+
+test('scoped repository reads hide records that exist only in another scope', () => {
   const repositories = createInMemoryOperationalMemoryRepositories({ events: [noteEvent('event-scoped')] });
 
-  assert.throws(() => repositories.events.get(otherScope, 'event-scoped'), OperationalScopeError);
+  assert.doesNotThrow(() => repositories.events.get(otherScope, 'event-scoped'));
+  assert.equal(repositories.events.get(otherScope, 'event-scoped'), undefined);
   assert.deepEqual(repositories.events.list(otherScope), []);
 
   const source = readSourceFrom();
@@ -287,6 +314,29 @@ test('every repository rejects cross-account record access', () => {
     () => tools.get_property_summary({ scope: otherScope, input: {} }),
     OperationalScopeError,
   );
+});
+
+test('scoped repositories remain fail-closed for empty scopes and mismatched writes', () => {
+  const repositories = createInMemoryOperationalMemoryRepositories();
+  const emptyScope: OperationalScope = { accountId: '', projectId: '' };
+  const mismatchedSource: SourceDocumentRecord = {
+    ...otherScope,
+    id: 'source-mismatched-scope',
+    sourceType: 'manual-entry',
+    label: 'Synthetic mismatched source',
+    rawContent: 'Synthetic content.',
+    untrustedInput: true,
+    status: 'active',
+    createdAt: '2026-07-27T08:00:00.000Z',
+  };
+
+  assert.throws(() => repositories.events.get(emptyScope, 'missing'), OperationalScopeError);
+  assert.throws(() => repositories.events.list(emptyScope), OperationalScopeError);
+  assert.throws(
+    () => repositories.events.append(scope, { ...noteEvent('event-mismatched'), ...otherScope }),
+    OperationalScopeError,
+  );
+  assert.throws(() => repositories.sources.upsert(scope, mismatchedSource), OperationalScopeError);
 });
 
 test('all approved read tools return deterministic, source-backed personal records', () => {

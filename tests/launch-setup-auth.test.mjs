@@ -15,10 +15,14 @@ const createAuthPort = () => {
   const calls = [];
   let listener = () => undefined;
   let unsubscribed = false;
+  let getSessionHandler = async () => ({ data: { session }, error: null });
   return {
     calls,
     emit(event, nextSession) {
       listener(event, nextSession);
+    },
+    setGetSessionHandler(nextHandler) {
+      getSessionHandler = nextHandler;
     },
     get unsubscribed() {
       return unsubscribed;
@@ -26,7 +30,7 @@ const createAuthPort = () => {
     port: {
       async getSession() {
         calls.push(['getSession']);
-        return { data: { session }, error: null };
+        return getSessionHandler();
       },
       async signInWithPassword(credentials) {
         calls.push(['signInWithPassword', credentials]);
@@ -157,6 +161,54 @@ test('auth controller restores session and keeps post-auth local work available 
   assert.equal(controller.getState().phase, 'signed-out');
   controller.dispose();
   assert.equal(mock.unsubscribed, true);
+});
+
+test('reconnect keeps cloud access paused until a fresh session validation succeeds', async () => {
+  const mock = createAuthPort();
+  const controller = createLaunchAuthController({
+    adapter: createSupabaseAuthAdapter(mock.port),
+    initialOnline: true,
+    getOfflineContinuityInput: (currentSession) => ({
+      hasLocalOperationalData: true,
+      cachedOwnerUserId: 'synthetic-user-1',
+      lastAuthenticatedUserId: 'synthetic-user-1',
+      sessionUserId: currentSession?.userId,
+    }),
+  });
+
+  await controller.start();
+  controller.setConnectivity(false);
+
+  let resolveReconnectValidation;
+  mock.setGetSessionHandler(
+    () =>
+      new Promise((resolve) => {
+        resolveReconnectValidation = resolve;
+      }),
+  );
+  const reconnectGapStates = [];
+  const unsubscribe = controller.subscribe(() => {
+    reconnectGapStates.push(controller.getState().cloudAccess);
+  });
+
+  controller.setConnectivity(true);
+  assert.equal(controller.getState().phase, 'checking');
+  assert.equal(controller.getState().cloudAccess, 'paused');
+  assert.equal(controller.getState().canUseLocalApp, true);
+  assert.match(controller.getState().message, /Revalidating saved session/u);
+  assert.equal(reconnectGapStates.includes('available'), false);
+
+  resolveReconnectValidation({ data: { session }, error: null });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(controller.getState().phase, 'signed-in');
+  assert.equal(controller.getState().cloudAccess, 'available');
+  assert.equal(
+    mock.calls.filter(([method]) => method === 'getSession').length,
+    2,
+  );
+  unsubscribe();
+  controller.dispose();
 });
 
 test('auth controller makes account mismatch loud instead of opening local data', async () => {

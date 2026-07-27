@@ -95,6 +95,7 @@ try {
   for (const target of [
     { name: 'iphone-320', viewport: { width: 320, height: 760 } },
     { name: 'iphone-390', viewport: { width: 390, height: 844 } },
+    { name: 'mid-tablet-862', viewport: { width: 862, height: 900 } },
     { name: 'ipad-landscape', viewport: { width: 1024, height: 768 } },
     { name: 'mac', viewport: { width: 1440, height: 900 } },
   ]) {
@@ -150,6 +151,23 @@ try {
     assert.ok(openButtonMetrics.height >= 44, `${target.name} Open Unit action was smaller than 44px.`);
     await assertNoHorizontalOverflow(page, target.name);
 
+    if (target.name === 'mid-tablet-862') {
+      await open602.click();
+      const selectedWorkspace = page.getByRole('complementary', { name: 'Selected Unit workspace' });
+      await selectedWorkspace.getByRole('heading', { name: 'Unit 602', exact: true }).waitFor();
+      const commonLabelMetrics = await selectedWorkspace
+        .getByRole('button', { name: /^Common,/ })
+        .evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }));
+      assert.ok(
+        commonLabelMetrics.scrollWidth <= commonLabelMetrics.clientWidth + 1,
+        `Common label overflowed at 862px: ${commonLabelMetrics.scrollWidth}px > ${commonLabelMetrics.clientWidth}px.`,
+      );
+      await assertNoHorizontalOverflow(page, `${target.name} selected workspace`);
+    }
+
     if (target.name === 'iphone-390') {
       await page.getByLabel('Building / floor', { exact: true }).selectOption('Building B · Level 13');
       assert.equal(await page.locator('.jul28-unit-card').count(), 1);
@@ -198,7 +216,7 @@ try {
       await page.locator('.jul28-selected-trade').getByText('4 of 5 sections ready for my walk', { exact: true }).waitFor();
       await page.getByRole('button', { name: /C, occupied or restricted/ }).click();
       await page.getByText('Occupied / restricted — do not enter', { exact: true }).waitFor();
-      await page.getByText('Property contact / Tony', { exact: true }).waitFor();
+      await page.getByText('Accountable property access source', { exact: true }).waitFor();
       assert.ok(await page.getByText(/^Source: /).count() >= 7, 'Fact-level provenance was not rendered.');
       assert.equal(
         await page.getByRole('button', { name: /property accepted|property rejected|PDS Approved/i }).count(),

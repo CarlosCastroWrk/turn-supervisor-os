@@ -6339,22 +6339,24 @@ body.capture-workspace-open {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
-  min-height: 28px;
+  min-height: 44px;
   align-items: center;
   gap: 5px;
   border: 1px solid #bfdbfe;
   border-radius: 999px;
   background: #eff6ff;
   color: #1e3a8a;
-  padding: 2px 4px 2px 9px;
+  padding: 0 0 0 9px;
   font-size: 0.72rem;
   font-weight: 800;
 }
 
 .turn-command-bar__context button {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
   place-items: center;
   border: 0;
   border-radius: 50%;

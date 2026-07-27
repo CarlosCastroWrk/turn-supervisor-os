@@ -237,12 +237,11 @@ const attentionFor = (
   return { kind: 'awaiting-crew', label: 'Awaiting crew report' };
 };
 
-export const projectJul28TradeSummary = (
-  unit: Jul28UnitRecord,
+const projectJul28TradeSummaryFromRecords = (
   trade: Jul28Trade,
+  records: Jul28SectionTradeRecord[],
+  coverage: Jul28SourceCoverageProjection,
 ): Jul28TradeSummaryProjection => {
-  const coverage = validateJul28SourceCoverage(unit);
-  const records = recordsForTrade(unit, trade);
   const attention = attentionFor(records, coverage);
 
   if (!coverage.complete) {
@@ -277,24 +276,45 @@ export const projectJul28TradeSummary = (
   };
 };
 
-export const projectJul28UnitCard = (unit: Jul28UnitRecord, trade: Jul28Trade): Jul28UnitCardProjection => {
+export const projectJul28TradeSummary = (
+  unit: Jul28UnitRecord,
+  trade: Jul28Trade,
+): Jul28TradeSummaryProjection => projectJul28TradeSummaryFromRecords(
+  trade,
+  recordsForTrade(unit, trade),
+  validateJul28SourceCoverage(unit),
+);
+
+export interface Jul28TurnBoardProjectedUnit {
+  projection: Jul28UnitCardProjection;
+  records: Jul28SectionTradeRecord[];
+  searchableText: string;
+}
+
+const projectJul28TurnBoardUnit = (
+  unit: Jul28UnitRecord,
+  trade: Jul28Trade,
+): Jul28TurnBoardProjectedUnit => {
   const coverage = validateJul28SourceCoverage(unit);
-  const records = recordsForTrade(unit, trade);
+  const paintRecords = recordsForTrade(unit, 'paint');
+  const cleanRecords = recordsForTrade(unit, 'clean');
+  const records = trade === 'paint' ? paintRecords : cleanRecords;
   const applicable = records.filter((record) => record.applicability === 'applicable');
   const assignments = applicable.flatMap(activeAssignments);
-  const summary = projectJul28TradeSummary(unit, trade);
+  const tradeSummaries = {
+    paint: projectJul28TradeSummaryFromRecords('paint', paintRecords, coverage),
+    clean: projectJul28TradeSummaryFromRecords('clean', cleanRecords, coverage),
+  };
+  const summary = tradeSummaries[trade];
 
-  return {
+  const projection: Jul28UnitCardProjection = {
     unitId: unit.id,
     unitNumber: unit.unitNumber,
     unitTypeLabel: unit.unitTypeLabel,
     locationLabel: `${unit.buildingLabel} · ${unit.floorLabel}`,
     trade,
     sourceCoverage: coverage,
-    tradeSummaries: {
-      paint: projectJul28TradeSummary(unit, 'paint'),
-      clean: projectJul28TradeSummary(unit, 'clean'),
-    },
+    tradeSummaries,
     applicableSections: applicable.map((record) => record.section),
     notApplicableSections: records.filter((record) => record.applicability === 'not-applicable').map((record) => record.section),
     restrictedSections: applicable.filter((record) => record.access === 'occupied-or-restricted').map((record) => record.section),
@@ -313,7 +333,23 @@ export const projectJul28UnitCard = (unit: Jul28UnitRecord, trade: Jul28Trade): 
     layers: projectLayers(records, coverage),
     updatedAt: latestTimestamp(records),
   };
+
+  return {
+    projection,
+    records,
+    searchableText: [
+      projection.unitNumber,
+      projection.unitTypeLabel,
+      projection.locationLabel,
+      ...projection.crewNames,
+    ].join(' ').toLocaleLowerCase(),
+  };
 };
+
+export const projectJul28UnitCard = (
+  unit: Jul28UnitRecord,
+  trade: Jul28Trade,
+): Jul28UnitCardProjection => projectJul28TurnBoardUnit(unit, trade).projection;
 
 const attentionMatches = (
   projection: Jul28UnitCardProjection,
@@ -344,32 +380,82 @@ const attentionMatches = (
   );
 };
 
+const attentionFilters: Jul28AttentionFilter[] = [
+  'all',
+  'needs-inspection',
+  'callback',
+  'property-walk',
+  'access-blocked',
+  'assignment-conflict',
+];
+
+const queryTokensFor = (query: string) =>
+  query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+
+const contextMatches = (
+  projectedUnit: Jul28TurnBoardProjectedUnit,
+  filters: Pick<Jul28TurnBoardFilters, 'buildingFloor' | 'crew'>,
+  queryTokens: string[],
+) => {
+  const { projection, searchableText } = projectedUnit;
+  if (filters.buildingFloor !== 'all' && projection.locationLabel !== filters.buildingFloor) return false;
+  if (filters.crew !== 'all' && !projection.crewNames.includes(filters.crew)) return false;
+  return queryTokens.every((token) => searchableText.includes(token));
+};
+
+export const projectJul28TurnBoardUnits = (
+  units: readonly Jul28UnitRecord[],
+  trade: Jul28Trade,
+) => units.map((unit) => projectJul28TurnBoardUnit(unit, trade));
+
+export const filterJul28TurnBoard = (
+  projectedUnits: readonly Jul28TurnBoardProjectedUnit[],
+  filters: Jul28TurnBoardFilters = { attention: 'all', buildingFloor: 'all', crew: 'all' },
+  query = '',
+) => {
+  const queryTokens = queryTokensFor(query);
+  return projectedUnits
+    .filter((projectedUnit) => {
+      const { projection, records } = projectedUnit;
+      return contextMatches(projectedUnit, filters, queryTokens) &&
+        attentionMatches(projection, records, filters.attention);
+    })
+    .map(({ projection }) => projection);
+};
+
+export const projectJul28AttentionCounts = (
+  projectedUnits: readonly Jul28TurnBoardProjectedUnit[],
+  filters: Pick<Jul28TurnBoardFilters, 'buildingFloor' | 'crew'>,
+  query = '',
+): Record<Jul28AttentionFilter, number> => {
+  const counts = Object.fromEntries(
+    attentionFilters.map((attention) => [attention, 0]),
+  ) as Record<Jul28AttentionFilter, number>;
+  const queryTokens = queryTokensFor(query);
+
+  for (const projectedUnit of projectedUnits) {
+    if (!contextMatches(projectedUnit, filters, queryTokens)) continue;
+
+    counts.all += 1;
+    for (const attention of attentionFilters) {
+      if (
+        attention !== 'all' &&
+        attentionMatches(projectedUnit.projection, projectedUnit.records, attention)
+      ) {
+        counts[attention] += 1;
+      }
+    }
+  }
+
+  return counts;
+};
+
 export const projectJul28TurnBoard = (
   units: readonly Jul28UnitRecord[],
   trade: Jul28Trade,
   filters: Jul28TurnBoardFilters = { attention: 'all', buildingFloor: 'all', crew: 'all' },
   query = '',
-) => {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const queryTokens = normalizedQuery.split(/\s+/).filter(Boolean);
-  return units
-    .map((unit) => ({ unit, projection: projectJul28UnitCard(unit, trade) }))
-    .filter(({ unit, projection }) => {
-      const records = recordsForTrade(unit, trade);
-      if (!attentionMatches(projection, records, filters.attention)) return false;
-      if (filters.buildingFloor !== 'all' && projection.locationLabel !== filters.buildingFloor) return false;
-      if (filters.crew !== 'all' && !projection.crewNames.includes(filters.crew)) return false;
-      if (queryTokens.length === 0) return true;
-      const searchableText = [
-        projection.unitNumber,
-        projection.unitTypeLabel,
-        projection.locationLabel,
-        ...projection.crewNames,
-      ].join(' ').toLocaleLowerCase();
-      return queryTokens.every((token) => searchableText.includes(token));
-    })
-    .map(({ projection }) => projection);
-};
+) => filterJul28TurnBoard(projectJul28TurnBoardUnits(units, trade), filters, query);
 
 export const projectJul28FilterOptions = (units: readonly Jul28UnitRecord[], trade: Jul28Trade) => ({
   buildingFloors: [...new Set(units.map((unit) => `${unit.buildingLabel} · ${unit.floorLabel}`))].sort(),
@@ -596,7 +682,7 @@ export const projectJul28Blocker = (
     return {
       kind: 'authorization',
       label: record.authorization === 'assignment-conflict' ? 'Assignment conflict' : 'Release is uncertain',
-      owner: 'Tony / accountable assignment source',
+      owner: 'Accountable assignment source',
       nextAction: 'Clarify the current release fact without choosing a crew claim automatically.',
       resolution: 'One current authorization fact is recorded with accountable source evidence.',
       tone: 'attention',
@@ -616,7 +702,7 @@ export const projectJul28Blocker = (
     return {
       kind: 'assignment',
       label: 'Conflicting assignment evidence',
-      owner: 'Tony / accountable assignment source',
+      owner: 'Accountable assignment source',
       nextAction: 'Clarify which assignment episode is current.',
       resolution: 'Exactly one active assignment episode remains; prior episodes stay in history.',
       tone: 'attention',
@@ -626,7 +712,7 @@ export const projectJul28Blocker = (
     return {
       kind: 'occupied-or-restricted',
       label: 'Occupied / restricted',
-      owner: 'Property contact / Tony',
+      owner: 'Accountable property access source',
       nextAction: 'Confirm whether entry is allowed and record the permitted work window.',
       resolution: 'Access is explicitly clarified; until then, do not enter.',
       tone: 'attention',

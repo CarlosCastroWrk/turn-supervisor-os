@@ -149,7 +149,13 @@ try {
     );
     const preservedContextWording = 'Keep this wording while context changes.';
     await contextInput.fill(preservedContextWording);
-    await page.getByRole('button', { name: 'Remove Unit 603 context', exact: true }).click();
+    const removeContext = page.getByRole('button', { name: 'Remove Unit 603 context', exact: true });
+    const removeContextBox = await removeContext.boundingBox();
+    assert.ok(
+      removeContextBox && removeContextBox.width >= 44 && removeContextBox.height >= 44,
+      `${target.name} Unit-context remove target was smaller than 44×44.`,
+    );
+    await removeContext.click();
     assert.equal(
       await contextInput.inputValue(),
       preservedContextWording,

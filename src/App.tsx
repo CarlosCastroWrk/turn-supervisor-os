@@ -143,13 +143,17 @@ function App() {
     const nextHash = buildAppHash(nextRoute);
 
     if (replacesFieldSheetEntry) {
-      const nextState = { ...readHistoryState() };
-      delete nextState[FIELD_SHEET_HISTORY_KEY];
-      window.history.replaceState(
-        Object.keys(nextState).length > 0 ? nextState : null,
-        '',
-        nextHash,
-      );
+      if (window.location.hash === nextHash) {
+        window.history.back();
+      } else {
+        const nextState = { ...readHistoryState() };
+        delete nextState[FIELD_SHEET_HISTORY_KEY];
+        window.history.replaceState(
+          Object.keys(nextState).length > 0 ? nextState : null,
+          '',
+          nextHash,
+        );
+      }
     } else if (window.location.hash !== nextHash) {
       window.history.pushState(null, '', nextHash);
     }
@@ -213,6 +217,10 @@ function App() {
   const openJul28Unit = useCallback((unitNumber: string) => {
     const unitId = JUL28_UNIT_IDS_BY_NUMBER.get(unitNumber);
     navigate(unitId ? 'unitDetail' : 'units', unitId);
+  }, [navigate]);
+
+  const selectTurnBoardUnit = useCallback((unitId: string) => {
+    navigate('unitDetail', unitId);
   }, [navigate]);
 
   const openFieldWorkspace = useCallback((
@@ -302,7 +310,7 @@ function App() {
           <TurnBoardFeature
             initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
             onUnitClose={() => navigate('units')}
-            onUnitSelected={(unitId) => navigate('unitDetail', unitId)}
+            onUnitSelected={selectTurnBoardUnit}
           />
         ) : null}
         {route.view === 'unitDetail' && !jul28SyntheticTurnBoardRepository.getUnit(route.unitId ?? '') ? (

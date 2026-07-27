@@ -177,6 +177,28 @@ try {
     await page.getByRole('button', { name: 'Close More', exact: true }).click();
     await moreDialog.waitFor({ state: 'hidden' });
 
+    await page.getByRole('button', { name: 'Today', exact: true }).click();
+    await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await moreDialog.getByRole('button', { name: /^Sync & diagnostics/ }).click();
+    await page.getByRole('heading', { name: 'Sync & diagnostics', exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.location.hash), '#/sync');
+
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await moreDialog.waitFor();
+    await moreDialog.getByRole('button', { name: /^Sync & diagnostics/ }).click();
+    await moreDialog.waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => window.history.state?.turnOsFieldSheet === undefined);
+    assert.equal(await page.evaluate(() => window.location.hash), '#/sync');
+
+    await page.goBack();
+    await page.getByRole('heading', { name: 'Today', exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(() => window.location.hash),
+      '#/dashboard',
+      `${target.name} same-route More selection left a duplicate history entry.`,
+    );
+
     assert.deepEqual(findings, [], `${target.name} runtime findings:\n${findings.join('\n')}`);
     await context.close();
   }

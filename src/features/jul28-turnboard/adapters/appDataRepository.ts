@@ -98,20 +98,36 @@ export interface Jul28AppDataUnitCoverage {
   readonly reason: string;
 }
 
-export interface Jul28AppDataUnitRecord extends Jul28UnitRecord {
+type DeepReadonly<T> =
+  T extends readonly (infer Item)[]
+    ? readonly DeepReadonly<Item>[]
+    : T extends object
+      ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+      : T;
+
+export type Jul28ReadonlyUnitRecord = DeepReadonly<Jul28UnitRecord>;
+
+export type Jul28AppDataUnitRecord = Jul28ReadonlyUnitRecord & {
   readonly adapterSource: Jul28AppDataUnitSource;
   readonly adapterCoverage: Jul28AppDataUnitCoverage;
-}
+};
 
 /**
- * The Wave 1 repository's read methods are reusable as-is. Its `source` field is
- * intentionally excluded because the Wave 1 model currently reserves that
- * literal for the synthetic candidate repository.
+ * This names the existing Wave 1 read surface without claiming its mutable
+ * Jul28UnitRecord result is a deeply read-only adapter snapshot.
  */
 export type Jul28TurnBoardReadBoundary =
   Pick<Jul28TurnBoardRepository, 'listUnits' | 'getUnit'>;
 
-export interface Jul28AppDataTurnBoardRepository extends Jul28TurnBoardReadBoundary {
+export interface Jul28ReadonlyTurnBoardReadBoundary<
+  TUnit extends Jul28ReadonlyUnitRecord = Jul28ReadonlyUnitRecord,
+> {
+  readonly listUnits: () => readonly TUnit[];
+  readonly getUnit: (unitId: string) => TUnit | undefined;
+}
+
+export interface Jul28AppDataTurnBoardRepository
+  extends Jul28ReadonlyTurnBoardReadBoundary<Jul28AppDataUnitRecord> {
   readonly source: typeof JUL28_APP_DATA_REPOSITORY_SOURCE;
   readonly sourceKind: 'personal-record';
   readonly sourceLabel: string;
@@ -124,8 +140,6 @@ export interface Jul28AppDataTurnBoardRepository extends Jul28TurnBoardReadBound
     readonly approvalEffect: 'none';
     readonly payrollEffect: 'none';
   };
-  listUnits(): readonly Jul28AppDataUnitRecord[];
-  getUnit(unitId: string): Jul28AppDataUnitRecord | undefined;
 }
 
 export type Jul28AppDataRepositoryErrorCode =
@@ -214,18 +228,23 @@ const mapLocation = (
   const issues: Jul28AppDataMappingIssue[] = [];
   const mappedFields: Jul28AppDataMappedField[] = [];
   const buildingIdMatches = data.buildings.filter((building) => building.id === unit.buildingId);
-  const projectBuildingMatches = buildingIdMatches.filter((building) => building.projectId === project.id);
 
   let buildingLabel = UNKNOWN_BUILDING_LABEL;
-  if (projectBuildingMatches.length > 1) {
+  let buildingIdentityResolved = false;
+  if (buildingIdMatches.length > 1) {
     issues.push('building-ambiguous');
-  } else if (projectBuildingMatches.length === 0) {
-    issues.push(buildingIdMatches.length > 0 ? 'building-project-mismatch' : 'building-missing');
-  } else if (!projectBuildingMatches[0]?.name.trim()) {
-    issues.push('building-name-missing');
+  } else if (buildingIdMatches.length === 0) {
+    issues.push('building-missing');
+  } else if (buildingIdMatches[0]?.projectId !== project.id) {
+    issues.push('building-project-mismatch');
   } else {
-    buildingLabel = projectBuildingMatches[0].name;
-    mappedFields.push('building.name');
+    buildingIdentityResolved = true;
+    if (!buildingIdMatches[0].name.trim()) {
+      issues.push('building-name-missing');
+    } else {
+      buildingLabel = buildingIdMatches[0].name;
+      mappedFields.push('building.name');
+    }
   }
 
   const floorMatches = data.floors.filter((floor) => floor.id === unit.floorId);
@@ -236,13 +255,10 @@ const mapLocation = (
     issues.push('floor-missing');
   } else if (floorMatches[0]?.buildingId !== unit.buildingId) {
     issues.push('floor-building-mismatch');
+  } else if (!buildingIdentityResolved) {
+    issues.push('floor-building-unresolved');
   } else if (!floorMatches[0].name.trim()) {
     issues.push('floor-name-missing');
-  } else if (
-    projectBuildingMatches.length !== 1 ||
-    projectBuildingMatches[0]?.id !== floorMatches[0].buildingId
-  ) {
-    issues.push('floor-building-unresolved');
   } else {
     floorLabel = floorMatches[0].name;
     mappedFields.push('floor.name');
@@ -387,7 +403,9 @@ export const createJul28AppDataTurnBoardRepository = (
   }
 
   const sourceLabel = sourceLabelFor(project.mode);
-  const units = deepFreeze(activeUnits.map((unit) => mapUnit(data, project, unit, sourceLabel)));
+  const units: readonly Jul28AppDataUnitRecord[] = deepFreeze(
+    activeUnits.map((unit) => mapUnit(data, project, unit, sourceLabel)),
+  );
   const unitById = new Map(units.map((unit) => [unit.id, unit]));
   const repository: Jul28AppDataTurnBoardRepository = {
     source: JUL28_APP_DATA_REPOSITORY_SOURCE,

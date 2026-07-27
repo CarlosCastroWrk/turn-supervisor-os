@@ -16,8 +16,8 @@ The adapter scopes itself to `AppData.activeProjectId` and maps only fields that
 | `Unit.projectId` | active-project boundary | Other-project Units are excluded |
 | `Unit.unitNumber` | `Jul28UnitRecord.unitNumber` | Blank or normalized duplicate numbers fail the whole repository |
 | `Unit.bedCount` | descriptive `unitTypeLabel` only | Does not infer Common/A–E applicability |
-| exact project-scoped `Building.name` | `buildingLabel` | Missing, cross-project, or duplicate links become explicit unknown coverage |
-| exact matching `Floor.name` | `floorLabel` | Missing, duplicate, or building-mismatched links become explicit unknown coverage |
+| exact globally unique, project-scoped `Building.name` | `buildingLabel` | Missing, cross-project, or duplicate IDs become explicit unknown coverage |
+| exact globally unique matching `Floor.name` | `floorLabel` | Missing, cross-project duplicate, or building-mismatched IDs become explicit unknown coverage |
 
 The adapter emits the locked Common/A–E display order but emits **zero** `Jul28SectionTradeRecord` values. Existing `AppData` does not authoritatively provide section-level applicability, release, access, assignment episode, crew report, Los inspection, property walk, paper review, full-Paint, provenance, or additive history facts.
 
@@ -31,7 +31,9 @@ Whole-Unit statuses, assigned crew IDs, assignments, issues, photos, activity, a
 - The adapter has no synthetic fallback.
 - The adapter does not write any official paper, property, approval, payroll, persistence, or sync state.
 
-The Wave 1 `Jul28TurnBoardRepository.source` type currently accepts only the synthetic literal. Track C therefore reuses its `listUnits`/`getUnit` read boundary and keeps the personal source discriminator local. Application wiring requires an integration-owned widening of the shared source type; Track C does not make that change.
+The adapter snapshot is deeply read-only at the type level and frozen at runtime, including Unit scalars, section order, section records, nested record facts, source metadata, and coverage arrays. The existing Wave 1 `Jul28TurnBoardRepository` still exposes mutable `Jul28UnitRecord` values and accepts only the synthetic source literal. Track C names that existing read boundary but does not claim the immutable adapter implements it. Application wiring requires an integration-owned shared-boundary decision; Track C does not make that change.
+
+Run the isolated adapter regression with `npm run test:jul28-repository-adapter`. This script is not part of the standard Wave 1 gate.
 
 ## Future Mutation Contract
 

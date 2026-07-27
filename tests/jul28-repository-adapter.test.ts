@@ -6,7 +6,6 @@ import {
   JUL28_APP_DATA_REPOSITORY_SOURCE,
   createJul28AppDataTurnBoardRepository,
   type Jul28AppDataTurnBoardRepository,
-  type Jul28TurnBoardReadBoundary,
 } from '../src/features/jul28-turnboard/adapters/appDataRepository.ts';
 import { JUL28_SECTIONS } from '../src/features/jul28-turnboard/model.ts';
 import {
@@ -137,8 +136,7 @@ test('maps only active-project identity and location into a deeply read-only per
   });
   const before = structuredClone(data);
   const repository = repositoryFrom(data);
-  const readBoundary: Jul28TurnBoardReadBoundary = repository;
-  const units = readBoundary.listUnits();
+  const units = repository.listUnits();
   const unit = repository.getUnit('unit-synthetic-adapter');
 
   assert.equal(repository.source, JUL28_APP_DATA_REPOSITORY_SOURCE);
@@ -166,8 +164,25 @@ test('maps only active-project identity and location into a deeply read-only per
   assert.equal(unit.adapterCoverage.sourceCoverageComplete, false);
   assert.equal(repository.getUnit('unit-other-synthetic'), undefined);
   assert.equal(Object.isFrozen(units), true);
+  assert.equal(Object.isFrozen(repository), true);
   assert.equal(Object.isFrozen(unit), true);
+  assert.equal(Object.isFrozen(unit.sectionOrder), true);
+  assert.equal(Object.isFrozen(unit.records), true);
+  assert.equal(Object.isFrozen(unit.adapterSource), true);
   assert.equal(Object.isFrozen(unit.adapterCoverage), true);
+  assert.equal(Object.isFrozen(unit.adapterCoverage.mappedFields), true);
+  assert.throws(() => {
+    (unit as unknown as { unitNumber: string }).unitNumber = 'MUTATED';
+  }, TypeError);
+  assert.throws(() => {
+    (unit.sectionOrder as unknown as string[]).push('A');
+  }, TypeError);
+  assert.throws(() => {
+    (unit.records as unknown as unknown[]).push({});
+  }, TypeError);
+  assert.equal(unit.unitNumber, 'TEST-101');
+  assert.deepEqual(unit.sectionOrder, JUL28_SECTIONS);
+  assert.deepEqual(unit.records, []);
   assert.deepEqual(data, before);
 });
 
@@ -292,6 +307,63 @@ test('represents missing or ambiguous location links as unknown instead of selec
   assert.equal(ambiguousUnit.adapterCoverage.mappingIssues.includes('floor-building-unresolved'), true);
   assert.equal(ambiguousUnit.adapterCoverage.mappedFields.includes('building.name'), false);
   assert.equal(ambiguousUnit.adapterCoverage.mappedFields.includes('floor.name'), false);
+});
+
+test('does not select a Building ID duplicated across the active and another project', () => {
+  const otherProject = syntheticProject({
+    id: 'project-other-synthetic',
+    name: 'Other synthetic project',
+  });
+  const repository = repositoryFrom(syntheticAppData({
+    projects: [syntheticProject(), otherProject],
+    buildings: [
+      syntheticBuilding(),
+      syntheticBuilding({
+        projectId: otherProject.id,
+        name: 'Cross-project duplicate Building candidate',
+      }),
+    ],
+  }));
+  const unit = repository.listUnits()[0];
+  assert.ok(unit);
+
+  assert.match(unit.buildingLabel, /unknown/i);
+  assert.match(unit.floorLabel, /unknown/i);
+  assert.equal(unit.adapterCoverage.mappingIssues.includes('building-ambiguous'), true);
+  assert.equal(unit.adapterCoverage.mappingIssues.includes('floor-building-unresolved'), true);
+  assert.equal(unit.adapterCoverage.mappedFields.includes('building.name'), false);
+  assert.equal(unit.adapterCoverage.mappedFields.includes('floor.name'), false);
+});
+
+test('does not select a Floor ID duplicated under a Building in another project', () => {
+  const otherProject = syntheticProject({
+    id: 'project-other-synthetic',
+    name: 'Other synthetic project',
+  });
+  const otherBuilding = syntheticBuilding({
+    id: 'building-other-synthetic',
+    projectId: otherProject.id,
+    name: 'Other synthetic Building',
+  });
+  const repository = repositoryFrom(syntheticAppData({
+    projects: [syntheticProject(), otherProject],
+    buildings: [syntheticBuilding(), otherBuilding],
+    floors: [
+      syntheticFloor(),
+      syntheticFloor({
+        buildingId: otherBuilding.id,
+        name: 'Cross-project duplicate Floor candidate',
+      }),
+    ],
+  }));
+  const unit = repository.listUnits()[0];
+  assert.ok(unit);
+
+  assert.equal(unit.buildingLabel, 'Synthetic Building');
+  assert.match(unit.floorLabel, /unknown/i);
+  assert.equal(unit.adapterCoverage.mappingIssues.includes('floor-ambiguous'), true);
+  assert.equal(unit.adapterCoverage.mappedFields.includes('building.name'), true);
+  assert.equal(unit.adapterCoverage.mappedFields.includes('floor.name'), false);
 });
 
 test('fails closed for missing or ambiguous repository identity and never returns a fallback', () => {

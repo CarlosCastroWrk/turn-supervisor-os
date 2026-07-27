@@ -207,6 +207,9 @@ try {
 
       await page.getByRole('button', { name: 'Close Unit workspace and return to TurnBoard list', exact: true }).click();
       await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+      await page.waitForFunction(
+        () => document.activeElement?.getAttribute('aria-label') === 'Open Unit 603 workspace',
+      );
       assert.equal(
         await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
         'Open Unit 603 workspace',

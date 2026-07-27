@@ -235,6 +235,7 @@ export const createLaunchAuthController = ({
   };
   const listeners = new Set<() => void>();
   let unsubscribeAuth: (() => void) | undefined;
+  let sessionValidationVersion = 0;
   let disposed = false;
 
   const update = (patch: Partial<LaunchAuthState>) => {
@@ -288,6 +289,26 @@ export const createLaunchAuthController = ({
     return { ok: false, error };
   };
 
+  const validateCurrentSession = async (message: string) => {
+    if (!adapter.configured || disposed) return;
+    const validationVersion = ++sessionValidationVersion;
+    update({
+      phase: 'checking',
+      operation: 'idle',
+      cloudAccess: 'paused',
+      message,
+      lastError: undefined,
+    });
+    const result = await adapter.getSession();
+    if (disposed || validationVersion !== sessionValidationVersion) return;
+    if (!result.ok) {
+      applySession(null, result.error);
+      update({ lastError: result.error });
+      return;
+    }
+    applySession(result.value);
+  };
+
   return {
     getState: () => state,
     subscribe(listener) {
@@ -298,29 +319,20 @@ export const createLaunchAuthController = ({
       if (!adapter.configured || disposed) return;
       unsubscribeAuth?.();
       unsubscribeAuth = adapter.subscribe((session, event) => {
+        sessionValidationVersion += 1;
         applySession(session, session ? `Session updated: ${event}.` : 'Session ended. Sign in to enable cloud access.');
       });
-      update({ phase: 'checking', operation: 'idle', message: 'Checking saved session…', lastError: undefined });
-      const result = await adapter.getSession();
-      if (disposed) return;
-      if (!result.ok) {
-        applySession(null, result.error);
-        update({ lastError: result.error });
-        return;
-      }
-      applySession(result.value);
+      await validateCurrentSession('Checking saved session…');
     },
     setConnectivity(online) {
       const connectivity = online ? 'online' : 'offline';
       update({ connectivity });
-      applySession(
-        state.session,
-        online
-          ? state.session
-            ? 'Connection restored. The host must verify the session before syncing.'
-            : 'Connection restored. Sign in to enable cloud access.'
-          : undefined,
-      );
+      if (online) {
+        void validateCurrentSession('Connection restored. Revalidating saved session…');
+        return;
+      }
+      sessionValidationVersion += 1;
+      applySession(state.session);
     },
     async signIn(email, password) {
       const offlineResult = requireOnline('signing in');
@@ -330,6 +342,7 @@ export const createLaunchAuthController = ({
         failOperation(error);
         return authFailure(error);
       }
+      sessionValidationVersion += 1;
       update({ operation: 'signing-in', message: 'Signing in…', lastError: undefined });
       const result = await adapter.signInWithPassword(email.trim(), password);
       if (!result.ok) {
@@ -368,6 +381,7 @@ export const createLaunchAuthController = ({
     async signOut() {
       const offlineResult = requireOnline('signing out safely');
       if (offlineResult) return offlineResult;
+      sessionValidationVersion += 1;
       update({ operation: 'signing-out', message: 'Signing out…', lastError: undefined });
       const result = await adapter.signOut();
       if (!result.ok) {
@@ -378,11 +392,13 @@ export const createLaunchAuthController = ({
       return result;
     },
     stop() {
+      sessionValidationVersion += 1;
       unsubscribeAuth?.();
       unsubscribeAuth = undefined;
     },
     dispose() {
       disposed = true;
+      sessionValidationVersion += 1;
       unsubscribeAuth?.();
       unsubscribeAuth = undefined;
       listeners.clear();

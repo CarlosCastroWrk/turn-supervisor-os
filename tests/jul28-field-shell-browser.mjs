@@ -60,6 +60,34 @@ const assertPreviewStatusDoesNotOverlapCommandBar = async (page, label) => {
   assert.equal(result.overlaps, false, `${label} preview-only status overlapped the command bar.`);
 };
 
+const assertCommandBarInFirstViewport = async (page, label, expectedViewport) => {
+  const measurement = await page.evaluate(() => {
+    const command = document.querySelector('[aria-label="Turn OS command bar"]');
+    if (!(command instanceof HTMLElement)) {
+      return { found: false };
+    }
+    const rect = command.getBoundingClientRect();
+    return {
+      found: true,
+      top: rect.top,
+      bottom: rect.bottom,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      scrollY: window.scrollY,
+    };
+  });
+
+  assert.equal(measurement.found, true, `${label} did not render the command bar.`);
+  assert.equal(measurement.viewportWidth, expectedViewport.width, `${label} viewport width changed.`);
+  assert.equal(measurement.viewportHeight, expectedViewport.height, `${label} viewport height changed.`);
+  assert.equal(measurement.scrollY, 0, `${label} was not measured at the first viewport.`);
+  assert.ok(measurement.top >= 0, `${label} command bar began above the first viewport.`);
+  assert.ok(
+    measurement.bottom <= measurement.viewportHeight + 1,
+    `${label} command bar ended below the first viewport: ${measurement.bottom}px > ${measurement.viewportHeight}px.`,
+  );
+};
+
 try {
   await server.listen();
   browser = await chromium.launch({ headless: true });
@@ -93,6 +121,7 @@ try {
     assert.equal(await page.getByRole('region', { name: 'Turn OS command bar' }).count(), 1);
     assert.equal(await page.locator('[data-command-owner]').count(), 1);
     assert.equal(await page.locator('[data-command-owner="external"]').count(), 1);
+    await assertCommandBarInFirstViewport(page, target.name, target.viewport);
 
     for (const label of lockedNeedsMeLabels) {
       await page.getByRole('button', { name: new RegExp(`^${label}`) }).waitFor();
@@ -108,7 +137,8 @@ try {
 
     const recentActivity = page.locator('[data-testid="recent-activity"]');
     assert.equal(await recentActivity.getAttribute('open'), null, `${target.name} recent activity was not collapsed by default.`);
-    await recentActivity.locator('summary').click();
+    const recentActivitySummary = recentActivity.locator('summary');
+    await recentActivitySummary.press('Enter');
     assert.notEqual(await recentActivity.getAttribute('open'), null, `${target.name} recent activity did not expand.`);
     assert.match(await recentActivity.innerText(), /Saved a personal Paint progress note\./);
 

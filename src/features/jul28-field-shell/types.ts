@@ -62,10 +62,10 @@ export interface NeedsMeItem {
   id: string;
   category: NeedsMeCategory;
   unitNumber: string;
-  section?: FieldSection;
-  trade?: FieldTrade;
+  section: FieldSection;
+  trade: FieldTrade;
   whyLosIsNeeded: string;
-  responsibleParty?: string;
+  responsibleParty: string;
   nextAction: string;
   destination: FieldWorkspaceDestination;
 }

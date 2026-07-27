@@ -489,6 +489,20 @@ export function TurnBoardFeature({
   const selectedUnit = selectedUnitId ? repository.getUnit(selectedUnitId) : undefined;
 
   useEffect(() => {
+    const nextUnitId = initialUnitId && repository.getUnit(initialUnitId)
+      ? initialUnitId
+      : '';
+    setSelectedUnitId(nextUnitId);
+
+    if (nextUnitId) {
+      const unit = repository.getUnit(nextUnitId);
+      const firstSection = unit && recordsForTrade(unit, trade)
+        .find((record) => record.applicability === 'applicable')?.section;
+      if (firstSection) setSelectedSection(firstSection);
+    }
+  }, [initialUnitId, repository, trade]);
+
+  useEffect(() => {
     if (selectedUnit) workspaceHeadingRef.current?.focus();
   }, [selectedUnit]);
 

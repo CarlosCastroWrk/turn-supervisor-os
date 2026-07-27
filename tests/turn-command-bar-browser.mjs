@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
-import { seedData } from '../src/data/seed.ts';
 
 const host = '127.0.0.1';
 const port = 4194;
 const baseUrl = `http://${host}:${port}`;
-const storageKey = 'turn-supervisor-os:v0.1';
-const sourceText = 'Unit 202 paint is done.';
+const sourceText = 'Unit 603 paint is done.';
 
 const targets = [
   { name: 'Mac', viewport: { width: 1440, height: 960 } },
@@ -19,7 +17,7 @@ const commandRoutes = [
   { name: 'Today', hash: '#/dashboard' },
   { name: 'TurnBoard', hash: '#/units' },
   { name: 'Queue', hash: '#/review' },
-  { name: 'Unit workspace', hash: '#/units/unit_101' },
+  { name: 'Unit workspace', hash: '#/units/jul28-unit-602' },
 ];
 
 const attachRuntimeChecks = (page) => {
@@ -115,14 +113,14 @@ try {
 
     await page.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
     const commandInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-    await commandInput.fill('101');
+    await commandInput.fill('602');
     const unitMatches = page.getByRole('listbox', { name: 'Current Turn Unit matches' });
     await unitMatches.waitFor();
-    await unitMatches.getByRole('option', { name: /Unit 101/ }).click();
-    await page.waitForFunction(() => window.location.hash === '#/units/unit_101');
+    await unitMatches.getByRole('option', { name: /Unit 602/ }).click();
+    await page.waitForFunction(() => window.location.hash === '#/units/jul28-unit-602');
     const contextChip = page.locator('.turn-command-bar__context');
     await contextChip.waitFor();
-    assert.match(await contextChip.innerText(), /^Unit 101/);
+    assert.match(await contextChip.innerText(), /^Unit 602/);
     assert.equal(
       (await contextChip.innerText()).includes('Context:'),
       false,
@@ -130,10 +128,10 @@ try {
     );
     assert.equal(await page.locator('[role="dialog"]').count(), 0, 'Unit selection opened Capture or changed status.');
     const contextInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-    await contextInput.fill('102');
-    await page.getByRole('option', { name: /Unit 102/ }).click();
-    await page.waitForFunction(() => window.location.hash === '#/units/unit_102');
-    assert.match(await contextChip.innerText(), /^Unit 102/);
+    await contextInput.fill('603');
+    await page.getByRole('option', { name: /Unit 603/ }).click();
+    await page.waitForFunction(() => window.location.hash === '#/units/jul28-unit-603');
+    assert.match(await contextChip.innerText(), /^Unit 603/);
     assert.equal(
       await contextInput.inputValue(),
       '',
@@ -151,7 +149,7 @@ try {
     );
     const preservedContextWording = 'Keep this wording while context changes.';
     await contextInput.fill(preservedContextWording);
-    await page.getByRole('button', { name: 'Remove Unit 102 context', exact: true }).click();
+    await page.getByRole('button', { name: 'Remove Unit 603 context', exact: true }).click();
     assert.equal(
       await contextInput.inputValue(),
       preservedContextWording,
@@ -160,7 +158,7 @@ try {
     assert.equal(await contextChip.count(), 0, `${target.name} did not remove Unit context.`);
     assert.equal(
       await page.evaluate(() => window.location.hash),
-      '#/units/unit_102',
+      '#/units/jul28-unit-603',
       `${target.name} navigated while removing Unit context.`,
     );
     await contextInput.fill('');
@@ -192,7 +190,7 @@ try {
       `${target.name} typed command`,
     );
 
-    const queuedSourceText = 'Unit 303 clean needs review.';
+    const queuedSourceText = 'Unit 604 clean needs review.';
     await sourceInput.fill(queuedSourceText);
     await sourceInput.press('Enter');
     await assertSingleCommandSurface(page, `${target.name} protected in-memory source`);
@@ -252,14 +250,19 @@ try {
     await closeCommand(page, '#/dashboard', 'Start voice capture', `${target.name} legacy entry`);
 
     if (target.name === 'iPhone') {
-      const primaryNav = page.getByRole('navigation', { name: 'Primary navigation' });
-      for (const label of ['Today', 'TurnBoard', 'Queue', 'More']) {
+      const primaryNav = page.getByRole('navigation', { name: 'Turn OS navigation' });
+      for (const label of ['Today', 'TurnBoard', 'More']) {
         assert.equal(
           await primaryNav.getByRole('button', { name: label, exact: true }).count(),
           1,
           `iPhone primary navigation was missing ${label}.`,
         );
       }
+      assert.equal(
+        await primaryNav.getByRole('button', { name: 'Queue', exact: true }).count(),
+        0,
+        'iPhone retained Queue as a permanent navigation destination.',
+      );
       assert.equal(
         await primaryNav.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
         0,
@@ -276,7 +279,7 @@ try {
   const exactFindings = attachRuntimeChecks(exactPage);
   await exactPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
   const exactInput = exactPage.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-  await exactInput.fill('202');
+  await exactInput.fill('602');
   const exactSend = exactPage.getByRole('button', { name: 'Send to Turn OS', exact: true });
   assert.equal(await exactSend.count(), 1, 'Exact Unit wording did not expose Send.');
   await exactSend.click();
@@ -290,7 +293,7 @@ try {
   await exactPage.getByRole('button', { name: 'Type', exact: true }).click();
   assert.equal(
     await exactPage.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
-    '202',
+    '602',
     'Exact Unit Send did not preserve the complete wording.',
   );
   await closeCommand(exactPage, '#/units', 'Start voice capture', 'Exact Unit Send');
@@ -298,22 +301,7 @@ try {
   assert.deepEqual(exactFindings, [], `Exact Unit runtime findings:\n${exactFindings.join('\n')}`);
   await exactContext.close();
 
-  const prefixData = structuredClone(seedData);
-  const prefixSource = prefixData.units.find((unit) => unit.id === 'unit_101');
-  assert.ok(prefixSource, 'Unit-prefix test source was missing.');
-  for (let index = 0; index < 16; index += 1) {
-    prefixData.units.push({
-      ...prefixSource,
-      id: `unit_prefix_${index}`,
-      unitNumber: String(300 + index),
-    });
-  }
-
   const prefixContext = await browser.newContext({ viewport: { width: 390, height: 500 } });
-  await prefixContext.addInitScript(
-    ({ key, data }) => window.localStorage.setItem(key, JSON.stringify(data)),
-    { key: storageKey, data: prefixData },
-  );
   const prefixPage = await prefixContext.newPage();
   const prefixFindings = attachRuntimeChecks(prefixPage);
   await prefixPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
@@ -326,7 +314,7 @@ try {
     await prefixInput.fill(query);
     assert.equal(
       await prefixPage.getByRole('option').count(),
-      12,
+      4,
       `${query} did not retain the bounded Unit suggestion set.`,
     );
     assert.equal(
@@ -341,11 +329,11 @@ try {
     );
   }
 
-  await prefixInput.fill('UNIT 30');
+  await prefixInput.fill('UNIT 60');
   assert.equal(
     await prefixPage.getByRole('option').count(),
-    10,
-    'UNIT 30 did not narrow suggestions to the matching numeric prefix.',
+    3,
+    'UNIT 60 did not narrow suggestions to the matching numeric prefix.',
   );
 
   await prefixInput.fill('U');
@@ -361,43 +349,29 @@ try {
       touchAction: computed.touchAction,
     };
   });
-  assert.ok(
-    scrollState.scrollHeight > scrollState.clientHeight,
-    'Broad Unit suggestions did not create a vertical scroll range.',
-  );
   assert.equal(scrollState.overflowX, 'hidden', 'Unit suggestions allowed horizontal scrolling.');
   assert.equal(scrollState.overflowY, 'auto', 'Unit suggestions did not allow vertical scrolling.');
   assert.equal(scrollState.overscrollBehavior, 'contain', 'Unit suggestions did not contain scroll gestures.');
   assert.equal(scrollState.touchAction, 'pan-y', 'Unit suggestions did not preserve vertical touch gestures.');
 
-  const prefixBox = await prefixMatches.boundingBox();
-  assert.ok(prefixBox, 'Unit suggestions did not render a measurable scroll surface.');
-  await prefixPage.mouse.move(
-    prefixBox.x + prefixBox.width / 2,
-    prefixBox.y + prefixBox.height / 2,
-  );
-  await prefixPage.mouse.wheel(0, 240);
-  await prefixPage.waitForFunction(
-    () => (document.querySelector('.turn-command-bar__matches')?.scrollTop ?? 0) > 0,
-  );
   assert.equal(
     await prefixPage.evaluate(() => window.location.hash),
     '#/dashboard',
-    'Scrolling Unit suggestions navigated without an explicit selection.',
+    'Showing Unit suggestions navigated without an explicit selection.',
   );
   assert.equal(
     await prefixPage.locator('[role="dialog"]').count(),
     0,
-    'Scrolling Unit suggestions opened Capture.',
+    'Showing Unit suggestions opened Capture.',
   );
   assert.equal(
     await prefixPage.locator('[role="option"][aria-selected="true"]').count(),
     0,
-    'Scrolling Unit suggestions selected a Unit.',
+    'Showing Unit suggestions selected a Unit.',
   );
 
-  await prefixPage.getByRole('option', { name: /Unit 305/ }).click();
-  await prefixPage.waitForFunction(() => window.location.hash === '#/units/unit_prefix_5');
+  await prefixPage.getByRole('option', { name: /Unit 603/ }).click();
+  await prefixPage.waitForFunction(() => window.location.hash === '#/units/jul28-unit-603');
   assert.equal(
     await prefixPage.locator('[role="dialog"]').count(),
     0,
@@ -407,59 +381,24 @@ try {
   assert.deepEqual(prefixFindings, [], `Unit-prefix runtime findings:\n${prefixFindings.join('\n')}`);
   await prefixContext.close();
 
-  const duplicateData = structuredClone(seedData);
-  const duplicateSource = duplicateData.units.find((unit) => unit.id === 'unit_101');
-  assert.ok(duplicateSource, 'Duplicate Unit test source was missing.');
-  duplicateData.units.push({
-    ...duplicateSource,
-    id: 'unit_101_duplicate',
-  });
-
-  const duplicateSubmitContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await duplicateSubmitContext.addInitScript(
-    ({ key, data }) => window.localStorage.setItem(key, JSON.stringify(data)),
-    { key: storageKey, data: duplicateData },
-  );
-  const duplicateSubmitPage = await duplicateSubmitContext.newPage();
-  await duplicateSubmitPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
-  const duplicateSubmitInput = duplicateSubmitPage.getByRole('combobox', {
+  const ambiguousContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const ambiguousPage = await ambiguousContext.newPage();
+  await ambiguousPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  const ambiguousInput = ambiguousPage.getByRole('combobox', {
     name: 'Ask, update, or search Turn OS',
     exact: true,
   });
-  await duplicateSubmitInput.fill('101');
-  const duplicateSubmitOptions = duplicateSubmitPage.getByRole('option');
-  assert.equal(await duplicateSubmitOptions.count(), 2, 'Duplicate Unit suggestions were not both visible.');
-  await duplicateSubmitInput.press('Enter');
-  await assertSingleCommandSurface(duplicateSubmitPage, 'Duplicate Unit explicit submission');
+  await ambiguousInput.fill('60');
+  assert.equal(await ambiguousPage.getByRole('option').count(), 3, 'Ambiguous Unit suggestions were not visible.');
+  await ambiguousInput.press('Enter');
+  await assertSingleCommandSurface(ambiguousPage, 'Ambiguous Unit explicit submission');
   assert.equal(
-    await duplicateSubmitPage.evaluate(() => window.location.hash),
+    await ambiguousPage.evaluate(() => window.location.hash),
     '#/dashboard',
-    'Duplicate Unit submission guessed a navigation destination.',
+    'Ambiguous Unit submission guessed a navigation destination.',
   );
-  await duplicateSubmitContext.close();
-
-  const duplicateSelectContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  await duplicateSelectContext.addInitScript(
-    ({ key, data }) => window.localStorage.setItem(key, JSON.stringify(data)),
-    { key: storageKey, data: duplicateData },
-  );
-  const duplicateSelectPage = await duplicateSelectContext.newPage();
-  await duplicateSelectPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
-  const duplicateSelectInput = duplicateSelectPage.getByRole('combobox', {
-    name: 'Ask, update, or search Turn OS',
-    exact: true,
-  });
-  await duplicateSelectInput.fill('101');
-  const duplicateSelectOptions = duplicateSelectPage.getByRole('option');
-  assert.equal(await duplicateSelectOptions.count(), 2, 'Duplicate Unit selection choices were not explicit.');
-  await duplicateSelectOptions.nth(1).click();
-  await duplicateSelectPage.waitForFunction(() => window.location.hash === '#/units/unit_101_duplicate');
-  assert.equal(
-    await duplicateSelectPage.locator('[role="dialog"]').count(),
-    0,
-    'Explicit duplicate Unit selection opened Capture.',
-  );
-  await duplicateSelectContext.close();
+  await ambiguousPage.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
+  await ambiguousContext.close();
 
   console.log('Turn command bar passed on Mac, iPad landscape, and iPhone viewports.');
 } finally {

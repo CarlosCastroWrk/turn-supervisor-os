@@ -261,7 +261,6 @@ function App() {
         {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
         {route.view === 'units' || route.view === 'unitDetail' ? (
           <TurnBoardFeature
-            key={`jul28-turnboard:${route.view === 'unitDetail' ? route.unitId : 'list'}`}
             initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
             onUnitClose={() => navigate('units')}
             onUnitSelected={(unitId) => navigate('unitDetail', unitId)}

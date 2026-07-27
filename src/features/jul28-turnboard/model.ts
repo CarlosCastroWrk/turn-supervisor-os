@@ -150,6 +150,7 @@ export interface Jul28UnitLayerProjection {
 
 export interface Jul28SourceCoverageProjection {
   complete: boolean;
+  sectionOrderValid: boolean;
   expectedRecordCount: number;
   actualRecordCount: number;
   missingKeys: string[];

@@ -108,11 +108,23 @@ try {
     assert.equal(await page.locator('.jul28-filter-icon').count(), 0, `${target.name} retained the inert funnel.`);
     assert.equal(await page.getByLabel('Building / floor', { exact: true }).count(), 1);
     assert.equal(await page.getByLabel('Crew', { exact: true }).count(), 1);
+    const unit602Card = page.locator('[data-unit-id="jul28-unit-602"]');
+    const open602 = unit602Card.getByRole('button', { name: 'Open Unit 602 workspace', exact: true });
     assert.equal(
-      await page.getByRole('button', { name: /Open Unit 602 workspace/ }).locator('.jul28-trade-summary').count(),
+      await unit602Card.locator('.jul28-trade-summary').count(),
       2,
       `${target.name} did not show compact Paint and Clean summaries on the phone card.`,
     );
+    assert.equal(await unit602Card.getByRole('heading', { name: 'Unit 602', exact: true }).count(), 1);
+    assert.equal(await unit602Card.locator('dl.jul28-layer-rail').count(), 1);
+    assert.equal(
+      await open602.locator(
+        '.jul28-trade-summary, .jul28-unit-card__crew, .jul28-unit-card__warning, .jul28-unit-card__added-scope, .jul28-unit-card__maintenance, .jul28-layer-rail, dl',
+      ).count(),
+      0,
+      `${target.name} wrapped semantic Unit facts inside the Open Unit button.`,
+    );
+    assert.equal(await open602.getByText('Open Unit workspace', { exact: true }).count(), 1);
     for (const label of ['Authorization', 'Assignment evidence', 'Crew report', 'My inspection', 'Property walk', 'Paper review']) {
       assert.equal(
         await page.locator('.jul28-layer-rail dt').filter({ hasText: label }).first().isVisible(),
@@ -126,11 +138,16 @@ try {
       0,
       `${target.name} exposed a deferred property/PDS approval action.`,
     );
+    const openButtonMetrics = await open602.evaluate((element) => ({
+      display: getComputedStyle(element).display,
+      height: element.getBoundingClientRect().height,
+    }));
     assert.equal(
-      await page.getByRole('button', { name: /Open Unit 602 workspace/ }).evaluate((element) => getComputedStyle(element).display),
-      'block',
-      `${target.name} Unit card did not use block button semantics.`,
+      openButtonMetrics.display,
+      'flex',
+      `${target.name} Unit card action was not a dedicated flex button.`,
     );
+    assert.ok(openButtonMetrics.height >= 44, `${target.name} Open Unit action was smaller than 44px.`);
     await assertNoHorizontalOverflow(page, target.name);
 
     if (target.name === 'iphone-390') {
@@ -146,13 +163,14 @@ try {
       await page.getByRole('button', { name: /Assignment conflict/ }).click();
       assert.deepEqual(
         await page.locator('.jul28-unit-card__number').allTextContents(),
-        ['604'],
+        ['Unit 604'],
         'Assignment conflict filter did not isolate the conflicting Unit.',
       );
       await page.getByRole('button', { name: /^All / }).click();
 
       await page.getByRole('button', { name: /Access blocked/ }).click();
-      assert.equal(await page.getByRole('button', { name: /Open Unit 602 workspace/ }).count(), 1);
+      assert.equal(await page.getByRole('button', { name: /Open Unit 1305 workspace/ }).count(), 1);
+      assert.equal(await page.getByRole('button', { name: /Open Unit 602 workspace/ }).count(), 0);
       await page.getByRole('button', { name: /^All / }).click();
 
       const open603 = page.getByRole('button', { name: /Open Unit 603 workspace/ });

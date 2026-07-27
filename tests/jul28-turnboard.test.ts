@@ -70,8 +70,10 @@ test('coverage validation fails closed for a missing or duplicate section-trade 
   const card = projectJul28UnitCard(missing, 'paint');
 
   assert.equal(missingCoverage.complete, false);
+  assert.equal(missingCoverage.sectionOrderValid, true);
   assert.deepEqual(missingCoverage.missingKeys, ['clean:E']);
   assert.equal(duplicateCoverage.complete, false);
+  assert.equal(duplicateCoverage.sectionOrderValid, true);
   assert.deepEqual(duplicateCoverage.duplicateKeys, ['paint:A']);
   assert.equal(progress.applicableSectionCount, null);
   assert.equal(progress.readyForMyWalkCount, null);
@@ -80,6 +82,38 @@ test('coverage validation fails closed for a missing or duplicate section-trade 
   assert.equal(card.readyForMyWalkCount, null);
   assert.equal(card.attentionKind, 'source-coverage-incomplete');
   assert.equal(card.attentionLabel, 'Source coverage incomplete');
+});
+
+test('coverage validation rejects a shortened sectionOrder even when matching section records are also removed', () => {
+  const complete = getUnit('1305');
+  const shortened: Jul28UnitRecord = {
+    ...complete,
+    sectionOrder: complete.sectionOrder.filter((section) => section !== 'E'),
+    records: complete.records
+      .filter((record) => record.section !== 'E')
+      .map((record): Jul28SectionTradeRecord => (
+        record.trade === 'paint' && record.applicability === 'applicable'
+          ? { ...record, inspection: 'los-passed' }
+          : record
+      )),
+  };
+
+  const coverage = validateJul28SourceCoverage(shortened);
+  const progress = projectJul28TradeProgress(shortened, 'paint');
+  const card = projectJul28UnitCard(shortened, 'paint');
+
+  assert.equal(coverage.complete, false);
+  assert.equal(coverage.sectionOrderValid, false);
+  assert.equal(coverage.expectedRecordCount, 12);
+  assert.equal(coverage.actualRecordCount, 10);
+  assert.deepEqual(coverage.missingKeys, ['paint:E', 'clean:E']);
+  assert.equal(progress.sourceCoverageComplete, false);
+  assert.equal(progress.applicableSectionCount, null);
+  assert.equal(progress.readyForMyWalkCount, null);
+  assert.equal(progress.losPassedSectionCount, null);
+  assert.equal(progress.allApplicableSectionsInspected, false);
+  assert.equal(card.readyForMyWalkCount, null);
+  assert.equal(card.attentionKind, 'source-coverage-incomplete');
 });
 
 test('Unit 602 added Paint scope is a new assignment episode rather than an original miss', () => {
@@ -244,12 +278,44 @@ test('all requested filters and search are deterministic and non-mutating', () =
 
   assert.equal(needsInspection.some((projection) => projection.unitNumber === '603'), true);
   assert.equal(propertyWalk.some((projection) => projection.unitNumber === '1305'), true);
-  assert.equal(accessBlocked.some((projection) => projection.unitNumber === '602'), true);
+  assert.deepEqual(accessBlocked.map((projection) => projection.unitNumber), ['1305']);
   assert.deepEqual(assignmentConflict.map((projection) => projection.unitNumber), ['604']);
   assert.deepEqual(floor.map((projection) => projection.unitNumber), ['1305']);
   assert.equal(crew.some((projection) => projection.unitNumber === '1305'), true);
   assert.deepEqual(searched.map((projection) => projection.unitNumber), ['1305']);
   assert.equal(jul28SyntheticTurnBoardRepository.listUnits(), units);
+});
+
+test('access-blocked attention filter matches only exact access-blocked facts', () => {
+  const exactAccessBlocked = getUnit('1305');
+  const cloneWithAccess = (
+    unitId: string,
+    unitNumber: string,
+    access: Jul28SectionTradeRecord['access'],
+  ): Jul28UnitRecord => ({
+    ...exactAccessBlocked,
+    id: unitId,
+    unitNumber,
+    records: exactAccessBlocked.records.map((record): Jul28SectionTradeRecord => ({
+      ...record,
+      id: `${unitId}:${record.trade}:${record.section}`,
+      unitId,
+      ...(record.trade === 'paint' && record.section === 'C' ? { access } : {}),
+    })),
+  });
+  const occupied = cloneWithAccess('filter-occupied', 'occupied', 'occupied-or-restricted');
+  const maintenance = cloneWithAccess('filter-maintenance', 'maintenance', 'maintenance-blocked');
+  const accessible = cloneWithAccess('filter-accessible', 'accessible', 'accessible');
+  const filters = { attention: 'access-blocked', buildingFloor: 'all', crew: 'all' } as const;
+
+  const matches = projectJul28TurnBoard(
+    [occupied, maintenance, accessible, exactAccessBlocked],
+    'paint',
+    filters,
+  );
+
+  assert.equal(getRecord('1305', 'paint', 'C').access, 'access-blocked');
+  assert.deepEqual(matches.map((projection) => projection.unitNumber), ['1305']);
 });
 
 test('Wave 1 property-walk states remain read-only and no deferred approval state is encoded', () => {

@@ -314,16 +314,33 @@
   background: #e18a00;
 }
 
-.jul28-unit-card__open {
-  display: block;
-  width: 100%;
+.jul28-unit-card__body {
   min-width: 0;
   padding: 14px 13px 12px 17px;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  text-align: left;
+}
+
+.jul28-unit-card__open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--jul28-border);
+  border-radius: 10px;
+  color: var(--jul28-blue-strong);
+  background: #f4f8ff;
+  font-size: 0.78rem;
+  font-weight: 760;
   cursor: pointer;
+}
+
+.jul28-unit-card__open:hover {
+  border-color: var(--jul28-blue);
+  background: #eaf3ff;
 }
 
 .jul28-unit-card__heading {
@@ -336,6 +353,7 @@
 
 .jul28-unit-card__number {
   display: block;
+  margin: 0;
   font-size: 1.35rem;
   font-weight: 830;
   line-height: 1;
@@ -377,8 +395,7 @@
 
 .jul28-unit-card__chevron {
   flex: 0 0 auto;
-  margin-top: 5px;
-  color: var(--jul28-text);
+  color: currentcolor;
 }
 
 .jul28-unit-card__trade-grid,

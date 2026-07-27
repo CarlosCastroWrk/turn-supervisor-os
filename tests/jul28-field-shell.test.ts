@@ -10,6 +10,7 @@ import {
   summarizeNeedsMe,
   validateFieldShellModel,
 } from '../src/features/jul28-field-shell/projection.ts';
+import type { FieldShellModel, NeedsMeItem } from '../src/features/jul28-field-shell/types.ts';
 
 const LOCKED_NEEDS_ME_LABELS = [
   'Needs Confirmation',
@@ -75,11 +76,48 @@ test('Needs Me supports all nine locked groups in the required order', () => {
 test('every Needs Me item carries actionable field context and an exact workspace destination', () => {
   for (const item of JUL28_SYNTHETIC_FIELD_SHELL.needsMe) {
     assert.ok(item.unitNumber.trim(), `${item.id} needs a Unit.`);
+    assert.ok(item.section, `${item.id} needs a section.`);
+    assert.ok(item.trade, `${item.id} needs a trade.`);
     assert.ok(item.whyLosIsNeeded.trim(), `${item.id} needs a reason.`);
-    assert.ok(item.responsibleParty?.trim(), `${item.id} needs a known synthetic owner or crew.`);
+    assert.ok(item.responsibleParty.trim(), `${item.id} needs a known synthetic owner or crew.`);
     assert.ok(item.nextAction.trim(), `${item.id} needs a next action.`);
     assert.ok(item.destination.workspace, `${item.id} needs a workspace id.`);
     assert.ok(item.destination.label.trim(), `${item.id} needs an exact destination label.`);
+  }
+});
+
+test('validation rejects a missing locked Needs Me category', () => {
+  const missingCallbacks: FieldShellModel = {
+    ...JUL28_SYNTHETIC_FIELD_SHELL,
+    needsMe: JUL28_SYNTHETIC_FIELD_SHELL.needsMe.filter((item) => item.category !== 'callbacks'),
+  };
+
+  assert.match(validateFieldShellModel(missingCallbacks).join('\n'), /Callbacks requires at least one item/);
+});
+
+test('validation rejects every missing required Needs Me field', () => {
+  const firstItem = JUL28_SYNTHETIC_FIELD_SHELL.needsMe[0];
+  const requiredFields: Array<keyof NeedsMeItem> = [
+    'section',
+    'trade',
+    'responsibleParty',
+    'whyLosIsNeeded',
+    'nextAction',
+    'destination',
+  ];
+
+  for (const field of requiredFields) {
+    const invalidItem: Partial<NeedsMeItem> = { ...firstItem };
+    delete invalidItem[field];
+    const invalidModel = {
+      ...JUL28_SYNTHETIC_FIELD_SHELL,
+      needsMe: [invalidItem as NeedsMeItem, ...JUL28_SYNTHETIC_FIELD_SHELL.needsMe.slice(1)],
+    } satisfies FieldShellModel;
+
+    assert.ok(
+      validateFieldShellModel(invalidModel).length > 0,
+      `Removing Needs Me field ${field} should fail validation.`,
+    );
   }
 });
 

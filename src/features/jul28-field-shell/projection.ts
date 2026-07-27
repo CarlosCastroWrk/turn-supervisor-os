@@ -106,18 +106,37 @@ export const validateFieldShellModel = (model: FieldShellModel) => {
     validateTradeAndScope(errors, `work item ${item.id}`, item.trade, item.scope);
   }
 
+  const needsMeCategories = new Set<NeedsMeCategory>();
   for (const item of model.needsMe) {
+    if (NEEDS_ME_CATEGORY_ORDER.includes(item.category)) {
+      needsMeCategories.add(item.category);
+    } else {
+      errors.push(`Unsupported Needs Me category on ${item.id}.`);
+    }
     validateTradeAndScope(
       errors,
       `Needs Me item ${item.id}`,
       item.trade,
       item.section ? [item.section] : [],
     );
-    if (!item.unitNumber.trim() || !item.whyLosIsNeeded.trim() || !item.nextAction.trim()) {
+    if (
+      !item.unitNumber?.trim()
+      || !item.section
+      || !item.trade
+      || !item.responsibleParty?.trim()
+      || !item.whyLosIsNeeded?.trim()
+      || !item.nextAction?.trim()
+    ) {
       errors.push(`Needs Me item ${item.id} is missing required context.`);
     }
-    if (!item.destination.workspace || !item.destination.label.trim()) {
+    if (!item.destination?.workspace || !item.destination.label?.trim()) {
       errors.push(`Needs Me item ${item.id} is missing an exact destination workspace.`);
+    }
+  }
+
+  for (const category of NEEDS_ME_CATEGORY_ORDER) {
+    if (!needsMeCategories.has(category)) {
+      errors.push(`Needs Me category ${NEEDS_ME_LABELS[category]} requires at least one item.`);
     }
   }
 

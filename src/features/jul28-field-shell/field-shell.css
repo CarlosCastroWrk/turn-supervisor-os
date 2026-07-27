@@ -965,6 +965,29 @@
     padding-left: 214px;
   }
 
+  .j28-command-slot:not(:empty) {
+    position: fixed;
+    right: max(24px, env(safe-area-inset-right));
+    bottom: max(18px, env(safe-area-inset-bottom));
+    left: calc(214px + max(24px, env(safe-area-inset-left)));
+    z-index: 40;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+
+  .j28-command-slot > .turn-command-bar {
+    position: static;
+    width: min(100%, 760px);
+    margin: 0;
+    pointer-events: auto;
+  }
+
+  .j28-command-slot .turn-command-bar__matches {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+
   .j28-nav {
     top: 0;
     right: auto;
@@ -990,7 +1013,11 @@
   }
 
   .j28-field-shell__main {
-    padding-bottom: 54px;
+    padding-bottom: calc(126px + env(safe-area-inset-bottom));
+  }
+
+  .j28-preview-status {
+    margin-bottom: calc(106px + env(safe-area-inset-bottom));
   }
 
   .j28-sheet-backdrop {

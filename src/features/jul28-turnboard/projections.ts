@@ -1,4 +1,5 @@
 import {
+  JUL28_SECTIONS,
   JUL28_TRADES,
   type Jul28AttentionFilter,
   type Jul28AttentionKind,
@@ -34,21 +35,24 @@ const coverageKey = (trade: Jul28Trade, section: Jul28Section) => `${trade}:${se
 export const validateJul28SourceCoverage = (unit: Jul28UnitRecord): Jul28SourceCoverageProjection => {
   const missingKeys: string[] = [];
   const duplicateKeys: string[] = [];
+  const sectionOrderValid = unit.sectionOrder.length === JUL28_SECTIONS.length &&
+    JUL28_SECTIONS.every((section, index) => unit.sectionOrder[index] === section);
 
   for (const trade of JUL28_TRADES) {
-    for (const section of unit.sectionOrder) {
+    for (const section of JUL28_SECTIONS) {
       const count = unit.records.filter((record) => record.trade === trade && record.section === section).length;
       if (count === 0) missingKeys.push(coverageKey(trade, section));
       if (count > 1) duplicateKeys.push(coverageKey(trade, section));
     }
   }
 
-  const complete = missingKeys.length === 0 && duplicateKeys.length === 0;
+  const complete = sectionOrderValid && missingKeys.length === 0 && duplicateKeys.length === 0;
   return {
     complete,
-    expectedRecordCount: unit.sectionOrder.length * JUL28_TRADES.length,
+    sectionOrderValid,
+    expectedRecordCount: JUL28_SECTIONS.length * JUL28_TRADES.length,
     actualRecordCount: unit.records.filter((record) =>
-      unit.sectionOrder.includes(record.section) && JUL28_TRADES.includes(record.trade),
+      JUL28_SECTIONS.includes(record.section) && JUL28_TRADES.includes(record.trade),
     ).length,
     missingKeys,
     duplicateKeys,
@@ -57,12 +61,12 @@ export const validateJul28SourceCoverage = (unit: Jul28UnitRecord): Jul28SourceC
 };
 
 export const recordsForTrade = (unit: Jul28UnitRecord, trade: Jul28Trade) =>
-  unit.sectionOrder.map((section) => unit.records.find((record) => record.trade === trade && record.section === section))
+  JUL28_SECTIONS.map((section) => unit.records.find((record) => record.trade === trade && record.section === section))
     .filter((record): record is Jul28SectionTradeRecord => Boolean(record));
 
 const sourceCoverageLayer = (): Jul28LayerProjection => ({
   label: 'Source coverage incomplete',
-  detail: 'A Paint/Clean section record is missing or duplicated. No completion or readiness result is calculated.',
+  detail: 'The locked Common + A–E order is invalid, or a Paint/Clean section record is missing or duplicated. No completion or readiness result is calculated.',
   tone: 'attention',
 });
 
@@ -332,7 +336,7 @@ const attentionMatches = (
     return records.some((record) => record.applicability === 'applicable' && record.propertyWalk === 'walk-pending');
   }
   if (filter === 'access-blocked') {
-    return records.some((record) => record.applicability === 'applicable' && record.access !== 'accessible');
+    return records.some((record) => record.applicability === 'applicable' && record.access === 'access-blocked');
   }
   return records.some((record) =>
     record.applicability === 'applicable' &&
@@ -582,8 +586,8 @@ export const projectJul28Blocker = (
       kind: 'source-coverage',
       label: 'Source coverage incomplete',
       owner: 'Los',
-      nextAction: 'Compare the synthetic source adapter against the complete Unit section list.',
-      resolution: 'Exactly one Paint and one Clean record exists for every expected section.',
+      nextAction: 'Compare the synthetic source adapter against the locked Common + A–E Unit section list.',
+      resolution: 'The section order matches Common + A–E and exactly one Paint and one Clean record exists for every section.',
       tone: 'attention',
     };
   }

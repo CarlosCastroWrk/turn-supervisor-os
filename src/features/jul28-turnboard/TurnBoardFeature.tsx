@@ -180,21 +180,18 @@ function UnitCard({
   const crewSummary = projection.crewNames.length > 0 ? projection.crewNames.join(', ') : 'No crew evidence';
 
   return (
-    <article className={`jul28-unit-card is-${projection.attentionKind}`}>
-      <button
-        type="button"
-        className="jul28-unit-card__open"
-        onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
-        aria-label={`Open Unit ${projection.unitNumber} workspace`}
-      >
-        <div className="jul28-unit-card__heading">
+    <article
+      className={`jul28-unit-card is-${projection.attentionKind}`}
+      data-unit-id={projection.unitId}
+    >
+      <div className="jul28-unit-card__body">
+        <header className="jul28-unit-card__heading">
           <div>
-            <span className="jul28-unit-card__number">{projection.unitNumber}</span>
+            <h2 className="jul28-unit-card__number">Unit {projection.unitNumber}</h2>
             <span className="jul28-unit-card__location">{projection.locationLabel} · {projection.unitTypeLabel}</span>
           </div>
           <span className={`jul28-attention-label is-${projection.attentionKind}`}>{projection.attentionLabel}</span>
-          <ChevronRight className="jul28-unit-card__chevron" size={22} aria-hidden="true" />
-        </div>
+        </header>
 
         <div className="jul28-unit-card__trade-grid" aria-label={`Paint and Clean summary for Unit ${projection.unitNumber}`}>
           <TradeSummary summary={projection.tradeSummaries.paint} selected={projection.trade === 'paint'} />
@@ -237,7 +234,16 @@ function UnitCard({
         ) : null}
 
         <LayerRail projection={projection} />
-      </button>
+        <button
+          type="button"
+          className="jul28-unit-card__open"
+          onClick={(event: MouseEvent<HTMLButtonElement>) => onOpen(event.currentTarget)}
+          aria-label={`Open Unit ${projection.unitNumber} workspace`}
+        >
+          <span>Open Unit workspace</span>
+          <ChevronRight className="jul28-unit-card__chevron" size={21} aria-hidden="true" />
+        </button>
+      </div>
     </article>
   );
 }
@@ -302,7 +308,7 @@ function UnitWorkspace({
           <AlertTriangle size={19} aria-hidden="true" />
           <div>
             <strong>Source coverage incomplete</strong>
-            <span>Readiness and completion counts are withheld until every expected Paint/Clean section has exactly one source record.</span>
+            <span>Readiness and completion counts are withheld until the order is Common + A–E and every Paint/Clean section has exactly one source record.</span>
           </div>
         </div>
       ) : null}

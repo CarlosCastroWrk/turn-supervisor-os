@@ -409,10 +409,12 @@ const unit1305 = createUnit('jul28-unit-1305', '1305', '3-bedroom', 'Building B'
   })),
   record('jul28-unit-1305', 'paint', 'C', {
     authorization: 'released',
+    access: 'access-blocked',
     assignmentEpisodes: [episode('1305-p-c', 'initial', 'Northline Paint', at(22, 7, 45), 'Paint assignment evidence recorded.')],
     crewExecution: 'working',
     inspection: 'inspection-pending',
     propertyWalk: 'walk-not-ready',
+    restrictionLabel: 'Synthetic access observation: entry is blocked pending access clarification.',
     updatedAt: at(22, 10, 45),
   }),
   notApplicable('jul28-unit-1305', 'paint', 'D'),
@@ -455,6 +457,8 @@ export const jul28SyntheticTurnBoardRepository: Jul28TurnBoardRepository = {
 };
 
 export const assertSyntheticFixtureCompleteness = () => syntheticUnits.every((unit) =>
+  unit.sectionOrder.length === JUL28_SECTIONS.length &&
+  JUL28_SECTIONS.every((section, index) => unit.sectionOrder[index] === section) &&
   JUL28_TRADES.every((trade) => JUL28_SECTIONS.every((section) =>
     unit.records.filter((candidate) => candidate.trade === trade && candidate.section === section).length === 1,
   )),

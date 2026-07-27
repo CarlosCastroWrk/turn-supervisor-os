@@ -232,7 +232,7 @@ try {
   await page.locator('.photo-thumb img').waitFor();
 
   await page.getByLabel('Quick note', { exact: true }).fill('QA_RECOVERY_ORIGINAL_NOTE');
-  await page.getByRole('button', { name: 'Save Note', exact: true }).click();
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
   await page.getByText(`Note saved to Unit ${recoveryUnitNumber}.`, { exact: true }).waitFor();
   await page.waitForFunction(
     ({ key, caption, note }) => {
@@ -244,7 +244,7 @@ try {
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: `Unit ${recoveryUnitNumber}`, exact: true }).waitFor();
-  await page.getByText(recoveryPhotoCaption, { exact: true }).waitFor();
+  await page.locator('.photo-thumb').filter({ hasText: recoveryPhotoCaption }).waitFor();
   await page.locator('.photo-thumb img').waitFor();
   const photoState = await storedData(page);
   const photoRecord = photoState.photoNotes.find((photo) => photo.caption === recoveryPhotoCaption);
@@ -359,7 +359,7 @@ try {
   await mutationPage.goto(`${baseUrl}/#/unit/${encodeURIComponent(unitId)}`, { waitUntil: 'networkidle' });
   await mutationPage.getByRole('heading', { name: `Unit ${recoveryUnitNumber}`, exact: true }).waitFor();
   await mutationPage.getByLabel('Quick note', { exact: true }).fill(afterBackupMarker);
-  await mutationPage.getByRole('button', { name: 'Save Note', exact: true }).click();
+  await mutationPage.getByRole('button', { name: 'Save note', exact: true }).click();
   await mutationPage.waitForFunction(
     ({ key, marker }) => JSON.parse(window.localStorage.getItem(key)).units.some((unit) => unit.notes.includes(marker)),
     { key: storageKey, marker: afterBackupMarker },
@@ -409,7 +409,7 @@ try {
   await assertNoHorizontalOverflow(page, 'production restored Export');
 
   await page.goto(`${baseUrl}/#/unit/${encodeURIComponent(unitId)}`, { waitUntil: 'networkidle' });
-  await page.getByText(recoveryPhotoCaption, { exact: true }).waitFor();
+  await page.locator('.photo-thumb').filter({ hasText: recoveryPhotoCaption }).waitFor();
   await page.locator('.photo-thumb img').waitFor();
   await assertNoHorizontalOverflow(page, 'production restored Unit photo');
   assert.deepEqual(runtimeFindings, [], `Production recovery findings:\n${runtimeFindings.join('\n')}`);

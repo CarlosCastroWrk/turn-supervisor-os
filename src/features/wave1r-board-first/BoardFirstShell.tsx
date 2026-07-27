@@ -1147,6 +1147,7 @@ export function BoardFirstShell({
   const receiptSequenceRef = useRef(0);
   const captureSequenceRef = useRef(0);
   const dispatchedCaptureIdsRef = useRef(new Set<string>());
+  const previousInitialUnitIdRef = useRef(initialUnitId);
   const dialogOpen = openSheet !== null || externalDialogOpen;
   const selectedUnit = selectedUnitId
     ? units.find((unit) => unit.id === selectedUnitId)
@@ -1154,6 +1155,17 @@ export function BoardFirstShell({
   const selectedProjection = selectedUnit
     ? projections.find((projection) => projection.unitId === selectedUnit.id)
     : undefined;
+
+  useEffect(() => {
+    if (previousInitialUnitIdRef.current === initialUnitId) return;
+    previousInitialUnitIdRef.current = initialUnitId;
+    const routeUnitId = initialUnitId && repository.getUnit(initialUnitId)
+      ? initialUnitId
+      : '';
+    setActiveView('turnboard');
+    setSelectedUnitId(routeUnitId);
+    if (routeUnitId) setDetailPanel('paint');
+  }, [initialUnitId, repository]);
 
   useEffect(() => {
     if (selectedUnit) detailHeadingRef.current?.focus({ preventScroll: true });

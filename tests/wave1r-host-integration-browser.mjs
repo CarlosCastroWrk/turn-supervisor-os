@@ -108,6 +108,12 @@ try {
     assert.equal(await page.locator('.app-shell').count(), 0);
     await assertNoHorizontalOverflow(page, `${target.name} synthetic Unit route`);
 
+    await page.goBack();
+    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+    assert.equal(await page.getByRole('heading', { name: 'Unit 602', exact: true }).count(), 0);
+    await page.goForward();
+    await page.getByRole('heading', { name: 'Unit 602', exact: true }).waitFor();
+
     await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
     await page.locator('.app-shell').waitFor();
     assert.equal(await page.locator('[data-testid="wave1r-shell"]').count(), 0);
@@ -130,7 +136,7 @@ try {
   assert.equal(await unit602Tabs.getByRole('tab', { name: 'Paint', exact: true }).count(), 1);
   assert.equal(await unit602Tabs.getByRole('tab', { name: 'Clean', exact: true }).count(), 1);
 
-  await boardPage.getByRole('button', { name: 'Paint Common', exact: true }).click();
+  await boardPage.getByRole('button', { name: /^Paint Common\b/ }).click();
   const actionDialog = boardPage.getByRole('dialog', { name: 'Unit 602' });
   await actionDialog.waitFor();
   await actionDialog.getByRole('button', { name: /^Pass My Inspection/ }).click();

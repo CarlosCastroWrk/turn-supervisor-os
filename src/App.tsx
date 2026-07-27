@@ -1,17 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Download, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell, type FieldSheet } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
 import {
   JUL28_SYNTHETIC_FIELD_SHELL,
-  TodaySurface,
-  type FieldTask,
   type FieldWorkspaceDestination,
   type MoreDestination,
   type NeedsMeItem,
 } from './features/jul28-field-shell';
-import { TurnBoardFeature } from './features/jul28-turnboard/TurnBoardFeature';
 import { jul28SyntheticTurnBoardRepository } from './features/jul28-turnboard/syntheticRepository';
+import {
+  BoardFirstShell,
+  WAVE1R_SYNTHETIC_ACTIVITY,
+  type BoardFirstActivityItem,
+  type BoardFirstAssistantRequest,
+  type BoardFirstCaptureRequest,
+  type BoardFirstHostNavigationRequest,
+} from './features/wave1r-board-first';
 import { motionSafeScrollBehavior } from './lib/accessibility';
+import type { CaptureResultReceipt } from './lib/captureSession';
 import { buildAppHash, resolveAppHash, routeForNavigation } from './lib/routing';
 import type { AppNavigate } from './lib/routing';
 import { usePersistentAppData } from './lib/storage';
@@ -49,6 +56,24 @@ const JUL28_COMMAND_UNITS: TurnCommandUnitOption[] = JUL28_TURNBOARD_UNITS
 const JUL28_UNIT_IDS_BY_NUMBER = new Map(
   JUL28_TURNBOARD_UNITS.map((unit) => [unit.unitNumber, unit.id]),
 );
+
+type BoardCaptureContext = BoardFirstCaptureRequest | BoardFirstAssistantRequest;
+
+const isBoardFirstRoute = (view: ReturnType<typeof resolveAppHash>['route']['view'], unitId?: string) =>
+  view === 'dashboard'
+  || view === 'units'
+  || (view === 'unitDetail' && Boolean(
+    unitId && jul28SyntheticTurnBoardRepository.getUnit(unitId),
+  ));
+
+const focusVisibleElementById = (elementId: string) => {
+  const element = document.getElementById(elementId);
+  if (!element?.isConnected || element.getClientRects().length === 0) {
+    return false;
+  }
+  element.focus({ preventScroll: true });
+  return document.activeElement === element;
+};
 
 const readHistoryState = (): Record<string, unknown> => {
   if (typeof window === 'undefined') {
@@ -97,6 +122,15 @@ function App() {
   const [commandSourceRequest, setCommandSourceRequest] = useState<TurnCommandSourceRequest>();
   const [acceptedCommandRequestId, setAcceptedCommandRequestId] = useState<number>();
   const [fieldSheet, setFieldSheet] = useState<FieldSheet>(null);
+  const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
+  const boardCaptureContextRef = useRef<BoardCaptureContext | null>(null);
+  const boardCaptureReceiptSequenceRef = useRef(0);
+  const boardCaptureReturnFocusRef = useRef<BoardCaptureContext['returnFocus'] | null>(null);
+  const boardActivity = useMemo(
+    () => [...WAVE1R_SYNTHETIC_ACTIVITY, ...boardSessionActivity],
+    [boardSessionActivity],
+  );
+  const boardFirstActive = isBoardFirstRoute(route.view, route.unitId);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -136,6 +170,8 @@ function App() {
 
     const replacesFieldSheetEntry = historyRequestedFieldSheet() !== null;
     clearLegacyCaptureHistoryState();
+    boardCaptureContextRef.current = null;
+    boardCaptureReturnFocusRef.current = null;
     setFieldSheet(null);
     setCaptureOpen(false);
 
@@ -163,9 +199,23 @@ function App() {
   }, []);
 
   const closeCapture = useCallback(() => {
+    const returnFocus = boardCaptureReturnFocusRef.current;
     clearLegacyCaptureHistoryState();
     setCaptureOpen(false);
-  }, []);
+    boardCaptureContextRef.current = null;
+    boardCaptureReturnFocusRef.current = null;
+
+    if (returnFocus || boardFirstActive) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (returnFocus && focusVisibleElementById(returnFocus.triggerId)) {
+            return;
+          }
+          focusVisibleElementById('w1r-assistant-launcher');
+        });
+      });
+    }
+  }, [boardFirstActive]);
 
   const openFieldSheet = useCallback((sheet: Exclude<FieldSheet, null>) => {
     const nextState = {
@@ -188,6 +238,8 @@ function App() {
   }, []);
 
   const openCapture = useCallback((entry: 'plus' | 'microphone') => {
+    boardCaptureContextRef.current = null;
+    boardCaptureReturnFocusRef.current = null;
     setFieldSheet(null);
     setCaptureOpen(true);
     if (entry === 'microphone') {
@@ -198,6 +250,8 @@ function App() {
   }, []);
 
   const submitCommand = useCallback((sourceText: string) => {
+    boardCaptureContextRef.current = null;
+    boardCaptureReturnFocusRef.current = null;
     commandRequestIdRef.current += 1;
     const request = {
       id: commandRequestIdRef.current,
@@ -210,17 +264,93 @@ function App() {
     return request.id;
   }, []);
 
+  const openBoardCapture = useCallback((request: BoardFirstCaptureRequest) => {
+    if (!copilotRef.current) {
+      return {
+        accepted: false as const,
+        message: 'Capture is not ready. Nothing was handed off or saved.',
+      };
+    }
+
+    boardCaptureContextRef.current = request;
+    boardCaptureReturnFocusRef.current = request.returnFocus;
+    setFieldSheet(null);
+    setCaptureOpen(true);
+
+    if (request.kind === 'voice') {
+      copilotRef.current.openVoiceSource();
+    } else {
+      copilotRef.current.openDefaultCapture();
+    }
+
+    return {
+      accepted: true as const,
+      receiptId: `host-open:${request.requestId}`,
+      message: 'Capture opened and accepted the handoff. Nothing has been saved yet.',
+    };
+  }, []);
+
+  const submitBoardAssistant = useCallback((request: BoardFirstAssistantRequest) => {
+    if (!copilotRef.current) {
+      return;
+    }
+
+    boardCaptureContextRef.current = request;
+    boardCaptureReturnFocusRef.current = request.returnFocus;
+    commandRequestIdRef.current += 1;
+    const commandRequest = {
+      id: commandRequestIdRef.current,
+      sourceText: request.sourceText,
+    };
+    copilotRef.current.openDefaultCapture();
+    setCommandSourceRequest(commandRequest);
+    setFieldSheet(null);
+    setCaptureOpen(true);
+  }, []);
+
   const acceptCommandSource = useCallback((requestId: number) => {
     setAcceptedCommandRequestId(requestId);
+  }, []);
+
+  const mirrorCompletedBoardCapture = useCallback((receipt: CaptureResultReceipt) => {
+    const context = boardCaptureContextRef.current;
+    if (!context) {
+      return;
+    }
+
+    boardCaptureReceiptSequenceRef.current += 1;
+    const voiceCapture = 'kind' in context && context.kind === 'voice';
+    const activityKind: BoardFirstActivityItem['kind'] =
+      receipt.destinationKind === 'daily_log'
+        ? 'note'
+        : voiceCapture
+          ? 'transcript'
+          : 'capture-receipt';
+    const item: BoardFirstActivityItem = {
+      id: `host-capture-result:${boardCaptureReceiptSequenceRef.current}`,
+      kind: activityKind,
+      nonpersisted: true,
+      receiptId: `capture-result:${boardCaptureReceiptSequenceRef.current}`,
+      recordedAt: new Date().toISOString(),
+      section: 'section' in context ? context.section : undefined,
+      sourceLabel: 'Capture result mirror · session-only and nonpersisted',
+      synthetic: true,
+      title: receipt.headline,
+      trade: context.trade,
+      unitId: context.unitId,
+      unitNumber: context.unitNumber,
+      wording: receipt.sourceText,
+    };
+    setBoardSessionActivity((current) => (
+      current.some((candidate) => candidate.id === item.id)
+        ? current
+        : [...current, item]
+    ));
   }, []);
 
   const openJul28Unit = useCallback((unitNumber: string) => {
     const unitId = JUL28_UNIT_IDS_BY_NUMBER.get(unitNumber);
     navigate(unitId ? 'unitDetail' : 'units', unitId);
-  }, [navigate]);
-
-  const selectTurnBoardUnit = useCallback((unitId: string) => {
-    navigate('unitDetail', unitId);
   }, [navigate]);
 
   const openFieldWorkspace = useCallback((
@@ -251,10 +381,6 @@ function App() {
     openFieldWorkspace(item.destination, item.unitNumber);
   }, [openFieldWorkspace]);
 
-  const selectFieldTask = useCallback((task: FieldTask) => {
-    openJul28Unit(task.unitNumber);
-  }, [openJul28Unit]);
-
   const selectFieldMore = useCallback((destination: MoreDestination) => {
     const destinationView = {
       backup: 'export',
@@ -266,87 +392,117 @@ function App() {
     navigate(destinationView);
   }, [navigate]);
 
+  const navigateBoardHost = useCallback((request: BoardFirstHostNavigationRequest) => {
+    const destinationView = {
+      backup: 'export',
+      crews: 'crews',
+      reports: 'reports',
+      setup: 'setup',
+      sync: 'sync',
+    }[request.destination] as Parameters<AppNavigate>[0];
+    navigate(destinationView);
+    return {
+      accepted: true,
+      message: `${request.destination} opened in the existing Turn OS tool.`,
+    };
+  }, [navigate]);
+
+  const boardSaveAlert = saveStatus.state === 'failed' ? (
+    <section className="persistence-alert w1r-host-alert" role="alert" aria-live="assertive">
+      <AlertTriangle size={22} aria-hidden="true" />
+      <div>
+        <strong>Changes are not saved on this device</strong>
+        <p>
+          {saveStatus.canRetry
+            ? 'Your latest changes are still in memory. Keep this app open, retry the save, or export a backup.'
+            : 'The last save failed. Retry after freeing browser storage, or export a backup of the data still visible here.'}
+        </p>
+      </div>
+      <div className="persistence-alert__actions">
+        {saveStatus.canRetry ? (
+          <button type="button" onClick={retrySave}>
+            <RefreshCw size={17} aria-hidden="true" />
+            Retry save
+          </button>
+        ) : null}
+        <button type="button" onClick={() => navigate('export')}>
+          <Download size={17} aria-hidden="true" />
+          Data &amp; backup
+        </button>
+      </div>
+    </section>
+  ) : null;
+
   return (
     <>
-      <AppShell
-        acceptedCommandRequestId={acceptedCommandRequestId}
-        activeView={route.view}
-        captureOpen={captureOpen}
-        commandContextUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
-        commandUnits={JUL28_COMMAND_UNITS}
-        fieldShellModel={JUL28_SYNTHETIC_FIELD_SHELL}
-        fieldSheet={fieldSheet}
-        onCloseFieldSheet={closeFieldSheet}
-        onNavigate={navigate}
-        onOpenCapture={openCapture}
-        onOpenBackup={() => navigate('export')}
-        onOpenFieldSheet={openFieldSheet}
-        onRetrySave={retrySave}
-        onSelectFieldMore={selectFieldMore}
-        onSelectFieldNeed={selectFieldNeed}
-        onSubmitCommand={submitCommand}
-        saveStatus={saveStatus}
-        syncSlot={<SyncPanel sync={sync} />}
-      >
-        {route.view === 'dashboard' ? (
-          <TodaySurface
-            assignedWork={JUL28_SYNTHETIC_FIELD_SHELL.assignedWork}
-            context={JUL28_SYNTHETIC_FIELD_SHELL.context}
-            endOfDayPaperReconciliation={JUL28_SYNTHETIC_FIELD_SHELL.endOfDayPaperReconciliation}
-            needsMe={JUL28_SYNTHETIC_FIELD_SHELL.needsMe}
-            nextPropertyWalk={JUL28_SYNTHETIC_FIELD_SHELL.nextPropertyWalk}
-            personalPlan={JUL28_SYNTHETIC_FIELD_SHELL.personalPlan}
-            progressingWork={JUL28_SYNTHETIC_FIELD_SHELL.progressingWork}
-            recentActivity={JUL28_SYNTHETIC_FIELD_SHELL.recentActivity}
-            onOpenNeedsMe={() => openFieldSheet('needs-me')}
-            onOpenWorkspace={openFieldWorkspace}
-            onSelectNeed={selectFieldNeed}
-            onSelectTask={selectFieldTask}
-          />
-        ) : null}
-        {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
-        {route.view === 'units'
-          || (route.view === 'unitDetail' && jul28SyntheticTurnBoardRepository.getUnit(route.unitId ?? '')) ? (
-          <TurnBoardFeature
-            initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
-            onUnitClose={() => navigate('units')}
-            onUnitSelected={selectTurnBoardUnit}
-          />
-        ) : null}
-        {route.view === 'unitDetail' && !jul28SyntheticTurnBoardRepository.getUnit(route.unitId ?? '') ? (
-          <UnitDetailView data={data} setData={setData} unitId={route.unitId ?? ''} onNavigate={navigate} />
-        ) : null}
-        {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
-        {route.view === 'review' ? (
-          <ReviewView
-            data={data}
-            onNavigate={navigate}
-            onRetrySave={retrySave}
-            saveStatus={saveStatus}
-            setData={setData}
-            sync={sync}
-          />
-        ) : null}
-        {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
-        {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
-        {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
-        {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
-        {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
-        {route.view === 'sync' ? <SyncDiagnosticsView sync={sync} /> : null}
-        {route.view === 'export' ? (
-          <ExportView
-            data={data}
-            setData={setData}
-            syncAuthReady={sync.authReady}
-            syncSignedIn={sync.signedIn}
-          />
-        ) : null}
-      </AppShell>
+      {boardFirstActive ? (
+        <BoardFirstShell
+          activityItems={boardActivity}
+          externalDialogOpen={captureOpen}
+          hostStatusSlot={boardSaveAlert}
+          initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
+          onAssistantSubmit={submitBoardAssistant}
+          onCaptureRequest={openBoardCapture}
+          onHostNavigate={navigateBoardHost}
+        />
+      ) : (
+        <AppShell
+          acceptedCommandRequestId={acceptedCommandRequestId}
+          activeView={route.view}
+          captureOpen={captureOpen}
+          commandContextUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
+          commandUnits={JUL28_COMMAND_UNITS}
+          fieldShellModel={JUL28_SYNTHETIC_FIELD_SHELL}
+          fieldSheet={fieldSheet}
+          onCloseFieldSheet={closeFieldSheet}
+          onNavigate={navigate}
+          onOpenCapture={openCapture}
+          onOpenBackup={() => navigate('export')}
+          onOpenFieldSheet={openFieldSheet}
+          onRetrySave={retrySave}
+          onSelectFieldMore={selectFieldMore}
+          onSelectFieldNeed={selectFieldNeed}
+          onSubmitCommand={submitCommand}
+          saveStatus={saveStatus}
+          syncSlot={<SyncPanel sync={sync} />}
+        >
+          {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
+          {route.view === 'unitDetail' ? (
+            <UnitDetailView data={data} setData={setData} unitId={route.unitId ?? ''} onNavigate={navigate} />
+          ) : null}
+          {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
+          {route.view === 'review' ? (
+            <ReviewView
+              data={data}
+              onNavigate={navigate}
+              onRetrySave={retrySave}
+              saveStatus={saveStatus}
+              setData={setData}
+              sync={sync}
+            />
+          ) : null}
+          {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
+          {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
+          {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
+          {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
+          {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
+          {route.view === 'sync' ? <SyncDiagnosticsView sync={sync} /> : null}
+          {route.view === 'export' ? (
+            <ExportView
+              data={data}
+              setData={setData}
+              syncAuthReady={sync.authReady}
+              syncSignedIn={sync.signedIn}
+            />
+          ) : null}
+        </AppShell>
+      )}
       <CopilotView
         ref={copilotRef}
         commandSourceRequest={commandSourceRequest}
         data={data}
         isOpen={captureOpen}
+        onCaptureCompleted={mirrorCompletedBoardCapture}
         onCommandSourceAccepted={acceptCommandSource}
         onClose={closeCapture}
         onOpenBackup={() => navigate('export')}

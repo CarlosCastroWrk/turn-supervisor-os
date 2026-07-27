@@ -67,6 +67,14 @@
   min-width: 0;
 }
 
+.w1r-shell .w1r-host-alert {
+  flex: 0 0 auto;
+  margin: 8px 10px;
+  position: relative;
+  top: auto;
+  z-index: 9;
+}
+
 .w1r-header {
   align-items: center;
   background: color-mix(in srgb, var(--w1r-bg) 95%, transparent);

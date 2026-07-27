@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAppHash, parseAppHash, resolveAppHash, routeForNavigation } from '../src/lib/routing.ts';
 
-test('parseAppHash defaults to the dashboard route for empty or unknown hashes', () => {
-  assert.deepEqual(parseAppHash(''), { view: 'dashboard', unitStatusFilter: 'All' });
-  assert.deepEqual(parseAppHash('#/not-real'), { view: 'dashboard', unitStatusFilter: 'All' });
+test('parseAppHash defaults to the board-first TurnBoard route for empty or unknown hashes', () => {
+  assert.deepEqual(parseAppHash(''), { view: 'units', unitStatusFilter: 'All' });
+  assert.deepEqual(parseAppHash('#/not-real'), { view: 'units', unitStatusFilter: 'All' });
 });
 
 test('parseAppHash preserves unit list status filters', () => {
@@ -14,9 +14,9 @@ test('parseAppHash preserves unit list status filters', () => {
   });
 });
 
-test('resolveAppHash turns the legacy Capture route into one overlay request over Today', () => {
+test('resolveAppHash turns the legacy Capture route into one overlay request over TurnBoard', () => {
   assert.deepEqual(resolveAppHash('#/copilot'), {
-    route: { view: 'dashboard', unitStatusFilter: 'All' },
+    route: { view: 'units', unitStatusFilter: 'All' },
     captureRequested: true,
   });
 });

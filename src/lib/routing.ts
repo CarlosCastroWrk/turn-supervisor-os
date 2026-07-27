@@ -20,7 +20,7 @@ export interface ResolvedAppHash {
 export type AppNavigate = (view: AppView, unitId?: string, options?: NavigateOptions) => void;
 
 const defaultRoute: AppRoute = {
-  view: 'dashboard',
+  view: 'units',
   unitStatusFilter: 'All',
 };
 

@@ -35,7 +35,7 @@ createRoot(document.getElementById('root')!).render(
   <BoardFirstShell
     onActionProposal={(proposal) => window.__wave1rEvents.actions.push(proposal)}
     onAssignmentProposal={(proposal) => window.__wave1rEvents.assignments.push(proposal)}
-    onAssistantSubmit={(draft) => window.__wave1rEvents.assistantDrafts.push(draft)}
+    onAssistantSubmit={(request) => window.__wave1rEvents.assistantDrafts.push(request.sourceText)}
     onCaptureRequest={(request) => {
       window.__wave1rEvents.capture.push(request);
       window.__wave1rEvents.captureDialogCounts.push(

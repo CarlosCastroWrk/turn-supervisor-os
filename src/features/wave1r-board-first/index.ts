@@ -26,6 +26,7 @@ export type {
   BoardFirstActionProposal,
   BoardFirstActivityItem,
   BoardFirstAssignmentProposal,
+  BoardFirstAssistantRequest,
   BoardFirstAssistantAction,
   BoardFirstAssistantState,
   BoardFirstCaptureHandler,

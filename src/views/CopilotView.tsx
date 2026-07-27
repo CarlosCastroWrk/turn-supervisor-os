@@ -79,6 +79,7 @@ interface CopilotViewProps {
   data: AppData;
   setData: React.Dispatch<React.SetStateAction<AppData>>;
   onCommandSourceAccepted?: (requestId: number) => void;
+  onCaptureCompleted?: (receipt: CaptureResultReceipt) => void;
   onNavigate: AppNavigate;
   presentation?: 'page' | 'overlay';
   isOpen?: boolean;
@@ -217,6 +218,7 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
   data,
   setData,
   onCommandSourceAccepted,
+  onCaptureCompleted,
   onNavigate,
   presentation = 'page',
   isOpen = true,
@@ -435,7 +437,10 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
       return;
     }
 
-    const sourceText = commandSourceRequest.sourceText.trim();
+    const sourceText = commandSourceRequest.sourceText;
+    if (!sourceText.trim()) {
+      return;
+    }
     const existingSource = quickInput.trim();
     const hasProtectedSession =
       captureSession.step === 'review'
@@ -1417,6 +1422,7 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
     }
     if (receipt) {
       dispatchCaptureSession({ type: 'COMPLETE', result: receipt });
+      onCaptureCompleted?.(receipt);
     }
   };
 
@@ -1424,6 +1430,7 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
     const receipt = persistRawNote(captureSession.immutableSourceText);
     if (receipt) {
       dispatchCaptureSession({ type: 'COMPLETE', result: receipt });
+      onCaptureCompleted?.(receipt);
     }
   };
 

@@ -756,9 +756,8 @@ function AssistantBar({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const draft = state.draft.trim();
-    if (!draft) return;
-    const hostAcceptedRequest = onSubmit(draft);
+    if (!state.draft.trim()) return;
+    const hostAcceptedRequest = onSubmit(state.draft);
     dispatch({
       type: 'message-changed',
       message: hostAcceptedRequest
@@ -795,6 +794,7 @@ function AssistantBar({
         aria-expanded={state.expanded}
         className="w1r-assistant__launcher"
         data-w1r-critical-target="true"
+        id="w1r-assistant-launcher"
         onClick={() => dispatch({ type: 'toggle' })}
         type="button"
         aria-label={state.expanded ? 'Collapse Turn OS assistant' : 'Expand Turn OS assistant'}
@@ -817,6 +817,7 @@ function AssistantBar({
             <span className="w1r-visually-hidden">Ask or update Turn OS</span>
             <input
               aria-label="Ask or update Turn OS"
+              id="w1r-assistant-input"
               onChange={(event) => dispatch({ type: 'draft-changed', draft: event.target.value })}
               placeholder="Ask or update Turn OS…"
               value={state.draft}
@@ -1109,6 +1110,8 @@ function PlusSheet({
 export function BoardFirstShell({
   activityItems = WAVE1R_SYNTHETIC_ACTIVITY,
   dateLabel = WAVE1R_SYNTHETIC_CONTEXT.dateLabel,
+  externalDialogOpen = false,
+  hostStatusSlot,
   initialUnitId = '',
   propertyName = WAVE1R_SYNTHETIC_CONTEXT.propertyName,
   repository = jul28SyntheticTurnBoardRepository,
@@ -1144,7 +1147,7 @@ export function BoardFirstShell({
   const receiptSequenceRef = useRef(0);
   const captureSequenceRef = useRef(0);
   const dispatchedCaptureIdsRef = useRef(new Set<string>());
-  const dialogOpen = openSheet !== null;
+  const dialogOpen = openSheet !== null || externalDialogOpen;
   const selectedUnit = selectedUnitId
     ? units.find((unit) => unit.id === selectedUnitId)
     : undefined;
@@ -1319,6 +1322,7 @@ export function BoardFirstShell({
           propertyName={propertyName}
           onOpenNeedsMe={openNeedsMe}
         />
+        {hostStatusSlot}
         <div className="w1r-shell__body">
           <PrimaryNavigation
             activeView={activeView}
@@ -1392,9 +1396,21 @@ export function BoardFirstShell({
               ? { unitId: selectedUnit.id, unitNumber: selectedUnit.unitNumber }
               : {}),
           })}
-          onSubmit={(draft) => {
+          onSubmit={(sourceText) => {
             if (!onAssistantSubmit) return false;
-            onAssistantSubmit(draft);
+            onAssistantSubmit({
+              origin: 'assistant',
+              returnFocus: selectedUnit
+                ? { triggerId: 'w1r-assistant-input', unitId: selectedUnit.id }
+                : { triggerId: 'w1r-assistant-input' },
+              sourceText,
+              ...(detailPanel === 'paint' || detailPanel === 'clean'
+                ? { trade: detailPanel }
+                : {}),
+              ...(selectedUnit
+                ? { unitId: selectedUnit.id, unitNumber: selectedUnit.unitNumber }
+                : {}),
+            });
             return true;
           }}
         />

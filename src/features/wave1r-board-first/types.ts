@@ -5,6 +5,7 @@ import type {
   Jul28Trade,
   Jul28TurnBoardRepository,
 } from '../jul28-turnboard/model';
+import type { ReactNode } from 'react';
 
 export const BOARD_FIRST_NAVIGATION = [
   { id: 'turnboard', label: 'TurnBoard' },
@@ -140,6 +141,15 @@ export interface BoardFirstReturnFocus {
   unitId?: string;
 }
 
+export interface BoardFirstAssistantRequest {
+  origin: 'assistant';
+  returnFocus: BoardFirstReturnFocus;
+  sourceText: string;
+  trade?: Jul28Trade;
+  unitId?: string;
+  unitNumber?: string;
+}
+
 export interface BoardFirstCaptureRequest {
   kind: BoardFirstCaptureKind;
   origin: 'assistant' | 'plus-sheet' | 'section-sheet';
@@ -208,12 +218,14 @@ export type BoardFirstAssistantAction =
 export interface BoardFirstShellProps {
   activityItems?: readonly BoardFirstActivityItem[];
   dateLabel?: string;
+  externalDialogOpen?: boolean;
+  hostStatusSlot?: ReactNode;
   initialUnitId?: string;
   propertyName?: string;
   repository?: Jul28TurnBoardRepository;
   onActionProposal?: (proposal: BoardFirstActionProposal) => void;
   onAssignmentProposal?: (proposal: BoardFirstAssignmentProposal) => void;
-  onAssistantSubmit?: (draft: string) => void;
+  onAssistantSubmit?: (request: BoardFirstAssistantRequest) => void;
   onCaptureRequest?: BoardFirstCaptureHandler;
   onHostNavigate?: BoardFirstHostNavigationHandler;
 }

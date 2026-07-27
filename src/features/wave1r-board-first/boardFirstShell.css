@@ -30,7 +30,7 @@
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
   height: 100dvh;
-  min-height: 640px;
+  min-height: 0;
   overflow: hidden;
   position: relative;
   width: 100%;
@@ -772,6 +772,13 @@
   border-color: var(--w1r-amber-soft);
 }
 
+.w1r-activity-list__marker.is-action-proposal,
+.w1r-activity-list__marker.is-assignment-proposal,
+.w1r-activity-list__marker.is-capture-receipt {
+  background: var(--w1r-blue);
+  border-color: var(--w1r-blue-soft);
+}
+
 .w1r-activity-list li > div {
   border-bottom: 1px solid var(--w1r-border);
   display: grid;
@@ -857,6 +864,17 @@
   color: var(--w1r-muted);
   font-size: 10px;
   line-height: 1.35;
+}
+
+.w1r-more-status {
+  background: var(--w1r-blue-soft);
+  border: 1px solid #a9c9ee;
+  border-radius: 9px;
+  color: #174e89;
+  font-size: 10px;
+  line-height: 1.35;
+  margin: 0;
+  padding: 8px 10px;
 }
 
 .w1r-empty-copy {
@@ -976,7 +994,7 @@
   border-bottom: 0;
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -12px 34px rgb(5 32 54 / 20%);
-  max-height: min(78dvh, 700px);
+  max-height: min(calc(100dvh - env(safe-area-inset-top) - 8px), 700px);
   overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom);
   width: 100%;
@@ -1018,7 +1036,7 @@
 }
 
 .w1r-shell .j28-sheet__body {
-  max-height: calc(min(78dvh, 700px) - 72px);
+  max-height: calc(min(calc(100dvh - env(safe-area-inset-top) - 8px), 700px) - 72px);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 10px;
@@ -1310,16 +1328,79 @@
   }
 
   .w1r-trade-strip {
-    grid-template-columns: 74px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 20px 44px 44px;
+    min-height: 108px;
+  }
+
+  .w1r-trade-strip__summary {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .w1r-section-buttons {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: repeat(6, minmax(44px, 1fr));
+  }
+
+  .w1r-crew-button {
+    grid-column: 1;
+    grid-row: 3;
   }
 
   .w1r-section-buttons button {
     font-size: 9px;
-    min-width: 0;
+    min-width: 44px;
   }
 
   .w1r-crew-button strong {
     font-size: 9px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) and (max-width: 899px) {
+  .w1r-main {
+    padding-bottom: calc(118px + env(safe-area-inset-bottom));
+  }
+
+  .w1r-unit-row {
+    align-items: stretch;
+    display: grid;
+    gap: 0 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: 44px 68px;
+    min-height: 116px;
+  }
+
+  .w1r-unit-row__heading {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .w1r-unit-row__attention {
+    align-self: center;
+    border-top: 0;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+
+  .w1r-trade-strip {
+    border-top: 1px solid color-mix(in srgb, var(--w1r-border) 55%, transparent);
+    grid-template-rows: 24px 44px;
+    min-height: 68px;
+  }
+
+  .w1r-trade-strip.is-paint {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .w1r-trade-strip.is-clean {
+    grid-column: 2;
+    grid-row: 2;
   }
 }
 

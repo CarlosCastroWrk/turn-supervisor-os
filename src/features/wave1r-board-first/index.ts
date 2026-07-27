@@ -1,13 +1,16 @@
 export { BoardFirstShell } from './BoardFirstShell';
 export { WAVE1R_SYNTHETIC_ACTIVITY, WAVE1R_SYNTHETIC_CONTEXT } from './fixtures';
 export {
+  createBoardFirstActionActivityItem,
   createBoardFirstActionProposal,
+  createBoardFirstAssignmentActivityItem,
   createBoardFirstAssignmentProposal,
   eligibleAssignmentSections,
   initialBoardFirstAssistantState,
   listBoardFirstCrewOptions,
   projectBoardFirstActivity,
   projectBoardFirstBoard,
+  projectBoardFirstCaptureReceiptActivity,
   projectBoardFirstUnit,
   projectBoardFirstUnitActivity,
   projectBoardFirstUnitAttentions,
@@ -15,6 +18,7 @@ export {
   selectBoardFirstSectionActions,
 } from './projections';
 export {
+  BOARD_FIRST_HOST_DESTINATIONS,
   BOARD_FIRST_NAVIGATION,
   DEFAULT_BOARD_FIRST_VIEW,
 } from './types';
@@ -24,8 +28,15 @@ export type {
   BoardFirstAssignmentProposal,
   BoardFirstAssistantAction,
   BoardFirstAssistantState,
+  BoardFirstCaptureHandler,
   BoardFirstCaptureKind,
+  BoardFirstCaptureReceipt,
   BoardFirstCaptureRequest,
+  BoardFirstHostDestination,
+  BoardFirstHostNavigationHandler,
+  BoardFirstHostNavigationReceipt,
+  BoardFirstHostNavigationRequest,
+  BoardFirstReturnFocus,
   BoardFirstSectionAction,
   BoardFirstShellProps,
   BoardFirstTradeProjection,

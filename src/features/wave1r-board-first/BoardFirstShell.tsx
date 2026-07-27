@@ -2,10 +2,13 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   ArrowLeft,
+  BarChart3,
   Bell,
   Camera,
   CheckCircle2,
   ChevronRight,
+  Cloud,
+  DatabaseBackup,
   FileText,
   History,
   ListChecks,
@@ -17,6 +20,7 @@ import {
   Plus,
   ShieldCheck,
   Sparkles,
+  Settings,
   Users,
 } from 'lucide-react';
 import {
@@ -27,7 +31,9 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { FieldBottomSheet } from '../jul28-field-shell/components/FieldBottomSheet';
 import type {
@@ -41,12 +47,15 @@ import { jul28SyntheticTurnBoardRepository } from '../jul28-turnboard/syntheticR
 import { WAVE1R_SYNTHETIC_ACTIVITY, WAVE1R_SYNTHETIC_CONTEXT } from './fixtures';
 import {
   createBoardFirstActionProposal,
+  createBoardFirstActionActivityItem,
+  createBoardFirstAssignmentActivityItem,
   createBoardFirstAssignmentProposal,
   eligibleAssignmentSections,
   initialBoardFirstAssistantState,
   listBoardFirstCrewOptions,
   projectBoardFirstActivity,
   projectBoardFirstBoard,
+  projectBoardFirstCaptureReceiptActivity,
   projectBoardFirstUnit,
   projectBoardFirstUnitActivity,
   projectBoardFirstUnitAttentions,
@@ -54,11 +63,15 @@ import {
   selectBoardFirstSectionActions,
 } from './projections';
 import {
+  BOARD_FIRST_HOST_DESTINATIONS,
   BOARD_FIRST_NAVIGATION,
   DEFAULT_BOARD_FIRST_VIEW,
   type BoardFirstActivityItem,
   type BoardFirstAssignmentProposal,
+  type BoardFirstCaptureRequest,
   type BoardFirstCaptureKind,
+  type BoardFirstHostDestination,
+  type BoardFirstHostNavigationHandler,
   type BoardFirstSectionAction,
   type BoardFirstShellProps,
   type BoardFirstTradeProjection,
@@ -76,6 +89,15 @@ type OpenSheet =
   | { kind: 'assignment'; unitId: string; trade: Jul28Trade; initialSection?: Jul28Section }
   | null;
 
+type DetailTab = { id: DetailPanel; label: string };
+
+const DETAIL_TABS: readonly DetailTab[] = [
+  { id: 'paint', label: 'Paint' },
+  { id: 'clean', label: 'Clean' },
+  { id: 'blockers', label: 'Blockers' },
+  { id: 'history', label: 'Notes & History' },
+];
+
 const tradeLabels: Record<Jul28Trade, string> = { paint: 'Paint', clean: 'Clean' };
 const sectionLabels: Record<Jul28Section, string> = {
   common: 'Common',
@@ -84,6 +106,25 @@ const sectionLabels: Record<Jul28Section, string> = {
   C: 'C',
   D: 'D',
   E: 'E',
+};
+
+const hostIcon = (destination: BoardFirstHostDestination): ReactNode => {
+  if (destination === 'crews') return <Users size={19} aria-hidden="true" />;
+  if (destination === 'reports') return <BarChart3 size={19} aria-hidden="true" />;
+  if (destination === 'setup') return <Settings size={19} aria-hidden="true" />;
+  if (destination === 'backup') return <DatabaseBackup size={19} aria-hidden="true" />;
+  return <Cloud size={19} aria-hidden="true" />;
+};
+
+const focusElement = (element: HTMLElement | null | undefined) => {
+  if (!element?.isConnected) return false;
+  element.focus({ preventScroll: true });
+  return document.activeElement === element;
+};
+
+const focusById = (triggerId: string) => {
+  const element = document.getElementById(triggerId);
+  return focusElement(element);
 };
 
 const formatActivityTime = (value: string) => {
@@ -127,7 +168,7 @@ function ShellHeader({
   attentionCount: number;
   dateLabel: string;
   propertyName: string;
-  onOpenNeedsMe: () => void;
+  onOpenNeedsMe: (trigger: HTMLButtonElement) => void;
 }) {
   return (
     <header className="w1r-header">
@@ -139,8 +180,9 @@ function ShellHeader({
       <button
         className="w1r-icon-button w1r-header__bell"
         data-w1r-critical-target="true"
+        id="w1r-header-needs-me"
         type="button"
-        onClick={onOpenNeedsMe}
+        onClick={(event) => onOpenNeedsMe(event.currentTarget)}
         aria-label={`Open Needs Me, ${attentionCount} Units`}
       >
         <Bell size={19} aria-hidden="true" />
@@ -180,11 +222,13 @@ function TradeStrip({
   onOpenAssignment,
   onOpenSection,
   trade,
+  unitId,
   unitNumber,
 }: {
-  onOpenAssignment: () => void;
-  onOpenSection: (section: Jul28Section) => void;
+  onOpenAssignment: (trigger: HTMLButtonElement) => void;
+  onOpenSection: (section: Jul28Section, trigger: HTMLButtonElement) => void;
   trade: BoardFirstTradeProjection;
+  unitId: string;
   unitNumber: string;
 }) {
   return (
@@ -199,8 +243,9 @@ function TradeStrip({
             aria-label={`Unit ${unitNumber} ${tradeLabels[trade.trade]} ${section.label}`}
             className={`is-${section.tone} ${section.applicable ? '' : 'is-not-applicable'}`}
             data-w1r-critical-target="true"
+            id={`w1r-section-${unitId}-${trade.trade}-${section.section}`}
             key={section.section}
-            onClick={() => onOpenSection(section.section)}
+            onClick={(event) => onOpenSection(section.section, event.currentTarget)}
             title={section.label}
             type="button"
           >
@@ -211,7 +256,8 @@ function TradeStrip({
       <button
         className="w1r-crew-button"
         data-w1r-critical-target="true"
-        onClick={onOpenAssignment}
+        id={`w1r-crew-${unitId}-${trade.trade}`}
+        onClick={(event) => onOpenAssignment(event.currentTarget)}
         type="button"
         aria-label={`${tradeLabels[trade.trade]} crew for Unit ${unitNumber}: ${trade.crewLabel}. Open assignment proposal`}
       >
@@ -232,9 +278,9 @@ function UnitRow({
 }: {
   projection: BoardFirstUnitProjection;
   selected: boolean;
-  onOpenAssignment: (trade: Jul28Trade) => void;
-  onOpenSection: (trade: Jul28Trade, section: Jul28Section) => void;
-  onOpenUnit: () => void;
+  onOpenAssignment: (trade: Jul28Trade, trigger: HTMLButtonElement) => void;
+  onOpenSection: (trade: Jul28Trade, section: Jul28Section, trigger: HTMLButtonElement) => void;
+  onOpenUnit: (trigger: HTMLButtonElement) => void;
 }) {
   return (
     <article
@@ -246,7 +292,8 @@ function UnitRow({
         <button
           className="w1r-unit-row__identity"
           data-w1r-critical-target="true"
-          onClick={onOpenUnit}
+          id={`w1r-unit-open-${projection.unitId}`}
+          onClick={(event) => onOpenUnit(event.currentTarget)}
           type="button"
           aria-label={`Open Unit ${projection.unitNumber}`}
         >
@@ -263,24 +310,28 @@ function UnitRow({
 
       <TradeStrip
         trade={projection.paint}
+        unitId={projection.unitId}
         unitNumber={projection.unitNumber}
-        onOpenAssignment={() => onOpenAssignment('paint')}
-        onOpenSection={(section) => onOpenSection('paint', section)}
+        onOpenAssignment={(trigger) => onOpenAssignment('paint', trigger)}
+        onOpenSection={(section, trigger) => onOpenSection('paint', section, trigger)}
       />
       <TradeStrip
         trade={projection.clean}
+        unitId={projection.unitId}
         unitNumber={projection.unitNumber}
-        onOpenAssignment={() => onOpenAssignment('clean')}
-        onOpenSection={(section) => onOpenSection('clean', section)}
+        onOpenAssignment={(trigger) => onOpenAssignment('clean', trigger)}
+        onOpenSection={(section, trigger) => onOpenSection('clean', section, trigger)}
       />
 
       {projection.highestAttention ? (
         <button
           className={`w1r-unit-row__attention is-${projection.highestAttention.tone}`}
           data-w1r-critical-target="true"
-          onClick={() => onOpenSection(
+          id={`w1r-attention-${projection.unitId}`}
+          onClick={(event) => onOpenSection(
             projection.highestAttention!.trade,
             projection.highestAttention!.section,
+            event.currentTarget,
           )}
           type="button"
         >
@@ -305,9 +356,14 @@ function TurnBoardSurface({
 }: {
   projections: readonly BoardFirstUnitProjection[];
   selectedUnitId: string;
-  onOpenAssignment: (unitId: string, trade: Jul28Trade) => void;
-  onOpenSection: (unitId: string, trade: Jul28Trade, section: Jul28Section) => void;
-  onOpenUnit: (unitId: string) => void;
+  onOpenAssignment: (unitId: string, trade: Jul28Trade, trigger: HTMLButtonElement) => void;
+  onOpenSection: (
+    unitId: string,
+    trade: Jul28Trade,
+    section: Jul28Section,
+    trigger: HTMLButtonElement,
+  ) => void;
+  onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
     <section className="w1r-board" aria-labelledby="w1r-board-title">
@@ -324,9 +380,10 @@ function TurnBoardSurface({
             key={projection.unitId}
             projection={projection}
             selected={selectedUnitId === projection.unitId}
-            onOpenAssignment={(trade) => onOpenAssignment(projection.unitId, trade)}
-            onOpenSection={(trade, section) => onOpenSection(projection.unitId, trade, section)}
-            onOpenUnit={() => onOpenUnit(projection.unitId)}
+            onOpenAssignment={(trade, trigger) => onOpenAssignment(projection.unitId, trade, trigger)}
+            onOpenSection={(trade, section, trigger) =>
+              onOpenSection(projection.unitId, trade, section, trigger)}
+            onOpenUnit={(trigger) => onOpenUnit(projection.unitId, trigger)}
           />
         ))}
       </div>
@@ -341,7 +398,7 @@ function ActivityList({
 }: {
   activity: readonly BoardFirstActivityItem[];
   compact?: boolean;
-  onOpenUnit: (unitId: string) => void;
+  onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   if (activity.length === 0) {
     return <p className="w1r-empty-copy">No synthetic activity is available for this view.</p>;
@@ -361,7 +418,8 @@ function ActivityList({
             {item.unitId && item.unitNumber ? (
               <button
                 data-w1r-critical-target="true"
-                onClick={() => onOpenUnit(item.unitId!)}
+                id={`w1r-activity-unit-${item.id}`}
+                onClick={(event) => onOpenUnit(item.unitId!, event.currentTarget)}
                 type="button"
               >
                 Unit {item.unitNumber}
@@ -382,7 +440,7 @@ function ActivitySurface({
   onOpenUnit,
 }: {
   activity: readonly BoardFirstActivityItem[];
-  onOpenUnit: (unitId: string) => void;
+  onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   const noteCount = activity.filter((item) => item.kind === 'note').length;
   const transcriptCount = activity.filter((item) => item.kind === 'transcript').length;
@@ -400,7 +458,37 @@ function ActivitySurface({
   );
 }
 
-function MoreSurface({ onOpenNeedsMe }: { onOpenNeedsMe: () => void }) {
+function MoreSurface({
+  onHostNavigate,
+  onOpenNeedsMe,
+}: {
+  onHostNavigate?: BoardFirstHostNavigationHandler;
+  onOpenNeedsMe: (trigger: HTMLButtonElement) => void;
+}) {
+  const [status, setStatus] = useState('');
+
+  const requestHostNavigation = async (
+    destination: BoardFirstHostDestination,
+    trigger: HTMLButtonElement,
+  ) => {
+    if (!onHostNavigate) {
+      setStatus(`${BOARD_FIRST_HOST_DESTINATIONS.find((item) => item.id === destination)?.label} is unavailable until the host wires navigation. No navigation occurred.`);
+      return;
+    }
+    try {
+      const receipt = await onHostNavigate({
+        destination,
+        origin: 'more',
+        returnFocus: { triggerId: trigger.id },
+      });
+      setStatus(receipt.accepted
+        ? (receipt.message ?? `${BOARD_FIRST_HOST_DESTINATIONS.find((item) => item.id === destination)?.label} navigation was accepted by the host.`)
+        : (receipt.message ?? `The host did not accept ${destination} navigation. No navigation occurred.`));
+    } catch {
+      setStatus(`The host could not accept ${destination} navigation. No navigation occurred.`);
+    }
+  };
+
   return (
     <section className="w1r-secondary-surface" aria-labelledby="w1r-more-title">
       <div className="w1r-surface-heading">
@@ -410,18 +498,42 @@ function MoreSurface({ onOpenNeedsMe }: { onOpenNeedsMe: () => void }) {
         </div>
       </div>
       <div className="w1r-more-list">
-        <button data-w1r-critical-target="true" onClick={onOpenNeedsMe} type="button">
+        <button
+          data-w1r-critical-target="true"
+          id="w1r-more-needs-me"
+          onClick={(event) => onOpenNeedsMe(event.currentTarget)}
+          type="button"
+        >
           <Bell size={19} aria-hidden="true" />
           <span><strong>Needs Me</strong><small>Open the same personal attention list as the header bell.</small></span>
           <ChevronRight size={18} aria-hidden="true" />
         </button>
-        <div>
+        <div className="w1r-more-list__legacy">
           <MoreHorizontal size={19} aria-hidden="true" />
           <span>
             <strong>Advanced / Legacy</strong>
-            <small>Unavailable in isolated Track A. Final app wiring owns reports, exports, setup, and any temporary legacy routes.</small>
+            <small>Existing host-owned tools remain available through the continuity actions below. Track A never fabricates their screens.</small>
           </span>
         </div>
+        {BOARD_FIRST_HOST_DESTINATIONS.map((destination) => (
+          <button
+            data-w1r-critical-target="true"
+            id={`w1r-more-${destination.id}`}
+            key={destination.id}
+            onClick={(event) => {
+              void requestHostNavigation(destination.id, event.currentTarget);
+            }}
+            type="button"
+          >
+            {hostIcon(destination.id)}
+            <span>
+              <strong>{destination.label}</strong>
+              <small>Continue in the existing host-owned {destination.label} tool.</small>
+            </span>
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        ))}
+        {status ? <p className="w1r-more-status" role="status">{status}</p> : null}
       </div>
     </section>
   );
@@ -435,8 +547,8 @@ function TradeDetail({
 }: {
   projection: BoardFirstTradeProjection;
   unit: Jul28UnitRecord;
-  onOpenAssignment: () => void;
-  onOpenSection: (section: Jul28Section) => void;
+  onOpenAssignment: (trigger: HTMLButtonElement) => void;
+  onOpenSection: (section: Jul28Section, trigger: HTMLButtonElement) => void;
 }) {
   return (
     <section className="w1r-trade-detail" aria-labelledby={`w1r-${projection.trade}-detail`}>
@@ -450,7 +562,12 @@ function TradeDetail({
             <small>{projection.summaryLabel}</small>
           </span>
         </div>
-        <button data-w1r-critical-target="true" onClick={onOpenAssignment} type="button">
+        <button
+          data-w1r-critical-target="true"
+          id={`w1r-detail-crew-${unit.id}-${projection.trade}`}
+          onClick={(event) => onOpenAssignment(event.currentTarget)}
+          type="button"
+        >
           <Users size={16} aria-hidden="true" />
           {projection.crewLabel}
           <ChevronRight size={16} aria-hidden="true" />
@@ -461,8 +578,9 @@ function TradeDetail({
           <button
             className={`is-${section.tone} ${section.applicable ? '' : 'is-not-applicable'}`}
             data-w1r-critical-target="true"
+            id={`w1r-detail-section-${unit.id}-${projection.trade}-${section.section}`}
             key={section.section}
-            onClick={() => onOpenSection(section.section)}
+            onClick={(event) => onOpenSection(section.section, event.currentTarget)}
             type="button"
             aria-label={`${tradeLabels[projection.trade]} ${section.label}`}
           >
@@ -491,21 +609,33 @@ function UnitDetail({
   panel: DetailPanel;
   projection: BoardFirstUnitProjection;
   unit: Jul28UnitRecord;
-  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  headingRef: RefObject<HTMLHeadingElement | null>;
   onClose: () => void;
-  onOpenAssignment: (trade: Jul28Trade) => void;
-  onOpenSection: (trade: Jul28Trade, section: Jul28Section) => void;
-  onOpenUnitFromHistory: (unitId: string) => void;
+  onOpenAssignment: (trade: Jul28Trade, trigger: HTMLButtonElement) => void;
+  onOpenSection: (trade: Jul28Trade, section: Jul28Section, trigger: HTMLButtonElement) => void;
+  onOpenUnitFromHistory: (unitId: string, trigger: HTMLButtonElement) => void;
   onPanelChange: (panel: DetailPanel) => void;
 }) {
   const blockers = projectBoardFirstUnitAttentions(unit).filter((item) => item.blockerKind);
   const unitActivity = projectBoardFirstUnitActivity(activity, unit.id);
-  const tabs: Array<{ id: DetailPanel; label: string }> = [
-    { id: 'paint', label: 'Paint' },
-    { id: 'clean', label: 'Clean' },
-    { id: 'blockers', label: 'Blockers' },
-    { id: 'history', label: 'Notes & History' },
-  ];
+
+  const handleTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === 'ArrowRight') nextIndex = (index + 1) % DETAIL_TABS.length;
+    if (event.key === 'ArrowLeft') nextIndex = (index - 1 + DETAIL_TABS.length) % DETAIL_TABS.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = DETAIL_TABS.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextTab = DETAIL_TABS[nextIndex];
+    onPanelChange(nextTab.id);
+    event.currentTarget.parentElement
+      ?.querySelector<HTMLButtonElement>(`#w1r-tab-${unit.id}-${nextTab.id}`)
+      ?.focus({ preventScroll: true });
+  };
 
   return (
     <aside className="w1r-unit-detail" aria-labelledby="w1r-unit-detail-title">
@@ -527,14 +657,18 @@ function UnitDetail({
       </header>
 
       <div className="w1r-detail-tabs" role="tablist" aria-label={`Unit ${unit.unitNumber} detail`}>
-        {tabs.map((tab) => (
+        {DETAIL_TABS.map((tab, index) => (
           <button
+            aria-controls={`w1r-panel-${unit.id}`}
             aria-selected={panel === tab.id}
             className={panel === tab.id ? 'is-active' : ''}
             data-w1r-critical-target="true"
+            id={`w1r-tab-${unit.id}-${tab.id}`}
             key={tab.id}
             onClick={() => onPanelChange(tab.id)}
+            onKeyDown={(event) => handleTabKeyDown(event, index)}
             role="tab"
+            tabIndex={panel === tab.id ? 0 : -1}
             type="button"
           >
             {tab.label}
@@ -542,21 +676,27 @@ function UnitDetail({
         ))}
       </div>
 
-      <div className="w1r-unit-detail__body">
+      <div
+        aria-labelledby={`w1r-tab-${unit.id}-${panel}`}
+        className="w1r-unit-detail__body"
+        id={`w1r-panel-${unit.id}`}
+        role="tabpanel"
+        tabIndex={0}
+      >
         {panel === 'paint' ? (
           <TradeDetail
             projection={projection.paint}
             unit={unit}
-            onOpenAssignment={() => onOpenAssignment('paint')}
-            onOpenSection={(section) => onOpenSection('paint', section)}
+            onOpenAssignment={(trigger) => onOpenAssignment('paint', trigger)}
+            onOpenSection={(section, trigger) => onOpenSection('paint', section, trigger)}
           />
         ) : null}
         {panel === 'clean' ? (
           <TradeDetail
             projection={projection.clean}
             unit={unit}
-            onOpenAssignment={() => onOpenAssignment('clean')}
-            onOpenSection={(section) => onOpenSection('clean', section)}
+            onOpenAssignment={(trigger) => onOpenAssignment('clean', trigger)}
+            onOpenSection={(section, trigger) => onOpenSection('clean', section, trigger)}
           />
         ) : null}
         {panel === 'blockers' ? (
@@ -565,8 +705,13 @@ function UnitDetail({
             {blockers.length > 0 ? blockers.slice(0, 8).map((blocker) => (
               <button
                 data-w1r-critical-target="true"
+                id={`w1r-detail-blocker-${unit.id}-${blocker.trade}-${blocker.section}`}
                 key={`${blocker.trade}:${blocker.section}:${blocker.label}`}
-                onClick={() => onOpenSection(blocker.trade, blocker.section)}
+                onClick={(event) => onOpenSection(
+                  blocker.trade,
+                  blocker.section,
+                  event.currentTarget,
+                )}
                 type="button"
               >
                 <AlertTriangle size={17} aria-hidden="true" />
@@ -596,13 +741,15 @@ function UnitDetail({
 }
 
 function AssistantBar({
+  message,
   onOpenPlus,
   onRequestVoice,
   onSubmit,
 }: {
-  onOpenPlus: () => void;
-  onRequestVoice: () => void;
-  onSubmit: (draft: string) => void;
+  message: string;
+  onOpenPlus: (trigger: HTMLButtonElement) => void;
+  onRequestVoice: (trigger: HTMLButtonElement) => void;
+  onSubmit: (draft: string) => boolean;
 }) {
   const [state, dispatch] = useReducer(reduceBoardFirstAssistant, initialBoardFirstAssistantState);
   const touchStartRef = useRef<number | null>(null);
@@ -611,18 +758,20 @@ function AssistantBar({
     event.preventDefault();
     const draft = state.draft.trim();
     if (!draft) return;
-    onSubmit(draft);
+    const hostAcceptedRequest = onSubmit(draft);
     dispatch({
       type: 'message-changed',
-      message: 'Draft handed to the existing Turn OS owner. This shell changed no operational state.',
+      message: hostAcceptedRequest
+        ? 'Draft sent to the host callback. No save or operational change is claimed.'
+        : 'No host assistant is wired. The draft remains in this shell.',
     });
   };
 
-  const requestVoice = () => {
-    onRequestVoice();
+  const requestVoice = (trigger: HTMLButtonElement) => {
+    onRequestVoice(trigger);
     dispatch({
       type: 'message-changed',
-      message: 'Voice requested from the existing Capture owner. This shell is not recording.',
+      message: 'Waiting for the existing Capture owner to accept or reject voice entry. This shell is not recording.',
     });
   };
 
@@ -657,7 +806,8 @@ function AssistantBar({
           <button
             className="w1r-icon-button"
             data-w1r-critical-target="true"
-            onClick={onOpenPlus}
+            id="w1r-assistant-plus"
+            onClick={(event) => onOpenPlus(event.currentTarget)}
             type="button"
             aria-label="Open Turn OS add menu"
           >
@@ -675,7 +825,8 @@ function AssistantBar({
           <button
             className="w1r-icon-button"
             data-w1r-critical-target="true"
-            onClick={requestVoice}
+            id="w1r-assistant-voice"
+            onClick={(event) => requestVoice(event.currentTarget)}
             type="button"
             aria-label="Request voice entry from existing Capture owner"
           >
@@ -683,7 +834,9 @@ function AssistantBar({
           </button>
         </form>
       ) : null}
-      {state.expanded && state.message ? <p role="status">{state.message}</p> : null}
+      {state.expanded && (message || state.message) ? (
+        <p role="status">{message || state.message}</p>
+      ) : null}
     </section>
   );
 }
@@ -697,7 +850,7 @@ function NeedsMeSheet({
   open: boolean;
   projections: readonly BoardFirstUnitProjection[];
   onDismiss: () => void;
-  onOpenUnit: (unitId: string) => void;
+  onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   const needsMe = projections.filter((projection) => projection.needsMe);
   return (
@@ -711,8 +864,9 @@ function NeedsMeSheet({
         {needsMe.map((projection) => (
           <button
             data-w1r-critical-target="true"
+            id={`w1r-needs-unit-${projection.unitId}`}
             key={projection.unitId}
-            onClick={() => onOpenUnit(projection.unitId)}
+            onClick={(event) => onOpenUnit(projection.unitId, event.currentTarget)}
             type="button"
           >
             <span>
@@ -774,7 +928,9 @@ function SectionActionSheet({
                 return;
               }
               onAction(item);
-              setFeedback(`${item.label} was proposed. No official, persisted, or paper state changed.`);
+              if (!item.captureKind) {
+                setFeedback(`${item.label} was proposed. No official, persisted, or paper state changed.`);
+              }
             }}
             type="button"
           >
@@ -836,11 +992,12 @@ function AssignmentSheet({
             }}
             value={crewName}
           >
+            {crewOptions.length === 0 ? <option value="">No compatible synthetic crew available</option> : null}
             {crewOptions.map((crew) => <option key={crew} value={crew}>{crew}</option>)}
           </select>
         </label>
         <fieldset>
-          <legend>Released, applicable sections</legend>
+          <legend>Assignable sections · passed and paper-review work omitted</legend>
           <button
             className="w1r-select-all"
             data-w1r-critical-target="true"
@@ -880,7 +1037,7 @@ function AssignmentSheet({
               <small>
                 {proposal.conflicts.map((conflict) =>
                   `${sectionLabels[conflict.section]}: ${conflict.existingCrewNames.join(', ')}`,
-                ).join(' · ')}
+                ).join(' · ')}. This remains a nonpersisted proposal and does not replace either claim.
               </small>
             </span>
           </div>
@@ -922,12 +1079,11 @@ function PlusSheet({
 }: {
   open: boolean;
   onDismiss: () => void;
-  onSelect: (kind: BoardFirstCaptureKind, label: string) => void;
+  onSelect: (kind: BoardFirstCaptureKind) => void;
 }) {
-  const [feedback, setFeedback] = useState('');
   return (
     <FieldBottomSheet
-      description="Hand one focused intent to the existing Capture owner."
+      description="Request one focused intent from the existing Capture owner. Acceptance is reported by the host."
       onDismiss={onDismiss}
       open={open}
       title="Add to Turn OS"
@@ -937,10 +1093,7 @@ function PlusSheet({
           <button
             data-w1r-critical-target="true"
             key={item.kind}
-            onClick={() => {
-              onSelect(item.kind, item.label);
-              setFeedback(`${item.label} requested. This shell did not open or duplicate Capture.`);
-            }}
+            onClick={() => onSelect(item.kind)}
             type="button"
           >
             {item.icon}
@@ -949,7 +1102,6 @@ function PlusSheet({
           </button>
         ))}
       </div>
-      {feedback ? <p className="w1r-honesty-message" role="status">{feedback}</p> : null}
     </FieldBottomSheet>
   );
 }
@@ -964,21 +1116,34 @@ export function BoardFirstShell({
   onAssignmentProposal,
   onAssistantSubmit,
   onCaptureRequest,
+  onHostNavigate,
 }: BoardFirstShellProps) {
   const units = useMemo(() => repository.listUnits(), [repository]);
   const projections = useMemo(() => projectBoardFirstBoard(repository), [repository]);
+  const [localActivityItems, setLocalActivityItems] = useState<BoardFirstActivityItem[]>([]);
   const activity = useMemo(
-    () => projectBoardFirstActivity(repository, activityItems),
-    [activityItems, repository],
+    () => projectBoardFirstActivity(repository, [...activityItems, ...localActivityItems]),
+    [activityItems, localActivityItems, repository],
   );
-  const crewOptions = useMemo(() => listBoardFirstCrewOptions(repository), [repository]);
+  const crewOptions = useMemo(() => ({
+    paint: listBoardFirstCrewOptions(repository, 'paint'),
+    clean: listBoardFirstCrewOptions(repository, 'clean'),
+  }), [repository]);
   const [activeView, setActiveView] = useState<BoardFirstView>(DEFAULT_BOARD_FIRST_VIEW);
   const [selectedUnitId, setSelectedUnitId] = useState(
     initialUnitId && repository.getUnit(initialUnitId) ? initialUnitId : '',
   );
   const [detailPanel, setDetailPanel] = useState<DetailPanel>('paint');
   const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
+  const [pendingCapture, setPendingCapture] = useState<BoardFirstCaptureRequest | null>(null);
+  const [captureStatus, setCaptureStatus] = useState('');
   const detailHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const sheetOriginRef = useRef<HTMLElement | null>(null);
+  const unitOriginRef = useRef<HTMLElement | null>(null);
+  const unitFallbackIdRef = useRef('');
+  const receiptSequenceRef = useRef(0);
+  const captureSequenceRef = useRef(0);
+  const dispatchedCaptureIdsRef = useRef(new Set<string>());
   const dialogOpen = openSheet !== null;
   const selectedUnit = selectedUnitId
     ? units.find((unit) => unit.id === selectedUnitId)
@@ -991,20 +1156,67 @@ export function BoardFirstShell({
     if (selectedUnit) detailHeadingRef.current?.focus({ preventScroll: true });
   }, [selectedUnit]);
 
-  const closeSheet = useCallback(() => setOpenSheet(null), []);
+  const scheduleFocusRestore = useCallback((
+    origin: HTMLElement | null,
+    fallbackId = '',
+  ) => {
+    requestAnimationFrame(() => {
+      if (!focusElement(origin) && fallbackId) focusById(fallbackId);
+    });
+  }, []);
 
-  const openUnit = useCallback((unitId: string) => {
+  const appendLocalActivity = useCallback((item: BoardFirstActivityItem) => {
+    setLocalActivityItems((current) => (
+      current.some((candidate) => candidate.id === item.id) ? current : [...current, item]
+    ));
+  }, []);
+
+  const nextReceipt = useCallback((kind: 'action' | 'assignment') => {
+    receiptSequenceRef.current += 1;
+    return {
+      receiptId: `${kind}-${receiptSequenceRef.current}`,
+      recordedAt: new Date().toISOString(),
+    };
+  }, []);
+
+  const closeSheet = useCallback(() => {
+    const origin = sheetOriginRef.current;
+    const fallbackId = origin?.id ?? '';
+    setOpenSheet(null);
+    sheetOriginRef.current = null;
+    scheduleFocusRestore(origin, fallbackId);
+  }, [scheduleFocusRestore]);
+
+  const openNeedsMe = useCallback((trigger: HTMLButtonElement) => {
+    sheetOriginRef.current = trigger;
+    setOpenSheet({ kind: 'needs-me' });
+  }, []);
+
+  const openUnit = useCallback((unitId: string, trigger?: HTMLElement) => {
+    unitOriginRef.current = trigger ?? null;
+    unitFallbackIdRef.current = `w1r-unit-open-${unitId}`;
     setOpenSheet(null);
     setActiveView('turnboard');
     setSelectedUnitId(unitId);
     setDetailPanel('paint');
   }, []);
 
+  const closeUnit = useCallback(() => {
+    const origin = unitOriginRef.current;
+    const fallbackId = unitFallbackIdRef.current;
+    setSelectedUnitId('');
+    unitOriginRef.current = null;
+    unitFallbackIdRef.current = '';
+    scheduleFocusRestore(origin, fallbackId);
+  }, [scheduleFocusRestore]);
+
   const openSection = useCallback((
     unitId: string,
     trade: Jul28Trade,
     section: Jul28Section,
+    trigger: HTMLButtonElement,
   ) => {
+    sheetOriginRef.current = trigger;
     setOpenSheet({ kind: 'section', unitId, trade, section });
   }, []);
 
@@ -1012,9 +1224,74 @@ export function BoardFirstShell({
     unitId: string,
     trade: Jul28Trade,
     initialSection?: Jul28Section,
+    trigger?: HTMLButtonElement,
   ) => {
+    if (trigger) sheetOriginRef.current = trigger;
     setOpenSheet({ kind: 'assignment', unitId, trade, initialSection });
   }, []);
+
+  const queueCapture = useCallback((
+    request: Omit<BoardFirstCaptureRequest, 'requestId'>,
+  ) => {
+    captureSequenceRef.current += 1;
+    setCaptureStatus('');
+    setOpenSheet(null);
+    setPendingCapture({
+      ...request,
+      requestId: `wave1r-capture-${captureSequenceRef.current}`,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!pendingCapture || openSheet || dispatchedCaptureIdsRef.current.has(pendingCapture.requestId)) {
+      return;
+    }
+    const request = pendingCapture;
+    dispatchedCaptureIdsRef.current.add(request.requestId);
+    setPendingCapture(null);
+
+    const restoreRejectedFocus = () => {
+      scheduleFocusRestore(null, request.returnFocus.triggerId);
+    };
+
+    const dispatch = async () => {
+      if (!onCaptureRequest) {
+        setCaptureStatus('Capture is unavailable until the host wires it. Nothing was handed off or saved.');
+        restoreRejectedFocus();
+        return;
+      }
+      try {
+        const receipt = await onCaptureRequest(request);
+        const receiptActivity = projectBoardFirstCaptureReceiptActivity(
+          request,
+          receipt,
+          new Date().toISOString(),
+        );
+        if (receiptActivity) appendLocalActivity(receiptActivity);
+        if (receipt.accepted) {
+          setCaptureStatus(receipt.message ?? (
+            receipt.activityItem
+              ? 'Capture accepted the request and returned an activity item.'
+              : 'Capture accepted the handoff. This receipt does not claim that content was saved.'
+          ));
+        } else {
+          setCaptureStatus(receipt.message ?? 'Capture did not accept the request. Nothing was handed off or saved.');
+          restoreRejectedFocus();
+        }
+      } catch {
+        setCaptureStatus('Capture could not accept the request. Nothing was handed off or saved.');
+        restoreRejectedFocus();
+      }
+    };
+
+    void dispatch();
+  }, [
+    appendLocalActivity,
+    onCaptureRequest,
+    openSheet,
+    pendingCapture,
+    scheduleFocusRestore,
+  ]);
 
   const sectionSheet = openSheet?.kind === 'section'
     ? (() => {
@@ -1040,7 +1317,7 @@ export function BoardFirstShell({
           attentionCount={projections.filter((projection) => projection.needsMe).length}
           dateLabel={dateLabel}
           propertyName={propertyName}
-          onOpenNeedsMe={() => setOpenSheet({ kind: 'needs-me' })}
+          onOpenNeedsMe={openNeedsMe}
         />
         <div className="w1r-shell__body">
           <PrimaryNavigation
@@ -1056,7 +1333,8 @@ export function BoardFirstShell({
                 <TurnBoardSurface
                   projections={projections}
                   selectedUnitId={selectedUnitId}
-                  onOpenAssignment={openAssignment}
+                  onOpenAssignment={(unitId, trade, trigger) =>
+                    openAssignment(unitId, trade, undefined, trigger)}
                   onOpenSection={openSection}
                   onOpenUnit={openUnit}
                 />
@@ -1065,7 +1343,10 @@ export function BoardFirstShell({
                 <ActivitySurface activity={activity} onOpenUnit={openUnit} />
               ) : null}
               {activeView === 'more' ? (
-                <MoreSurface onOpenNeedsMe={() => setOpenSheet({ kind: 'needs-me' })} />
+                <MoreSurface
+                  onHostNavigate={onHostNavigate}
+                  onOpenNeedsMe={openNeedsMe}
+                />
               ) : null}
             </div>
             {activeView === 'turnboard' && selectedUnit && selectedProjection ? (
@@ -1075,9 +1356,11 @@ export function BoardFirstShell({
                 panel={detailPanel}
                 projection={selectedProjection}
                 unit={selectedUnit}
-                onClose={() => setSelectedUnitId('')}
-                onOpenAssignment={(trade) => openAssignment(selectedUnit.id, trade)}
-                onOpenSection={(trade, section) => openSection(selectedUnit.id, trade, section)}
+                onClose={closeUnit}
+                onOpenAssignment={(trade, trigger) =>
+                  openAssignment(selectedUnit.id, trade, undefined, trigger)}
+                onOpenSection={(trade, section, trigger) =>
+                  openSection(selectedUnit.id, trade, section, trigger)}
                 onOpenUnitFromHistory={openUnit}
                 onPanelChange={setDetailPanel}
               />
@@ -1091,9 +1374,29 @@ export function BoardFirstShell({
           </main>
         </div>
         <AssistantBar
-          onOpenPlus={() => setOpenSheet({ kind: 'plus' })}
-          onRequestVoice={() => onCaptureRequest?.({ kind: 'voice', origin: 'assistant' })}
-          onSubmit={(draft) => onAssistantSubmit?.(draft)}
+          message={captureStatus}
+          onOpenPlus={(trigger) => {
+            sheetOriginRef.current = trigger;
+            setOpenSheet({ kind: 'plus' });
+          }}
+          onRequestVoice={(trigger) => queueCapture({
+            kind: 'voice',
+            origin: 'assistant',
+            returnFocus: selectedUnit
+              ? { triggerId: trigger.id, unitId: selectedUnit.id }
+              : { triggerId: trigger.id },
+            ...(detailPanel === 'paint' || detailPanel === 'clean'
+              ? { trade: detailPanel }
+              : {}),
+            ...(selectedUnit
+              ? { unitId: selectedUnit.id, unitNumber: selectedUnit.unitNumber }
+              : {}),
+          })}
+          onSubmit={(draft) => {
+            if (!onAssistantSubmit) return false;
+            onAssistantSubmit(draft);
+            return true;
+          }}
         />
       </div>
 
@@ -1111,21 +1414,35 @@ export function BoardFirstShell({
           sourceCoverageComplete={validateJul28SourceCoverage(sectionSheet.unit).complete}
           unit={sectionSheet.unit}
           onAction={(selectedAction) => {
-            if (selectedAction.captureKind) {
-              onCaptureRequest?.({
-                kind: selectedAction.captureKind,
-                origin: 'section-sheet',
-                unitId: sectionSheet.unit.id,
-                trade: sectionSheet.record.trade,
-                section: sectionSheet.record.section,
-              });
-            }
-            onActionProposal?.(createBoardFirstActionProposal(
+            const proposal = createBoardFirstActionProposal(
               sectionSheet.unit.id,
               sectionSheet.record.trade,
               sectionSheet.record.section,
               selectedAction,
+            );
+            const receipt = nextReceipt('action');
+            appendLocalActivity(createBoardFirstActionActivityItem(
+              proposal,
+              sectionSheet.unit.unitNumber,
+              receipt.receiptId,
+              receipt.recordedAt,
             ));
+            onActionProposal?.(proposal);
+            if (selectedAction.captureKind) {
+              queueCapture({
+                kind: selectedAction.captureKind,
+                origin: 'section-sheet',
+                returnFocus: {
+                  triggerId: sheetOriginRef.current?.id
+                    ?? `w1r-section-${sectionSheet.unit.id}-${sectionSheet.record.trade}-${sectionSheet.record.section}`,
+                  unitId: sectionSheet.unit.id,
+                },
+                unitId: sectionSheet.unit.id,
+                unitNumber: sectionSheet.unit.unitNumber,
+                trade: sectionSheet.record.trade,
+                section: sectionSheet.record.section,
+              });
+            }
           }}
           onDismiss={closeSheet}
           onOpenAssignment={() => openAssignment(
@@ -1138,19 +1455,37 @@ export function BoardFirstShell({
       {openSheet?.kind === 'assignment' && assignmentUnit ? (
         <AssignmentSheet
           key={`${assignmentUnit.id}:${openSheet.trade}:${openSheet.initialSection ?? 'all'}`}
-          crewOptions={crewOptions}
+          crewOptions={crewOptions[openSheet.trade]}
           initialSection={openSheet.initialSection}
           open
           trade={openSheet.trade}
           unit={assignmentUnit}
-          onConfirm={(proposal) => onAssignmentProposal?.(proposal)}
+          onConfirm={(proposal) => {
+            const receipt = nextReceipt('assignment');
+            appendLocalActivity(createBoardFirstAssignmentActivityItem(
+              proposal,
+              assignmentUnit.unitNumber,
+              receipt.receiptId,
+              receipt.recordedAt,
+            ));
+            onAssignmentProposal?.(proposal);
+          }}
           onDismiss={closeSheet}
         />
       ) : null}
       <PlusSheet
         open={openSheet?.kind === 'plus'}
         onDismiss={closeSheet}
-        onSelect={(kind) => onCaptureRequest?.({ kind, origin: 'plus-sheet' })}
+        onSelect={(kind) => queueCapture({
+          kind,
+          origin: 'plus-sheet',
+          returnFocus: selectedUnit
+            ? { triggerId: 'w1r-assistant-plus', unitId: selectedUnit.id }
+            : { triggerId: 'w1r-assistant-plus' },
+          ...(selectedUnit
+            ? { unitId: selectedUnit.id, unitNumber: selectedUnit.unitNumber }
+            : {}),
+        })}
       />
     </div>
   );

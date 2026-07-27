@@ -15,6 +15,16 @@ export const BOARD_FIRST_NAVIGATION = [
 export type BoardFirstView = (typeof BOARD_FIRST_NAVIGATION)[number]['id'];
 export const DEFAULT_BOARD_FIRST_VIEW: BoardFirstView = 'turnboard';
 
+export const BOARD_FIRST_HOST_DESTINATIONS = [
+  { id: 'crews', label: 'Crews' },
+  { id: 'reports', label: 'Reports' },
+  { id: 'setup', label: 'Setup' },
+  { id: 'backup', label: 'Backup' },
+  { id: 'sync', label: 'Sync' },
+] as const;
+
+export type BoardFirstHostDestination = (typeof BOARD_FIRST_HOST_DESTINATIONS)[number]['id'];
+
 export type BoardFirstTone = 'neutral' | 'positive' | 'caution' | 'attention';
 
 export interface BoardFirstSectionProjection {
@@ -77,7 +87,13 @@ export interface BoardFirstSectionAction {
   captureKind?: BoardFirstCaptureKind;
 }
 
-export type BoardFirstActivityKind = Jul28HistoryKind | 'note' | 'transcript';
+export type BoardFirstActivityKind =
+  | Jul28HistoryKind
+  | 'note'
+  | 'transcript'
+  | 'action-proposal'
+  | 'assignment-proposal'
+  | 'capture-receipt';
 
 export interface BoardFirstActivityItem {
   id: string;
@@ -91,6 +107,8 @@ export interface BoardFirstActivityItem {
   unitNumber?: string;
   trade?: Jul28Trade;
   section?: Jul28Section;
+  nonpersisted?: boolean;
+  receiptId?: string;
 }
 
 export interface BoardFirstAssignmentConflict {
@@ -117,13 +135,52 @@ export type BoardFirstCaptureKind =
   | 'blocker'
   | 'voice';
 
+export interface BoardFirstReturnFocus {
+  triggerId: string;
+  unitId?: string;
+}
+
 export interface BoardFirstCaptureRequest {
   kind: BoardFirstCaptureKind;
   origin: 'assistant' | 'plus-sheet' | 'section-sheet';
+  requestId: string;
+  returnFocus: BoardFirstReturnFocus;
   section?: Jul28Section;
   trade?: Jul28Trade;
   unitId?: string;
+  unitNumber?: string;
 }
+
+export type BoardFirstCaptureReceipt =
+  | {
+      accepted: true;
+      receiptId: string;
+      message?: string;
+      activityItem?: BoardFirstActivityItem;
+    }
+  | {
+      accepted: false;
+      message?: string;
+    };
+
+export type BoardFirstCaptureHandler = (
+  request: BoardFirstCaptureRequest,
+) => BoardFirstCaptureReceipt | Promise<BoardFirstCaptureReceipt>;
+
+export interface BoardFirstHostNavigationRequest {
+  destination: BoardFirstHostDestination;
+  origin: 'more';
+  returnFocus: BoardFirstReturnFocus;
+}
+
+export interface BoardFirstHostNavigationReceipt {
+  accepted: boolean;
+  message?: string;
+}
+
+export type BoardFirstHostNavigationHandler = (
+  request: BoardFirstHostNavigationRequest,
+) => BoardFirstHostNavigationReceipt | Promise<BoardFirstHostNavigationReceipt>;
 
 export interface BoardFirstActionProposal {
   action: BoardFirstSectionAction;
@@ -157,5 +214,6 @@ export interface BoardFirstShellProps {
   onActionProposal?: (proposal: BoardFirstActionProposal) => void;
   onAssignmentProposal?: (proposal: BoardFirstAssignmentProposal) => void;
   onAssistantSubmit?: (draft: string) => void;
-  onCaptureRequest?: (request: BoardFirstCaptureRequest) => void;
+  onCaptureRequest?: BoardFirstCaptureHandler;
+  onHostNavigate?: BoardFirstHostNavigationHandler;
 }

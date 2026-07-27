@@ -22,10 +22,10 @@ Last updated: 2026-07-26
 | Integration worktree | `/Users/los/Documents/PDS-jul28-pattern-candidate` |
 | Integration branch | `codex/jul28-pattern-candidate` |
 | Base | `a3f6b3d0c6133c32b403fe21f12c1e31258f1770` |
-| Current state | Wave 1 integrated and locally verified; independent reliability review and non-production Preview pending |
+| Current state | Wave 1 integrated, locally verified, and independently reviewed; non-production Preview pending |
 | Documentation checkpoint | `d9a114c6f147f793139d57d33082d48f4ef96844` |
 | Visual-reference checkpoint | `dc2240a8a4d33ffdc7299a86ec932f59f8a89e1d` |
-| Current integration HEAD | `3f95e2b97b8a92c8a1d10a4ec4e17e93b83ba1c3` |
+| Verified Wave 1 product/test HEAD | `2de3ed789c72e95c1d06e66b966de738435aa46c` |
 | Production touched | No |
 
 ## Shared Visual References
@@ -54,6 +54,7 @@ Operational semantics remain governed by the product constitution, field-truth m
 | Field-shell browser gate | Pass — iPhone, iPad landscape, Mac |
 | TurnBoard browser gate | Pass — 320px iPhone through Mac |
 | Persistence/photo reliability gate | Pass |
+| Disposable recovery/backup/restore gate | Pass against loopback-only Preview with synthetic browser data; production not contacted |
 | Cache ownership gate | Pass |
 | AI usage browser gate | Pass |
 | Field-scale browser gate | Pass — 300 synthetic Paint/Clean Units; 646–1,832ms measured load |
@@ -67,13 +68,13 @@ Operational semantics remain governed by the product constitution, field-truth m
 | C Voice/Whisper | `/Users/los/Documents/PDS-jul28-voice` | `codex/jul28-voice-whisper` | Queued — four-agent cap | — | — | Wave 1 first | — | — | — |
 | D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Corrected and clean — isolated Wave 2 HOLD | `239cc6f` after `794847d` | 14/14 focused; 256/256 existing; lint/build/diff-check pass | HOLD: surplus/ragged CSV cells can drop wording; formula-like pasted values can bypass the guard | Independent review: five prior items closed, two P2 findings remain | Wave 2 only | — |
 | E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Second correction preserved but uncommitted | `0cc29d6` after `a978ccd` | 17/17 corrected focused tests; exact Track B archive 9/9; diff-check pass | Full lint hung and was stopped; test:sync/build/final diff review remain | Paused safely pending full gate | Later wave only | — |
-| F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Ready for integrated Wave 1 read-only review | — | Full local gate passed on integration branch | Two stale untracked baseline copies require explicit deletion approval or a clean deployment worktree | Pending | Read-only review next | — |
+| F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Wave 1 review complete | Review of `2de3ed7` | Full local gate plus disposable recovery gate passed | Physical iPhone acceptance remains; two stale untracked baseline copies remain outside commits | CONDITIONAL ACCEPT — synthetic primary surfaces are an explicit development-Preview constraint, not a Wave 1 field-data regression; stale ledger corrected | Clean detached deployment worktree at `2de3ed7` | Pending Wave 1 Preview |
 
 ## Wave Ledger
 
 | Wave | State | Integrated commits | Verification | Preview | Physical test |
 | --- | --- | --- | --- | --- | --- |
-| 1 Field pattern | Integrated; reliability review and Preview pending | A: `e1825e1`, `81af8ba`, `ceaf411`; B: `c568caf`, `159fb59`, `e3e1894`, `cfdfd4f`; shared: `36ecf9d`, `f254225`, `42b1ebb`, `3f95e2b` | Full local gate passed; production untouched | Pending | Pending one physical iPhone test |
+| 1 Field pattern | Integrated and independently reviewed; Preview pending | A: `e1825e1`, `81af8ba`, `ceaf411`; B: `c568caf`, `159fb59`, `e3e1894`, `cfdfd4f`; shared: `36ecf9d`, `f254225`, `42b1ebb`, `3f95e2b`; reliability: `2de3ed7` | Full local and disposable recovery gates passed; production untouched | Pending | Pending one physical iPhone test |
 | 2 Workflow pattern | Not started | — | — | — | — |
 | 3 Experimental intelligence | Not started | — | — | — | — |
 

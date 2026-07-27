@@ -3,6 +3,8 @@ import test from 'node:test';
 import type { Jul28SectionTradeRecord } from '../src/features/jul28-turnboard/model.ts';
 import { recordsForTrade } from '../src/features/jul28-turnboard/projections.ts';
 import { jul28SyntheticTurnBoardRepository } from '../src/features/jul28-turnboard/syntheticRepository.ts';
+import { seedData } from '../src/data/seed.ts';
+import { createLaunchBoardRepository } from '../src/features/launch-command-center/boardRepository.ts';
 import { WAVE1R_SYNTHETIC_ACTIVITY } from '../src/features/wave1r-board-first/fixtures.ts';
 import {
   createBoardFirstActionActivityItem,
@@ -86,6 +88,22 @@ test('dense board rows preserve identity, both trades, crew visibility, sections
   assert.equal(typeof row602.highestAttention.nextAction, 'string');
   assert.equal(Array.isArray(row602.highestAttention), false);
   assert.equal(row602.needsMe, true);
+});
+
+test('identity-only AppData Units expose unknown assignment coverage without inventing an unassigned state', () => {
+  const data = structuredClone(seedData);
+  const state = createLaunchBoardRepository(data);
+  assert.equal(state.error, undefined);
+  const unit = state.repository.listUnits()[0];
+  assert.ok(unit);
+
+  const projection = projectBoardFirstUnit(unit);
+
+  assert.equal(projection.paint.sourceCoverageComplete, false);
+  assert.equal(projection.clean.sourceCoverageComplete, false);
+  assert.equal(projection.paint.crewLabel, 'Assignment unknown');
+  assert.equal(projection.clean.crewLabel, 'Assignment unknown');
+  assert.notEqual(projection.paint.crewLabel, 'Not assigned');
 });
 
 test('board search and filters derive from one projection with an exact assignment-conflict predicate', () => {

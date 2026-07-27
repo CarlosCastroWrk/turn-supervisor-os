@@ -4,8 +4,11 @@ import { clearAppData } from '../src/lib/storage.ts';
 import {
   assertSyncIdentity,
   cacheBelongsToUser,
+  clearLastAuthenticatedUserId,
   clearLocalCacheOwner,
+  getLastAuthenticatedUserId,
   getLocalCacheOwner,
+  setLastAuthenticatedUserId,
   setLocalCacheOwner,
   SyncSessionChangedError,
 } from '../src/lib/supabase/cacheOwnership.ts';
@@ -34,6 +37,15 @@ test('only the durably linked account can use a local cache', () => {
   assert.equal(getLocalCacheOwner(), 'user-a');
   assert.equal(cacheBelongsToUser('user-a'), true);
   assert.equal(cacheBelongsToUser('user-b'), false);
+});
+
+test('last authenticated account continuity is durable, opaque, and independently clearable', () => {
+  storage.clear();
+  assert.equal(getLastAuthenticatedUserId(), null);
+  assert.equal(setLastAuthenticatedUserId('user-a'), true);
+  assert.equal(getLastAuthenticatedUserId(), 'user-a');
+  assert.equal(clearLastAuthenticatedUserId(), true);
+  assert.equal(getLastAuthenticatedUserId(), null);
 });
 
 test('session generation and cache owner must both match throughout a sync run', () => {
@@ -87,7 +99,9 @@ test('ownership writes and cleanup fail closed when browser storage rejects them
 
   try {
     assert.equal(setLocalCacheOwner('user-a'), false);
+    assert.equal(setLastAuthenticatedUserId('user-a'), false);
     assert.equal(clearLocalCacheOwner(), false);
+    assert.equal(clearLastAuthenticatedUserId(), false);
     assert.equal(cacheBelongsToUser('user-a'), false);
   } finally {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: originalStorage });
@@ -98,8 +112,10 @@ test('device reset clears both app records and cache ownership', async () => {
   storage.clear();
   storage.set('turn-supervisor-os:v0.1', '{"projects":[]}');
   setLocalCacheOwner('user-a');
+  setLastAuthenticatedUserId('user-a');
 
   assert.equal(await clearAppData(), true);
   assert.equal(storage.has('turn-supervisor-os:v0.1'), false);
   assert.equal(getLocalCacheOwner(), null);
+  assert.equal(getLastAuthenticatedUserId(), null);
 });

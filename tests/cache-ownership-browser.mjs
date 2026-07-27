@@ -10,6 +10,7 @@ const baseUrl = `http://${host}:${port}`;
 const supabaseUrl = 'http://127.0.0.1:54329';
 const dataKey = 'turn-supervisor-os:v0.1';
 const ownerKey = 'turn-supervisor-os:cache-owner:v1';
+const lastAuthenticatedUserKey = 'turn-supervisor-os:last-authenticated-user:v1';
 const visibleReview = process.env.PDS_CACHE_GUARD_VISIBLE === '1';
 
 process.env.VITE_ENABLE_SYNC = 'true';
@@ -127,18 +128,37 @@ const installFakeSupabase = async (page) => {
   return requests;
 };
 
-const seedContext = async (browser, data, owner) => {
+const seedContext = async (browser, data, owner, lastAuthenticatedUserId) => {
   const context = await browser.newContext({ viewport: { height: 844, width: 390 } });
   await context.addInitScript(
-    ({ dataKey: localDataKey, dataValue, ownerKey: localOwnerKey, ownerValue }) => {
+    ({
+      dataKey: localDataKey,
+      dataValue,
+      lastAuthenticatedUserId: rememberedUserId,
+      lastAuthenticatedUserKey: rememberedUserKey,
+      ownerKey: localOwnerKey,
+      ownerValue,
+    }) => {
       window.localStorage.setItem(localDataKey, dataValue);
       if (ownerValue) {
         window.localStorage.setItem(localOwnerKey, ownerValue);
       } else {
         window.localStorage.removeItem(localOwnerKey);
       }
+      if (rememberedUserId) {
+        window.localStorage.setItem(rememberedUserKey, rememberedUserId);
+      } else {
+        window.localStorage.removeItem(rememberedUserKey);
+      }
     },
-    { dataKey, dataValue: JSON.stringify(data), ownerKey, ownerValue: owner },
+    {
+      dataKey,
+      dataValue: JSON.stringify(data),
+      lastAuthenticatedUserId,
+      lastAuthenticatedUserKey,
+      ownerKey,
+      ownerValue: owner,
+    },
   );
   return context;
 };
@@ -152,13 +172,26 @@ const openSyncPanel = async (page) => {
 };
 
 const signIn = async (page, email) => {
+  const launchLogin = page.getByTestId('launch-login-surface');
+  if (await launchLogin.isVisible()) {
+    await launchLogin.getByLabel('Email', { exact: true }).fill(email);
+    await launchLogin.getByLabel('Password', { exact: true }).fill('qa-password');
+    await launchLogin.getByRole('button', { name: 'Sign in', exact: true }).click();
+    return;
+  }
   await openSyncPanel(page);
   await page.getByLabel('Email', { exact: true }).fill(email);
   await page.getByLabel('Password', { exact: true }).fill('qa-password');
   await page.getByRole('button', { name: 'Sign in and sync', exact: true }).click();
 };
 
-const waitForStatus = (page, status) => page.locator('.sync-panel__summary strong').getByText(status, { exact: true }).waitFor();
+const syncStatusClasses = {
+  'Cache needs review': 'cache_transition_required',
+  'Sign in': 'signed_out',
+  Synced: 'synced',
+};
+const waitForStatus = (page, status) =>
+  page.locator(`.sync-panel--${syncStatusClasses[status]}`).waitFor();
 
 const holdForVisibleReview = (page) => visibleReview ? page.waitForTimeout(900) : Promise.resolve();
 
@@ -190,7 +223,7 @@ try {
 
   await openSyncPanel(switchPage);
   await switchPage.getByRole('button', { name: 'Sign out', exact: true }).click();
-  await waitForStatus(switchPage, 'Sign in');
+  await switchPage.getByRole('heading', { name: 'Welcome back', exact: true }).waitFor();
   await signIn(switchPage, 'account-b@example.com');
   await waitForStatus(switchPage, 'Cache needs review');
   await holdForVisibleReview(switchPage);
@@ -204,14 +237,19 @@ try {
     await switchPage.evaluate((key) => window.localStorage.getItem(key), ownerKey),
     'account-a',
   );
-  await switchPage.goto(`${baseUrl}/#/units`, { waitUntil: 'domcontentloaded' });
-  await switchPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-  const cacheAlert = switchPage.getByRole('alert').filter({ hasText: 'Sync cache needs review' });
-  await cacheAlert.getByText('Sync cache needs review', { exact: true }).waitFor();
-  await cacheAlert.getByText(/No sync, account, or paper status changes/).waitFor();
-  await cacheAlert.getByRole('button', { name: 'Open Sync & diagnostics', exact: true }).click();
-  await switchPage.waitForURL(/#\/sync$/);
-  await waitForStatus(switchPage, 'Cache needs review');
+  await switchPage.getByRole('heading', { name: 'Welcome back', exact: true }).waitFor();
+  await switchPage
+    .getByTestId('launch-login-surface')
+    .getByRole('status')
+    .getByText(/not linked to the signed-in account/i)
+    .waitFor();
+  assert.equal(
+    await switchPage.getByRole('button', {
+      name: "Claim this device's local data",
+      exact: true,
+    }).count(),
+    1,
+  );
   await switchContext.close();
 
   const claimContext = await seedContext(browser, buildRealTurn('ACCOUNT_B'), null);
@@ -234,6 +272,47 @@ try {
     'account-b',
   );
   await claimContext.close();
+
+  const offlineContext = await seedContext(
+    browser,
+    buildRealTurn('OFFLINE_MATCH'),
+    'account-a',
+    'account-a',
+  );
+  await offlineContext.addInitScript(() => {
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      get: () => false,
+    });
+  });
+  const offlinePage = await offlineContext.newPage();
+  await installFakeSupabase(offlinePage);
+  await offlinePage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await offlinePage.getByRole('region', { name: 'Home command center' }).waitFor();
+  await offlinePage.getByText('Offline local continuity', { exact: true }).waitFor();
+  await offlineContext.close();
+
+  const mismatchContext = await seedContext(
+    browser,
+    buildRealTurn('OFFLINE_MISMATCH'),
+    'account-b',
+    'account-a',
+  );
+  await mismatchContext.addInitScript(() => {
+    Object.defineProperty(window.navigator, 'onLine', {
+      configurable: true,
+      get: () => false,
+    });
+  });
+  const mismatchPage = await mismatchContext.newPage();
+  await installFakeSupabase(mismatchPage);
+  await mismatchPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await mismatchPage.getByRole('heading', { name: 'Welcome back', exact: true }).waitFor();
+  assert.equal(
+    await mismatchPage.getByRole('region', { name: 'Home command center' }).count(),
+    0,
+  );
+  await mismatchContext.close();
 
   console.log(`Cache ownership browser gate passed with ${requestsAfterAccountA} account-A request(s) and ${claimRequests.length} claimed account-B request(s).`);
 } finally {

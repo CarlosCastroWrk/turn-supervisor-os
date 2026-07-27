@@ -1183,7 +1183,7 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
       data.units.find((unit) => unit.projectId === data.activeProjectId && unitNumber && unit.unitNumber === unitNumber)?.id;
 
     if (unitId && (draft.targetEntityType === 'unit' || unitNumber)) {
-      onNavigate('unitDetail', unitId);
+      onNavigate('unitDetail', unitId, { unitSurface: 'personal' });
       return;
     }
 
@@ -1762,7 +1762,11 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
                             </div>
                             <div className="capture-photo-review__actions">
                               {attachment.savedPhotoId ? (
-                                <Button onClick={() => onNavigate('unitDetail', attachment.targetUnitId)}>Open Unit</Button>
+                                <Button onClick={() => onNavigate(
+                                  'unitDetail',
+                                  attachment.targetUnitId,
+                                  { unitSurface: 'personal' },
+                                )}>Open Unit</Button>
                               ) : (
                                 <>
                                   <Button disabled={attachment.saveState === 'saving'} variant="primary" onClick={() => void saveCapturePhoto(attachment.id)}>

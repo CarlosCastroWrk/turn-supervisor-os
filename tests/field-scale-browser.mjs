@@ -15,9 +15,9 @@ const screenshotDirectory = await mkdtemp('/private/tmp/pds-jul28-scale-shots-')
 const appPath = resolve(repoRoot, 'src/App.tsx');
 const stylesPath = resolve(repoRoot, 'src/styles.css');
 const toastProviderPath = resolve(repoRoot, 'src/components/ToastProvider.tsx');
-const repositoryPath = resolve(repoRoot, 'src/features/jul28-turnboard/syntheticRepository.ts');
+const actionsPath = resolve(repoRoot, 'src/lib/actions.ts');
+const seedPath = resolve(repoRoot, 'src/data/seed.ts');
 const syntheticUnitCount = 300;
-const assignmentConflictCount = 75;
 const maxInitialRenderMs = 4_000;
 const maxInteractionMs = 1_000;
 const maxMemoizedOpenRatio = 0.65;
@@ -39,43 +39,29 @@ const main = `
 import React, { Profiler } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ToastProvider } from ${JSON.stringify(toastProviderPath)};
-import { jul28SyntheticTurnBoardRepository } from ${JSON.stringify(repositoryPath)};
+import { createRealTurnProject } from ${JSON.stringify(actionsPath)};
+import { seedData } from ${JSON.stringify(seedPath)};
 import ${JSON.stringify(stylesPath)};
 
-const templates = jul28SyntheticTurnBoardRepository.listUnits();
-const units = Array.from({ length: ${syntheticUnitCount} }, (_, index) => {
-  const template = structuredClone(templates[index % templates.length]);
-  const unitId = \`jul28-scale-unit-\${index + 1}\`;
-  const unitNumber = String(1001 + index);
-  return {
-    ...template,
-    id: unitId,
-    unitNumber,
-    buildingLabel: \`Building \${String.fromCharCode(65 + Math.floor(index / 100))}\`,
-    floorLabel: \`Level \${String(Math.floor(index / 20) + 1).padStart(2, '0')}\`,
-    records: template.records.map((record, recordIndex) => ({
-      ...record,
-      id: \`\${unitId}:\${record.trade}:\${record.section}\`,
-      unitId,
-      assignmentEpisodes: record.assignmentEpisodes.map((episode, episodeIndex) => ({
-        ...episode,
-        id: \`\${unitId}:episode:\${recordIndex}:\${episodeIndex}\`,
-      })),
-      history: record.history.map((event, eventIndex) => ({
-        ...event,
-        id: \`\${unitId}:history:\${recordIndex}:\${eventIndex}\`,
-      })),
-    })),
-  };
+const scaleData = createRealTurnProject(structuredClone(seedData), {
+  projectName: 'QA 300 Unit Launch Turn',
+  propertyName: 'Synthetic Scale Property',
+  location: 'Synthetic browser test',
+  startDate: '2026-07-27',
+  endDate: '2026-08-15',
+  supervisorName: 'QA Los',
+  projectManagerName: 'QA Manager',
+  buildingNames: ['Building A'],
+  buildingCount: 1,
+  floorsPerBuilding: 15,
+  unitsPerFloor: 20,
+  firstUnitNumber: 101,
+  bedCount: 4,
+  bathroomCount: 4,
+  hasCommonArea: true,
+  notes: 'Synthetic 300-Unit browser fixture.',
 });
-const byId = new Map(units.map((unit) => [unit.id, unit]));
-const repository = {
-  source: 'synthetic-jul28-pattern-candidate',
-  listUnits: () => units,
-  getUnit: (unitId) => byId.get(unitId),
-};
-
-Object.assign(jul28SyntheticTurnBoardRepository, repository);
+localStorage.setItem('turn-supervisor-os:v0.1', JSON.stringify(scaleData));
 const { default: App } = await import(${JSON.stringify(appPath)});
 const profileEvents = [];
 globalThis.__pdsScaleProfileEvents = profileEvents;
@@ -187,7 +173,7 @@ try {
     const search = page.getByPlaceholder('Search units or crew');
     await search.click();
     const searchStartedAt = performance.now();
-    await search.type('1300');
+    await search.type('1301');
     await waitForUnitRowCount(page, 1);
     const searchTypingMs = Math.round(performance.now() - searchStartedAt);
     assert.ok(
@@ -197,13 +183,10 @@ try {
 
     await search.fill('');
     await waitForUnitRowCount(page, syntheticUnitCount);
-    const conflictFilter = page.getByRole('button', {
-      name: `Assignment conflict ${assignmentConflictCount}`,
-      exact: true,
-    });
+    const needsMeFilter = page.getByRole('button', { name: 'Needs Me 0', exact: true });
     const filterStartedAt = performance.now();
-    await conflictFilter.click();
-    await waitForUnitRowCount(page, assignmentConflictCount);
+    await needsMeFilter.click();
+    await waitForUnitRowCount(page, 0);
     const filterResponseMs = Math.round(performance.now() - filterStartedAt);
     assert.ok(
       filterResponseMs < maxInteractionMs,
@@ -215,9 +198,12 @@ try {
     await page.evaluate(() => {
       globalThis.__pdsScaleProfileEvents.length = 0;
     });
+    const unitButton = page.getByRole('button', { name: 'Open Unit 101', exact: true });
+    const unitId = await unitButton.locator('xpath=ancestor::*[@data-unit-id]').getAttribute('data-unit-id');
+    assert.ok(unitId, `${target.name} could not resolve the active AppData Unit identity.`);
     const unitOpenStartedAt = performance.now();
-    await page.getByRole('button', { name: 'Open Unit 1001', exact: true }).click();
-    await page.getByRole('heading', { name: 'Unit 1001', exact: true }).waitFor();
+    await unitButton.click();
+    await page.getByRole('heading', { name: 'Unit 101', exact: true }).waitFor();
     const unitOpenMs = Math.round(performance.now() - unitOpenStartedAt);
     assert.ok(
       unitOpenMs < maxInteractionMs,
@@ -225,7 +211,7 @@ try {
     );
     assert.equal(
       await page.evaluate(() => window.location.hash),
-      '#/units/jul28-scale-unit-1',
+      `#/units/${encodeURIComponent(unitId)}`,
       `${target.name} did not exercise the integrated App route callback.`,
     );
     assert.equal(
@@ -251,7 +237,7 @@ try {
       `${target.name} Unit-open render used ${(memoProfile.ratio * 100).toFixed(1)}% of the full-board render estimate `
         + `(limit ${(maxMemoizedOpenRatio * 100).toFixed(0)}%).`,
     );
-    await page.getByText('Paper remains authoritative · synthetic read-only candidate', { exact: true }).waitFor();
+    await page.getByText('Paper remains authoritative · personal Turn record', { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} selected workspace`);
 
     const screenshot = path.join(screenshotDirectory, `${target.name}.png`);

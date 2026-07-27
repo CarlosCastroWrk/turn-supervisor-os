@@ -85,6 +85,7 @@ import {
 import './boardFirstShell.css';
 
 type DetailPanel = Jul28Trade | 'blockers' | 'history';
+type BoardFirstSourceMode = 'personal' | 'synthetic';
 
 type OpenSheet =
   | { kind: 'needs-me' }
@@ -281,18 +282,29 @@ function TradeStrip({
           </button>
         ))}
       </div>
-      <button
-        className="w1r-crew-button"
-        data-w1r-critical-target="true"
-        id={`w1r-crew-${unitId}-${trade.trade}`}
-        onClick={(event) => onOpenAssignment(event.currentTarget)}
-        type="button"
-        aria-label={`${tradeLabels[trade.trade]} crew for Unit ${unitNumber}: ${trade.crewLabel}. Open assignment proposal`}
-      >
-        <Users size={14} aria-hidden="true" />
-        <span><small>{tradeLabels[trade.trade]} crew</small><strong>{trade.crewLabel}</strong></span>
-        <ChevronRight size={15} aria-hidden="true" />
-      </button>
+      {trade.sourceCoverageComplete ? (
+        <button
+          className="w1r-crew-button"
+          data-w1r-critical-target="true"
+          id={`w1r-crew-${unitId}-${trade.trade}`}
+          onClick={(event) => onOpenAssignment(event.currentTarget)}
+          type="button"
+          aria-label={`${tradeLabels[trade.trade]} crew for Unit ${unitNumber}: ${trade.crewLabel}. Open assignment proposal`}
+        >
+          <Users size={14} aria-hidden="true" />
+          <span><small>{tradeLabels[trade.trade]} crew</small><strong>{trade.crewLabel}</strong></span>
+          <ChevronRight size={15} aria-hidden="true" />
+        </button>
+      ) : (
+        <div
+          aria-label={`${tradeLabels[trade.trade]} crew for Unit ${unitNumber}: Assignment unknown`}
+          className="w1r-crew-button is-read-only"
+          id={`w1r-crew-${unitId}-${trade.trade}`}
+        >
+          <Users size={14} aria-hidden="true" />
+          <span><small>{tradeLabels[trade.trade]} crew</small><strong>Assignment unknown</strong></span>
+        </div>
+      )}
     </div>
   );
 }
@@ -397,6 +409,7 @@ function TurnBoardSurface({
   projections,
   query,
   selectedUnitId,
+  sourceMode,
   totalCount,
   onQueryChange,
   onOpenAssignment,
@@ -410,6 +423,7 @@ function TurnBoardSurface({
   projections: readonly BoardFirstUnitProjection[];
   query: string;
   selectedUnitId: string;
+  sourceMode: BoardFirstSourceMode;
   totalCount: number;
   onQueryChange: (query: string) => void;
   onOpenAssignment: (unitId: string, trade: Jul28Trade, trigger: HTMLButtonElement) => void;
@@ -428,8 +442,8 @@ function TurnBoardSurface({
           <h1 id="w1r-board-title">TurnBoard</h1>
           <p>
             {projections.length === totalCount
-              ? `${totalCount} synthetic Units`
-              : `${projections.length} of ${totalCount} synthetic Units`}
+              ? `${totalCount}${sourceMode === 'synthetic' ? ' synthetic' : ''} Units`
+              : `${projections.length} of ${totalCount}${sourceMode === 'synthetic' ? ' synthetic' : ''} Units`}
             {' · Paint and Clean stay separate'}
           </p>
         </div>
@@ -480,7 +494,7 @@ function TurnBoardSurface({
         ))}
         {projections.length === 0 ? (
           <p className="w1r-empty-copy" role="status">
-            No synthetic Units match this search and filter.
+            No {sourceMode === 'synthetic' ? 'synthetic ' : ''}Units match this search and filter.
           </p>
         ) : null}
       </div>
@@ -492,13 +506,19 @@ function ActivityList({
   activity,
   compact = false,
   onOpenUnit,
+  sourceMode,
 }: {
   activity: readonly BoardFirstActivityItem[];
   compact?: boolean;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
+  sourceMode: BoardFirstSourceMode;
 }) {
   if (activity.length === 0) {
-    return <p className="w1r-empty-copy">No synthetic activity is available for this view.</p>;
+    return (
+      <p className="w1r-empty-copy">
+        No {sourceMode === 'synthetic' ? 'synthetic ' : ''}activity is available for this view.
+      </p>
+    );
   }
   return (
     <ol className={`w1r-activity-list ${compact ? 'is-compact' : ''}`}>
@@ -535,9 +555,11 @@ function ActivityList({
 function ActivitySurface({
   activity,
   onOpenUnit,
+  sourceMode,
 }: {
   activity: readonly BoardFirstActivityItem[];
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
+  sourceMode: BoardFirstSourceMode;
 }) {
   const noteCount = activity.filter((item) => item.kind === 'note').length;
   const transcriptCount = activity.filter((item) => item.kind === 'transcript').length;
@@ -546,11 +568,13 @@ function ActivitySurface({
       <div className="w1r-surface-heading">
         <div>
           <h1 id="w1r-activity-title">Activity</h1>
-          <p>Notes, transcripts, and source-grounded synthetic events</p>
+          <p>
+            Notes, transcripts, and source-grounded {sourceMode === 'synthetic' ? 'synthetic' : 'personal'} events
+          </p>
         </div>
         <span>{noteCount} notes · {transcriptCount} transcripts</span>
       </div>
-      <ActivityList activity={activity} onOpenUnit={onOpenUnit} />
+      <ActivityList activity={activity} onOpenUnit={onOpenUnit} sourceMode={sourceMode} />
     </section>
   );
 }
@@ -659,16 +683,26 @@ function TradeDetail({
             <small>{projection.summaryLabel}</small>
           </span>
         </div>
-        <button
-          data-w1r-critical-target="true"
-          id={`w1r-detail-crew-${unit.id}-${projection.trade}`}
-          onClick={(event) => onOpenAssignment(event.currentTarget)}
-          type="button"
-        >
-          <Users size={16} aria-hidden="true" />
-          {projection.crewLabel}
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
+        {projection.sourceCoverageComplete ? (
+          <button
+            data-w1r-critical-target="true"
+            id={`w1r-detail-crew-${unit.id}-${projection.trade}`}
+            onClick={(event) => onOpenAssignment(event.currentTarget)}
+            type="button"
+          >
+            <Users size={16} aria-hidden="true" />
+            {projection.crewLabel}
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        ) : (
+          <div
+            aria-label={`${tradeLabels[projection.trade]} crew: Assignment unknown`}
+            className="w1r-trade-detail__crew-status"
+          >
+            <Users size={16} aria-hidden="true" />
+            Assignment unknown
+          </div>
+        )}
       </div>
       <div className="w1r-detail-sections" aria-label={`${tradeLabels[projection.trade]} sections for Unit ${unit.unitNumber}`}>
         {projection.sections.map((section) => (
@@ -694,10 +728,12 @@ function UnitDetail({
   activity,
   panel,
   projection,
+  sourceMode,
   unit,
   headingRef,
   onClose,
   onOpenAssignment,
+  onOpenPersonalUnit,
   onOpenSection,
   onOpenUnitFromHistory,
   onPanelChange,
@@ -705,10 +741,12 @@ function UnitDetail({
   activity: readonly BoardFirstActivityItem[];
   panel: DetailPanel;
   projection: BoardFirstUnitProjection;
+  sourceMode: BoardFirstSourceMode;
   unit: Jul28UnitRecord;
   headingRef: RefObject<HTMLHeadingElement | null>;
   onClose: () => void;
   onOpenAssignment: (trade: Jul28Trade, trigger: HTMLButtonElement) => void;
+  onOpenPersonalUnit?: (unitId: string) => void;
   onOpenSection: (trade: Jul28Trade, section: Jul28Section, trigger: HTMLButtonElement) => void;
   onOpenUnitFromHistory: (unitId: string, trigger: HTMLButtonElement) => void;
   onPanelChange: (panel: DetailPanel) => void;
@@ -752,6 +790,18 @@ function UnitDetail({
         </div>
         {projection.needsMe ? <span className="w1r-needs-label"><span aria-hidden="true" />Needs Me</span> : null}
       </header>
+
+      {onOpenPersonalUnit ? (
+        <button
+          className="w1r-personal-unit-link"
+          data-w1r-critical-target="true"
+          onClick={() => onOpenPersonalUnit(unit.id)}
+          type="button"
+        >
+          Personal notes &amp; photos
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      ) : null}
 
       <div className="w1r-detail-tabs" role="tablist" aria-label={`Unit ${unit.unitNumber} detail`}>
         {DETAIL_TABS.map((tab, index) => (
@@ -815,7 +865,11 @@ function UnitDetail({
                 <span><strong>{blocker.label}</strong><small>{blocker.nextAction}</small></span>
                 <ChevronRight size={17} aria-hidden="true" />
               </button>
-            )) : <p className="w1r-empty-copy">No source-grounded blocker is projected for this synthetic Unit.</p>}
+            )) : (
+              <p className="w1r-empty-copy">
+                No source-grounded blocker is projected for this {sourceMode === 'synthetic' ? 'synthetic ' : ''}Unit.
+              </p>
+            )}
           </section>
         ) : null}
         {panel === 'history' ? (
@@ -824,14 +878,23 @@ function UnitDetail({
               <h3 id="w1r-unit-history-title">Notes &amp; History</h3>
               <span>{unitActivity.length} linked items</span>
             </div>
-            <ActivityList compact activity={unitActivity} onOpenUnit={onOpenUnitFromHistory} />
+            <ActivityList
+              compact
+              activity={unitActivity}
+              onOpenUnit={onOpenUnitFromHistory}
+              sourceMode={sourceMode}
+            />
           </section>
         ) : null}
       </div>
 
       <footer className="w1r-paper-footer">
         <ShieldCheck size={16} aria-hidden="true" />
-        <span>Paper remains authoritative · synthetic read-only candidate</span>
+        <span>
+          Paper remains authoritative · {sourceMode === 'synthetic'
+            ? 'synthetic read-only candidate'
+            : 'personal Turn record'}
+        </span>
       </footer>
     </aside>
   );
@@ -942,18 +1005,22 @@ function AssistantBar({
 function NeedsMeSheet({
   open,
   projections,
+  sourceMode,
   onDismiss,
   onOpenUnit,
 }: {
   open: boolean;
   projections: readonly BoardFirstUnitProjection[];
+  sourceMode: BoardFirstSourceMode;
   onDismiss: () => void;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   const needsMe = projections.filter((projection) => projection.needsMe);
   return (
     <FieldBottomSheet
-      description="Personal synthetic attention only. Verify all official work on paper."
+      description={sourceMode === 'synthetic'
+        ? 'Personal synthetic attention only. Verify all official work on paper.'
+        : 'Personal attention only. Verify all official work on paper.'}
       onDismiss={onDismiss}
       open={open}
       title="Needs Me"
@@ -982,6 +1049,7 @@ function NeedsMeSheet({
 function SectionActionSheet({
   open,
   record,
+  sourceMode,
   sourceCoverageComplete,
   unit,
   onAction,
@@ -990,6 +1058,7 @@ function SectionActionSheet({
 }: {
   open: boolean;
   record: Jul28SectionTradeRecord;
+  sourceMode: BoardFirstSourceMode;
   sourceCoverageComplete: boolean;
   unit: Jul28UnitRecord;
   onAction: (action: BoardFirstSectionAction) => void;
@@ -1012,7 +1081,11 @@ function SectionActionSheet({
       <div className={`w1r-current-state is-${sectionProjection?.tone ?? 'neutral'}`}>
         <span>Current state</span>
         <strong>{sectionProjection?.label ?? 'State unavailable'}</strong>
-        <small>Read-only projection from existing Jul28 facts.</small>
+        <small>
+          {sourceMode === 'synthetic'
+            ? 'Read-only projection from existing Jul28 facts.'
+            : 'Read-only projection from personal Turn OS data.'}
+        </small>
       </div>
       <div className="w1r-sheet-actions">
         <span>Valid next actions</span>
@@ -1048,6 +1121,7 @@ function AssignmentSheet({
   crewOptions,
   initialSection,
   open,
+  sourceMode,
   trade,
   unit,
   onConfirm,
@@ -1056,6 +1130,7 @@ function AssignmentSheet({
   crewOptions: readonly string[];
   initialSection?: Jul28Section;
   open: boolean;
+  sourceMode: BoardFirstSourceMode;
   trade: Jul28Trade;
   unit: Jul28UnitRecord;
   onConfirm: (proposal: BoardFirstAssignmentProposal) => void;
@@ -1074,7 +1149,9 @@ function AssignmentSheet({
 
   return (
     <FieldBottomSheet
-      description={`${tradeLabels[trade]} · synthetic assignment proposal`}
+      description={`${tradeLabels[trade]} · ${
+        sourceMode === 'synthetic' ? 'synthetic assignment proposal' : 'personal draft assignment proposal'
+      }`}
       onDismiss={onDismiss}
       open={open}
       title={`Unit ${unit.unitNumber} crew`}
@@ -1083,14 +1160,18 @@ function AssignmentSheet({
         <label>
           <span>Crew</span>
           <select
-            aria-label="Select synthetic crew"
+            aria-label={sourceMode === 'synthetic' ? 'Select synthetic crew' : 'Select crew'}
             onChange={(event) => {
               setCrewName(event.target.value);
               setConfirmed(null);
             }}
             value={crewName}
           >
-            {crewOptions.length === 0 ? <option value="">No compatible synthetic crew available</option> : null}
+            {crewOptions.length === 0 ? (
+              <option value="">
+                No compatible {sourceMode === 'synthetic' ? 'synthetic ' : ''}crew available
+              </option>
+            ) : null}
             {crewOptions.map((crew) => <option key={crew} value={crew}>{crew}</option>)}
           </select>
         </label>
@@ -1150,7 +1231,7 @@ function AssignmentSheet({
           }}
           type="button"
         >
-          Confirm synthetic proposal
+          Confirm {sourceMode === 'synthetic' ? 'synthetic' : 'draft'} proposal
         </button>
         {confirmed ? <p className="w1r-honesty-message" role="status">{confirmed.disclaimer}</p> : null}
         <p className="w1r-sheet-paper"><ShieldCheck size={15} aria-hidden="true" />No official or persisted assignment is created.</p>
@@ -1205,9 +1286,11 @@ function PlusSheet({
 }
 
 export function BoardFirstShell({
+  activeView: controlledActiveView,
   activityItems = WAVE1R_SYNTHETIC_ACTIVITY,
   dateLabel = WAVE1R_SYNTHETIC_CONTEXT.dateLabel,
   externalDialogOpen = false,
+  embedded = false,
   hostStatusSlot,
   initialUnitId = '',
   propertyName = WAVE1R_SYNTHETIC_CONTEXT.propertyName,
@@ -1217,8 +1300,14 @@ export function BoardFirstShell({
   onAssistantSubmit,
   onCaptureRequest,
   onHostNavigate,
+  onActiveViewChange,
+  onDialogOpenChange,
+  onOpenPersonalUnit,
   onUnitNavigate,
 }: BoardFirstShellProps) {
+  const sourceMode: BoardFirstSourceMode = repository.source.includes('synthetic')
+    ? 'synthetic'
+    : 'personal';
   const units = useMemo(() => repository.listUnits(), [repository]);
   const projections = useMemo(() => projectBoardFirstBoard(repository), [repository]);
   const [boardQuery, setBoardQuery] = useState('');
@@ -1240,7 +1329,12 @@ export function BoardFirstShell({
     paint: listBoardFirstCrewOptions(repository, 'paint'),
     clean: listBoardFirstCrewOptions(repository, 'clean'),
   }), [repository]);
-  const [activeView, setActiveView] = useState<BoardFirstView>(DEFAULT_BOARD_FIRST_VIEW);
+  const [localActiveView, setLocalActiveView] = useState<BoardFirstView>(DEFAULT_BOARD_FIRST_VIEW);
+  const activeView = controlledActiveView ?? localActiveView;
+  const changeActiveView = useCallback((view: BoardFirstView) => {
+    setLocalActiveView(view);
+    onActiveViewChange?.(view);
+  }, [onActiveViewChange]);
   const [selectedUnitId, setSelectedUnitId] = useState(
     initialUnitId && repository.getUnit(initialUnitId) ? initialUnitId : '',
   );
@@ -1270,6 +1364,10 @@ export function BoardFirstShell({
     : undefined;
 
   useEffect(() => {
+    onDialogOpenChange?.(openSheet !== null);
+  }, [onDialogOpenChange, openSheet]);
+
+  useEffect(() => {
     if (previousInitialUnitIdRef.current === initialUnitId) return;
     previousInitialUnitIdRef.current = initialUnitId;
     const routeUnitId = initialUnitId && repository.getUnit(initialUnitId)
@@ -1277,10 +1375,10 @@ export function BoardFirstShell({
       : '';
     setSelectedUnitId(routeUnitId);
     if (routeUnitId) {
-      setActiveView('turnboard');
+      changeActiveView('turnboard');
       setDetailPanel('paint');
     }
-  }, [initialUnitId, repository]);
+  }, [changeActiveView, initialUnitId, repository]);
 
   useEffect(() => {
     if (selectedUnit) detailHeadingRef.current?.focus({ preventScroll: true });
@@ -1393,11 +1491,11 @@ export function BoardFirstShell({
   const selectUnit = useCallback((unitId: string, trigger?: HTMLElement) => {
     unitOriginRef.current = trigger ?? null;
     unitFallbackIdRef.current = `w1r-unit-open-${unitId}`;
-    setActiveView('turnboard');
+    changeActiveView('turnboard');
     setSelectedUnitId(unitId);
     setDetailPanel('paint');
     onUnitNavigate?.(unitId);
-  }, [onUnitNavigate]);
+  }, [changeActiveView, onUnitNavigate]);
 
   const openUnit = useCallback((unitId: string, trigger?: HTMLElement) => {
     if (openSheetRef.current) {
@@ -1456,8 +1554,10 @@ export function BoardFirstShell({
     trade: Jul28Trade,
     trigger: HTMLButtonElement,
   ) => {
+    const unit = repository.getUnit(unitId);
+    if (!unit || !validateJul28SourceCoverage(unit).complete) return;
     openAssignment(unitId, trade, undefined, trigger);
-  }, [openAssignment]);
+  }, [openAssignment, repository]);
 
   useEffect(() => {
     if (!pendingCapture || openSheet || dispatchedCaptureIdsRef.current.has(pendingCapture.requestId)) {
@@ -1522,33 +1622,38 @@ export function BoardFirstShell({
   const assignmentUnit = openSheet?.kind === 'assignment'
     ? repository.getUnit(openSheet.unitId)
     : undefined;
+  const MainRegion = embedded ? 'div' : 'main';
 
   return (
     <div
-      className={`w1r-shell ${selectedUnit ? 'has-selected-unit' : ''}`}
+      className={`w1r-shell ${selectedUnit ? 'has-selected-unit' : ''} ${embedded ? 'is-embedded' : ''}`}
       data-source={repository.source}
       data-testid="wave1r-shell"
     >
       <div className="w1r-shell__app" aria-hidden={dialogOpen || undefined} inert={dialogOpen || undefined}>
-        <ShellHeader
-          attentionCount={boardCounts.needsMe}
-          dateLabel={dateLabel}
-          propertyName={propertyName}
-          onOpenNeedsMe={openNeedsMe}
-        />
+        {!embedded ? (
+          <ShellHeader
+            attentionCount={boardCounts.needsMe}
+            dateLabel={dateLabel}
+            propertyName={propertyName}
+            onOpenNeedsMe={openNeedsMe}
+          />
+        ) : null}
         {hostStatusSlot}
         <div className="w1r-shell__body">
-          <PrimaryNavigation
-            activeView={activeView}
-            onNavigate={(view) => {
-              setActiveView(view);
-              if (view !== 'turnboard' && selectedUnitId) {
-                setSelectedUnitId('');
-                onUnitNavigate?.();
-              }
-            }}
-          />
-          <main className="w1r-main">
+          {!embedded ? (
+            <PrimaryNavigation
+              activeView={activeView}
+              onNavigate={(view) => {
+                changeActiveView(view);
+                if (view !== 'turnboard' && selectedUnitId) {
+                  setSelectedUnitId('');
+                  onUnitNavigate?.();
+                }
+              }}
+            />
+          ) : null}
+          <MainRegion className="w1r-main">
             <div className="w1r-main__surface">
               {activeView === 'turnboard' ? (
                 <TurnBoardSurface
@@ -1560,6 +1665,7 @@ export function BoardFirstShell({
                   projections={filteredProjections}
                   query={boardQuery}
                   selectedUnitId={selectedUnitId}
+                  sourceMode={sourceMode}
                   totalCount={projections.length}
                   onOpenAssignment={openBoardAssignment}
                   onOpenSection={openSection}
@@ -1567,7 +1673,11 @@ export function BoardFirstShell({
                 />
               ) : null}
               {activeView === 'activity' ? (
-                <ActivitySurface activity={activity} onOpenUnit={openUnit} />
+                <ActivitySurface
+                  activity={activity}
+                  onOpenUnit={openUnit}
+                  sourceMode={sourceMode}
+                />
               ) : null}
               {activeView === 'more' ? (
                 <MoreSurface
@@ -1582,10 +1692,12 @@ export function BoardFirstShell({
                 headingRef={detailHeadingRef}
                 panel={detailPanel}
                 projection={selectedProjection}
+                sourceMode={sourceMode}
                 unit={selectedUnit}
                 onClose={closeUnit}
                 onOpenAssignment={(trade, trigger) =>
                   openAssignment(selectedUnit.id, trade, undefined, trigger)}
+                onOpenPersonalUnit={onOpenPersonalUnit}
                 onOpenSection={(trade, section, trigger) =>
                   openSection(selectedUnit.id, trade, section, trigger)}
                 onOpenUnitFromHistory={openUnit}
@@ -1598,9 +1710,9 @@ export function BoardFirstShell({
                 <span>Paint, Clean, blockers, notes, and history open here.</span>
               </aside>
             )}
-          </main>
+          </MainRegion>
         </div>
-        <AssistantBar
+        {!embedded ? <AssistantBar
           message={captureStatus}
           onOpenPlus={(trigger) => {
             openBoardSheet({ kind: 'plus' }, trigger);
@@ -1635,12 +1747,13 @@ export function BoardFirstShell({
             });
             return true;
           }}
-        />
+        /> : null}
       </div>
 
       <NeedsMeSheet
         open={openSheet?.kind === 'needs-me'}
         projections={projections}
+        sourceMode={sourceMode}
         onDismiss={closeSheet}
         onOpenUnit={openUnit}
       />
@@ -1649,6 +1762,7 @@ export function BoardFirstShell({
           key={`${sectionSheet.record.id}:${openSheet?.kind}`}
           open
           record={sectionSheet.record}
+          sourceMode={sourceMode}
           sourceCoverageComplete={validateJul28SourceCoverage(sectionSheet.unit).complete}
           unit={sectionSheet.unit}
           onAction={(selectedAction) => {
@@ -1696,6 +1810,7 @@ export function BoardFirstShell({
           crewOptions={crewOptions[openSheet.trade]}
           initialSection={openSheet.initialSection}
           open
+          sourceMode={sourceMode}
           trade={openSheet.trade}
           unit={assignmentUnit}
           onConfirm={(proposal) => {

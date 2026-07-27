@@ -62,7 +62,12 @@ const assertSingleCapture = async (page, label) => {
   assert.notEqual(await currentHash(page), '#/copilot', `${label} did not normalize the legacy Capture route.`);
 };
 
-const closeCaptureOnce = async (page, expectedHash, label, expectedFocusLabel = 'Start voice capture') => {
+const closeCaptureOnce = async (
+  page,
+  expectedHash,
+  label,
+  expectedFocusLabel = 'Open central add menu',
+) => {
   await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
   await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('[role="dialog"]').count(), 0, `${label} still had a dialog after one close.`);
@@ -96,7 +101,7 @@ try {
 
     for (const origin of origins) {
       await page.goto(`${baseUrl}/${origin.hash}`, { waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: 'Start voice capture', exact: true }).click();
+      await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
       const label = `${viewport.name} ${origin.name}`;
       await assertSingleCapture(page, label);
       await assertNoHorizontalOverflow(page, `${label} Capture`);
@@ -106,8 +111,8 @@ try {
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
     const legacyLabel = `${viewport.name} legacy bookmark`;
     await assertSingleCapture(page, legacyLabel);
-    assert.equal(await currentHash(page), '#/units', `${legacyLabel} did not choose TurnBoard as its safe origin.`);
-    await closeCaptureOnce(page, '#/units', legacyLabel, 'Expand Turn OS assistant');
+    assert.equal(await currentHash(page), '#/dashboard', `${legacyLabel} did not choose Home as its safe origin.`);
+    await closeCaptureOnce(page, '#/dashboard', legacyLabel);
 
     assert.deepEqual(findings, [], `${viewport.name} runtime findings:\n${findings.join('\n')}`);
     await context.close();
@@ -120,13 +125,8 @@ try {
   await refreshPage.evaluate(() => window.history.replaceState(null, '', '#/copilot'));
   await refreshPage.reload({ waitUntil: 'networkidle' });
   await assertSingleCapture(refreshPage, 'refreshed legacy bookmark');
-  assert.equal(await currentHash(refreshPage), '#/units');
-  await closeCaptureOnce(
-    refreshPage,
-    '#/units',
-    'refreshed legacy bookmark',
-    'Expand Turn OS assistant',
-  );
+  assert.equal(await currentHash(refreshPage), '#/dashboard');
+  await closeCaptureOnce(refreshPage, '#/dashboard', 'refreshed legacy bookmark');
   assert.deepEqual(refreshFindings, [], `Refresh runtime findings:\n${refreshFindings.join('\n')}`);
   await refreshContext.close();
 
@@ -139,7 +139,7 @@ try {
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
   await historyPage.waitForFunction(() => window.location.hash === '#/units/unit_202');
-  await historyPage.getByRole('button', { name: 'Start voice capture', exact: true }).click();
+  await historyPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   await assertSingleCapture(historyPage, 'browser history origin');
   await historyPage.goBack();
   await historyPage.waitForFunction(() => window.location.hash === '#/review');
@@ -155,7 +155,7 @@ try {
   const sessionPage = await sessionContext.newPage();
   const sessionFindings = attachRuntimeChecks(sessionPage);
   await sessionPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await sessionPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   await sessionPage.getByRole('button', { name: /UPDATE/ }).click();
   await sessionPage.getByRole('button', { name: 'Type', exact: true }).click();
   await sessionPage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill(sourceText);
@@ -165,9 +165,9 @@ try {
     buffer: Buffer.from('Synthetic field note only.'),
   });
   await sessionPage.getByText(attachmentName, { exact: true }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/review', 'in-memory source close', 'Open Capture attachments');
+  await closeCaptureOnce(sessionPage, '#/review', 'in-memory source close');
 
-  await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await sessionPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   await assertSingleCapture(sessionPage, 'reopened in-memory source');
   assert.equal(
     await sessionPage.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
@@ -202,9 +202,9 @@ try {
   await sessionPage.getByRole('button', { name: 'Create drafts', exact: true }).click();
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   await sessionPage.getByRole('heading', { name: /Added to Review/ }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/review', 'Draft result close', 'Open Capture attachments');
+  await closeCaptureOnce(sessionPage, '#/review', 'Draft result close');
 
-  await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await sessionPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   await assertSingleCapture(sessionPage, 'reopened Draft result');
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   const preservedResultSource = sessionPage.locator('.capture-result-card__source p');
@@ -213,7 +213,7 @@ try {
   assert.match(preservedResultText, /Unit 202 paint is done\./, 'Completed Draft result lost its source wording.');
   assert.match(preservedResultText, /unit-202-field-note\.txt/, 'Completed Draft result lost its attachment reference.');
   assert.match(preservedResultText, /Synthetic field note only\./, 'Completed Draft result lost its attachment text.');
-  await closeCaptureOnce(sessionPage, '#/review', 'reopened Draft result', 'Open Capture attachments');
+  await closeCaptureOnce(sessionPage, '#/review', 'reopened Draft result');
   assert.deepEqual(sessionFindings, [], `Session runtime findings:\n${sessionFindings.join('\n')}`);
   await sessionContext.close();
 

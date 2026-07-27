@@ -451,6 +451,10 @@ export interface AppData {
 
 export type AppView =
   | 'dashboard'
+  | 'activity'
+  | 'more'
+  | 'search'
+  | 'notifications'
   | 'review'
   | 'sync'
   | 'setup'

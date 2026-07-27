@@ -141,6 +141,8 @@ export function Preview() {
   return (
     <LaunchCommandCenterShell
       activeDestination={activeDestination}
+      contentFocusKey={activeDestination}
+      contentTitle={activeDestination === 'home' ? 'Home' : activeDestination === 'turnboard' ? 'TurnBoard' : activeDestination === 'activity' ? 'Activity' : 'More'}
       dateLabel={LAUNCH_SYNTHETIC_CONTEXT.dateLabel}
       notificationCount={LAUNCH_SYNTHETIC_NOTIFICATIONS.filter((item) => !item.read).length}
       onNavigate={(destination) => {

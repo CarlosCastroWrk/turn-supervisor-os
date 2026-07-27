@@ -101,7 +101,7 @@ try {
     const findings = attachRuntimeChecks(page);
 
     await page.goto(`${baseUrl}${previewPath}`, { waitUntil: 'networkidle' });
-    assert.equal(await page.title(), 'Launch Command Center Track A');
+    assert.equal(await page.title(), 'Home · Turn OS');
     await page.getByRole('region', { name: 'Home command center' }).waitFor();
     assert.equal(await page.getByText('Moon Tower · Synthetic', { exact: true }).count(), 1);
     assert.equal(await page.getByText('Daily goal', { exact: true }).count(), 1);
@@ -211,7 +211,9 @@ try {
   const offlinePage = await offlineContext.newPage();
   await offlinePage.goto(`${baseUrl}${previewPath}?surface=login&offline=1`, { waitUntil: 'networkidle' });
   assert.equal(await offlinePage.getByRole('button', { name: 'Sign in', exact: true }).isDisabled(), true);
-  await offlinePage.getByText('Sign-in needs a connection.', { exact: false }).waitFor();
+  await offlinePage
+    .getByText('Synthetic Preview session copy. No authentication request is sent.', { exact: true })
+    .waitFor();
   await offlineContext.close();
 
   console.log('Launch command center browser gate passed.');

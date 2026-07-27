@@ -42,9 +42,26 @@
 
 .lcc-root button:focus-visible,
 .lcc-root input:focus-visible,
-.lcc-root summary:focus-visible {
+.lcc-root summary:focus-visible,
+.lcc-root a:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--lcc-blue) 48%, transparent);
   outline-offset: 2px;
+}
+
+.lcc-skip-link {
+  background: var(--lcc-navy);
+  border-radius: 0 0 8px 0;
+  color: #ffffff;
+  font-weight: 800;
+  left: 0;
+  padding: 10px 14px;
+  position: absolute;
+  top: -80px;
+  z-index: 100;
+}
+
+.lcc-skip-link:focus {
+  top: 0;
 }
 
 .lcc-visually-hidden {
@@ -213,6 +230,11 @@
   width: 100%;
 }
 
+.lcc-shell__main.is-contained {
+  overflow: hidden;
+  padding-bottom: calc(66px + env(safe-area-inset-bottom));
+}
+
 .lcc-navigation {
   align-items: stretch;
   background: color-mix(in srgb, var(--lcc-bg) 97%, transparent);
@@ -323,6 +345,12 @@
   line-height: 1.25;
 }
 
+.lcc-goal__heading em {
+  color: var(--lcc-muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
 .lcc-goal__heading time {
   flex: 0 0 auto;
 }
@@ -336,6 +364,12 @@
   font-size: 26px;
   letter-spacing: -0.04em;
   line-height: 1;
+}
+
+.lcc-goal__setup-note {
+  color: var(--lcc-muted);
+  font-size: 11px;
+  margin: 0;
 }
 
 .lcc-progress {
@@ -915,6 +949,15 @@
   line-height: 1.4;
 }
 
+.lcc-login__recovery {
+  margin-top: 16px;
+  text-align: left;
+}
+
+.lcc-login__recovery .sync-panel {
+  width: 100%;
+}
+
 @keyframes lcc-mark-breathe {
   0%, 100% {
     transform: scale(1);
@@ -1061,6 +1104,10 @@
   }
 
   .lcc-shell__main {
+    padding-bottom: 0;
+  }
+
+  .lcc-shell__main.is-contained {
     padding-bottom: 0;
   }
 

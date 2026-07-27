@@ -13,6 +13,7 @@ export const LAUNCH_SYNTHETIC_CONTEXT = {
 
 export const LAUNCH_SYNTHETIC_GOAL: LaunchDailyGoalViewModel = {
   actual: 18,
+  configured: true,
   dateISO: '2026-07-27',
   dateLabel: 'Monday, July 27',
   metric: 'Sections',

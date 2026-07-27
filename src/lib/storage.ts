@@ -15,7 +15,10 @@ import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
 import { createFieldDraftStore } from './fieldDraft';
 import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
-import { clearLocalCacheOwner } from './supabase/cacheOwnership';
+import {
+  clearLastAuthenticatedUserId,
+  clearLocalCacheOwner,
+} from './supabase/cacheOwnership';
 import type { CoalescedWriter, CoalescedWriteState } from './coalescedWriter';
 
 const STORAGE_KEY = 'turn-supervisor-os:v0.1';
@@ -134,6 +137,7 @@ export const clearAppData = async () => {
   appDataWriter.cancel();
   clearInFlightFieldDrafts();
   const ownerCleared = clearLocalCacheOwner();
+  const rememberedAccountCleared = clearLastAuthenticatedUserId();
   let recordsCleared = false;
   try {
     window.localStorage.removeItem(STORAGE_KEY);
@@ -149,7 +153,7 @@ export const clearAppData = async () => {
   } catch (error) {
     console.warn('Failed to clear local photo files during device reset.', error);
   }
-  return ownerCleared && recordsCleared && photosCleared;
+  return ownerCleared && rememberedAccountCleared && recordsCleared && photosCleared;
 };
 
 export const usePersistentAppData = () => {

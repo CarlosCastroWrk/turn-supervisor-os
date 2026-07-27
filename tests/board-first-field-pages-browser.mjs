@@ -71,7 +71,7 @@ try {
     await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
     await page.getByText('Paper remains authoritative', { exact: true }).waitFor();
     await assertBoardNavigation(page, `${target.name} TurnBoard`);
-    assert.equal(await page.getByTestId('wave1r-unit-row').count(), 4);
+    assert.equal(await page.getByTestId('wave1r-unit-row').count(), 6);
     assert.equal(await page.getByLabel('Search TurnBoard Units or crew', { exact: true }).count(), 1);
     const filters = page.getByRole('group', { name: 'Filter TurnBoard Units', exact: true });
     for (const label of ['All', 'Needs Me', 'Assignment conflict']) {
@@ -95,40 +95,22 @@ try {
     );
     await assertNoHorizontalOverflow(page, `${target.name} TurnBoard`);
 
-    await page.getByRole('button', { name: 'Open Unit 602', exact: true }).click();
-    await page.waitForFunction(() => window.location.hash === '#/units/jul28-unit-602');
-    await page.getByRole('heading', { name: 'Unit 602', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Open Unit 101', exact: true }).click();
+    await page.waitForFunction(() => window.location.hash === '#/units/unit_101');
+    await page.getByRole('heading', { name: 'Unit 101', exact: true }).waitFor();
     await page.getByRole('tab', { name: 'Paint', exact: true }).waitFor();
     await page.getByRole('tab', { name: 'Clean', exact: true }).waitFor();
-    await page.getByText(
-      'Paper remains authoritative · synthetic read-only candidate',
-      { exact: true },
-    ).waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 0, 'Opening Unit 602 opened a dialog.');
+    assert.equal(await page.getByRole('dialog').count(), 0, 'Opening Unit 101 opened a dialog.');
     assert.equal(
       await page.getByTestId('wave1r-unit-row').count(),
-      4,
+      6,
       'Opening a Unit unmounted the compact TurnBoard list.',
     );
-    await assertNoHorizontalOverflow(page, `${target.name} Unit 602`);
+    await assertNoHorizontalOverflow(page, `${target.name} Unit 101`);
 
     await page.goBack();
     await page.waitForFunction(() => window.location.hash === '#/units');
     await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-
-    const needsTrigger = page.getByRole('button', { name: /Open Needs Me/ });
-    await needsTrigger.click();
-    const needsSheet = page.getByRole('dialog', { name: 'Needs Me', exact: true });
-    await needsSheet.waitFor();
-    const sheetHash = await page.evaluate(() => window.location.hash);
-    await page.goBack();
-    await needsSheet.waitFor({ state: 'hidden' });
-    assert.equal(
-      await page.evaluate(() => window.location.hash),
-      sheetHash,
-      `${target.name} sheet Back changed the current route.`,
-    );
-    await page.waitForFunction(() => document.activeElement?.id === 'w1r-header-needs-me');
 
     await page.getByRole('navigation', { name: 'Primary' })
       .getByRole('button', { name: 'Activity', exact: true })
@@ -171,7 +153,7 @@ try {
 
     await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'REVIEW', exact: true }).waitFor();
-    assert.equal(await page.getByRole('region', { name: 'Turn OS command bar' }).count(), 1);
+    assert.equal(await page.getByRole('region', { name: 'Turn OS command bar' }).count(), 0);
     await assertNoHorizontalOverflow(page, `${target.name} Review`);
 
     await page.goto(`${baseUrl}/#/sync`, { waitUntil: 'networkidle' });

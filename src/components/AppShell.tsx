@@ -42,6 +42,7 @@ interface AppShellProps {
 }
 
 const viewTitles: Record<AppView, string> = {
+  activity: 'Activity',
   assignments: 'Assignments',
   copilot: 'Capture',
   crews: 'Crews',
@@ -49,8 +50,11 @@ const viewTitles: Record<AppView, string> = {
   dashboard: 'Today',
   export: 'Export',
   issues: 'Issues',
+  more: 'More',
+  notifications: 'Notifications',
   review: 'Queue',
   reports: 'Reports',
+  search: 'Search',
   setup: 'Setup',
   sync: 'Sync & Diagnostics',
   training: 'Training Questions',

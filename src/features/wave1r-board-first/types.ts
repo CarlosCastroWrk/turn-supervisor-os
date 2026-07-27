@@ -39,6 +39,7 @@ export interface BoardFirstSectionProjection {
 
 export interface BoardFirstTradeProjection {
   trade: Jul28Trade;
+  sourceCoverageComplete: boolean;
   crewLabel: string;
   crewNames: string[];
   summaryLabel: string;
@@ -219,9 +220,11 @@ export type BoardFirstAssistantAction =
   | { type: 'message-changed'; message: string };
 
 export interface BoardFirstShellProps {
+  activeView?: BoardFirstView;
   activityItems?: readonly BoardFirstActivityItem[];
   dateLabel?: string;
   externalDialogOpen?: boolean;
+  embedded?: boolean;
   hostStatusSlot?: ReactNode;
   initialUnitId?: string;
   propertyName?: string;
@@ -231,5 +234,8 @@ export interface BoardFirstShellProps {
   onAssistantSubmit?: (request: BoardFirstAssistantRequest) => void;
   onCaptureRequest?: BoardFirstCaptureHandler;
   onHostNavigate?: BoardFirstHostNavigationHandler;
+  onActiveViewChange?: (view: BoardFirstView) => void;
+  onDialogOpenChange?: (open: boolean) => void;
+  onOpenPersonalUnit?: (unitId: string) => void;
   onUnitNavigate?: (unitId?: string) => void;
 }

@@ -125,7 +125,7 @@ export interface Jul28UnitRecord {
 }
 
 export interface Jul28TurnBoardRepository {
-  readonly source: 'synthetic-jul28-pattern-candidate';
+  readonly source: string;
   listUnits(): readonly Jul28UnitRecord[];
   getUnit(unitId: string): Jul28UnitRecord | undefined;
 }

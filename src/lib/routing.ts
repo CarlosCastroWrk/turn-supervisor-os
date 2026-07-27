@@ -3,12 +3,14 @@ import type { AppView, UnitStatusFilter } from '../types';
 export interface AppRoute {
   view: AppView;
   unitId?: string;
+  unitSurface?: 'board' | 'personal';
   issueId?: string;
   unitStatusFilter: UnitStatusFilter;
 }
 
 export interface NavigateOptions {
   unitStatusFilter?: UnitStatusFilter;
+  unitSurface?: 'board' | 'personal';
   issueId?: string;
 }
 
@@ -20,12 +22,16 @@ export interface ResolvedAppHash {
 export type AppNavigate = (view: AppView, unitId?: string, options?: NavigateOptions) => void;
 
 const defaultRoute: AppRoute = {
-  view: 'units',
+  view: 'dashboard',
   unitStatusFilter: 'All',
 };
 
 const topLevelViews = new Set<AppView>([
   'dashboard',
+  'activity',
+  'more',
+  'search',
+  'notifications',
   'review',
   'sync',
   'setup',
@@ -77,6 +83,7 @@ export const parseAppHash = (hash: string): AppRoute => {
     return {
       view: 'unitDetail',
       unitId: recordId,
+      unitSurface: viewOrResource === 'unit' ? 'personal' : 'board',
       unitStatusFilter: 'All',
     };
   }
@@ -93,6 +100,7 @@ export const parseAppHash = (hash: string): AppRoute => {
     return {
       view: 'unitDetail',
       unitId: recordId,
+      unitSurface: 'personal',
       unitStatusFilter: 'All',
     };
   }
@@ -125,7 +133,8 @@ export const resolveAppHash = (hash: string): ResolvedAppHash => {
 
 export const buildAppHash = (route: AppRoute) => {
   if (route.view === 'unitDetail' && route.unitId) {
-    return `#/units/${encodePathPart(route.unitId)}`;
+    const resource = route.unitSurface === 'personal' ? 'unit' : 'units';
+    return `#/${resource}/${encodePathPart(route.unitId)}`;
   }
 
   if (route.view === 'issues' && route.issueId) {
@@ -156,6 +165,7 @@ export const routeForNavigation = (
     return {
       view,
       unitId,
+      unitSurface: options?.unitSurface ?? 'board',
       unitStatusFilter: 'All',
     };
   }
@@ -171,6 +181,7 @@ export const routeForNavigation = (
   return {
     view,
     unitId: view === 'unitDetail' ? unitId : undefined,
+    unitSurface: view === 'unitDetail' ? options?.unitSurface ?? 'board' : undefined,
     unitStatusFilter: view === 'units' ? options?.unitStatusFilter ?? 'All' : 'All',
   };
 };

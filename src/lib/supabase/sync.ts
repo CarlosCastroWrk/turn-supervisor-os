@@ -39,6 +39,9 @@ import { mergePhotoNotes, mergeRows, syncRowFingerprint } from './syncCore';
 import {
   assertSyncIdentity,
   cacheBelongsToUser,
+  clearLastAuthenticatedUserId,
+  getLastAuthenticatedUserId,
+  setLastAuthenticatedUserId,
   setLocalCacheOwner,
   SyncSessionChangedError,
   type SyncIdentity,
@@ -94,6 +97,8 @@ export interface SyncController {
   configured: boolean;
   authReady: boolean;
   signedIn: boolean;
+  userId?: string;
+  lastAuthenticatedUserId?: string;
   status: SyncStatus;
   message: string;
   diagnostics: SyncDiagnostics;
@@ -1046,6 +1051,9 @@ export const useSupabaseSync = (
   const client = useMemo(() => getSupabaseClient(), []);
   const [authReady, setAuthReady] = useState(() => !enabled || !configured);
   const [session, setSession] = useState<Session | null>(null);
+  const [lastAuthenticatedUserId, setRememberedAuthenticatedUserId] = useState(
+    () => getLastAuthenticatedUserId() ?? undefined,
+  );
   const [status, setStatus] = useState<SyncStatus>(() => {
     if (!enabled) return 'disabled';
     if (!configured) return 'not_configured';
@@ -1081,6 +1089,10 @@ export const useSupabaseSync = (
 
   const updateActiveSession = useCallback((nextSession: Session | null) => {
     const nextUserId = nextSession?.user.id ?? null;
+    if (nextUserId) {
+      const remembered = setLastAuthenticatedUserId(nextUserId);
+      setRememberedAuthenticatedUserId(remembered ? nextUserId : undefined);
+    }
     if (sessionUserIdRef.current !== nextUserId) {
       sessionUserIdRef.current = nextUserId;
       sessionGenerationRef.current += 1;
@@ -1524,6 +1536,8 @@ export const useSupabaseSync = (
       return;
     }
     updateActiveSession(null);
+    clearLastAuthenticatedUserId();
+    setRememberedAuthenticatedUserId(undefined);
     setAuthReady(true);
     setStatus('signed_out');
     setMessage('Signed out. This device still keeps its local cache.');
@@ -1553,6 +1567,7 @@ export const useSupabaseSync = (
         if (!active) return;
         if (sessionLookupGeneration !== sessionGenerationRef.current) return;
         if (error) {
+          setAuthReady(true);
           setStatus('error');
           setMessage('Could not verify the Supabase session. Backup restore remains locked for safety.');
           return;
@@ -1565,6 +1580,7 @@ export const useSupabaseSync = (
       .catch(() => {
         if (!active) return;
         if (sessionLookupGeneration !== sessionGenerationRef.current) return;
+        setAuthReady(true);
         setStatus('error');
         setMessage('Could not verify the Supabase session. Backup restore remains locked for safety.');
       });
@@ -1572,6 +1588,10 @@ export const useSupabaseSync = (
     const {
       data: { subscription },
     } = client.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'SIGNED_OUT') {
+        clearLastAuthenticatedUserId();
+        setRememberedAuthenticatedUserId(undefined);
+      }
       updateActiveSession(nextSession);
       setAuthReady(true);
       setDiagnostics((current) => ({
@@ -1700,6 +1720,8 @@ export const useSupabaseSync = (
     configured,
     authReady,
     signedIn: Boolean(session),
+    userId: session?.user.id,
+    lastAuthenticatedUserId,
     status,
     message,
     diagnostics,

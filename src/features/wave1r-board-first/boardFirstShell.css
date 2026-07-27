@@ -37,6 +37,14 @@
   -webkit-font-smoothing: antialiased;
 }
 
+.w1r-shell.is-embedded {
+  height: 100%;
+}
+
+.w1r-shell.is-embedded .w1r-main {
+  padding-bottom: 0;
+}
+
 .w1r-shell *,
 .w1r-shell *::before,
 .w1r-shell *::after {
@@ -527,6 +535,15 @@
   text-align: left;
 }
 
+.w1r-crew-button.is-read-only {
+  cursor: default;
+}
+
+.w1r-crew-button.is-read-only:hover {
+  color: var(--w1r-text);
+  filter: none;
+}
+
 .w1r-crew-button > span {
   display: grid;
   flex: 1 1 auto;
@@ -725,6 +742,34 @@
   justify-content: center;
   min-height: 44px;
   padding: 5px 8px;
+}
+
+.w1r-trade-detail__crew-status {
+  align-items: center;
+  background: var(--w1r-surface);
+  border: 1px dashed var(--w1r-border);
+  border-radius: 9px;
+  color: var(--w1r-muted);
+  display: inline-flex;
+  gap: 5px;
+  min-height: 44px;
+  padding: 5px 8px;
+}
+
+.w1r-personal-unit-link {
+  align-items: center;
+  background: var(--w1r-blue-soft);
+  border: 0;
+  border-bottom: 1px solid var(--w1r-border);
+  color: var(--w1r-blue);
+  display: flex;
+  font-weight: 750;
+  gap: 6px;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
 }
 
 .w1r-detail-sections {

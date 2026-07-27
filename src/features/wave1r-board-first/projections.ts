@@ -101,7 +101,10 @@ const projectTrade = (unit: Jul28UnitRecord, trade: Jul28Trade): BoardFirstTrade
 
   return {
     trade,
-    crewLabel: crewNames.length === 0
+    sourceCoverageComplete: summary.sourceCoverageComplete,
+    crewLabel: !summary.sourceCoverageComplete
+      ? 'Assignment unknown'
+      : crewNames.length === 0
       ? 'Not assigned'
       : crewNames.length === 1
         ? crewNames[0]

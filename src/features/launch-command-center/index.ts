@@ -24,6 +24,11 @@ export {
   LAUNCH_PRIMARY_NAVIGATION,
   LAUNCH_QUICK_ACTIONS,
 } from './types';
+export { projectLaunchAppData, type LaunchAppDataProjection } from './appDataProjection';
+export {
+  createLaunchBoardRepository,
+  type LaunchBoardRepositoryState,
+} from './boardRepository';
 export type {
   LaunchBlockerSummary,
   LaunchCommandCenterShellProps,

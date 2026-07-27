@@ -1,5 +1,6 @@
 import { AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LaunchIntegratedApp } from './features/launch-command-center/LaunchIntegratedApp';
 import { AppShell, type FieldSheet } from './components/AppShell';
 import { SyncPanel } from './components/SyncPanel';
 import {
@@ -107,7 +108,7 @@ const clearLegacyCaptureHistoryState = () => {
   );
 };
 
-function App() {
+export function LegacyAppSnapshot() {
   const { data, setData, hasStoredData, retrySave, saveStatus } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [route, setRoute] = useState(
@@ -544,4 +545,4 @@ function App() {
   );
 }
 
-export default App;
+export default LaunchIntegratedApp;

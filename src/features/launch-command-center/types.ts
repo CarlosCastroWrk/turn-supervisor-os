@@ -28,6 +28,7 @@ export type LaunchDailyGoalMilestone =
 
 export interface LaunchDailyGoalViewModel {
   actual: number;
+  configured: boolean;
   dateISO: string;
   dateLabel: string;
   metric: LaunchDailyGoalMetric;
@@ -62,7 +63,12 @@ export interface LaunchHomeProps {
 
 export interface LaunchCommandCenterShellProps {
   activeDestination: LaunchPrimaryDestination;
+  backgroundInert?: boolean;
   children: ReactNode;
+  contentFocusKey: string;
+  contentContained?: boolean;
+  contentDialogOpen?: boolean;
+  contentTitle: string;
   dateLabel: string;
   notificationCount?: number;
   onNavigate: (destination: LaunchPrimaryDestination) => void;
@@ -144,5 +150,6 @@ export interface LaunchLoginSurfaceProps {
   onPasswordChange: (password: string) => void;
   onSubmit: () => void;
   password: string;
+  recovery?: ReactNode;
   sessionMessage?: string;
 }

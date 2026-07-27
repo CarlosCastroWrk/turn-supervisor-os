@@ -15,7 +15,7 @@ import {
   Sparkles,
   Users,
 } from 'lucide-react';
-import type { FormEvent, ReactNode } from 'react';
+import { useEffect, useRef, type FormEvent, type ReactNode } from 'react';
 import { calculateDailyGoalProgress, filterLaunchNotifications } from './model';
 import {
   LAUNCH_NOTIFICATION_TABS,
@@ -74,6 +74,7 @@ function TurnOsLockup() {
 }
 
 function LaunchHeader({
+  contentDialogOpen,
   dateLabel,
   notificationCount,
   onOpenIntelligence,
@@ -83,6 +84,7 @@ function LaunchHeader({
 }: Pick<
   LaunchCommandCenterShellProps,
   | 'dateLabel'
+  | 'contentDialogOpen'
   | 'notificationCount'
   | 'onOpenIntelligence'
   | 'onOpenNotifications'
@@ -94,7 +96,11 @@ function LaunchHeader({
     : `Open notifications, ${notificationCount ?? 0} unread`;
 
   return (
-    <header className="lcc-header">
+    <header
+      aria-hidden={contentDialogOpen || undefined}
+      className="lcc-header"
+      inert={contentDialogOpen || undefined}
+    >
       <TurnOsLockup />
       <div className="lcc-header__context" aria-label={`${propertyName}. ${dateLabel}.`}>
         <strong>{propertyName}</strong>
@@ -125,6 +131,7 @@ function LaunchHeader({
           aria-haspopup="dialog"
           aria-label="Open Turn OS Intelligence"
           data-lcc-critical-target="true"
+          id="lcc-intelligence"
           onClick={onOpenIntelligence}
           type="button"
         >
@@ -137,14 +144,20 @@ function LaunchHeader({
 
 function LaunchNavigation({
   activeDestination,
+  contentDialogOpen,
   onNavigate,
   onOpenPlus,
 }: Pick<
   LaunchCommandCenterShellProps,
-  'activeDestination' | 'onNavigate' | 'onOpenPlus'
+  'activeDestination' | 'contentDialogOpen' | 'onNavigate' | 'onOpenPlus'
 >) {
   return (
-    <nav className="lcc-navigation" aria-label="Primary">
+    <nav
+      aria-hidden={contentDialogOpen || undefined}
+      aria-label="Primary"
+      className="lcc-navigation"
+      inert={contentDialogOpen || undefined}
+    >
       {LAUNCH_PRIMARY_NAVIGATION.map((item) => {
         if (item.id === 'plus') {
           return (
@@ -152,6 +165,7 @@ function LaunchNavigation({
               aria-label="Open central add menu"
               className="lcc-navigation__plus"
               data-lcc-critical-target="true"
+              id="lcc-central-plus"
               key={item.id}
               onClick={onOpenPlus}
               type="button"
@@ -183,7 +197,12 @@ function LaunchNavigation({
 
 export function LaunchCommandCenterShell({
   activeDestination,
+  backgroundInert = false,
   children,
+  contentFocusKey,
+  contentContained = false,
+  contentDialogOpen = false,
+  contentTitle,
   dateLabel,
   notificationCount = 0,
   onNavigate,
@@ -193,9 +212,37 @@ export function LaunchCommandCenterShell({
   onOpenSearch,
   propertyName,
 }: LaunchCommandCenterShellProps) {
+  const mainRef = useRef<HTMLElement | null>(null);
+  const previousFocusKeyRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    document.title = `${contentTitle} · Turn OS`;
+    const routeChanged = previousFocusKeyRef.current !== contentFocusKey;
+    previousFocusKeyRef.current = contentFocusKey;
+    if (!routeChanged || backgroundInert) return;
+    const frame = window.requestAnimationFrame(() => {
+      const main = mainRef.current;
+      const activeElement = document.activeElement;
+      if (main && activeElement && activeElement !== main && main.contains(activeElement)) {
+        return;
+      }
+      mainRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [backgroundInert, contentFocusKey, contentTitle]);
+
   return (
-    <div className="lcc-root lcc-shell" data-testid="launch-command-center-shell">
+    <div
+      aria-hidden={backgroundInert || undefined}
+      className="lcc-root lcc-shell"
+      data-testid="launch-command-center-shell"
+      inert={backgroundInert || undefined}
+    >
+      <a className="lcc-skip-link" href="#launch-command-center-main">
+        Skip to main content
+      </a>
       <LaunchHeader
+        contentDialogOpen={contentDialogOpen}
         dateLabel={dateLabel}
         notificationCount={notificationCount}
         onOpenIntelligence={onOpenIntelligence}
@@ -206,10 +253,16 @@ export function LaunchCommandCenterShell({
       <div className="lcc-shell__body">
         <LaunchNavigation
           activeDestination={activeDestination}
+          contentDialogOpen={contentDialogOpen}
           onNavigate={onNavigate}
           onOpenPlus={onOpenPlus}
         />
-        <main className="lcc-shell__main" id="launch-command-center-main">
+        <main
+          className={`lcc-shell__main ${contentContained ? 'is-contained' : ''}`}
+          id="launch-command-center-main"
+          ref={mainRef}
+          tabIndex={-1}
+        >
           {children}
         </main>
       </div>
@@ -229,28 +282,46 @@ export function LaunchHome({
 
   return (
     <section className="lcc-home" aria-label="Home command center">
-      <section className="lcc-goal" aria-labelledby="lcc-daily-goal-title">
+      <section
+        className={`lcc-goal ${goal.configured ? '' : 'is-unconfigured'}`}
+        aria-labelledby="lcc-daily-goal-title"
+      >
         <div className="lcc-goal__heading">
           <span>
             <small id="lcc-daily-goal-title">Daily goal</small>
-            <strong>{goal.metric} · {goal.milestone}</strong>
+            <strong>
+              {goal.configured
+                ? `${goal.metric} · ${goal.milestone}`
+                : 'Daily goal not configured'}
+            </strong>
+            {!goal.configured ? (
+              <em>Recommended setup: {goal.metric} · {goal.milestone}</em>
+            ) : null}
           </span>
           <time dateTime={goal.dateISO}>{goal.dateLabel}</time>
         </div>
-        <div className="lcc-goal__numbers">
-          <strong>{progress}%</strong>
-          <span>{goal.actual} of {goal.target}</span>
-        </div>
-        <div
-          aria-label={`${progress}% of daily goal`}
-          aria-valuemax={100}
-          aria-valuemin={0}
-          aria-valuenow={progress}
-          className="lcc-progress"
-          role="progressbar"
-        >
-          <span style={{ width: `${progress}%` }} />
-        </div>
+        {goal.configured ? (
+          <>
+            <div className="lcc-goal__numbers">
+              <strong>{progress}%</strong>
+              <span>{goal.actual} of {goal.target}</span>
+            </div>
+            <div
+              aria-label={`${progress}% of daily goal`}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={progress}
+              className="lcc-progress"
+              role="progressbar"
+            >
+              <span style={{ width: `${progress}%` }} />
+            </div>
+          </>
+        ) : (
+          <p className="lcc-goal__setup-note">
+            Complete the personal onboarding goal step before progress is counted.
+          </p>
+        )}
       </section>
 
       <section className="lcc-status-grid" aria-label="Current field counts">
@@ -482,6 +553,7 @@ export function LaunchLoginSurface({
   onPasswordChange,
   onSubmit,
   password,
+  recovery,
   sessionMessage,
 }: LaunchLoginSurfaceProps) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -546,9 +618,11 @@ export function LaunchLoginSurface({
             <strong>{online ? 'Connection available' : 'Offline'}</strong>
             <span>{online
               ? (sessionMessage ?? 'Your existing authenticated session can reopen this local workspace.')
-              : 'Sign-in needs a connection. An existing local session should keep the field workspace available.'}</span>
+              : (sessionMessage
+                  ?? 'Sign-in needs a connection. Saved field data stays locked unless a previously authenticated account matches this device cache.')}</span>
           </p>
         </div>
+        {recovery ? <div className="lcc-login__recovery">{recovery}</div> : null}
       </section>
     </main>
   );

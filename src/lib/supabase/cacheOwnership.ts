@@ -1,4 +1,5 @@
 const CACHE_OWNER_KEY = 'turn-supervisor-os:cache-owner:v1';
+const LAST_AUTHENTICATED_USER_KEY = 'turn-supervisor-os:last-authenticated-user:v1';
 
 export interface SyncIdentity {
   generation: number;
@@ -33,6 +34,32 @@ export const clearLocalCacheOwner = () => {
   try {
     window.localStorage.removeItem(CACHE_OWNER_KEY);
     return window.localStorage.getItem(CACHE_OWNER_KEY) === null;
+  } catch {
+    return false;
+  }
+};
+
+export const getLastAuthenticatedUserId = () => {
+  try {
+    return window.localStorage.getItem(LAST_AUTHENTICATED_USER_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setLastAuthenticatedUserId = (userId: string) => {
+  try {
+    window.localStorage.setItem(LAST_AUTHENTICATED_USER_KEY, userId);
+    return window.localStorage.getItem(LAST_AUTHENTICATED_USER_KEY) === userId;
+  } catch {
+    return false;
+  }
+};
+
+export const clearLastAuthenticatedUserId = () => {
+  try {
+    window.localStorage.removeItem(LAST_AUTHENTICATED_USER_KEY);
+    return window.localStorage.getItem(LAST_AUTHENTICATED_USER_KEY) === null;
   } catch {
     return false;
   }

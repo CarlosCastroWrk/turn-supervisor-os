@@ -53,7 +53,7 @@ try {
   const desktopPage = await desktopContext.newPage();
   const desktopFindings = attachRuntimeChecks(desktopPage);
   await desktopPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await desktopPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await desktopPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   const desktopDialog = desktopPage.locator('.capture-workspace[role="dialog"]');
   await desktopDialog.waitFor();
   await desktopPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
@@ -111,7 +111,8 @@ try {
   await desktopPage.screenshot({ path: desktopScreenshot, fullPage: false });
   await desktopPage.getByRole('button', { name: 'Open Unit', exact: true }).click();
   await desktopDialog.waitFor({ state: 'hidden' });
-  assert.match(desktopPage.url(), /#\/units\//);
+  assert.match(desktopPage.url(), /#\/unit\//);
+  await desktopPage.getByLabel('Quick note', { exact: true }).waitFor();
   assert.deepEqual(desktopFindings, [], `Desktop runtime findings:\n${desktopFindings.join('\n')}`);
   await desktopContext.close();
 
@@ -119,7 +120,7 @@ try {
   const failurePage = await failureContext.newPage();
   const failureFindings = attachRuntimeChecks(failurePage);
   await failurePage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await failurePage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await failurePage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   await failurePage.getByRole('button', { name: /UPDATE/ }).click();
   await failurePage.getByRole('button', { name: 'Type', exact: true }).click();
   await failurePage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill('Unit 204 paint is done.');
@@ -147,7 +148,7 @@ try {
   const mobilePage = await mobileContext.newPage();
   const mobileFindings = attachRuntimeChecks(mobilePage);
   await mobilePage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await mobilePage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await mobilePage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   const mobileDialog = mobilePage.locator('.capture-workspace[role="dialog"]');
   await mobileDialog.waitFor();
   await mobilePage.waitForTimeout(220);
@@ -169,22 +170,14 @@ try {
   await mobilePage.screenshot({ path: mobileCaptureScreenshot, fullPage: false });
   await mobilePage.keyboard.press('Escape');
   await mobileDialog.waitFor({ state: 'hidden' });
-  const mobileCaptureButton = mobilePage.getByRole('button', { name: 'Open Capture attachments', exact: true });
-  assert.equal(await mobileCaptureButton.getAttribute('aria-expanded'), 'false');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Open Capture attachments');
-  await mobilePage.getByRole('button', { name: 'More', exact: true }).click();
-  const mobileMoreDialog = mobilePage.getByRole('dialog', { name: 'More', exact: true });
-  await mobileMoreDialog.waitFor();
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More');
-  assert.equal(await mobilePage.locator('.j28-shell-background[inert]').count(), 1, 'More menu did not isolate the field workspace.');
-  await mobilePage.keyboard.press('Shift+Tab');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.textContent?.trim()), 'Sync & diagnosticsLocal save and optional sync health');
-  await mobilePage.keyboard.press('Tab');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More');
-  await mobilePage.keyboard.press('Escape');
-  await mobileMoreDialog.waitFor({ state: 'hidden' });
-  await mobilePage.waitForFunction(() => document.activeElement?.textContent?.trim() === 'More');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.textContent?.trim()), 'More');
+  await mobilePage.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
+  await mobilePage.getByRole('navigation', { name: 'Primary' })
+    .getByRole('button', { name: 'More', exact: true })
+    .click();
+  await mobilePage.getByRole('heading', { name: 'More', exact: true }).waitFor();
+  assert.equal(await mobilePage.locator('[role="dialog"]').count(), 0, 'More should be a full-page destination.');
+  assert.equal(await mobilePage.evaluate(() => window.location.hash), '#/more');
+  await assertNoHorizontalOverflow(mobilePage, 'mobile More destination');
   const mobileScreenshot = path.join(screenshotDirectory, 'mobile-field-home.png');
   await mobilePage.screenshot({ path: mobileScreenshot, fullPage: false });
   assert.deepEqual(mobileFindings, [], `Mobile runtime findings:\n${mobileFindings.join('\n')}`);
@@ -197,7 +190,7 @@ try {
   await assertNoHorizontalOverflow(tabletPage, 'iPad field home');
   const tabletHomeScreenshot = path.join(screenshotDirectory, 'ipad-field-home.png');
   await tabletPage.screenshot({ path: tabletHomeScreenshot, fullPage: false });
-  await tabletPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
+  await tabletPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   await tabletPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
   await tabletPage.getByRole('button', { name: /NOTE/ }).click();
   await tabletPage.getByRole('button', { name: 'Voice', exact: true }).click();
@@ -219,22 +212,18 @@ try {
   const boardFindings = attachRuntimeChecks(boardPage);
   await boardPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
   await boardPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-  await boardPage.getByRole('button', { name: 'Expand Turn OS assistant', exact: true }).click();
-  await boardPage.getByRole('button', { name: 'Open Turn OS add menu', exact: true }).click();
-  const boardPlusSheet = boardPage.getByRole('dialog', { name: 'Add to Turn OS', exact: true });
-  await boardPlusSheet.waitFor();
-  await boardPlusSheet.getByRole('button', { name: 'Photo or File', exact: true }).click();
+  await boardPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
   const boardCaptureDialog = boardPage.locator('.capture-workspace[role="dialog"]');
   await boardCaptureDialog.waitFor();
-  assert.equal(await boardPage.locator('[role="dialog"]').count(), 1, 'BoardFirst Photo-or-File handoff stacked dialogs.');
+  assert.equal(await boardPage.locator('[role="dialog"]').count(), 1, 'TurnBoard Capture handoff stacked dialogs.');
   assert.equal(
-    await boardPage.locator('.w1r-shell__app[inert][aria-hidden="true"]').count(),
+    await boardPage.locator('.lcc-root[inert][aria-hidden="true"]').count(),
     1,
-    'BoardFirst background remained interactive beneath Capture.',
+    'Unified shell background remained interactive beneath Capture.',
   );
   await boardPage.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
   await boardCaptureDialog.waitFor({ state: 'hidden' });
-  await boardPage.waitForFunction(() => document.activeElement?.id === 'w1r-assistant-plus');
+  await boardPage.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
   assert.equal(await boardPage.evaluate(() => window.location.hash), '#/units');
   assert.deepEqual(boardFindings, [], `BoardFirst Capture handoff runtime findings:\n${boardFindings.join('\n')}`);
   await boardContext.close();
@@ -246,7 +235,7 @@ try {
     tabletHomeScreenshot,
     tabletCaptureScreenshot,
     storedPhoto,
-    boardFirstPhotoFileHandoff: 'passed',
+    turnBoardCaptureHandoff: 'passed',
   }, null, 2));
 } finally {
   await browser?.close();

@@ -407,6 +407,10 @@ function App() {
     };
   }, [navigate]);
 
+  const navigateBoardUnit = useCallback((unitId?: string) => {
+    navigate(unitId ? 'unitDetail' : 'units', unitId);
+  }, [navigate]);
+
   const boardSaveAlert = saveStatus.state === 'failed' ? (
     <section className="persistence-alert w1r-host-alert" role="alert" aria-live="assertive">
       <AlertTriangle size={22} aria-hidden="true" />
@@ -433,17 +437,41 @@ function App() {
     </section>
   ) : null;
 
+  const boardCacheAlert = sync.status === 'cache_transition_required' ? (
+    <section className="persistence-alert w1r-host-alert" role="alert" aria-live="assertive">
+      <AlertTriangle size={22} aria-hidden="true" />
+      <div>
+        <strong>Sync cache needs review</strong>
+        <p>
+          This device’s local Turn data must be reviewed before sync can continue.
+          No sync, account, or paper status changes from this warning.
+        </p>
+      </div>
+      <div className="persistence-alert__actions">
+        <button type="button" onClick={() => navigate('sync')}>
+          Open Sync &amp; diagnostics
+        </button>
+      </div>
+    </section>
+  ) : null;
+
   return (
     <>
       {boardFirstActive ? (
         <BoardFirstShell
           activityItems={boardActivity}
           externalDialogOpen={captureOpen}
-          hostStatusSlot={boardSaveAlert}
+          hostStatusSlot={(
+            <>
+              {boardSaveAlert}
+              {boardCacheAlert}
+            </>
+          )}
           initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
           onAssistantSubmit={submitBoardAssistant}
           onCaptureRequest={openBoardCapture}
           onHostNavigate={navigateBoardHost}
+          onUnitNavigate={navigateBoardUnit}
         />
       ) : (
         <AppShell

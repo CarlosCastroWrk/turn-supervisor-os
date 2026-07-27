@@ -16,6 +16,8 @@ export const BOARD_FIRST_NAVIGATION = [
 export type BoardFirstView = (typeof BOARD_FIRST_NAVIGATION)[number]['id'];
 export const DEFAULT_BOARD_FIRST_VIEW: BoardFirstView = 'turnboard';
 
+export type BoardFirstBoardFilter = 'all' | 'needs-me' | 'assignment-conflict';
+
 export const BOARD_FIRST_HOST_DESTINATIONS = [
   { id: 'crews', label: 'Crews' },
   { id: 'reports', label: 'Reports' },
@@ -59,6 +61,7 @@ export interface BoardFirstUnitProjection {
   unitTypeLabel: string;
   locationLabel: string;
   applicableSections: Jul28Section[];
+  assignmentConflict: boolean;
   paint: BoardFirstTradeProjection;
   clean: BoardFirstTradeProjection;
   highestAttention: BoardFirstAttentionProjection | null;
@@ -228,4 +231,5 @@ export interface BoardFirstShellProps {
   onAssistantSubmit?: (request: BoardFirstAssistantRequest) => void;
   onCaptureRequest?: BoardFirstCaptureHandler;
   onHostNavigate?: BoardFirstHostNavigationHandler;
+  onUnitNavigate?: (unitId?: string) => void;
 }

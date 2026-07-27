@@ -14,10 +14,8 @@ const targets = [
 ];
 
 const commandRoutes = [
-  { name: 'Today', hash: '#/dashboard' },
-  { name: 'TurnBoard', hash: '#/units' },
   { name: 'Queue', hash: '#/review' },
-  { name: 'Unit workspace', hash: '#/units/jul28-unit-602' },
+  { name: 'Legacy Unit workspace', hash: '#/units/unit_202' },
 ];
 
 const attachRuntimeChecks = (page) => {
@@ -60,6 +58,10 @@ const closeCommand = async (page, expectedHash, expectedFocusLabel, label) => {
   await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('[role="dialog"]').count(), 0, `${label} needed more than one Close.`);
   assert.equal(await page.evaluate(() => window.location.hash), expectedHash, `${label} changed its origin route.`);
+  await page.waitForFunction(
+    (focusLabel) => document.activeElement?.getAttribute('aria-label') === focusLabel,
+    expectedFocusLabel,
+  );
   assert.equal(
     await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
     expectedFocusLabel,
@@ -111,65 +113,38 @@ try {
       await assertNoHorizontalOverflow(page, `${target.name} ${route.name}`);
     }
 
-    await page.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
     const commandInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
     await commandInput.fill('602');
     const unitMatches = page.getByRole('listbox', { name: 'Current Turn Unit matches' });
     await unitMatches.waitFor();
     await unitMatches.getByRole('option', { name: /Unit 602/ }).click();
     await page.waitForFunction(() => window.location.hash === '#/units/jul28-unit-602');
-    const contextChip = page.locator('.turn-command-bar__context');
-    await contextChip.waitFor();
-    assert.match(await contextChip.innerText(), /^Unit 602/);
+    await page.getByRole('heading', { name: 'Unit 602', exact: true }).waitFor();
     assert.equal(
-      (await contextChip.innerText()).includes('Context:'),
-      false,
-      'Unit context retained technical Context copy.',
+      await page.getByRole('region', { name: 'Turn OS command bar' }).count(),
+      0,
+      'Explicit Unit selection retained the superseded legacy command bar in BoardFirst.',
     );
     assert.equal(await page.locator('[role="dialog"]').count(), 0, 'Unit selection opened Capture or changed status.');
-    const contextInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-    await contextInput.fill('603');
-    await page.getByRole('option', { name: /Unit 603/ }).click();
-    await page.waitForFunction(() => window.location.hash === '#/units/jul28-unit-603');
-    assert.match(await contextChip.innerText(), /^Unit 603/);
     assert.equal(
-      await contextInput.inputValue(),
-      '',
-      `${target.name} did not clear Unit search after Unit-to-Unit navigation.`,
+      await page.locator('.turn-command-bar__context').count(),
+      0,
+      `${target.name} retained a legacy Unit-context chip in BoardFirst.`,
     );
     assert.equal(
       await page.getByRole('listbox', { name: 'Current Turn Unit matches' }).count(),
       0,
-      `${target.name} kept Unit suggestions open after Unit-to-Unit navigation.`,
+      `${target.name} kept legacy Unit suggestions open after BoardFirst navigation.`,
     );
     assert.equal(
-      await contextInput.evaluate((element) => document.activeElement === element),
+      await page.evaluate(() =>
+        document.activeElement?.getAttribute('aria-label') === 'Ask, update, or search Turn OS'),
       false,
-      `${target.name} kept the command input focused after Unit-to-Unit navigation.`,
+      `${target.name} kept the legacy command input focused after BoardFirst navigation.`,
     );
-    const preservedContextWording = 'Keep this wording while context changes.';
-    await contextInput.fill(preservedContextWording);
-    const removeContext = page.getByRole('button', { name: 'Remove Unit 603 context', exact: true });
-    const removeContextBox = await removeContext.boundingBox();
-    assert.ok(
-      removeContextBox && removeContextBox.width >= 44 && removeContextBox.height >= 44,
-      `${target.name} Unit-context remove target was smaller than 44×44.`,
-    );
-    await removeContext.click();
-    assert.equal(
-      await contextInput.inputValue(),
-      preservedContextWording,
-      `${target.name} lost wording when Unit context was removed.`,
-    );
-    assert.equal(await contextChip.count(), 0, `${target.name} did not remove Unit context.`);
-    assert.equal(
-      await page.evaluate(() => window.location.hash),
-      '#/units/jul28-unit-603',
-      `${target.name} navigated while removing Unit context.`,
-    );
-    await contextInput.fill('');
 
-    await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
     const sourceInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
     await sourceInput.fill(sourceText);
     const commandBar = page.getByRole('region', { name: 'Turn OS command bar' });
@@ -191,7 +166,7 @@ try {
     );
     await closeCommand(
       page,
-      '#/units',
+      '#/review',
       'Start voice capture',
       `${target.name} typed command`,
     );
@@ -213,7 +188,7 @@ try {
     );
     await closeCommand(
       page,
-      '#/units',
+      '#/review',
       'Ask, update, or search Turn OS',
       `${target.name} protected in-memory source`,
     );
@@ -239,25 +214,30 @@ try {
       0,
       `${target.name} microphone entry asked for intent before source.`,
     );
-    await closeCommand(page, '#/units', 'Start voice capture', `${target.name} microphone entry`);
+    await closeCommand(page, '#/review', 'Start voice capture', `${target.name} microphone entry`);
 
     await page.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
     await assertSingleCommandSurface(page, `${target.name} Plus entry`);
     await closeCommand(
       page,
-      '#/units',
+      '#/review',
       'Open Capture attachments',
       `${target.name} Plus entry`,
     );
 
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
     await assertSingleCommandSurface(page, `${target.name} legacy entry`);
-    assert.equal(await page.evaluate(() => window.location.hash), '#/dashboard');
-    await closeCommand(page, '#/dashboard', 'Start voice capture', `${target.name} legacy entry`);
+    assert.equal(await page.evaluate(() => window.location.hash), '#/units');
+    await closeCommand(
+      page,
+      '#/units',
+      'Expand Turn OS assistant',
+      `${target.name} legacy entry`,
+    );
 
     if (target.name === 'iPhone') {
-      const primaryNav = page.getByRole('navigation', { name: 'Turn OS navigation' });
-      for (const label of ['Today', 'TurnBoard', 'More']) {
+      const primaryNav = page.getByRole('navigation', { name: 'Primary' });
+      for (const label of ['TurnBoard', 'Activity', 'More']) {
         assert.equal(
           await primaryNav.getByRole('button', { name: label, exact: true }).count(),
           1,
@@ -267,7 +247,7 @@ try {
       assert.equal(
         await primaryNav.getByRole('button', { name: 'Queue', exact: true }).count(),
         0,
-        'iPhone retained Queue as a permanent navigation destination.',
+        'iPhone exposed Queue as a BoardFirst primary navigation destination.',
       );
       assert.equal(
         await primaryNav.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
@@ -283,7 +263,7 @@ try {
   const exactContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const exactPage = await exactContext.newPage();
   const exactFindings = attachRuntimeChecks(exactPage);
-  await exactPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await exactPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   const exactInput = exactPage.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
   await exactInput.fill('602');
   const exactSend = exactPage.getByRole('button', { name: 'Send to Turn OS', exact: true });
@@ -292,7 +272,7 @@ try {
   await assertSingleCommandSurface(exactPage, 'Exact Unit Send');
   assert.equal(
     await exactPage.evaluate(() => window.location.hash),
-    '#/units',
+    '#/review',
     'Exact Unit Send silently navigated instead of opening Capture.',
   );
   await exactPage.getByRole('button', { name: /UPDATE/ }).click();
@@ -302,7 +282,7 @@ try {
     '602',
     'Exact Unit Send did not preserve the complete wording.',
   );
-  await closeCommand(exactPage, '#/units', 'Start voice capture', 'Exact Unit Send');
+  await closeCommand(exactPage, '#/review', 'Start voice capture', 'Exact Unit Send');
   await assertNoHorizontalOverflow(exactPage, 'Exact Unit Send iPhone');
   assert.deepEqual(exactFindings, [], `Exact Unit runtime findings:\n${exactFindings.join('\n')}`);
   await exactContext.close();
@@ -310,7 +290,7 @@ try {
   const prefixContext = await browser.newContext({ viewport: { width: 390, height: 500 } });
   const prefixPage = await prefixContext.newPage();
   const prefixFindings = attachRuntimeChecks(prefixPage);
-  await prefixPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  await prefixPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   const prefixInput = prefixPage.getByRole('combobox', {
     name: 'Ask, update, or search Turn OS',
     exact: true,
@@ -325,7 +305,7 @@ try {
     );
     assert.equal(
       await prefixPage.evaluate(() => window.location.hash),
-      '#/dashboard',
+      '#/review',
       `${query} navigated without an explicit Unit selection.`,
     );
     assert.equal(
@@ -362,7 +342,7 @@ try {
 
   assert.equal(
     await prefixPage.evaluate(() => window.location.hash),
-    '#/dashboard',
+    '#/review',
     'Showing Unit suggestions navigated without an explicit selection.',
   );
   assert.equal(
@@ -389,7 +369,7 @@ try {
 
   const ambiguousContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const ambiguousPage = await ambiguousContext.newPage();
-  await ambiguousPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  await ambiguousPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   const ambiguousInput = ambiguousPage.getByRole('combobox', {
     name: 'Ask, update, or search Turn OS',
     exact: true,
@@ -400,7 +380,7 @@ try {
   await assertSingleCommandSurface(ambiguousPage, 'Ambiguous Unit explicit submission');
   assert.equal(
     await ambiguousPage.evaluate(() => window.location.hash),
-    '#/dashboard',
+    '#/review',
     'Ambiguous Unit submission guessed a navigation destination.',
   );
   await ambiguousPage.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();

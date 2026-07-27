@@ -18,12 +18,14 @@ import {
   MoreHorizontal,
   PaintRoller,
   Plus,
+  Search,
   ShieldCheck,
   Sparkles,
   Settings,
   Users,
 } from 'lucide-react';
 import {
+  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -51,6 +53,7 @@ import {
   createBoardFirstAssignmentActivityItem,
   createBoardFirstAssignmentProposal,
   eligibleAssignmentSections,
+  filterBoardFirstBoard,
   initialBoardFirstAssistantState,
   listBoardFirstCrewOptions,
   projectBoardFirstActivity,
@@ -68,6 +71,7 @@ import {
   DEFAULT_BOARD_FIRST_VIEW,
   type BoardFirstActivityItem,
   type BoardFirstAssignmentProposal,
+  type BoardFirstBoardFilter,
   type BoardFirstCaptureRequest,
   type BoardFirstCaptureKind,
   type BoardFirstHostDestination,
@@ -91,12 +95,36 @@ type OpenSheet =
 
 type DetailTab = { id: DetailPanel; label: string };
 
+interface BoardFirstSheetHistoryEntry {
+  sheet: Exclude<OpenSheet, null>;
+  triggerId: string;
+}
+
 const DETAIL_TABS: readonly DetailTab[] = [
   { id: 'paint', label: 'Paint' },
   { id: 'clean', label: 'Clean' },
   { id: 'blockers', label: 'Blockers' },
   { id: 'history', label: 'Notes & History' },
 ];
+
+const BOARD_FIRST_SHEET_HISTORY_KEY = 'turnOsBoardFirstSheet';
+
+const readBoardFirstHistoryState = (): Record<string, unknown> => {
+  if (typeof window === 'undefined') return {};
+  const state = window.history.state;
+  return state && typeof state === 'object' ? state as Record<string, unknown> : {};
+};
+
+const readBoardFirstSheetHistory = (): BoardFirstSheetHistoryEntry | null => {
+  const value = readBoardFirstHistoryState()[BOARD_FIRST_SHEET_HISTORY_KEY];
+  if (!value || typeof value !== 'object') return null;
+  const entry = value as Partial<BoardFirstSheetHistoryEntry>;
+  if (typeof entry.triggerId !== 'string' || !entry.sheet || typeof entry.sheet !== 'object') {
+    return null;
+  }
+  if (!['needs-me', 'plus', 'section', 'assignment'].includes(entry.sheet.kind)) return null;
+  return entry as BoardFirstSheetHistoryEntry;
+};
 
 const tradeLabels: Record<Jul28Trade, string> = { paint: 'Paint', clean: 'Clean' };
 const sectionLabels: Record<Jul28Section, string> = {
@@ -269,7 +297,7 @@ function TradeStrip({
   );
 }
 
-function UnitRow({
+const UnitRow = memo(function UnitRow({
   projection,
   selected,
   onOpenAssignment,
@@ -278,9 +306,18 @@ function UnitRow({
 }: {
   projection: BoardFirstUnitProjection;
   selected: boolean;
-  onOpenAssignment: (trade: Jul28Trade, trigger: HTMLButtonElement) => void;
-  onOpenSection: (trade: Jul28Trade, section: Jul28Section, trigger: HTMLButtonElement) => void;
-  onOpenUnit: (trigger: HTMLButtonElement) => void;
+  onOpenAssignment: (
+    unitId: string,
+    trade: Jul28Trade,
+    trigger: HTMLButtonElement,
+  ) => void;
+  onOpenSection: (
+    unitId: string,
+    trade: Jul28Trade,
+    section: Jul28Section,
+    trigger: HTMLButtonElement,
+  ) => void;
+  onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
     <article
@@ -293,7 +330,7 @@ function UnitRow({
           className="w1r-unit-row__identity"
           data-w1r-critical-target="true"
           id={`w1r-unit-open-${projection.unitId}`}
-          onClick={(event) => onOpenUnit(event.currentTarget)}
+          onClick={(event) => onOpenUnit(projection.unitId, event.currentTarget)}
           type="button"
           aria-label={`Open Unit ${projection.unitNumber}`}
         >
@@ -312,15 +349,19 @@ function UnitRow({
         trade={projection.paint}
         unitId={projection.unitId}
         unitNumber={projection.unitNumber}
-        onOpenAssignment={(trigger) => onOpenAssignment('paint', trigger)}
-        onOpenSection={(section, trigger) => onOpenSection('paint', section, trigger)}
+        onOpenAssignment={(trigger) =>
+          onOpenAssignment(projection.unitId, 'paint', trigger)}
+        onOpenSection={(section, trigger) =>
+          onOpenSection(projection.unitId, 'paint', section, trigger)}
       />
       <TradeStrip
         trade={projection.clean}
         unitId={projection.unitId}
         unitNumber={projection.unitNumber}
-        onOpenAssignment={(trigger) => onOpenAssignment('clean', trigger)}
-        onOpenSection={(section, trigger) => onOpenSection('clean', section, trigger)}
+        onOpenAssignment={(trigger) =>
+          onOpenAssignment(projection.unitId, 'clean', trigger)}
+        onOpenSection={(section, trigger) =>
+          onOpenSection(projection.unitId, 'clean', section, trigger)}
       />
 
       {projection.highestAttention ? (
@@ -329,6 +370,7 @@ function UnitRow({
           data-w1r-critical-target="true"
           id={`w1r-attention-${projection.unitId}`}
           onClick={(event) => onOpenSection(
+            projection.unitId,
             projection.highestAttention!.trade,
             projection.highestAttention!.section,
             event.currentTarget,
@@ -345,17 +387,31 @@ function UnitRow({
       ) : null}
     </article>
   );
-}
+});
 
 function TurnBoardSurface({
+  assignmentConflictCount,
+  filter,
+  needsMeCount,
+  onFilterChange,
   projections,
+  query,
   selectedUnitId,
+  totalCount,
+  onQueryChange,
   onOpenAssignment,
   onOpenSection,
   onOpenUnit,
 }: {
+  assignmentConflictCount: number;
+  filter: BoardFirstBoardFilter;
+  needsMeCount: number;
+  onFilterChange: (filter: BoardFirstBoardFilter) => void;
   projections: readonly BoardFirstUnitProjection[];
+  query: string;
   selectedUnitId: string;
+  totalCount: number;
+  onQueryChange: (query: string) => void;
   onOpenAssignment: (unitId: string, trade: Jul28Trade, trigger: HTMLButtonElement) => void;
   onOpenSection: (
     unitId: string,
@@ -370,9 +426,46 @@ function TurnBoardSurface({
       <div className="w1r-surface-heading">
         <div>
           <h1 id="w1r-board-title">TurnBoard</h1>
-          <p>{projections.length} synthetic Units · Paint and Clean stay separate</p>
+          <p>
+            {projections.length === totalCount
+              ? `${totalCount} synthetic Units`
+              : `${projections.length} of ${totalCount} synthetic Units`}
+            {' · Paint and Clean stay separate'}
+          </p>
         </div>
         <span><ShieldCheck size={15} aria-hidden="true" />Paper remains authoritative</span>
+      </div>
+      <div className="w1r-board-controls">
+        <label className="w1r-board-search">
+          <span className="w1r-visually-hidden">Search TurnBoard Units or crew</span>
+          <Search size={18} aria-hidden="true" />
+          <input
+            aria-label="Search TurnBoard Units or crew"
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search units or crew"
+            type="search"
+            value={query}
+          />
+        </label>
+        <div className="w1r-board-filters" role="group" aria-label="Filter TurnBoard Units">
+          {([
+            ['all', 'All', totalCount],
+            ['needs-me', 'Needs Me', needsMeCount],
+            ['assignment-conflict', 'Assignment conflict', assignmentConflictCount],
+          ] as const).map(([id, label, count]) => (
+            <button
+              aria-pressed={filter === id}
+              className={filter === id ? 'is-active' : ''}
+              data-w1r-critical-target="true"
+              key={id}
+              onClick={() => onFilterChange(id)}
+              type="button"
+            >
+              <span>{label}</span>
+              <small>{count}</small>
+            </button>
+          ))}
+        </div>
       </div>
       <div className="w1r-unit-list">
         {projections.map((projection) => (
@@ -380,12 +473,16 @@ function TurnBoardSurface({
             key={projection.unitId}
             projection={projection}
             selected={selectedUnitId === projection.unitId}
-            onOpenAssignment={(trade, trigger) => onOpenAssignment(projection.unitId, trade, trigger)}
-            onOpenSection={(trade, section, trigger) =>
-              onOpenSection(projection.unitId, trade, section, trigger)}
-            onOpenUnit={(trigger) => onOpenUnit(projection.unitId, trigger)}
+            onOpenAssignment={onOpenAssignment}
+            onOpenSection={onOpenSection}
+            onOpenUnit={onOpenUnit}
           />
         ))}
+        {projections.length === 0 ? (
+          <p className="w1r-empty-copy" role="status">
+            No synthetic Units match this search and filter.
+          </p>
+        ) : null}
       </div>
     </section>
   );
@@ -1120,9 +1217,20 @@ export function BoardFirstShell({
   onAssistantSubmit,
   onCaptureRequest,
   onHostNavigate,
+  onUnitNavigate,
 }: BoardFirstShellProps) {
   const units = useMemo(() => repository.listUnits(), [repository]);
   const projections = useMemo(() => projectBoardFirstBoard(repository), [repository]);
+  const [boardQuery, setBoardQuery] = useState('');
+  const [boardFilter, setBoardFilter] = useState<BoardFirstBoardFilter>('all');
+  const filteredProjections = useMemo(
+    () => filterBoardFirstBoard(projections, boardQuery, boardFilter),
+    [boardFilter, boardQuery, projections],
+  );
+  const boardCounts = useMemo(() => ({
+    assignmentConflict: projections.filter((projection) => projection.assignmentConflict).length,
+    needsMe: projections.filter((projection) => projection.needsMe).length,
+  }), [projections]);
   const [localActivityItems, setLocalActivityItems] = useState<BoardFirstActivityItem[]>([]);
   const activity = useMemo(
     () => projectBoardFirstActivity(repository, [...activityItems, ...localActivityItems]),
@@ -1137,11 +1245,16 @@ export function BoardFirstShell({
     initialUnitId && repository.getUnit(initialUnitId) ? initialUnitId : '',
   );
   const [detailPanel, setDetailPanel] = useState<DetailPanel>('paint');
-  const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
+  const initialSheetHistory = readBoardFirstSheetHistory();
+  const [openSheet, setOpenSheet] = useState<OpenSheet>(initialSheetHistory?.sheet ?? null);
   const [pendingCapture, setPendingCapture] = useState<BoardFirstCaptureRequest | null>(null);
   const [captureStatus, setCaptureStatus] = useState('');
   const detailHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const sheetOriginRef = useRef<HTMLElement | null>(null);
+  const sheetOriginIdRef = useRef(initialSheetHistory?.triggerId ?? '');
+  const openSheetRef = useRef<OpenSheet>(initialSheetHistory?.sheet ?? null);
+  const afterSheetCloseRef = useRef<(() => void) | null>(null);
+  const restoreSheetFocusRef = useRef(true);
   const unitOriginRef = useRef<HTMLElement | null>(null);
   const unitFallbackIdRef = useRef('');
   const receiptSequenceRef = useRef(0);
@@ -1162,9 +1275,11 @@ export function BoardFirstShell({
     const routeUnitId = initialUnitId && repository.getUnit(initialUnitId)
       ? initialUnitId
       : '';
-    setActiveView('turnboard');
     setSelectedUnitId(routeUnitId);
-    if (routeUnitId) setDetailPanel('paint');
+    if (routeUnitId) {
+      setActiveView('turnboard');
+      setDetailPanel('paint');
+    }
   }, [initialUnitId, repository]);
 
   useEffect(() => {
@@ -1194,27 +1309,103 @@ export function BoardFirstShell({
     };
   }, []);
 
-  const closeSheet = useCallback(() => {
-    const origin = sheetOriginRef.current;
-    const fallbackId = origin?.id ?? '';
+  const completeSheetClose = useCallback(() => {
+    const fallbackId = sheetOriginIdRef.current;
+    const origin = sheetOriginRef.current
+      ?? (fallbackId ? document.getElementById(fallbackId) : null);
+    const afterClose = afterSheetCloseRef.current;
+    const shouldRestoreFocus = restoreSheetFocusRef.current;
+    openSheetRef.current = null;
     setOpenSheet(null);
     sheetOriginRef.current = null;
-    scheduleFocusRestore(origin, fallbackId);
+    sheetOriginIdRef.current = '';
+    afterSheetCloseRef.current = null;
+    restoreSheetFocusRef.current = true;
+    if (shouldRestoreFocus) scheduleFocusRestore(origin, fallbackId);
+    if (afterClose) requestAnimationFrame(afterClose);
   }, [scheduleFocusRestore]);
 
-  const openNeedsMe = useCallback((trigger: HTMLButtonElement) => {
-    sheetOriginRef.current = trigger;
-    setOpenSheet({ kind: 'needs-me' });
+  const requestSheetClose = useCallback((
+    afterClose?: () => void,
+    restoreFocus = true,
+  ) => {
+    afterSheetCloseRef.current = afterClose ?? null;
+    restoreSheetFocusRef.current = restoreFocus;
+    if (readBoardFirstSheetHistory()) {
+      window.history.back();
+      return;
+    }
+    completeSheetClose();
+  }, [completeSheetClose]);
+
+  const openBoardSheet = useCallback((
+    sheet: Exclude<OpenSheet, null>,
+    trigger?: HTMLElement,
+  ) => {
+    if (trigger) {
+      sheetOriginRef.current = trigger;
+      sheetOriginIdRef.current = trigger.id;
+    }
+    const entry: BoardFirstSheetHistoryEntry = {
+      sheet,
+      triggerId: sheetOriginIdRef.current,
+    };
+    const nextState = {
+      ...readBoardFirstHistoryState(),
+      [BOARD_FIRST_SHEET_HISTORY_KEY]: entry,
+    };
+    if (readBoardFirstSheetHistory()) {
+      window.history.replaceState(nextState, '', window.location.href);
+    } else {
+      window.history.pushState(nextState, '', window.location.href);
+    }
+    openSheetRef.current = sheet;
+    setOpenSheet(sheet);
   }, []);
 
-  const openUnit = useCallback((unitId: string, trigger?: HTMLElement) => {
+  useEffect(() => {
+    const handleSheetHistory = () => {
+      const historyEntry = readBoardFirstSheetHistory();
+      if (historyEntry) {
+        sheetOriginIdRef.current = historyEntry.triggerId;
+        sheetOriginRef.current = historyEntry.triggerId
+          ? document.getElementById(historyEntry.triggerId)
+          : null;
+        openSheetRef.current = historyEntry.sheet;
+        setOpenSheet(historyEntry.sheet);
+        return;
+      }
+      if (openSheetRef.current) completeSheetClose();
+    };
+
+    window.addEventListener('popstate', handleSheetHistory);
+    return () => window.removeEventListener('popstate', handleSheetHistory);
+  }, [completeSheetClose]);
+
+  const closeSheet = useCallback(() => {
+    requestSheetClose();
+  }, [requestSheetClose]);
+
+  const openNeedsMe = useCallback((trigger: HTMLButtonElement) => {
+    openBoardSheet({ kind: 'needs-me' }, trigger);
+  }, [openBoardSheet]);
+
+  const selectUnit = useCallback((unitId: string, trigger?: HTMLElement) => {
     unitOriginRef.current = trigger ?? null;
     unitFallbackIdRef.current = `w1r-unit-open-${unitId}`;
-    setOpenSheet(null);
     setActiveView('turnboard');
     setSelectedUnitId(unitId);
     setDetailPanel('paint');
-  }, []);
+    onUnitNavigate?.(unitId);
+  }, [onUnitNavigate]);
+
+  const openUnit = useCallback((unitId: string, trigger?: HTMLElement) => {
+    if (openSheetRef.current) {
+      requestSheetClose(() => selectUnit(unitId), false);
+      return;
+    }
+    selectUnit(unitId, trigger);
+  }, [requestSheetClose, selectUnit]);
 
   const closeUnit = useCallback(() => {
     const origin = unitOriginRef.current;
@@ -1223,7 +1414,8 @@ export function BoardFirstShell({
     unitOriginRef.current = null;
     unitFallbackIdRef.current = '';
     scheduleFocusRestore(origin, fallbackId);
-  }, [scheduleFocusRestore]);
+    onUnitNavigate?.();
+  }, [onUnitNavigate, scheduleFocusRestore]);
 
   const openSection = useCallback((
     unitId: string,
@@ -1231,9 +1423,8 @@ export function BoardFirstShell({
     section: Jul28Section,
     trigger: HTMLButtonElement,
   ) => {
-    sheetOriginRef.current = trigger;
-    setOpenSheet({ kind: 'section', unitId, trade, section });
-  }, []);
+    openBoardSheet({ kind: 'section', unitId, trade, section }, trigger);
+  }, [openBoardSheet]);
 
   const openAssignment = useCallback((
     unitId: string,
@@ -1241,21 +1432,32 @@ export function BoardFirstShell({
     initialSection?: Jul28Section,
     trigger?: HTMLButtonElement,
   ) => {
-    if (trigger) sheetOriginRef.current = trigger;
-    setOpenSheet({ kind: 'assignment', unitId, trade, initialSection });
-  }, []);
+    openBoardSheet({ kind: 'assignment', unitId, trade, initialSection }, trigger);
+  }, [openBoardSheet]);
 
   const queueCapture = useCallback((
     request: Omit<BoardFirstCaptureRequest, 'requestId'>,
   ) => {
     captureSequenceRef.current += 1;
     setCaptureStatus('');
-    setOpenSheet(null);
-    setPendingCapture({
+    const nextRequest: BoardFirstCaptureRequest = {
       ...request,
       requestId: `wave1r-capture-${captureSequenceRef.current}`,
-    });
-  }, []);
+    };
+    if (openSheetRef.current) {
+      requestSheetClose(() => setPendingCapture(nextRequest), false);
+      return;
+    }
+    setPendingCapture(nextRequest);
+  }, [requestSheetClose]);
+
+  const openBoardAssignment = useCallback((
+    unitId: string,
+    trade: Jul28Trade,
+    trigger: HTMLButtonElement,
+  ) => {
+    openAssignment(unitId, trade, undefined, trigger);
+  }, [openAssignment]);
 
   useEffect(() => {
     if (!pendingCapture || openSheet || dispatchedCaptureIdsRef.current.has(pendingCapture.requestId)) {
@@ -1329,7 +1531,7 @@ export function BoardFirstShell({
     >
       <div className="w1r-shell__app" aria-hidden={dialogOpen || undefined} inert={dialogOpen || undefined}>
         <ShellHeader
-          attentionCount={projections.filter((projection) => projection.needsMe).length}
+          attentionCount={boardCounts.needsMe}
           dateLabel={dateLabel}
           propertyName={propertyName}
           onOpenNeedsMe={openNeedsMe}
@@ -1340,17 +1542,26 @@ export function BoardFirstShell({
             activeView={activeView}
             onNavigate={(view) => {
               setActiveView(view);
-              if (view !== 'turnboard') setSelectedUnitId('');
+              if (view !== 'turnboard' && selectedUnitId) {
+                setSelectedUnitId('');
+                onUnitNavigate?.();
+              }
             }}
           />
           <main className="w1r-main">
             <div className="w1r-main__surface">
               {activeView === 'turnboard' ? (
                 <TurnBoardSurface
-                  projections={projections}
+                  assignmentConflictCount={boardCounts.assignmentConflict}
+                  filter={boardFilter}
+                  needsMeCount={boardCounts.needsMe}
+                  onFilterChange={setBoardFilter}
+                  onQueryChange={setBoardQuery}
+                  projections={filteredProjections}
+                  query={boardQuery}
                   selectedUnitId={selectedUnitId}
-                  onOpenAssignment={(unitId, trade, trigger) =>
-                    openAssignment(unitId, trade, undefined, trigger)}
+                  totalCount={projections.length}
+                  onOpenAssignment={openBoardAssignment}
                   onOpenSection={openSection}
                   onOpenUnit={openUnit}
                 />
@@ -1392,8 +1603,7 @@ export function BoardFirstShell({
         <AssistantBar
           message={captureStatus}
           onOpenPlus={(trigger) => {
-            sheetOriginRef.current = trigger;
-            setOpenSheet({ kind: 'plus' });
+            openBoardSheet({ kind: 'plus' }, trigger);
           }}
           onRequestVoice={(trigger) => queueCapture({
             kind: 'voice',

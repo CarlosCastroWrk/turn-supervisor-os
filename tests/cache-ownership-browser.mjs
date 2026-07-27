@@ -179,7 +179,7 @@ try {
   const switchContext = await seedContext(browser, buildRealTurn('ACCOUNT_A'), 'account-a');
   const switchPage = await switchContext.newPage();
   const switchRequests = await installFakeSupabase(switchPage);
-  await switchPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await switchPage.goto(`${baseUrl}/#/sync`, { waitUntil: 'domcontentloaded' });
 
   await signIn(switchPage, 'account-a@example.com');
   await waitForStatus(switchPage, 'Synced');
@@ -204,12 +204,20 @@ try {
     await switchPage.evaluate((key) => window.localStorage.getItem(key), ownerKey),
     'account-a',
   );
+  await switchPage.goto(`${baseUrl}/#/units`, { waitUntil: 'domcontentloaded' });
+  await switchPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+  const cacheAlert = switchPage.getByRole('alert').filter({ hasText: 'Sync cache needs review' });
+  await cacheAlert.getByText('Sync cache needs review', { exact: true }).waitFor();
+  await cacheAlert.getByText(/No sync, account, or paper status changes/).waitFor();
+  await cacheAlert.getByRole('button', { name: 'Open Sync & diagnostics', exact: true }).click();
+  await switchPage.waitForURL(/#\/sync$/);
+  await waitForStatus(switchPage, 'Cache needs review');
   await switchContext.close();
 
   const claimContext = await seedContext(browser, buildRealTurn('ACCOUNT_B'), null);
   const claimPage = await claimContext.newPage();
   const claimRequests = await installFakeSupabase(claimPage);
-  await claimPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await claimPage.goto(`${baseUrl}/#/sync`, { waitUntil: 'domcontentloaded' });
   await signIn(claimPage, 'account-b@example.com');
   await waitForStatus(claimPage, 'Cache needs review');
   await holdForVisibleReview(claimPage);

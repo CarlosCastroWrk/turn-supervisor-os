@@ -15,9 +15,8 @@ const viewports = [
 ];
 
 const origins = [
-  { name: 'Today', hash: '#/dashboard' },
-  { name: 'TurnBoard', hash: '#/units' },
   { name: 'Review', hash: '#/review' },
+  { name: 'Legacy Unit 202', hash: '#/units/unit_202' },
 ];
 
 const attachRuntimeChecks = (page) => {
@@ -68,6 +67,10 @@ const closeCaptureOnce = async (page, expectedHash, label, expectedFocusLabel = 
   await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('[role="dialog"]').count(), 0, `${label} still had a dialog after one close.`);
   assert.equal(await currentHash(page), expectedHash, `${label} did not restore its origin route.`);
+  await page.waitForFunction(
+    (focusLabel) => document.activeElement?.getAttribute('aria-label') === focusLabel,
+    expectedFocusLabel,
+  );
   assert.equal(
     await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
     expectedFocusLabel,
@@ -103,8 +106,8 @@ try {
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
     const legacyLabel = `${viewport.name} legacy bookmark`;
     await assertSingleCapture(page, legacyLabel);
-    assert.equal(await currentHash(page), '#/dashboard', `${legacyLabel} did not choose Today as its safe origin.`);
-    await closeCaptureOnce(page, '#/dashboard', legacyLabel);
+    assert.equal(await currentHash(page), '#/units', `${legacyLabel} did not choose TurnBoard as its safe origin.`);
+    await closeCaptureOnce(page, '#/units', legacyLabel, 'Expand Turn OS assistant');
 
     assert.deepEqual(findings, [], `${viewport.name} runtime findings:\n${findings.join('\n')}`);
     await context.close();
@@ -113,29 +116,37 @@ try {
   const refreshContext = await browser.newContext({ viewport: { width: 1440, height: 960 } });
   const refreshPage = await refreshContext.newPage();
   const refreshFindings = attachRuntimeChecks(refreshPage);
-  await refreshPage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await refreshPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   await refreshPage.evaluate(() => window.history.replaceState(null, '', '#/copilot'));
   await refreshPage.reload({ waitUntil: 'networkidle' });
   await assertSingleCapture(refreshPage, 'refreshed legacy bookmark');
-  assert.equal(await currentHash(refreshPage), '#/dashboard');
-  await closeCaptureOnce(refreshPage, '#/dashboard', 'refreshed legacy bookmark');
+  assert.equal(await currentHash(refreshPage), '#/units');
+  await closeCaptureOnce(
+    refreshPage,
+    '#/units',
+    'refreshed legacy bookmark',
+    'Expand Turn OS assistant',
+  );
   assert.deepEqual(refreshFindings, [], `Refresh runtime findings:\n${refreshFindings.join('\n')}`);
   await refreshContext.close();
 
   const historyContext = await browser.newContext({ viewport: { width: 1440, height: 960 } });
   const historyPage = await historyContext.newPage();
   const historyFindings = attachRuntimeChecks(historyPage);
-  await historyPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
-  await historyPage.getByRole('button', { name: 'TurnBoard', exact: true }).click();
-  await historyPage.waitForFunction(() => window.location.hash === '#/units');
+  await historyPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
+  await historyPage.evaluate(() => {
+    window.history.pushState(null, '', '#/units/unit_202');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await historyPage.waitForFunction(() => window.location.hash === '#/units/unit_202');
   await historyPage.getByRole('button', { name: 'Start voice capture', exact: true }).click();
   await assertSingleCapture(historyPage, 'browser history origin');
   await historyPage.goBack();
-  await historyPage.waitForFunction(() => window.location.hash === '#/dashboard');
+  await historyPage.waitForFunction(() => window.location.hash === '#/review');
   await historyPage.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
-  assert.equal(await historyPage.locator('[role="dialog"]').count(), 0, 'Browser Back left Capture stacked over Today.');
+  assert.equal(await historyPage.locator('[role="dialog"]').count(), 0, 'Browser Back left Capture stacked over Review.');
   await historyPage.goForward();
-  await historyPage.waitForFunction(() => window.location.hash === '#/units');
+  await historyPage.waitForFunction(() => window.location.hash === '#/units/unit_202');
   assert.equal(await historyPage.locator('[role="dialog"]').count(), 0, 'Browser Forward reopened Capture unexpectedly.');
   assert.deepEqual(historyFindings, [], `History runtime findings:\n${historyFindings.join('\n')}`);
   await historyContext.close();
@@ -143,7 +154,7 @@ try {
   const sessionContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const sessionPage = await sessionContext.newPage();
   const sessionFindings = attachRuntimeChecks(sessionPage);
-  await sessionPage.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  await sessionPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await sessionPage.getByRole('button', { name: /UPDATE/ }).click();
   await sessionPage.getByRole('button', { name: 'Type', exact: true }).click();
@@ -154,7 +165,7 @@ try {
     buffer: Buffer.from('Synthetic field note only.'),
   });
   await sessionPage.getByText(attachmentName, { exact: true }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/dashboard', 'in-memory source close', 'Open Capture attachments');
+  await closeCaptureOnce(sessionPage, '#/review', 'in-memory source close', 'Open Capture attachments');
 
   await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await assertSingleCapture(sessionPage, 'reopened in-memory source');
@@ -168,7 +179,7 @@ try {
   await sessionPage.getByRole('button', { name: 'Back', exact: true }).click();
   await sessionPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
   assert.equal(await sessionPage.locator('[role="dialog"]').count(), 1, 'Internal Back exited or stacked Capture.');
-  assert.equal(await currentHash(sessionPage), '#/dashboard', 'Internal Back changed the origin route.');
+  assert.equal(await currentHash(sessionPage), '#/review', 'Internal Back changed the origin route.');
   await sessionPage.getByRole('button', { name: /UPDATE/ }).click();
   await sessionPage.getByRole('button', { name: 'Type', exact: true }).click();
   assert.equal(
@@ -191,7 +202,7 @@ try {
   await sessionPage.getByRole('button', { name: 'Create drafts', exact: true }).click();
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   await sessionPage.getByRole('heading', { name: /Added to Review/ }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/dashboard', 'Draft result close', 'Open Capture attachments');
+  await closeCaptureOnce(sessionPage, '#/review', 'Draft result close', 'Open Capture attachments');
 
   await sessionPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await assertSingleCapture(sessionPage, 'reopened Draft result');
@@ -202,7 +213,7 @@ try {
   assert.match(preservedResultText, /Unit 202 paint is done\./, 'Completed Draft result lost its source wording.');
   assert.match(preservedResultText, /unit-202-field-note\.txt/, 'Completed Draft result lost its attachment reference.');
   assert.match(preservedResultText, /Synthetic field note only\./, 'Completed Draft result lost its attachment text.');
-  await closeCaptureOnce(sessionPage, '#/dashboard', 'reopened Draft result', 'Open Capture attachments');
+  await closeCaptureOnce(sessionPage, '#/review', 'reopened Draft result', 'Open Capture attachments');
   assert.deepEqual(sessionFindings, [], `Session runtime findings:\n${sessionFindings.join('\n')}`);
   await sessionContext.close();
 

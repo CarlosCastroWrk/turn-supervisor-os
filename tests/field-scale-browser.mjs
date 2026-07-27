@@ -121,8 +121,8 @@ const assertNoHorizontalOverflow = async (page, label) => {
   );
 };
 
-const waitForUnitCardCount = (page, expectedCount) => page.waitForFunction(
-  (count) => document.querySelectorAll('.jul28-unit-card').length === count,
+const waitForUnitRowCount = (page, expectedCount) => page.waitForFunction(
+  (count) => document.querySelectorAll('[data-testid="wave1r-unit-row"]').length === count,
   expectedCount,
 );
 
@@ -172,7 +172,7 @@ try {
     await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
     const loadMs = Math.round(performance.now() - startedAt);
-    assert.equal(await page.locator('.jul28-unit-card').count(), syntheticUnitCount);
+    assert.equal(await page.getByTestId('wave1r-unit-row').count(), syntheticUnitCount);
     assert.ok(
       loadMs < maxInitialRenderMs,
       `${target.name} needed ${loadMs}ms to render ${syntheticUnitCount} synthetic Units (limit ${maxInitialRenderMs}ms).`,
@@ -188,7 +188,7 @@ try {
     await search.click();
     const searchStartedAt = performance.now();
     await search.type('1300');
-    await waitForUnitCardCount(page, 1);
+    await waitForUnitRowCount(page, 1);
     const searchTypingMs = Math.round(performance.now() - searchStartedAt);
     assert.ok(
       searchTypingMs < maxInteractionMs,
@@ -196,27 +196,28 @@ try {
     );
 
     await search.fill('');
-    await waitForUnitCardCount(page, syntheticUnitCount);
-    const conflictFilter = page.getByRole('button', { name: /Assignment conflict/ });
+    await waitForUnitRowCount(page, syntheticUnitCount);
+    const conflictFilter = page.getByRole('button', {
+      name: `Assignment conflict ${assignmentConflictCount}`,
+      exact: true,
+    });
     const filterStartedAt = performance.now();
     await conflictFilter.click();
-    await waitForUnitCardCount(page, assignmentConflictCount);
+    await waitForUnitRowCount(page, assignmentConflictCount);
     const filterResponseMs = Math.round(performance.now() - filterStartedAt);
     assert.ok(
       filterResponseMs < maxInteractionMs,
       `${target.name} filter response needed ${filterResponseMs}ms (limit ${maxInteractionMs}ms).`,
     );
 
-    await page.getByRole('button', { name: /^All / }).click();
-    await waitForUnitCardCount(page, syntheticUnitCount);
+    await page.getByRole('button', { name: /^All\b/ }).click();
+    await waitForUnitRowCount(page, syntheticUnitCount);
     await page.evaluate(() => {
       globalThis.__pdsScaleProfileEvents.length = 0;
     });
     const unitOpenStartedAt = performance.now();
-    await page.getByRole('button', { name: 'Open Unit 1001 workspace', exact: true }).click();
-    await page.getByRole('complementary', { name: 'Selected Unit workspace' })
-      .getByRole('heading', { name: 'Unit 1001', exact: true })
-      .waitFor();
+    await page.getByRole('button', { name: 'Open Unit 1001', exact: true }).click();
+    await page.getByRole('heading', { name: 'Unit 1001', exact: true }).waitFor();
     const unitOpenMs = Math.round(performance.now() - unitOpenStartedAt);
     assert.ok(
       unitOpenMs < maxInteractionMs,
@@ -228,7 +229,7 @@ try {
       `${target.name} did not exercise the integrated App route callback.`,
     );
     assert.equal(
-      await page.locator('.jul28-unit-card').count(),
+      await page.getByTestId('wave1r-unit-row').count(),
       syntheticUnitCount,
       `${target.name} did not keep the full synthetic board mounted while opening a Unit.`,
     );
@@ -250,7 +251,7 @@ try {
       `${target.name} Unit-open render used ${(memoProfile.ratio * 100).toFixed(1)}% of the full-board render estimate `
         + `(limit ${(maxMemoizedOpenRatio * 100).toFixed(0)}%).`,
     );
-    await page.getByText('Paper TurnBoard remains authoritative.', { exact: true }).waitFor();
+    await page.getByText('Paper remains authoritative · synthetic read-only candidate', { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} selected workspace`);
 
     const screenshot = path.join(screenshotDirectory, `${target.name}.png`);

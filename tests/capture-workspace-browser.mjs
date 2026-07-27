@@ -52,7 +52,7 @@ try {
   const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 960 } });
   const desktopPage = await desktopContext.newPage();
   const desktopFindings = attachRuntimeChecks(desktopPage);
-  await desktopPage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await desktopPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   await desktopPage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   const desktopDialog = desktopPage.locator('.capture-workspace[role="dialog"]');
   await desktopDialog.waitFor();
@@ -118,7 +118,7 @@ try {
   const failureContext = await browser.newContext({ viewport: { width: 430, height: 900 } });
   const failurePage = await failureContext.newPage();
   const failureFindings = attachRuntimeChecks(failurePage);
-  await failurePage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await failurePage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   await failurePage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   await failurePage.getByRole('button', { name: /UPDATE/ }).click();
   await failurePage.getByRole('button', { name: 'Type', exact: true }).click();
@@ -146,7 +146,7 @@ try {
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mobilePage = await mobileContext.newPage();
   const mobileFindings = attachRuntimeChecks(mobilePage);
-  await mobilePage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await mobilePage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   await mobilePage.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
   const mobileDialog = mobilePage.locator('.capture-workspace[role="dialog"]');
   await mobileDialog.waitFor();
@@ -193,7 +193,7 @@ try {
   const tabletContext = await browser.newContext({ viewport: { width: 1180, height: 820 } });
   const tabletPage = await tabletContext.newPage();
   const tabletFindings = attachRuntimeChecks(tabletPage);
-  await tabletPage.goto(baseUrl, { waitUntil: 'networkidle' });
+  await tabletPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
   await assertNoHorizontalOverflow(tabletPage, 'iPad field home');
   const tabletHomeScreenshot = path.join(screenshotDirectory, 'ipad-field-home.png');
   await tabletPage.screenshot({ path: tabletHomeScreenshot, fullPage: false });
@@ -214,7 +214,40 @@ try {
   assert.deepEqual(tabletFindings, [], `iPad runtime findings:\n${tabletFindings.join('\n')}`);
   await tabletContext.close();
 
-  console.log(JSON.stringify({ desktopScreenshot, mobileCaptureScreenshot, mobileScreenshot, tabletHomeScreenshot, tabletCaptureScreenshot, storedPhoto }, null, 2));
+  const boardContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const boardPage = await boardContext.newPage();
+  const boardFindings = attachRuntimeChecks(boardPage);
+  await boardPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await boardPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+  await boardPage.getByRole('button', { name: 'Expand Turn OS assistant', exact: true }).click();
+  await boardPage.getByRole('button', { name: 'Open Turn OS add menu', exact: true }).click();
+  const boardPlusSheet = boardPage.getByRole('dialog', { name: 'Add to Turn OS', exact: true });
+  await boardPlusSheet.waitFor();
+  await boardPlusSheet.getByRole('button', { name: 'Photo or File', exact: true }).click();
+  const boardCaptureDialog = boardPage.locator('.capture-workspace[role="dialog"]');
+  await boardCaptureDialog.waitFor();
+  assert.equal(await boardPage.locator('[role="dialog"]').count(), 1, 'BoardFirst Photo-or-File handoff stacked dialogs.');
+  assert.equal(
+    await boardPage.locator('.w1r-shell__app[inert][aria-hidden="true"]').count(),
+    1,
+    'BoardFirst background remained interactive beneath Capture.',
+  );
+  await boardPage.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
+  await boardCaptureDialog.waitFor({ state: 'hidden' });
+  await boardPage.waitForFunction(() => document.activeElement?.id === 'w1r-assistant-plus');
+  assert.equal(await boardPage.evaluate(() => window.location.hash), '#/units');
+  assert.deepEqual(boardFindings, [], `BoardFirst Capture handoff runtime findings:\n${boardFindings.join('\n')}`);
+  await boardContext.close();
+
+  console.log(JSON.stringify({
+    desktopScreenshot,
+    mobileCaptureScreenshot,
+    mobileScreenshot,
+    tabletHomeScreenshot,
+    tabletCaptureScreenshot,
+    storedPhoto,
+    boardFirstPhotoFileHandoff: 'passed',
+  }, null, 2));
 } finally {
   await browser?.close();
   await server.close();

@@ -123,6 +123,84 @@ try {
     await context.close();
   }
 
+  const sheetHistorySession = await createSyntheticPage(browser, { width: 390, height: 844 });
+  const sheetHistoryPage = sheetHistorySession.page;
+  const sheetHistoryFindings = attachRuntimeChecks(sheetHistoryPage);
+  await sheetHistoryPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await sheetHistoryPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+
+  const assertSheetBack = async ({
+    dialogName,
+    focusId,
+    open,
+  }) => {
+    const routeBefore = await sheetHistoryPage.evaluate(() => window.location.hash);
+    await open();
+    const dialog = sheetHistoryPage.getByRole('dialog', { name: dialogName, exact: true });
+    await dialog.waitFor();
+    assert.equal(await sheetHistoryPage.getByRole('dialog').count(), 1);
+    await sheetHistoryPage.goBack();
+    await dialog.waitFor({ state: 'hidden' });
+    assert.equal(
+      await sheetHistoryPage.evaluate(() => window.location.hash),
+      routeBefore,
+      `${dialogName} browser Back changed the BoardFirst route.`,
+    );
+    await sheetHistoryPage.waitForFunction(
+      (expectedFocusId) => document.activeElement?.id === expectedFocusId,
+      focusId,
+    );
+    assert.equal(await sheetHistoryPage.getByRole('dialog').count(), 0);
+  };
+
+  await assertSheetBack({
+    dialogName: 'Needs Me',
+    focusId: 'w1r-header-needs-me',
+    open: () => sheetHistoryPage.getByRole('button', { name: /Open Needs Me/ }).click(),
+  });
+  await assertSheetBack({
+    dialogName: 'Unit 602',
+    focusId: 'w1r-section-jul28-unit-602-paint-common',
+    open: () => sheetHistoryPage
+      .locator('[data-unit-id="jul28-unit-602"]')
+      .getByRole('button', { name: /^Unit 602 Paint Common\b/ })
+      .click(),
+  });
+  await assertSheetBack({
+    dialogName: 'Unit 602 crew',
+    focusId: 'w1r-crew-jul28-unit-602-paint',
+    open: () => sheetHistoryPage
+      .locator('[data-unit-id="jul28-unit-602"]')
+      .getByRole('button', { name: /Paint crew for Unit 602/ })
+      .click(),
+  });
+  await openBoardAssistant(sheetHistoryPage);
+  await assertSheetBack({
+    dialogName: 'Add to Turn OS',
+    focusId: 'w1r-assistant-plus',
+    open: () => sheetHistoryPage
+      .getByRole('button', { name: 'Open Turn OS add menu', exact: true })
+      .click(),
+  });
+
+  await sheetHistoryPage.getByRole('button', { name: 'Open Turn OS add menu', exact: true }).click();
+  const escapeSheet = sheetHistoryPage.getByRole('dialog', { name: 'Add to Turn OS', exact: true });
+  await escapeSheet.waitFor();
+  await sheetHistoryPage.keyboard.press('Escape');
+  await escapeSheet.waitFor({ state: 'hidden' });
+  await sheetHistoryPage.waitForFunction(() => document.activeElement?.id === 'w1r-assistant-plus');
+  assert.equal(
+    await sheetHistoryPage.evaluate(() => window.history.state?.turnOsBoardFirstSheet),
+    undefined,
+    'Escape left a stale BoardFirst sheet history marker.',
+  );
+  assert.deepEqual(
+    sheetHistoryFindings,
+    [],
+    `Sheet-history runtime findings:\n${sheetHistoryFindings.join('\n')}`,
+  );
+  await sheetHistorySession.context.close();
+
   const boardSession = await createSyntheticPage(browser, { width: 390, height: 844 });
   const boardPage = boardSession.page;
   const boardFindings = attachRuntimeChecks(boardPage);

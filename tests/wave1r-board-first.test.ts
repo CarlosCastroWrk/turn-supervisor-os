@@ -10,11 +10,13 @@ import {
   createBoardFirstAssignmentActivityItem,
   createBoardFirstAssignmentProposal,
   eligibleAssignmentSections,
+  filterBoardFirstBoard,
   initialBoardFirstAssistantState,
   listBoardFirstCrewOptions,
   projectBoardFirstActivity,
   projectBoardFirstBoard,
   projectBoardFirstCaptureReceiptActivity,
+  projectBoardFirstUnit,
   projectBoardFirstUnitActivity,
   reduceBoardFirstAssistant,
   selectBoardFirstSectionActions,
@@ -84,6 +86,42 @@ test('dense board rows preserve identity, both trades, crew visibility, sections
   assert.equal(typeof row602.highestAttention.nextAction, 'string');
   assert.equal(Array.isArray(row602.highestAttention), false);
   assert.equal(row602.needsMe, true);
+});
+
+test('board search and filters derive from one projection with an exact assignment-conflict predicate', () => {
+  const rows = projectBoardFirstBoard(jul28SyntheticTurnBoardRepository);
+
+  assert.deepEqual(
+    filterBoardFirstBoard(rows, 'Unit 603', 'all').map((row) => row.unitNumber),
+    ['603'],
+  );
+  assert.deepEqual(
+    filterBoardFirstBoard(rows, 'Level 13', 'all').map((row) => row.unitNumber),
+    ['1305'],
+  );
+  assert.deepEqual(
+    filterBoardFirstBoard(rows, 'Bluebird Paint', 'all').map((row) => row.unitNumber),
+    ['602', '604'],
+  );
+  assert.deepEqual(
+    filterBoardFirstBoard(rows, '', 'assignment-conflict').map((row) => row.unitNumber),
+    ['604'],
+  );
+  assert.ok(filterBoardFirstBoard(rows, '', 'needs-me').every((row) => row.needsMe));
+
+  const uncertainOnly = {
+    ...getUnit('604'),
+    records: getUnit('604').records.map((record) => (
+      record.trade === 'paint' && record.section === 'C'
+        ? {
+            ...record,
+            assignmentEpisodes: [],
+            authorization: 'released' as const,
+          }
+        : record
+    )),
+  };
+  assert.equal(projectBoardFirstUnit(uncertainOnly).assignmentConflict, false);
 });
 
 test('state-aware section actions expose only valid next actions', () => {

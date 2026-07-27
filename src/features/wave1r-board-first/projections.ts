@@ -19,6 +19,7 @@ import type {
   BoardFirstAssistantAction,
   BoardFirstAssistantState,
   BoardFirstAttentionProjection,
+  BoardFirstBoardFilter,
   BoardFirstCaptureReceipt,
   BoardFirstCaptureRequest,
   BoardFirstSectionAction,
@@ -213,6 +214,9 @@ export const projectBoardFirstUnit = (unit: Jul28UnitRecord): BoardFirstUnitProj
     unit.records.some((record) => record.section === section && record.applicability === 'applicable'),
   );
   const highestAttention = attentions[0] ?? null;
+  const assignmentConflict = unit.records.some((record) =>
+    record.authorization === 'assignment-conflict'
+    || activeAssignments(record).length > 1);
 
   return {
     unitId: unit.id,
@@ -220,6 +224,7 @@ export const projectBoardFirstUnit = (unit: Jul28UnitRecord): BoardFirstUnitProj
     unitTypeLabel: unit.unitTypeLabel,
     locationLabel: `${unit.floorLabel} · ${unit.buildingLabel}`,
     applicableSections,
+    assignmentConflict,
     paint: projectTrade(unit, 'paint'),
     clean: projectTrade(unit, 'clean'),
     highestAttention,
@@ -230,6 +235,32 @@ export const projectBoardFirstUnit = (unit: Jul28UnitRecord): BoardFirstUnitProj
 export const projectBoardFirstBoard = (
   repository: Jul28TurnBoardRepository,
 ): BoardFirstUnitProjection[] => repository.listUnits().map(projectBoardFirstUnit);
+
+const normalizeBoardSearch = (value: string) => value.trim().toLocaleLowerCase();
+
+export const filterBoardFirstBoard = (
+  projections: readonly BoardFirstUnitProjection[],
+  query: string,
+  filter: BoardFirstBoardFilter,
+): BoardFirstUnitProjection[] => {
+  const normalizedQuery = normalizeBoardSearch(query);
+  return projections.filter((projection) => {
+    if (filter === 'needs-me' && !projection.needsMe) return false;
+    if (filter === 'assignment-conflict' && !projection.assignmentConflict) return false;
+    if (!normalizedQuery) return true;
+
+    const searchable = [
+      projection.unitNumber,
+      `Unit ${projection.unitNumber}`,
+      projection.locationLabel,
+      projection.paint.crewLabel,
+      ...projection.paint.crewNames,
+      projection.clean.crewLabel,
+      ...projection.clean.crewNames,
+    ].join(' ').toLocaleLowerCase();
+    return searchable.includes(normalizedQuery);
+  });
+};
 
 const action = (
   id: BoardFirstSectionAction['id'],

@@ -22,10 +22,13 @@ Last updated: 2026-07-26
 | Integration worktree | `/Users/los/Documents/PDS-jul28-pattern-candidate` |
 | Integration branch | `codex/jul28-pattern-candidate` |
 | Base | `a3f6b3d0c6133c32b403fe21f12c1e31258f1770` |
-| Current state | Wave 1 integrated, locally verified, and independently reviewed; non-production Preview pending |
+| Current state | Wave 1 integrated, locally verified, independently reviewed, and deployed to a protected non-production Preview; physical iPhone acceptance pending |
 | Documentation checkpoint | `d9a114c6f147f793139d57d33082d48f4ef96844` |
 | Visual-reference checkpoint | `dc2240a8a4d33ffdc7299a86ec932f59f8a89e1d` |
 | Verified Wave 1 product/test HEAD | `2de3ed789c72e95c1d06e66b966de738435aa46c` |
+| Deployed Wave 1 commit | `a88de699357954945516817c55c056ce3915fb6c` |
+| Preview deployment | `dpl_68y5iLPCvVApMkckfcpqMf6SNxiw` |
+| Preview URL | `https://turn-supervisor-1qubvcoxk-carloscastrowrk.vercel.app` — protected by Vercel authentication |
 | Production touched | No |
 
 ## Shared Visual References
@@ -68,13 +71,13 @@ Operational semantics remain governed by the product constitution, field-truth m
 | C Voice/Whisper | `/Users/los/Documents/PDS-jul28-voice` | `codex/jul28-voice-whisper` | Queued — four-agent cap | — | — | Wave 1 first | — | — | — |
 | D Assignment intake | `/Users/los/Documents/PDS-jul28-intake` | `codex/jul28-assignment-intake` | Corrected and clean — isolated Wave 2 HOLD | `239cc6f` after `794847d` | 14/14 focused; 256/256 existing; lint/build/diff-check pass | HOLD: surplus/ragged CSV cells can drop wording; formula-like pasted values can bypass the guard | Independent review: five prior items closed, two P2 findings remain | Wave 2 only | — |
 | E Intelligence | `/Users/los/Documents/PDS-jul28-intelligence` | `codex/jul28-intelligence-foundation` | Second correction preserved but uncommitted | `0cc29d6` after `a978ccd` | 17/17 corrected focused tests; exact Track B archive 9/9; diff-check pass | Full lint hung and was stopped; test:sync/build/final diff review remain | Paused safely pending full gate | Later wave only | — |
-| F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Wave 1 review complete | Review of `2de3ed7` | Full local gate plus disposable recovery gate passed | Physical iPhone acceptance remains; two stale untracked baseline copies remain outside commits | CONDITIONAL ACCEPT — synthetic primary surfaces are an explicit development-Preview constraint, not a Wave 1 field-data regression; stale ledger corrected | Clean detached deployment worktree at `2de3ed7` | Pending Wave 1 Preview |
+| F Reliability review | `/Users/los/Documents/PDS-jul28-reliability` | `codex/jul28-reliability-review` | Wave 1 review and Preview smoke complete | Review of `2de3ed7`; deployment `dpl_68y5iLPCvVApMkckfcpqMf6SNxiw` | Full local gate plus disposable recovery gate passed against loopback and deployed HTTPS Preview | Physical iPhone acceptance remains; two stale untracked baseline copies remain outside commits | CONDITIONAL ACCEPT — synthetic primary surfaces are an explicit development-Preview constraint, not a Wave 1 field-data regression; stale ledger corrected | Clean detached deployment worktree at `a88de69` | READY — protected non-production Preview |
 
 ## Wave Ledger
 
 | Wave | State | Integrated commits | Verification | Preview | Physical test |
 | --- | --- | --- | --- | --- | --- |
-| 1 Field pattern | Integrated and independently reviewed; Preview pending | A: `e1825e1`, `81af8ba`, `ceaf411`; B: `c568caf`, `159fb59`, `e3e1894`, `cfdfd4f`; shared: `36ecf9d`, `f254225`, `42b1ebb`, `3f95e2b`; reliability: `2de3ed7` | Full local and disposable recovery gates passed; production untouched | Pending | Pending one physical iPhone test |
+| 1 Field pattern | Integrated, reviewed, and deployed to non-production Preview | A: `e1825e1`, `81af8ba`, `ceaf411`; B: `c568caf`, `159fb59`, `e3e1894`, `cfdfd4f`; shared: `36ecf9d`, `f254225`, `42b1ebb`, `3f95e2b`; reliability: `2de3ed7`; deployed: `a88de69` | Full local and disposable recovery gates passed against loopback and deployed HTTPS Preview; production untouched | READY — `dpl_68y5iLPCvVApMkckfcpqMf6SNxiw` | Pending one physical iPhone test |
 | 2 Workflow pattern | Not started | — | — | — | — |
 | 3 Experimental intelligence | Not started | — | — | — | — |
 

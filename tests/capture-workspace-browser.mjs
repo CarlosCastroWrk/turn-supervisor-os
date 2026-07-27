@@ -175,12 +175,12 @@ try {
   await mobilePage.getByRole('button', { name: 'More', exact: true }).click();
   const mobileMoreDialog = mobilePage.getByRole('dialog', { name: 'More', exact: true });
   await mobileMoreDialog.waitFor();
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More menu');
-  assert.equal(await mobilePage.locator('main[inert]').count(), 1, 'More menu did not isolate the field workspace.');
+  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More');
+  assert.equal(await mobilePage.locator('.j28-shell-background[inert]').count(), 1, 'More menu did not isolate the field workspace.');
   await mobilePage.keyboard.press('Shift+Tab');
   assert.equal(await mobilePage.evaluate(() => document.activeElement?.textContent?.trim()), 'Sync & diagnosticsLocal save and optional sync health');
   await mobilePage.keyboard.press('Tab');
-  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More menu');
+  assert.equal(await mobilePage.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close More');
   await mobilePage.keyboard.press('Escape');
   await mobileMoreDialog.waitFor({ state: 'hidden' });
   await mobilePage.waitForFunction(() => document.activeElement?.textContent?.trim() === 'More');

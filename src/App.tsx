@@ -28,6 +28,7 @@ import { ReviewView } from './views/ReviewView';
 import { SetupView } from './views/SetupView';
 import { SyncDiagnosticsView } from './views/SyncDiagnosticsView';
 import { TrainingQuestionsView } from './views/TrainingQuestionsView';
+import { UnitDetailView } from './views/UnitDetailView';
 
 const LEGACY_CAPTURE_HISTORY_KEY = 'turnOsLegacyCapture';
 const JUL28_TURNBOARD_UNITS = jul28SyntheticTurnBoardRepository.listUnits();
@@ -259,12 +260,16 @@ function App() {
           />
         ) : null}
         {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
-        {route.view === 'units' || route.view === 'unitDetail' ? (
+        {route.view === 'units'
+          || (route.view === 'unitDetail' && jul28SyntheticTurnBoardRepository.getUnit(route.unitId ?? '')) ? (
           <TurnBoardFeature
             initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
             onUnitClose={() => navigate('units')}
             onUnitSelected={(unitId) => navigate('unitDetail', unitId)}
           />
+        ) : null}
+        {route.view === 'unitDetail' && !jul28SyntheticTurnBoardRepository.getUnit(route.unitId ?? '') ? (
+          <UnitDetailView data={data} setData={setData} unitId={route.unitId ?? ''} onNavigate={navigate} />
         ) : null}
         {route.view === 'issues' ? <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} /> : null}
         {route.view === 'review' ? (

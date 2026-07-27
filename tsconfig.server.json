@@ -20,6 +20,14 @@
     "src/lib/constants.ts",
     "src/lib/ai/types.ts",
     "src/lib/ai/modelCapture.ts",
-    "src/lib/ai/usage.ts"
+    "src/lib/ai/usage.ts",
+    "src/features/turn-intelligence/contracts.ts",
+    "src/features/turn-intelligence/mockProvider.ts",
+    "src/features/turn-intelligence/promptSecurity.ts",
+    "src/features/turn-intelligence/proposals.ts",
+    "src/features/turn-intelligence/provider.ts",
+    "src/features/turn-intelligence/router.ts",
+    "src/features/turn-intelligence/service.ts",
+    "src/features/turn-intelligence/tools.ts"
   ]
 }

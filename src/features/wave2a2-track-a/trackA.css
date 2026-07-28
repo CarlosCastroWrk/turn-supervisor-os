@@ -196,6 +196,12 @@
   --w2a1b-text: var(--turn-color-primary) !important;
 }
 
+:root[data-turn-theme] .w2a1b-page button,
+:root[data-turn-theme] .w2a1b-page a {
+  /* Keep retained press feedback without interpolating between theme palettes. */
+  transition-property: transform;
+}
+
 :root[data-turn-theme] .w2a1b-row,
 :root[data-turn-theme] .w2a1b-profile-card,
 :root[data-turn-theme] .w2a1b-icon-button,

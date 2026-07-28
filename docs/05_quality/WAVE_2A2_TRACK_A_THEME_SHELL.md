@@ -133,13 +133,16 @@ single-Capture-owner contract.
   ownership, scroll selection, overlay ownership boundaries, and reserved-file
   isolation.
 - Browser gate covers 320px, 390px, and 430px iPhone widths, iPad landscape,
-  Mac, Light/Dark, Search, Notifications, Capture, Plus, scroll restoration,
+  Mac, immediate and settled Light-to-Dark and Dark-to-Light selected state and
+  readable contrast, Search, Notifications, Capture, Plus, scroll restoration,
   reduced motion, target sizing, input sizing, first paint, and horizontal
   overflow.
 - Settled-state dark screenshots were compared side by side with Los's iPhone
   Settings and ChatGPT references. The comparison exposed and closed the
-  retained Wave 2A.1 row-color transition timing and dark overlay presentation
-  gaps before rereview.
+  dark overlay presentation gap before rereview. Retained Wave 2A.1 controls
+  now transition only their press transform, and the browser gate asserts
+  profile and row contrast before the former 200ms color transition could
+  settle in both theme directions.
 
 ## Physical acceptance still required
 

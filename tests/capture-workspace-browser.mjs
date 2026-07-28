@@ -52,8 +52,7 @@ try {
   const desktopContext = await browser.newContext({ viewport: { width: 1440, height: 960 } });
   const desktopPage = await desktopContext.newPage();
   const desktopFindings = attachRuntimeChecks(desktopPage);
-  await desktopPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await desktopPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await desktopPage.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
   const desktopDialog = desktopPage.locator('.capture-workspace[role="dialog"]');
   await desktopDialog.waitFor();
   await desktopPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
@@ -119,8 +118,7 @@ try {
   const failureContext = await browser.newContext({ viewport: { width: 430, height: 900 } });
   const failurePage = await failureContext.newPage();
   const failureFindings = attachRuntimeChecks(failurePage);
-  await failurePage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await failurePage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await failurePage.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
   await failurePage.getByRole('button', { name: /UPDATE/ }).click();
   await failurePage.getByRole('button', { name: 'Type', exact: true }).click();
   await failurePage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill('Unit 204 paint is done.');
@@ -147,8 +145,7 @@ try {
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mobilePage = await mobileContext.newPage();
   const mobileFindings = attachRuntimeChecks(mobilePage);
-  await mobilePage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await mobilePage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await mobilePage.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
   const mobileDialog = mobilePage.locator('.capture-workspace[role="dialog"]');
   await mobileDialog.waitFor();
   await mobilePage.waitForTimeout(220);
@@ -170,7 +167,7 @@ try {
   await mobilePage.screenshot({ path: mobileCaptureScreenshot, fullPage: false });
   await mobilePage.keyboard.press('Escape');
   await mobileDialog.waitFor({ state: 'hidden' });
-  await mobilePage.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
+  await mobilePage.getByRole('heading', { name: 'Home', exact: true }).waitFor();
   await mobilePage.getByRole('navigation', { name: 'Primary' })
     .getByRole('button', { name: 'More', exact: true })
     .click();
@@ -186,11 +183,11 @@ try {
   const tabletContext = await browser.newContext({ viewport: { width: 1180, height: 820 } });
   const tabletPage = await tabletContext.newPage();
   const tabletFindings = attachRuntimeChecks(tabletPage);
-  await tabletPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
+  await tabletPage.goto(baseUrl, { waitUntil: 'networkidle' });
   await assertNoHorizontalOverflow(tabletPage, 'iPad field home');
   const tabletHomeScreenshot = path.join(screenshotDirectory, 'ipad-field-home.png');
   await tabletPage.screenshot({ path: tabletHomeScreenshot, fullPage: false });
-  await tabletPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await tabletPage.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
   await tabletPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
   await tabletPage.getByRole('button', { name: /NOTE/ }).click();
   await tabletPage.getByRole('button', { name: 'Voice', exact: true }).click();
@@ -213,9 +210,15 @@ try {
   await boardPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
   await boardPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
   await boardPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  const addDialog = boardPage.getByRole('dialog', { name: 'Add to Turn OS' });
+  await addDialog.waitFor();
+  assert.equal(await boardPage.locator('.capture-workspace').count(), 0);
+  await addDialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
+  await addDialog.waitFor({ state: 'hidden' });
+  await boardPage.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
   const boardCaptureDialog = boardPage.locator('.capture-workspace[role="dialog"]');
   await boardCaptureDialog.waitFor();
-  assert.equal(await boardPage.locator('[role="dialog"]').count(), 1, 'TurnBoard Capture handoff stacked dialogs.');
+  assert.equal(await boardPage.locator('[role="dialog"]').count(), 1, 'Legacy Capture entry stacked dialogs.');
   assert.equal(
     await boardPage.locator('.lcc-root[inert][aria-hidden="true"]').count(),
     1,
@@ -223,8 +226,8 @@ try {
   );
   await boardPage.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
   await boardCaptureDialog.waitFor({ state: 'hidden' });
-  await boardPage.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
-  assert.equal(await boardPage.evaluate(() => window.location.hash), '#/units');
+  await boardPage.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  assert.equal(await boardPage.evaluate(() => window.location.hash), '#/dashboard');
   assert.deepEqual(boardFindings, [], `BoardFirst Capture handoff runtime findings:\n${boardFindings.join('\n')}`);
   await boardContext.close();
 
@@ -235,7 +238,7 @@ try {
     tabletHomeScreenshot,
     tabletCaptureScreenshot,
     storedPhoto,
-    turnBoardCaptureHandoff: 'passed',
+    legacyCaptureHandoff: 'passed',
   }, null, 2));
 } finally {
   await browser?.close();

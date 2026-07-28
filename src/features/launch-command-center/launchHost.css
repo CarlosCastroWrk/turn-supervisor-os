@@ -1,6 +1,7 @@
 .lcc-host-stack {
   min-height: 100%;
   min-width: 0;
+  overflow-x: clip;
 }
 
 .lcc-host-alert {
@@ -10,14 +11,111 @@
   z-index: 2;
 }
 
-.lcc-legacy-surface {
+.lcc-unified-tool-content {
   min-height: 100%;
   min-width: 0;
-  padding: 10px;
+  overflow-x: clip;
 }
 
-@media (min-width: 720px) {
-  .lcc-legacy-surface {
-    padding: 16px;
+.lcc-unified-tool-content > .page {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  padding: 0;
+}
+
+.lcc-unified-tool-content .page-title,
+.lcc-unified-tool-content .detail-header {
+  display: none;
+}
+
+.lcc-unified-tool-content .field-page-header {
+  align-items: center;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+
+.lcc-unified-tool-content .field-page-header > div {
+  display: none;
+}
+
+.lcc-unified-tool-content .grid,
+.lcc-unified-tool-content .dashboard-columns,
+.lcc-unified-tool-content .form-card,
+.lcc-unified-tool-content .section-card,
+.lcc-unified-tool-content .assignment-card,
+.lcc-unified-tool-content .export-grid {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.lcc-unified-tool-content input,
+.lcc-unified-tool-content select,
+.lcc-unified-tool-content textarea,
+.lcc-setup-answer textarea {
+  font-size: 16px;
+  max-width: 100%;
+}
+
+.lcc-unified-tool-content select[multiple] {
+  min-height: 144px;
+  width: 100%;
+}
+
+.lcc-setup-answer {
+  display: grid;
+  gap: 8px;
+}
+
+.lcc-setup-answer > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.lcc-setup-answer textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  line-height: 1.45;
+  padding: 12px;
+  resize: vertical;
+  width: 100%;
+}
+
+.lcc-setup-review {
+  display: grid;
+  gap: 10px;
+}
+
+.lcc-setup-review > div {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+}
+
+.lcc-setup-review > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.lcc-setup-review strong {
+  font-size: 14px;
+}
+
+.lcc-setup-review span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+@media (max-width: 719px) {
+  .lcc-unified-tool-content .grid,
+  .lcc-unified-tool-content .dashboard-columns,
+  .lcc-unified-tool-content .export-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

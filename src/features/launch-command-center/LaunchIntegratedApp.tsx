@@ -15,8 +15,6 @@ import {
   type BoardFirstView,
 } from '../wave1r-board-first';
 import {
-  calculateDailyGoalProgress,
-  createDefaultDailyGoal,
   createSupabaseAuthAdapter,
   resolvePostAuthOfflineContinuity,
 } from '../launch-setup';
@@ -28,25 +26,56 @@ import {
 } from '../operational-memory';
 import {
   LaunchCommandCenterShell,
-  LaunchHome,
   LaunchLoginSurface,
-  LaunchNotificationsPage,
-  LaunchSearchPage,
 } from './LaunchCommandCenter';
 import { projectLaunchAppData } from './appDataProjection';
 import { createLaunchBoardRepository } from './boardRepository';
-import { filterLaunchSearchGroups } from './model';
 import type {
-  LaunchDailyGoalMilestone,
-  LaunchDailyGoalMetric,
-  LaunchNotificationItem,
-  LaunchNotificationTab,
   LaunchPrimaryDestination,
   LaunchQuickActionId,
-  LaunchSearchResult,
 } from './types';
+import {
+  NativeHomeSummaryPage,
+  NativeHomeSurface,
+  NativeNotificationsPage,
+  NativeSearchPage,
+  selectNativeHomeSummary,
+  type NativeDailyGoal,
+  type NativeHomeRecord,
+  type NativeNotificationItem,
+  type NativeNotificationTab,
+  type NativeSearchGroup,
+  type NativeSearchResult,
+} from '../wave2a1-native/track-a';
+import {
+  GroupedInsetRow,
+  GroupedInsetSection,
+  NativeDetailShell,
+  TRACK_B_SETUP_QUESTIONS,
+  TrackBCrewFormPage,
+  TrackBCrewListPage,
+  TrackBMorePage,
+  TrackBProfilePage,
+  TrackBReportsAndProofPage,
+  TrackBSetupQuestionnaire,
+  type TrackBCrewDraft,
+  type TrackBCrewRecord,
+  type TrackBDataStatus,
+  type TrackBReportCounts,
+  type TrackBSetupQuestionId,
+  type TrackBToolDestination,
+} from '../wave2a1-native/track-b';
+import {
+  PersonalActivityDetailSheet,
+  TrackCNativeFlow,
+  type PersonalActivityViewModel,
+  type TrackCNativeFileSelection,
+  type TrackCPlusAction,
+} from '../wave2a1-native/track-c';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
+import { addCrewMember, updateCrewMember } from '../../lib/actions';
+import { createId, nowISO } from '../../lib/constants';
 import {
   buildAppHash,
   resolveAppHash,
@@ -58,17 +87,14 @@ import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useSupabaseSync } from '../../lib/supabase/sync';
 import type { TurnCommandSourceRequest } from '../../lib/turnCommand';
-import type { AppView } from '../../types';
+import type { ActivityLog, AppView } from '../../types';
 import { SyncPanel } from '../../components/SyncPanel';
 import { AssignmentsView } from '../../views/AssignmentsView';
 import { CopilotView, type CopilotViewHandle } from '../../views/CopilotView';
-import { CrewsView } from '../../views/CrewsView';
 import { DailyLogView } from '../../views/DailyLogView';
 import { ExportView } from '../../views/ExportView';
 import { IssuesView } from '../../views/IssuesView';
-import { ReportsView } from '../../views/ReportsView';
 import { ReviewView } from '../../views/ReviewView';
-import { SetupView } from '../../views/SetupView';
 import { SyncDiagnosticsView } from '../../views/SyncDiagnosticsView';
 import { TrainingQuestionsView } from '../../views/TrainingQuestionsView';
 import { UnitDetailView } from '../../views/UnitDetailView';
@@ -80,18 +106,12 @@ const FULL_PAGE_RETURN_HISTORY_KEY = 'turnOsLaunchFullPageReturn';
 
 type BoardCaptureContext = BoardFirstCaptureRequest | BoardFirstAssistantRequest;
 
-const metricLabels: Record<string, LaunchDailyGoalMetric> = {
-  inspections: 'Inspections',
-  sections: 'Sections',
-  units: 'Units',
-};
+type CrewEditorState =
+  | { mode: 'add' }
+  | { crewId: string; mode: 'edit' }
+  | null;
 
-const milestoneLabels: Record<string, LaunchDailyGoalMilestone> = {
-  'crew-reported-complete': 'Crew reported complete',
-  'los-inspected': 'Los inspected',
-  'property-accepted': 'Property accepted',
-  'ready-to-walk': 'Ready to walk',
-};
+type MoreDetailPage = 'profile' | 'privacy' | 'storage' | null;
 
 const readHistoryState = (): Record<string, unknown> => {
   if (typeof window === 'undefined') return {};
@@ -143,7 +163,7 @@ const contentTitleForRoute = (view: AppView, unitNumber?: string) => {
   if (view === 'units') return 'TurnBoard';
   if (view === 'issues') return 'Issues';
   if (view === 'crews') return 'Crews';
-  if (view === 'assignments') return 'Assignments';
+  if (view === 'assignments') return 'Import work';
   if (view === 'daily') return 'Daily log';
   if (view === 'reports') return 'Reports';
   if (view === 'review') return 'Review';
@@ -177,12 +197,28 @@ export function LaunchIntegratedApp() {
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).captureRequested
       || historyRequestsCapture(),
   );
+  const [plusOpen, setPlusOpen] = useState(false);
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
+  const [homeDialogOpen, setHomeDialogOpen] = useState(false);
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [notificationTab, setNotificationTab] = useState<LaunchNotificationTab>('all');
+  const [notificationTab, setNotificationTab] = useState<NativeNotificationTab>('all');
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
+  const [dailyGoal, setDailyGoal] = useState<NativeDailyGoal | null>(null);
+  const [crewEditor, setCrewEditor] = useState<CrewEditorState>(null);
+  const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
+  const [moreStatus, setMoreStatus] = useState(
+    'Personal workspace · paper remains authoritative',
+  );
+  const [setupQuestionIndex, setSetupQuestionIndex] = useState(0);
+  const [setupAnswers, setSetupAnswers] = useState<
+    Partial<Record<TrackBSetupQuestionId, string>>
+  >({});
+  const [setupStatus, setSetupStatus] = useState(
+    'Provisional session answers · nothing saved',
+  );
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
@@ -197,6 +233,7 @@ export function LaunchIntegratedApp() {
   const boardCaptureReceiptSequenceRef = useRef(0);
   const boardCaptureReturnFocusRef = useRef<BoardCaptureContext['returnFocus'] | null>(null);
   const launchCaptureReturnFocusIdRef = useRef<string | null>(null);
+  const activityReturnFocusRef = useRef<HTMLButtonElement | null>(null);
   const now = useMemo(() => new Date(), []);
 
   const supabaseClient = getSupabaseClient();
@@ -223,7 +260,6 @@ export function LaunchIntegratedApp() {
   const boardRepository = boardRepositoryState.repository;
   const boardRouteActive = (route.view === 'units' && route.unitStatusFilter === 'All')
     || route.view === 'activity'
-    || route.view === 'more'
     || (
       route.view === 'unitDetail'
       && route.unitSurface !== 'personal'
@@ -278,15 +314,149 @@ export function LaunchIntegratedApp() {
     () => [...persistedActivity, ...boardSessionActivity],
     [boardSessionActivity, persistedActivity],
   );
+  const nativeSearchGroups = useMemo<NativeSearchGroup[]>(() => {
+    const groupIds = {
+      crews: 'crews',
+      'notes-activity': 'activity',
+      units: 'units',
+    } as const;
+    return launchProjection.searchGroups.flatMap((group) => {
+      const id = groupIds[group.id as keyof typeof groupIds];
+      if (!id) return [];
+      return [{
+        id,
+        results: group.results.map((result) => ({ ...result })),
+      }];
+    });
+  }, [launchProjection.searchGroups]);
+  const nativeNotifications = useMemo<NativeNotificationItem[]>(
+    () => launchProjection.notifications.map((item) => ({
+      category: item.category,
+      destinationId: item.destinationId,
+      destinationLabel: item.destinationLabel,
+      group: item.group,
+      id: item.id,
+      read: item.read,
+      reason: item.reason,
+      timeLabel: item.timeLabel,
+      title: item.unitLabel,
+    })),
+    [launchProjection.notifications],
+  );
+  const crewRecords = useMemo<TrackBCrewRecord[]>(
+    () => data.crewMembers
+      .filter((crew) =>
+        (!crew.projectId || crew.projectId === data.activeProjectId)
+        && (crew.trade === 'Painter' || crew.trade === 'Cleaner')
+      )
+      .map((crew): TrackBCrewRecord => ({
+        activeToday: crew.active,
+        id: crew.id,
+        name: crew.name,
+        phone: crew.phone || undefined,
+        trade: crew.trade === 'Painter' ? 'Paint' : 'Clean',
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name)),
+    [data.activeProjectId, data.crewMembers],
+  );
+  const goalActual = useMemo(() => {
+    if (!dailyGoal || dailyGoal.milestone === 'property-accepted') return 0;
+    if (dailyGoal.metric === 'units' && dailyGoal.milestone === 'ready-to-walk') {
+      return launchProjection.counts.readyToWalk;
+    }
 
-  const dailyGoal = useMemo(
-    () => createDefaultDailyGoal(launchProjection.dateISO),
-    [launchProjection.dateISO],
-  );
-  const dailyGoalProgress = useMemo(
-    () => calculateDailyGoalProgress(dailyGoal, []),
-    [dailyGoal],
-  );
+    const matching = boardActivity.filter((item) => {
+      if (dailyGoal.milestone === 'crew-reported-complete') return item.kind === 'crew-report';
+      if (dailyGoal.milestone === 'los-inspected') return item.kind === 'los-inspection';
+      return false;
+    });
+    if (dailyGoal.metric === 'sections') {
+      return matching.filter((item) => Boolean(item.section)).length;
+    }
+    if (dailyGoal.metric === 'inspections') return matching.length;
+    return new Set(matching.flatMap((item) => item.unitId ? [item.unitId] : [])).size;
+  }, [boardActivity, dailyGoal, launchProjection.counts.readyToWalk]);
+  const selectedActivityView = useMemo<PersonalActivityViewModel | null>(() => {
+    if (!selectedActivity) return null;
+    const entityType: ActivityLog['entityType'] = selectedActivity.unitId ? 'Unit' : 'Project';
+    return {
+      activity: {
+        action: selectedActivity.title,
+        createdAt: selectedActivity.recordedAt,
+        entityId: selectedActivity.unitId ?? data.activeProjectId,
+        entityType,
+        id: `inspect:${selectedActivity.id}`,
+        note: selectedActivity.wording,
+        projectId: data.activeProjectId,
+      },
+      projectLabel: launchProjection.propertyName,
+      unitId: selectedActivity.unitId,
+      unitNumber: selectedActivity.unitNumber,
+    };
+  }, [
+    data.activeProjectId,
+    launchProjection.propertyName,
+    selectedActivity,
+  ]);
+  const reportCounts = useMemo<TrackBReportCounts>(() => {
+    const unitsTouched = new Set(
+      boardActivity.flatMap((item) => item.unitId ? [item.unitId] : []),
+    ).size;
+    return {
+      activityCount: boardActivity.length,
+      callbacksFound: launchProjection.counts.callbacks,
+      callbacksResolved: 0,
+      readyToWalk: launchProjection.counts.readyToWalk,
+      sectionsInspected: boardActivity.filter(
+        (item) => item.kind === 'los-inspection' && Boolean(item.section),
+      ).length,
+      unitsTouched,
+      waiting: launchProjection.counts.blocked,
+      working: launchProjection.counts.working,
+    };
+  }, [boardActivity, launchProjection.counts]);
+  const backupStatus = useMemo<TrackBDataStatus>(() => {
+    if (saveStatus.state === 'failed') {
+      return {
+        detail: 'The latest local write failed. Keep the app open and use the guarded retry or backup controls.',
+        label: 'Needs attention',
+        tone: 'attention',
+      };
+    }
+    if (saveStatus.state === 'pending') {
+      return {
+        detail: 'A local device save is still pending.',
+        label: 'Saving',
+        tone: 'unknown',
+      };
+    }
+    return {
+      detail: 'The latest personal-app state is saved on this device.',
+      label: 'Saved locally',
+      tone: 'ready',
+    };
+  }, [saveStatus.state]);
+  const syncStatus = useMemo<TrackBDataStatus>(() => {
+    if (sync.status === 'error' || sync.status === 'cache_transition_required') {
+      return {
+        detail: sync.message,
+        label: 'Needs attention',
+        tone: 'attention',
+      };
+    }
+    if (sync.status === 'synced') {
+      return {
+        detail: sync.message,
+        label: 'Synced',
+        tone: 'ready',
+      };
+    }
+    return {
+      detail: sync.message || 'Optional account sync is not active.',
+      label: sync.status.replaceAll('_', ' '),
+      tone: 'unknown',
+    };
+  }, [sync.message, sync.status]);
   const routeUnitNumber = route.unitId
     ? launchProjection.commandUnits.find((unit) => unit.unitId === route.unitId)?.unitNumber
     : undefined;
@@ -329,10 +499,15 @@ export function LaunchIntegratedApp() {
     }
 
     clearLegacyCaptureHistoryState();
+    setPlusOpen(false);
+    setSelectedActivity(null);
+    activityReturnFocusRef.current = null;
     boardCaptureContextRef.current = null;
     boardCaptureReturnFocusRef.current = null;
     launchCaptureReturnFocusIdRef.current = null;
     setCaptureOpen(false);
+    if (view !== 'crews') setCrewEditor(null);
+    if (view !== 'more') setMoreDetailPage(null);
 
     const nextRoute = routeForNavigation(view, unitId, options);
     const nextHash = buildAppHash(nextRoute);
@@ -384,21 +559,6 @@ export function LaunchIntegratedApp() {
         focusVisibleElementById('lcc-central-plus');
       });
     });
-  }, []);
-
-  const openCapture = useCallback((
-    entry: 'plus' | 'microphone',
-    returnFocusId: string,
-  ) => {
-    boardCaptureContextRef.current = null;
-    boardCaptureReturnFocusRef.current = null;
-    launchCaptureReturnFocusIdRef.current = returnFocusId;
-    setCaptureOpen(true);
-    if (entry === 'microphone') {
-      copilotRef.current?.openVoiceSource();
-      return;
-    }
-    copilotRef.current?.openDefaultCapture();
   }, []);
 
   const openBoardCapture = useCallback((request: BoardFirstCaptureRequest) => {
@@ -489,7 +649,7 @@ export function LaunchIntegratedApp() {
     navigate('dashboard');
   }, [navigate]);
 
-  const handleSearchResult = useCallback((result: LaunchSearchResult) => {
+  const handleSearchResult = useCallback((result: NativeSearchResult) => {
     const trimmed = searchQuery.trim();
     if (trimmed) {
       setRecentSearches((current) => [
@@ -500,7 +660,7 @@ export function LaunchIntegratedApp() {
     openDestination(result.destinationId);
   }, [openDestination, searchQuery]);
 
-  const handleNotification = useCallback((item: LaunchNotificationItem) => {
+  const handleNotification = useCallback((item: NativeNotificationItem) => {
     setReadNotificationIds((current) => new Set([...current, item.id]));
     openDestination(item.destinationId);
   }, [openDestination]);
@@ -530,6 +690,124 @@ export function LaunchIntegratedApp() {
     }
     navigate('reports');
   }, [navigate]);
+
+  const openNativePlus = useCallback(() => {
+    launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
+    setPlusOpen(true);
+  }, []);
+
+  const handNativeFilesToCapture = useCallback((
+    selection: TrackCNativeFileSelection,
+  ) => {
+    setPlusOpen(false);
+    launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
+    window.requestAnimationFrame(() => {
+      setCaptureOpen(true);
+      copilotRef.current?.openFileSource(
+        selection.files,
+        selection.kind === 'files' ? 'file' : 'photo',
+      );
+    });
+  }, []);
+
+  const handleNativePlusAction = useCallback((
+    action: Exclude<TrackCPlusAction, 'note' | 'camera' | 'photos' | 'files'>,
+  ) => {
+    setPlusOpen(false);
+    if (action === 'blocker') {
+      navigate('issues');
+      return;
+    }
+    if (action === 'import-work') {
+      navigate('assignments');
+      return;
+    }
+    launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
+    window.requestAnimationFrame(() => {
+      setCaptureOpen(true);
+      copilotRef.current?.openTextSource();
+    });
+  }, [navigate]);
+
+  const saveCrew = useCallback((draft: TrackBCrewDraft) => {
+    const editor = crewEditor;
+    const timestamp = nowISO();
+    setData((current) => {
+      if (editor?.mode === 'edit') {
+        return updateCrewMember(current, editor.crewId, {
+          active: draft.activeToday,
+          name: draft.name,
+          phone: draft.phone ?? '',
+          trade: draft.trade === 'Paint' ? 'Painter' : 'Cleaner',
+        });
+      }
+      return addCrewMember(current, {
+        active: draft.activeToday,
+        assignedLocation: '',
+        company: '',
+        createdAt: timestamp,
+        id: createId('crew'),
+        language: '',
+        name: draft.name,
+        notes: '',
+        phone: draft.phone ?? '',
+        projectId: current.activeProjectId,
+        trade: draft.trade === 'Paint' ? 'Painter' : 'Cleaner',
+        updatedAt: timestamp,
+      });
+    });
+    setCrewEditor(null);
+    setMoreStatus(`${draft.name} saved to this personal project.`);
+  }, [crewEditor, setData]);
+
+  const handleMoreNavigation = useCallback((destination: TrackBToolDestination) => {
+    setMoreStatus('Personal workspace · paper remains authoritative');
+    if (destination === 'official-pds-forms') {
+      setMoreStatus(
+        'Official PDS Forms stay unavailable until reviewed destinations and privacy treatment are approved.',
+      );
+      return;
+    }
+    if (destination === 'profile' || destination === 'privacy' || destination === 'storage') {
+      setMoreDetailPage(destination);
+      return;
+    }
+    if (destination === 'crews') {
+      navigate('crews');
+      return;
+    }
+    if (destination === 'reports-and-proof') {
+      navigate('reports');
+      return;
+    }
+    if (destination === 'setup') {
+      setSetupQuestionIndex(0);
+      setSetupStatus('Provisional session answers · nothing saved');
+      navigate('setup');
+      return;
+    }
+    if (destination === 'unit-import') {
+      navigate('assignments');
+      return;
+    }
+    if (destination === 'daily-goal') {
+      navigate('dashboard');
+      return;
+    }
+    if (destination === 'sync') {
+      navigate('sync');
+      return;
+    }
+    navigate('export');
+  }, [navigate]);
+
+  const requestSignOut = useCallback(() => {
+    if (!sync.enabled) {
+      setMoreStatus('This device is in local-only mode, so there is no Turn OS account session to end.');
+      return;
+    }
+    void sync.signOut();
+  }, [sync]);
 
   const navigateBoardHost = useCallback((request: BoardFirstHostNavigationRequest) => {
     const destinationView = {
@@ -643,8 +921,7 @@ export function LaunchIntegratedApp() {
   );
 
   const legacySurface = (
-    <div className="lcc-legacy-surface">
-      {route.view === 'setup' ? <SetupView data={data} setData={setData} /> : null}
+    <div className="lcc-unified-tool-content">
       {route.view === 'units' && route.unitStatusFilter !== 'All' ? (
         <UnitsView
           data={data}
@@ -674,10 +951,8 @@ export function LaunchIntegratedApp() {
           sync={sync}
         />
       ) : null}
-      {route.view === 'crews' ? <CrewsView data={data} setData={setData} /> : null}
       {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
       {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
-      {route.view === 'reports' ? <ReportsView data={data} setData={setData} /> : null}
       {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
       {route.view === 'sync' ? <SyncDiagnosticsView sync={sync} /> : null}
       {route.view === 'export' ? (
@@ -690,6 +965,28 @@ export function LaunchIntegratedApp() {
       ) : null}
     </div>
   );
+  const legacyToolDescription: Partial<Record<AppView, string>> = {
+    assignments: 'Review the existing personal assignment and import tools.',
+    daily: 'Review personal daily notes and end-of-day records.',
+    export: 'Use the existing guarded backup, restore, and export controls.',
+    issues: 'Review personal blockers and follow-ups without changing paper.',
+    review: 'Review pending personal-app changes and save state.',
+    sync: 'Review local save and optional account-sync status.',
+    training: 'Review field questions recorded in this personal workspace.',
+    unitDetail: 'Personal notes and photos for this Unit.',
+    units: 'Review the requested personal Unit filter.',
+  };
+  const legacyToolBack = () => {
+    if (route.view === 'unitDetail' || route.view === 'units') {
+      navigate('units');
+      return;
+    }
+    if (route.view === 'issues') {
+      navigate('dashboard');
+      return;
+    }
+    navigate('more');
+  };
 
   const appAvailable = !authConfigured
     || (
@@ -749,12 +1046,12 @@ export function LaunchIntegratedApp() {
 
   if (route.view === 'search') {
     return (
-      <LaunchSearchPage
-        groups={filterLaunchSearchGroups(launchProjection.searchGroups, searchQuery)}
+      <NativeSearchPage
+        groups={nativeSearchGroups}
         onBack={closeFullPage}
         onOpenResult={handleSearchResult}
         onQueryChange={setSearchQuery}
-        onSelectRecent={setSearchQuery}
+        onSelectRecent={(query) => setSearchQuery(query)}
         query={searchQuery}
         recentSearches={recentSearches}
       />
@@ -763,9 +1060,9 @@ export function LaunchIntegratedApp() {
 
   if (route.view === 'notifications') {
     return (
-      <LaunchNotificationsPage
+      <NativeNotificationsPage
         activeTab={notificationTab}
-        items={launchProjection.notifications}
+        items={nativeNotifications}
         onBack={closeFullPage}
         onOpenNotification={handleNotification}
         onTabChange={setNotificationTab}
@@ -773,12 +1070,19 @@ export function LaunchIntegratedApp() {
     );
   }
 
+  const currentSetupQuestion = TRACK_B_SETUP_QUESTIONS[
+    Math.min(setupQuestionIndex, TRACK_B_SETUP_QUESTIONS.length - 1)
+  ];
+  const editingCrew = crewEditor?.mode === 'edit'
+    ? crewRecords.find((crew) => crew.id === crewEditor.crewId)
+    : undefined;
+
   const shellContent = boardRouteActive ? (
-        <BoardFirstShell
+    <BoardFirstShell
       activeView={boardViewForRoute(route.view)}
       activityItems={boardActivity}
       embedded
-      externalDialogOpen={captureOpen}
+      externalDialogOpen={captureOpen || plusOpen || Boolean(selectedActivity)}
       hostStatusSlot={hostAlerts}
       initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
       propertyName={launchProjection.propertyName}
@@ -786,39 +1090,220 @@ export function LaunchIntegratedApp() {
       onAssistantSubmit={submitBoardAssistant}
       onCaptureRequest={openBoardCapture}
       onDialogOpenChange={setBoardDialogOpen}
-          onHostNavigate={navigateBoardHost}
-          onOpenPersonalUnit={(unitId) =>
-            navigate('unitDetail', unitId, { unitSurface: 'personal' })}
-          onUnitNavigate={navigateBoardUnit}
+      onHostNavigate={navigateBoardHost}
+      onOpenActivity={(item, trigger) => {
+        activityReturnFocusRef.current = trigger;
+        setSelectedActivity(item);
+      }}
+      onOpenPersonalUnit={(unitId) =>
+        navigate('unitDetail', unitId, { unitSurface: 'personal' })}
+      onUnitNavigate={navigateBoardUnit}
     />
   ) : route.view === 'dashboard' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
-      <LaunchHome
-        blockers={launchProjection.blockers}
-        counts={launchProjection.counts}
-        goal={{
-          actual: dailyGoalProgress.actual,
-          configured: false,
-          dateISO: dailyGoal.date,
-          dateLabel: launchProjection.dateLabel,
-          metric: metricLabels[dailyGoal.metric],
-          milestone: milestoneLabels[dailyGoal.milestone],
-          target: dailyGoal.target,
-        }}
-        onOpenBlocker={(blocker) => openDestination(blocker.destinationId)}
-        onOpenSummary={(summary) => {
-          if (summary === 'blocked') navigate('issues');
-          else if (summary === 'callbacks') navigate('activity');
-          else navigate('units');
-        }}
-        onQuickAction={handleQuickAction}
+      {route.homeSummary ? (
+        <NativeHomeSummaryPage
+          destination={selectNativeHomeSummary(
+            launchProjection.homeRecords,
+            route.homeSummary,
+          )}
+          onBack={() => navigate('dashboard')}
+          onOpenRecord={(record: NativeHomeRecord) => openDestination(record.destinationId)}
+        />
+      ) : (
+        <NativeHomeSurface
+          dateLabel={launchProjection.dateLabel}
+          goal={dailyGoal}
+          goalActual={goalActual}
+          onDialogOpenChange={setHomeDialogOpen}
+          onOpenSummary={(destination) =>
+            navigate('dashboard', undefined, { homeSummary: destination.id })}
+          onQuickAction={handleQuickAction}
+          onSaveGoal={setDailyGoal}
+          propertyName={launchProjection.propertyName}
+          records={launchProjection.homeRecords}
+        />
+      )}
+    </div>
+  ) : route.view === 'more' ? (
+    <div className="lcc-host-stack">
+      {hostAlerts}
+      {moreDetailPage === 'profile' ? (
+        <TrackBProfilePage
+          appVersion="0.1.0"
+          currentProperty={launchProjection.propertyName}
+          dataPermissions={[
+            {
+              detail: 'No tenant information is permitted in this personal workspace.',
+              label: 'Tenant information',
+              value: 'Keep out',
+            },
+            {
+              detail: 'Confirm property and company permission before storing field photos.',
+              label: 'Field photos',
+              value: 'Review needed',
+            },
+          ]}
+          name={launchProjection.project?.supervisorName || 'Los'}
+          onBack={() => setMoreDetailPage(null)}
+          onRequestSignOut={requestSignOut}
+          preferences={[
+            'Local-first field capture',
+            'Paper remains authoritative',
+            'No automatic messages',
+          ]}
+          role="Turn Supervisor"
+          statusLabel={moreStatus}
+        />
+      ) : moreDetailPage === 'privacy' ? (
+        <NativeDetailShell
+          description="Review the personal-app boundary before recording field information."
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel="Permissions remain evidence-gated"
+          title="Privacy"
+        >
+          <GroupedInsetSection
+            label="Current boundary"
+            footer="These labels do not grant company or property permission."
+          >
+            <GroupedInsetRow
+              detail="Do not record resident names, contact details, or other tenant information."
+              label="Tenant information"
+              value="Keep out"
+            />
+            <GroupedInsetRow
+              detail="Use only after property and company permission is confirmed."
+              label="Photos and documents"
+              value="Review needed"
+            />
+            <GroupedInsetRow
+              detail="No autonomous approval, payroll, or external communication."
+              label="Consequential actions"
+              value="Human only"
+            />
+          </GroupedInsetSection>
+        </NativeDetailShell>
+      ) : moreDetailPage === 'storage' ? (
+        <NativeDetailShell
+          description="A read-only view of records currently held by this personal app."
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel={backupStatus.label}
+          title="Storage"
+        >
+          <GroupedInsetSection
+            label="On this device"
+            footer="Use Backup and Restore for guarded recovery controls."
+          >
+            <GroupedInsetRow label="Units" value={String(data.units.length)} />
+            <GroupedInsetRow label="Activity records" value={String(data.activityLogs.length)} />
+            <GroupedInsetRow label="Photo records" value={String(data.photoNotes.length)} />
+            <GroupedInsetRow
+              detail={backupStatus.detail}
+              label="Latest local save"
+              value={backupStatus.label}
+            />
+          </GroupedInsetSection>
+        </NativeDetailShell>
+      ) : (
+        <TrackBMorePage
+          onNavigate={handleMoreNavigation}
+          onRequestSignOut={requestSignOut}
+          profile={{
+            currentProperty: launchProjection.propertyName,
+            name: launchProjection.project?.supervisorName || 'Los',
+            role: 'Turn Supervisor',
+          }}
+          statusLabel={moreStatus}
+        />
+      )}
+    </div>
+  ) : route.view === 'crews' ? (
+    <div className="lcc-host-stack">
+      {hostAlerts}
+      {crewEditor ? (
+        <TrackBCrewFormPage
+          key={crewEditor.mode === 'edit' ? crewEditor.crewId : 'new-crew'}
+          initialCrew={editingCrew}
+          mode={crewEditor.mode}
+          onBack={() => setCrewEditor(null)}
+          onCancel={() => setCrewEditor(null)}
+          onSave={saveCrew}
+          statusLabel="Personal project contact"
+        />
+      ) : (
+        <TrackBCrewListPage
+          crews={crewRecords}
+          onAdd={() => setCrewEditor({ mode: 'add' })}
+          onBack={() => navigate('more')}
+          onEdit={(crew) => setCrewEditor({ crewId: crew.id, mode: 'edit' })}
+          statusLabel="Paint and Clean only"
+        />
+      )}
+    </div>
+  ) : route.view === 'setup' ? (
+    <div className="lcc-host-stack">
+      {hostAlerts}
+      <TrackBSetupQuestionnaire
+        currentQuestionId={currentSetupQuestion.id}
+        onBack={() => setSetupQuestionIndex((index) => Math.max(0, index - 1))}
+        onContinue={() => setSetupQuestionIndex((index) =>
+          Math.min(TRACK_B_SETUP_QUESTIONS.length - 1, index + 1))}
+        onExit={() => navigate('more')}
+        onReview={() => setSetupStatus(
+          'Review complete · answers remain session-only and were not activated',
+        )}
+        statusLabel={setupStatus}
+      >
+        {currentSetupQuestion.id === 'review' ? (
+          <div className="lcc-setup-review">
+            {TRACK_B_SETUP_QUESTIONS
+              .filter((question) => question.id !== 'review')
+              .map((question) => (
+                <div key={question.id}>
+                  <strong>{question.title}</strong>
+                  <span>{setupAnswers[question.id]?.trim() || 'Not recorded'}</span>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <label className="lcc-setup-answer">
+            <span>Provisional answer</span>
+            <textarea
+              onChange={(event) => setSetupAnswers((answers) => ({
+                ...answers,
+                [currentSetupQuestion.id]: event.target.value,
+              }))}
+              placeholder="Enter only reviewed, synthetic, or approved personal context"
+              rows={5}
+              value={setupAnswers[currentSetupQuestion.id] ?? ''}
+            />
+          </label>
+        )}
+      </TrackBSetupQuestionnaire>
+    </div>
+  ) : route.view === 'reports' ? (
+    <div className="lcc-host-stack">
+      {hostAlerts}
+      <TrackBReportsAndProofPage
+        backupStatus={backupStatus}
+        counts={reportCounts}
+        dataScopeLabel="Personal app records only"
+        onBack={() => navigate('more')}
+        syncStatus={syncStatus}
       />
     </div>
   ) : (
     <div className="lcc-host-stack">
       {hostAlerts}
-      {legacySurface}
+      <NativeDetailShell
+        description={legacyToolDescription[route.view] ?? 'Existing guarded Turn OS tool.'}
+        onBack={legacyToolBack}
+        statusLabel="Existing guarded tool · personal app only"
+        title={contentTitle}
+      >
+        {legacySurface}
+      </NativeDetailShell>
     </div>
   );
 
@@ -826,17 +1311,17 @@ export function LaunchIntegratedApp() {
     <>
       <LaunchCommandCenterShell
         activeDestination={primaryDestinationForRoute(route.view)}
-        backgroundInert={captureOpen}
+        backgroundInert={captureOpen || plusOpen || Boolean(selectedActivity)}
         contentFocusKey={buildAppHash(route)}
         contentContained={boardRouteActive}
-        contentDialogOpen={boardDialogOpen}
+        contentDialogOpen={boardDialogOpen || homeDialogOpen}
         contentTitle={contentTitle}
         dateLabel={launchProjection.dateLabel}
         notificationCount={launchProjection.notifications.filter((item) => !item.read).length}
         onNavigate={handlePrimaryNavigation}
-        onOpenIntelligence={() => openCapture('plus', 'lcc-intelligence')}
+        onOpenIntelligence={() => undefined}
         onOpenNotifications={() => openFullPage('notifications')}
-        onOpenPlus={() => openCapture('plus', 'lcc-central-plus')}
+        onOpenPlus={openNativePlus}
         onOpenSearch={() => openFullPage('search')}
         propertyName={launchProjection.propertyName}
       >
@@ -855,6 +1340,33 @@ export function LaunchIntegratedApp() {
         presentation="overlay"
         saveStatus={saveStatus}
         setData={setData}
+      />
+      <TrackCNativeFlow
+        data={data}
+        initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
+        onDismiss={() => setPlusOpen(false)}
+        onExternalAction={handleNativePlusAction}
+        onNativeFiles={handNativeFilesToCapture}
+        onSave={(nextData) => setData(nextData)}
+        open={plusOpen}
+      />
+      <PersonalActivityDetailSheet
+        item={selectedActivityView}
+        onDismiss={() => {
+          const returnFocus = activityReturnFocusRef.current;
+          setSelectedActivity(null);
+          activityReturnFocusRef.current = null;
+          window.requestAnimationFrame(() => {
+            if (returnFocus?.isConnected && returnFocus.getClientRects().length > 0) {
+              returnFocus.focus({ preventScroll: true });
+            }
+          });
+        }}
+        onOpenUnit={(unitId) => {
+          setSelectedActivity(null);
+          activityReturnFocusRef.current = null;
+          navigate('unitDetail', unitId);
+        }}
       />
     </>
   );

@@ -67,6 +67,8 @@ export interface BoardFirstUnitProjection {
   clean: BoardFirstTradeProjection;
   highestAttention: BoardFirstAttentionProjection | null;
   needsMe: boolean;
+  waiting: boolean;
+  waitingLabel?: string;
 }
 
 export type BoardFirstActionId =
@@ -236,6 +238,10 @@ export interface BoardFirstShellProps {
   onHostNavigate?: BoardFirstHostNavigationHandler;
   onActiveViewChange?: (view: BoardFirstView) => void;
   onDialogOpenChange?: (open: boolean) => void;
+  onOpenActivity?: (
+    item: BoardFirstActivityItem,
+    trigger: HTMLButtonElement,
+  ) => void;
   onOpenPersonalUnit?: (unitId: string) => void;
   onUnitNavigate?: (unitId?: string) => void;
 }

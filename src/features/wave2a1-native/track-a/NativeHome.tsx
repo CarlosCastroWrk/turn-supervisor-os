@@ -52,6 +52,17 @@ const DEFAULT_EDITABLE_GOAL: NativeDailyGoal = {
   target: 1,
 };
 
+const focusableSheetElements = (container: HTMLElement) =>
+  Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => (
+    !element.hasAttribute('hidden')
+    && element.getAttribute('aria-hidden') !== 'true'
+    && element.tabIndex >= 0
+  ));
+
 interface NativeDailyGoalSheetProps {
   goal: NativeDailyGoal;
   onClose: () => void;
@@ -66,18 +77,43 @@ export function NativeDailyGoalSheet({
   const [draft, setDraft] = useState<NativeDailyGoal>(goal);
   const titleId = useId();
   const metricRef = useRef<HTMLSelectElement | null>(null);
+  const sheetRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => metricRef.current?.focus({ preventScroll: true }));
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !sheetRef.current) return;
+      const focusable = focusableSheetElements(sheetRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, []);
 
   const save = () => {
     if (!isValidNativeDailyGoal(draft)) return;
@@ -97,6 +133,7 @@ export function NativeDailyGoalSheet({
         aria-labelledby={titleId}
         aria-modal="true"
         className="w2a1-a-sheet"
+        ref={sheetRef}
         role="dialog"
       >
         <div className="w2a1-a-sheet__grabber" aria-hidden="true" />
@@ -114,10 +151,10 @@ export function NativeDailyGoalSheet({
           <label>
             <span>Metric</span>
             <select
-              onChange={(event) => setDraft((current) => ({
-                ...current,
-                metric: event.currentTarget.value as NativeDailyGoal['metric'],
-              }))}
+              onChange={(event) => {
+                const metric = event.currentTarget.value as NativeDailyGoal['metric'];
+                setDraft((current) => ({ ...current, metric }));
+              }}
               ref={metricRef}
               value={draft.metric}
             >
@@ -129,10 +166,10 @@ export function NativeDailyGoalSheet({
           <label>
             <span>Milestone</span>
             <select
-              onChange={(event) => setDraft((current) => ({
-                ...current,
-                milestone: event.currentTarget.value as NativeDailyGoal['milestone'],
-              }))}
+              onChange={(event) => {
+                const milestone = event.currentTarget.value as NativeDailyGoal['milestone'];
+                setDraft((current) => ({ ...current, milestone }));
+              }}
               value={draft.milestone}
             >
               {NATIVE_GOAL_MILESTONES.map((milestone) => (
@@ -146,10 +183,10 @@ export function NativeDailyGoalSheet({
               inputMode="numeric"
               max={10_000}
               min={1}
-              onChange={(event) => setDraft((current) => ({
-                ...current,
-                target: Number(event.currentTarget.value),
-              }))}
+              onChange={(event) => {
+                const target = Number(event.currentTarget.value);
+                setDraft((current) => ({ ...current, target }));
+              }}
               type="number"
               value={Number.isNaN(draft.target) ? '' : draft.target}
             />
@@ -176,6 +213,7 @@ export interface NativeHomeSurfaceProps {
   dateLabel: string;
   goal: NativeDailyGoal | null;
   goalActual: number;
+  onDialogOpenChange?: (open: boolean) => void;
   onOpenSummary: (destination: NativeHomeSummaryDestination) => void;
   onQuickAction: (actionId: NativeHomeActionId) => void;
   onSaveGoal: (goal: NativeDailyGoal) => void;
@@ -187,6 +225,7 @@ export function NativeHomeSurface({
   dateLabel,
   goal,
   goalActual,
+  onDialogOpenChange,
   onOpenSummary,
   onQuickAction,
   onSaveGoal,
@@ -198,6 +237,11 @@ export function NativeHomeSurface({
   const counts = useMemo(() => getNativeHomeSummaryCounts(records), [records]);
   const progress = goal ? calculateNativeDailyGoalProgress(goal, goalActual) : null;
 
+  useEffect(() => {
+    onDialogOpenChange?.(goalOpen);
+    return () => onDialogOpenChange?.(false);
+  }, [goalOpen, onDialogOpenChange]);
+
   const closeGoal = () => {
     setGoalOpen(false);
     window.requestAnimationFrame(() => goalButtonRef.current?.focus({ preventScroll: true }));
@@ -205,7 +249,12 @@ export function NativeHomeSurface({
 
   return (
     <NativePageTransition>
-      <main className="w2a1-a-root w2a1-a-scroll-page w2a1-a-home">
+      <section
+        aria-label="Home command center"
+        aria-hidden={goalOpen || undefined}
+        className="w2a1-a-root w2a1-a-scroll-page w2a1-a-home"
+        inert={goalOpen || undefined}
+      >
         <header className="w2a1-a-root-heading">
           <h1>Home</h1>
           <p><strong>{propertyName}</strong><span aria-hidden="true"> · </span>{dateLabel}</p>
@@ -283,7 +332,7 @@ export function NativeHomeSurface({
           <Flag aria-hidden="true" size={16} />
           Paper remains authoritative. Home is a personal working view.
         </p>
-      </main>
+      </section>
 
       {goalOpen ? (
         <NativeDailyGoalSheet
@@ -309,7 +358,7 @@ export function NativeHomeSummaryPage({
 }: NativeHomeSummaryPageProps) {
   return (
     <NativePageTransition>
-      <main className="w2a1-a-root w2a1-a-detail-page">
+      <section className="w2a1-a-root w2a1-a-detail-page">
         <NativePageHeader onBack={onBack} title={destination.label} />
         <div className="w2a1-a-detail-page__scroll">
           {destination.records.length === 0 ? (
@@ -342,7 +391,7 @@ export function NativeHomeSummaryPage({
             </section>
           )}
         </div>
-      </main>
+      </section>
     </NativePageTransition>
   );
 }

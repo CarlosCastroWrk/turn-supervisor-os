@@ -76,6 +76,7 @@ function TurnOsLockup() {
 function LaunchHeader({
   contentDialogOpen,
   dateLabel,
+  intelligenceAvailable = false,
   notificationCount,
   onOpenIntelligence,
   onOpenNotifications,
@@ -85,6 +86,7 @@ function LaunchHeader({
   LaunchCommandCenterShellProps,
   | 'dateLabel'
   | 'contentDialogOpen'
+  | 'intelligenceAvailable'
   | 'notificationCount'
   | 'onOpenIntelligence'
   | 'onOpenNotifications'
@@ -129,10 +131,18 @@ function LaunchHeader({
         </button>
         <button
           aria-haspopup="dialog"
-          aria-label="Open Turn OS Intelligence"
+          aria-label={intelligenceAvailable
+            ? 'Open Turn OS Intelligence'
+            : 'Turn OS Intelligence unavailable until a later reviewed release'}
           data-lcc-critical-target="true"
+          disabled={!intelligenceAvailable}
           id="lcc-intelligence"
-          onClick={onOpenIntelligence}
+          onClick={() => {
+            if (intelligenceAvailable) onOpenIntelligence();
+          }}
+          title={intelligenceAvailable
+            ? 'Open Turn OS Intelligence'
+            : 'Unavailable in Wave 2A.1'}
           type="button"
         >
           <Sparkles size={20} aria-hidden="true" />
@@ -204,6 +214,7 @@ export function LaunchCommandCenterShell({
   contentDialogOpen = false,
   contentTitle,
   dateLabel,
+  intelligenceAvailable = false,
   notificationCount = 0,
   onNavigate,
   onOpenIntelligence,
@@ -244,6 +255,7 @@ export function LaunchCommandCenterShell({
       <LaunchHeader
         contentDialogOpen={contentDialogOpen}
         dateLabel={dateLabel}
+        intelligenceAvailable={intelligenceAvailable}
         notificationCount={notificationCount}
         onOpenIntelligence={onOpenIntelligence}
         onOpenNotifications={onOpenNotifications}

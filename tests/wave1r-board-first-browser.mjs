@@ -253,9 +253,10 @@ try {
   );
 
   const row603 = page.locator('[data-unit-id="jul28-unit-603"]');
-  const sectionTrigger = row603.getByRole('button', {
-    name: /Unit 603 Paint Common ready for my inspection/,
-  });
+  await row603.getByRole('button', { name: 'Open Unit 603', exact: true }).click();
+  const sectionTrigger = page.locator(
+    '#w1r-detail-section-jul28-unit-603-paint-common',
+  );
   await sectionTrigger.click();
   const sectionDialog = page.getByRole('dialog', { name: 'Unit 603' });
   await sectionDialog.waitFor();
@@ -287,7 +288,7 @@ try {
   await sectionDialog.waitFor({ state: 'hidden' });
   assert.equal(
     await page.locator(':focus').getAttribute('id'),
-    'w1r-section-jul28-unit-603-paint-common',
+    'w1r-detail-section-jul28-unit-603-paint-common',
   );
 
   await sectionTrigger.click();
@@ -307,7 +308,7 @@ try {
         origin: 'section-sheet',
         requestId: 'wave1r-capture-3',
         returnFocus: {
-          triggerId: 'w1r-section-jul28-unit-603-paint-common',
+          triggerId: 'w1r-detail-section-jul28-unit-603-paint-common',
           unitId: 'jul28-unit-603',
         },
         section: 'common',
@@ -318,8 +319,10 @@ try {
     },
   );
 
+  await page.getByRole('button', { name: 'Back to TurnBoard', exact: true }).click();
   const row602 = page.locator('[data-unit-id="jul28-unit-602"]');
-  const crew602Trigger = row602.getByRole('button', { name: /Paint crew for Unit 602/ });
+  await row602.getByRole('button', { name: 'Open Unit 602', exact: true }).click();
+  const crew602Trigger = page.locator('#w1r-detail-crew-jul28-unit-602-paint');
   await crew602Trigger.click();
   const assignmentDialog = page.getByRole('dialog', { name: 'Unit 602 crew' });
   await assignmentDialog.waitFor();
@@ -351,10 +354,15 @@ try {
   );
   await page.keyboard.press('Escape');
   await assignmentDialog.waitFor({ state: 'hidden' });
-  assert.equal(await page.locator(':focus').getAttribute('id'), 'w1r-crew-jul28-unit-602-paint');
+  assert.equal(
+    await page.locator(':focus').getAttribute('id'),
+    'w1r-detail-crew-jul28-unit-602-paint',
+  );
 
+  await page.getByRole('button', { name: 'Back to TurnBoard', exact: true }).click();
   const row604 = page.locator('[data-unit-id="jul28-unit-604"]');
-  const crew604Trigger = row604.getByRole('button', { name: /Paint crew for Unit 604/ });
+  await row604.getByRole('button', { name: 'Open Unit 604', exact: true }).click();
+  const crew604Trigger = page.locator('#w1r-detail-crew-jul28-unit-604-paint');
   await crew604Trigger.click();
   const assignment604 = page.getByRole('dialog', { name: 'Unit 604 crew' });
   await assignment604.waitFor();
@@ -371,7 +379,10 @@ try {
   assert.equal(await assignment604.getByText('A', { exact: true }).count(), 0);
   await page.keyboard.press('Escape');
   await assignment604.waitFor({ state: 'hidden' });
-  assert.equal(await page.locator(':focus').getAttribute('id'), 'w1r-crew-jul28-unit-604-paint');
+  assert.equal(
+    await page.locator(':focus').getAttribute('id'),
+    'w1r-detail-crew-jul28-unit-604-paint',
+  );
 
   await navigation.getByRole('button', { name: 'Activity', exact: true }).click();
   await page.getByRole('heading', { name: 'Activity', exact: true }).waitFor();
@@ -531,7 +542,10 @@ try {
   const reducedMotionPage = await reducedMotionContext.newPage();
   await reducedMotionPage.goto(`${baseUrl}${previewPath}`, { waitUntil: 'networkidle' });
   await reducedMotionPage.locator('[data-unit-id="jul28-unit-603"]')
-    .getByRole('button', { name: /Unit 603 Paint Common ready for my inspection/ })
+    .getByRole('button', { name: 'Open Unit 603', exact: true })
+    .click();
+  await reducedMotionPage
+    .locator('#w1r-detail-section-jul28-unit-603-paint-common')
     .click();
   const animationDuration = await reducedMotionPage.getByRole('dialog', { name: 'Unit 603' })
     .evaluate((element) => getComputedStyle(element).animationDuration);

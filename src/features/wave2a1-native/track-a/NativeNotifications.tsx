@@ -1,5 +1,5 @@
 import { Bell, ChevronRight } from 'lucide-react';
-import { useMemo } from 'react';
+import { useId, useMemo, useRef, type KeyboardEvent } from 'react';
 import { NativePageHeader, NativePageTransition } from './NativePage';
 import {
   NATIVE_NOTIFICATION_TABS,
@@ -23,10 +23,32 @@ export function NativeNotificationsPage({
   onOpenNotification,
   onTabChange,
 }: NativeNotificationsPageProps) {
+  const panelId = useId();
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const sections = useMemo(
     () => groupNativeNotifications(items, activeTab),
     [activeTab, items],
   );
+  const activeIndex = NATIVE_NOTIFICATION_TABS.findIndex((tab) => tab.id === activeTab);
+
+  const moveTabFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex = index;
+    if (event.key === 'ArrowRight') {
+      nextIndex = (index + 1) % NATIVE_NOTIFICATION_TABS.length;
+    } else if (event.key === 'ArrowLeft') {
+      nextIndex = (index - 1 + NATIVE_NOTIFICATION_TABS.length)
+        % NATIVE_NOTIFICATION_TABS.length;
+    } else if (event.key === 'Home') {
+      nextIndex = 0;
+    } else if (event.key === 'End') {
+      nextIndex = NATIVE_NOTIFICATION_TABS.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    onTabChange(NATIVE_NOTIFICATION_TABS[nextIndex].id);
+    tabRefs.current[nextIndex]?.focus();
+  };
 
   return (
     <NativePageTransition>
@@ -36,13 +58,20 @@ export function NativeNotificationsPage({
       >
         <NativePageHeader onBack={onBack} title="Notifications" />
         <div className="w2a1-a-segmented-control" role="tablist" aria-label="Notification filters">
-          {NATIVE_NOTIFICATION_TABS.map((tab) => (
+          {NATIVE_NOTIFICATION_TABS.map((tab, index) => (
             <button
+              aria-controls={panelId}
               aria-selected={activeTab === tab.id}
               className={activeTab === tab.id ? 'is-active' : undefined}
+              id={`${panelId}-tab-${tab.id}`}
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
+              onKeyDown={(event) => moveTabFocus(event, index)}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
               role="tab"
+              tabIndex={activeTab === tab.id ? 0 : -1}
               type="button"
             >
               {tab.label}
@@ -50,7 +79,14 @@ export function NativeNotificationsPage({
           ))}
         </div>
 
-        <div className="w2a1-a-detail-page__scroll" aria-live="polite">
+        <div
+          aria-labelledby={`${panelId}-tab-${NATIVE_NOTIFICATION_TABS[activeIndex]?.id ?? 'all'}`}
+          aria-live="polite"
+          className="w2a1-a-detail-page__scroll"
+          id={panelId}
+          role="tabpanel"
+          tabIndex={0}
+        >
           {sections.map((section) => (
             <section
               className="w2a1-a-section"

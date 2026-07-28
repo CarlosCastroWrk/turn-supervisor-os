@@ -142,22 +142,29 @@ try {
     await assertNoHorizontalOverflow(page, `${target.name} Issues`);
 
     await page.goto(`${baseUrl}/#/crews`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Crew directory' }).waitFor();
+    await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, 'Crews opened a dialog by default.');
     await page.getByRole('button', { name: 'Add crew', exact: true }).click();
-    const crewDialog = page.getByRole('dialog', { name: 'Add crew contact', exact: true });
-    await crewDialog.waitFor();
-    assert.equal(await crewDialog.getByRole('textbox', { name: 'Phone (optional)' }).count(), 1);
+    await page.getByRole('heading', { name: 'Add Crew', exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, 'Add Crew opened a legacy dialog.');
+    const crewNameInput = page.getByRole('textbox', { name: 'Name', exact: true });
+    await crewNameInput.waitFor();
+    assert.equal(
+      await crewNameInput.evaluate((element) => getComputedStyle(element).fontSize),
+      '16px',
+      'Add Crew retained an iPhone-zoom-prone text size.',
+    );
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await crewDialog.waitFor({ state: 'hidden' });
+    await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} Crew`);
 
     await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'REVIEW', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Review', exact: true }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'Turn OS command bar' }).count(), 0);
     await assertNoHorizontalOverflow(page, `${target.name} Review`);
 
     await page.goto(`${baseUrl}/#/sync`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Sync & diagnostics', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Sync', exact: true }).waitFor();
     await page.getByRole('heading', { name: 'Local-only mode', exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} Sync diagnostics`);
 
@@ -166,11 +173,11 @@ try {
   }
 
   const hostRoutes = [
-    { button: 'Crews', hash: '#/crews', heading: 'Crew directory' },
-    { button: 'Reports', hash: '#/reports', heading: 'Daily Report' },
-    { button: 'Setup', hash: '#/setup', heading: 'Project Setup' },
-    { button: 'Backup', hash: '#/export', heading: 'Export / Backup' },
-    { button: 'Sync', hash: '#/sync', heading: 'Sync & diagnostics' },
+    { button: 'Crews', hash: '#/crews', heading: 'Crews' },
+    { button: 'Reports', hash: '#/reports', heading: 'Reports and Proof' },
+    { button: 'Setup', hash: '#/setup', heading: 'Setup' },
+    { button: 'Backup', hash: '#/export', heading: 'Data and backup' },
+    { button: 'Sync', hash: '#/sync', heading: 'Sync' },
   ];
   const hostContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const hostPage = await hostContext.newPage();

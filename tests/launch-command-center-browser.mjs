@@ -164,9 +164,13 @@ try {
       await page.getByRole('button', { name: 'Back from Notifications' }).click();
 
       await page.getByRole('button', { name: 'Open central add menu' }).click();
-      await page.getByRole('button', { name: 'Open Turn OS Intelligence' }).click();
+      const unavailableIntelligence = page.getByRole('button', {
+        name: 'Turn OS Intelligence unavailable until a later reviewed release',
+        exact: true,
+      });
       assert.equal(await page.evaluate(() => window.__launchTrackAEvents.plus), 1);
-      assert.equal(await page.evaluate(() => window.__launchTrackAEvents.intelligence), 1);
+      assert.equal(await unavailableIntelligence.isDisabled(), true);
+      assert.equal(await page.evaluate(() => window.__launchTrackAEvents.intelligence), 0);
       assert.equal(await page.getByRole('dialog').count(), 0);
     }
 

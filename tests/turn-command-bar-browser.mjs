@@ -1,21 +1,16 @@
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
 const host = '127.0.0.1';
 const port = 4194;
 const baseUrl = `http://${host}:${port}`;
-const sourceText = 'Unit 603 paint is done.';
 
 const targets = [
   { name: 'Mac', viewport: { width: 1440, height: 960 } },
   { name: 'iPad landscape', viewport: { width: 1180, height: 820 } },
   { name: 'iPhone', viewport: { width: 390, height: 844 } },
-];
-
-const commandRoutes = [
-  { name: 'Queue', hash: '#/review' },
-  { name: 'Legacy Unit workspace', hash: '#/units/unit_202' },
 ];
 
 const attachRuntimeChecks = (page) => {
@@ -26,7 +21,9 @@ const attachRuntimeChecks = (page) => {
     }
   });
   page.on('pageerror', (error) => findings.push(`pageerror: ${error.message}`));
-  page.on('requestfailed', (request) => findings.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`));
+  page.on('requestfailed', (request) => {
+    findings.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`);
+  });
   return findings;
 };
 
@@ -41,37 +38,14 @@ const assertNoHorizontalOverflow = async (page, label) => {
   );
 };
 
-const assertSingleCommandSurface = async (page, label) => {
-  const dialog = page.locator('.capture-workspace[role="dialog"]');
-  await dialog.waitFor();
-  assert.equal(await page.locator('.capture-workspace').count(), 1, `${label} rendered multiple Capture shells.`);
-  assert.equal(await page.locator('[role="dialog"]').count(), 1, `${label} exposed multiple dialogs.`);
-  assert.equal(
-    await page.locator('main .page-title h1').filter({ hasText: 'Capture' }).count(),
-    0,
-    `${label} rendered a route-level Capture page beneath the overlay.`,
-  );
-};
-
-const closeCommand = async (page, expectedHash, expectedFocusLabel, label) => {
-  await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
-  await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
-  assert.equal(await page.locator('[role="dialog"]').count(), 0, `${label} needed more than one Close.`);
-  assert.equal(await page.evaluate(() => window.location.hash), expectedHash, `${label} changed its origin route.`);
-  await page.waitForFunction(
-    (focusLabel) => document.activeElement?.getAttribute('aria-label') === focusLabel,
-    expectedFocusLabel,
-  );
-  assert.equal(
-    await page.evaluate(() => document.activeElement?.getAttribute('aria-label')),
-    expectedFocusLabel,
-    `${label} did not restore focus to its command origin.`,
-  );
-};
-
 const server = await createServer({
-  root: process.cwd(),
+  cacheDir: '/private/tmp/pds-wave2a1-command-entry-vite',
+  configLoader: 'runner',
   logLevel: 'error',
+  optimizeDeps: {
+    entries: [resolve(process.cwd(), 'index.html')],
+  },
+  root: process.cwd(),
   server: { host, port, strictPort: true },
 });
 let browser;
@@ -85,308 +59,81 @@ try {
     const page = await context.newPage();
     const findings = attachRuntimeChecks(page);
 
-    for (const route of commandRoutes) {
-      await page.goto(`${baseUrl}/${route.hash}`, { waitUntil: 'networkidle' });
-      const commandBar = page.getByRole('region', { name: 'Turn OS command bar' });
-      await commandBar.waitFor();
-      assert.equal(await commandBar.count(), 1, `${target.name} ${route.name} did not have exactly one command bar.`);
-      assert.equal(
-        await commandBar.getByPlaceholder('Ask or update Turn OS…').count(),
-        1,
-        `${target.name} ${route.name} did not expose the shared command field.`,
-      );
-      assert.equal(
-        await commandBar.getByRole('button', { name: 'Open Capture attachments', exact: true }).count(),
-        1,
-        `${target.name} ${route.name} did not expose one Plus action.`,
-      );
-      assert.equal(
-        await commandBar.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
-        1,
-        `${target.name} ${route.name} did not expose one microphone action.`,
-      );
-      assert.equal(
-        await commandBar.getByRole('button', { name: 'Send to Turn OS', exact: true }).count(),
-        0,
-        `${target.name} ${route.name} exposed Send for an empty command.`,
-      );
-      await assertNoHorizontalOverflow(page, `${target.name} ${route.name}`);
-    }
-
     await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-    const commandInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-    await commandInput.fill('602');
-    const unitMatches = page.getByRole('listbox', { name: 'Current Turn Unit matches' });
-    await unitMatches.waitFor();
-    await unitMatches.getByRole('option', { name: /Unit 602/ }).click();
-    await page.waitForFunction(() => window.location.hash === '#/units/jul28-unit-602');
-    await page.getByRole('heading', { name: 'Unit 602', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Review', exact: true }).waitFor();
     assert.equal(
       await page.getByRole('region', { name: 'Turn OS command bar' }).count(),
       0,
-      'Explicit Unit selection retained the superseded legacy command bar in BoardFirst.',
-    );
-    assert.equal(await page.locator('[role="dialog"]').count(), 0, 'Unit selection opened Capture or changed status.');
-    assert.equal(
-      await page.locator('.turn-command-bar__context').count(),
-      0,
-      `${target.name} retained a legacy Unit-context chip in BoardFirst.`,
-    );
-    assert.equal(
-      await page.getByRole('listbox', { name: 'Current Turn Unit matches' }).count(),
-      0,
-      `${target.name} kept legacy Unit suggestions open after BoardFirst navigation.`,
-    );
-    assert.equal(
-      await page.evaluate(() =>
-        document.activeElement?.getAttribute('aria-label') === 'Ask, update, or search Turn OS'),
-      false,
-      `${target.name} kept the legacy command input focused after BoardFirst navigation.`,
+      `${target.name} exposed the superseded persistent command bar.`,
     );
 
-    await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-    const sourceInput = page.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-    await sourceInput.fill(sourceText);
-    const commandBar = page.getByRole('region', { name: 'Turn OS command bar' });
+    await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+    const addDialog = page.getByRole('dialog', { name: 'Add to Turn OS' });
+    await addDialog.waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 1, `${target.name} stacked Add dialogs.`);
     assert.equal(
-      await commandBar.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
+      await page.locator('.capture-workspace').count(),
       0,
-      `${target.name} kept the microphone after command text was entered.`,
+      `${target.name} opened legacy Capture from the primary Plus.`,
     );
-    const sendButton = commandBar.getByRole('button', { name: 'Send to Turn OS', exact: true });
-    assert.equal(await sendButton.count(), 1, `${target.name} did not expose one Send action.`);
-    await sendButton.click();
-    await assertSingleCommandSurface(page, `${target.name} typed command`);
-    await page.getByRole('button', { name: /UPDATE/ }).click();
-    await page.getByRole('button', { name: 'Type', exact: true }).click();
-    assert.equal(
-      await page.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
-      sourceText,
-      `${target.name} lost typed command wording during handoff.`,
-    );
-    await closeCommand(
-      page,
-      '#/review',
-      'Start voice capture',
-      `${target.name} typed command`,
-    );
+    await addDialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
+    await addDialog.waitFor({ state: 'hidden' });
+    await page.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
 
-    const queuedSourceText = 'Unit 604 clean needs review.';
-    await sourceInput.fill(queuedSourceText);
-    await sourceInput.press('Enter');
-    await assertSingleCommandSurface(page, `${target.name} protected in-memory source`);
-    await page.getByText('Your earlier in-memory Capture is still here.', { exact: false }).waitFor();
-    assert.equal(
-      await page.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
-      sourceText,
-      `${target.name} overwrote the earlier in-memory Capture.`,
+    await page.getByRole('button', { name: 'Open Search', exact: true }).click();
+    const search = page.getByRole('searchbox');
+    await search.waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute('type') === 'search');
+    assert.ok(
+      Number.parseFloat(await search.evaluate((element) => getComputedStyle(element).fontSize)) >= 16,
+      `${target.name} Search could trigger iPhone input zoom.`,
+    );
+    await search.fill('Unit 20');
+    assert.ok(
+      await page.getByRole('button', { name: /^Unit 20/u }).count() > 0,
+      `${target.name} Search did not return matching Units.`,
     );
     assert.equal(
-      await page.locator('.turn-command-bar input').inputValue(),
-      queuedSourceText,
-      `${target.name} lost the newer command wording while preserving the earlier Capture.`,
+      await page.evaluate(() => window.location.hash),
+      '#/search',
+      `${target.name} Search navigated without an explicit result selection.`,
     );
-    await closeCommand(
-      page,
-      '#/review',
-      'Ask, update, or search Turn OS',
-      `${target.name} protected in-memory source`,
+    assert.equal(await page.getByRole('dialog').count(), 0, `${target.name} Search opened a dialog.`);
+    await page.getByRole('button', { name: /^Unit 202\b/u }).click();
+    await page.getByRole('heading', { name: 'Unit 202', exact: true }).waitFor();
+    assert.match(
+      await page.evaluate(() => window.location.hash),
+      /^#\/units\//u,
+      `${target.name} explicit Unit selection did not open the Unit workspace.`,
     );
-    await sourceInput.fill('');
-    await sourceInput.fill('   ');
     assert.equal(
-      await commandBar.getByRole('button', { name: 'Send to Turn OS', exact: true }).count(),
+      await page.getByRole('region', { name: 'Turn OS command bar' }).count(),
       0,
-      `${target.name} exposed Send for whitespace-only wording.`,
+      `${target.name} Unit workspace restored the superseded command bar.`,
     );
-    assert.equal(
-      await commandBar.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
-      1,
-      `${target.name} did not restore the microphone for whitespace-only wording.`,
-    );
-    await sourceInput.fill('');
-
-    await page.getByRole('button', { name: 'Start voice capture', exact: true }).click();
-    await assertSingleCommandSurface(page, `${target.name} microphone entry`);
-    await page.getByRole('heading', { name: 'Capture your exact wording', exact: true }).waitFor();
-    assert.equal(
-      await page.getByRole('group', { name: 'What do you want to capture?' }).count(),
-      0,
-      `${target.name} microphone entry asked for intent before source.`,
-    );
-    await closeCommand(page, '#/review', 'Start voice capture', `${target.name} microphone entry`);
-
-    await page.getByRole('button', { name: 'Open Capture attachments', exact: true }).click();
-    await assertSingleCommandSurface(page, `${target.name} Plus entry`);
-    await closeCommand(
-      page,
-      '#/review',
-      'Open Capture attachments',
-      `${target.name} Plus entry`,
-    );
+    assert.equal(await page.getByRole('dialog').count(), 0, `${target.name} Unit selection opened Capture.`);
+    await assertNoHorizontalOverflow(page, `${target.name} Unit search`);
 
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
-    await assertSingleCommandSurface(page, `${target.name} legacy entry`);
-    assert.equal(await page.evaluate(() => window.location.hash), '#/units');
-    await closeCommand(
-      page,
-      '#/units',
-      'Expand Turn OS assistant',
-      `${target.name} legacy entry`,
+    const captureDialog = page.locator('.capture-workspace[role="dialog"]');
+    await captureDialog.waitFor();
+    assert.equal(await page.locator('.capture-workspace').count(), 1, `${target.name} mounted multiple Capture owners.`);
+    assert.equal(await page.getByRole('dialog').count(), 1, `${target.name} exposed multiple Capture dialogs.`);
+    assert.equal(
+      await page.evaluate(() => window.location.hash),
+      '#/dashboard',
+      `${target.name} legacy Capture route did not normalize to Home.`,
     );
-
-    if (target.name === 'iPhone') {
-      const primaryNav = page.getByRole('navigation', { name: 'Primary' });
-      for (const label of ['TurnBoard', 'Activity', 'More']) {
-        assert.equal(
-          await primaryNav.getByRole('button', { name: label, exact: true }).count(),
-          1,
-          `iPhone primary navigation was missing ${label}.`,
-        );
-      }
-      assert.equal(
-        await primaryNav.getByRole('button', { name: 'Queue', exact: true }).count(),
-        0,
-        'iPhone exposed Queue as a BoardFirst primary navigation destination.',
-      );
-      assert.equal(
-        await primaryNav.getByRole('button', { name: 'Start voice capture', exact: true }).count(),
-        0,
-        'iPhone retained a second Capture owner in primary navigation.',
-      );
-    }
+    await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
+    await captureDialog.waitFor({ state: 'hidden' });
+    await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, `${target.name} needed more than one Close.`);
 
     assert.deepEqual(findings, [], `${target.name} runtime findings:\n${findings.join('\n')}`);
     await context.close();
   }
 
-  const exactContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const exactPage = await exactContext.newPage();
-  const exactFindings = attachRuntimeChecks(exactPage);
-  await exactPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  const exactInput = exactPage.getByRole('combobox', { name: 'Ask, update, or search Turn OS', exact: true });
-  await exactInput.fill('602');
-  const exactSend = exactPage.getByRole('button', { name: 'Send to Turn OS', exact: true });
-  assert.equal(await exactSend.count(), 1, 'Exact Unit wording did not expose Send.');
-  await exactSend.click();
-  await assertSingleCommandSurface(exactPage, 'Exact Unit Send');
-  assert.equal(
-    await exactPage.evaluate(() => window.location.hash),
-    '#/review',
-    'Exact Unit Send silently navigated instead of opening Capture.',
-  );
-  await exactPage.getByRole('button', { name: /UPDATE/ }).click();
-  await exactPage.getByRole('button', { name: 'Type', exact: true }).click();
-  assert.equal(
-    await exactPage.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
-    '602',
-    'Exact Unit Send did not preserve the complete wording.',
-  );
-  await closeCommand(exactPage, '#/review', 'Start voice capture', 'Exact Unit Send');
-  await assertNoHorizontalOverflow(exactPage, 'Exact Unit Send iPhone');
-  assert.deepEqual(exactFindings, [], `Exact Unit runtime findings:\n${exactFindings.join('\n')}`);
-  await exactContext.close();
-
-  const prefixContext = await browser.newContext({ viewport: { width: 390, height: 500 } });
-  const prefixPage = await prefixContext.newPage();
-  const prefixFindings = attachRuntimeChecks(prefixPage);
-  await prefixPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  const prefixInput = prefixPage.getByRole('combobox', {
-    name: 'Ask, update, or search Turn OS',
-    exact: true,
-  });
-
-  for (const query of ['U', 'UN', 'UNI', 'UNIT']) {
-    await prefixInput.fill(query);
-    assert.equal(
-      await prefixPage.getByRole('option').count(),
-      4,
-      `${query} did not retain the bounded Unit suggestion set.`,
-    );
-    assert.equal(
-      await prefixPage.evaluate(() => window.location.hash),
-      '#/review',
-      `${query} navigated without an explicit Unit selection.`,
-    );
-    assert.equal(
-      await prefixPage.locator('[role="option"][aria-selected="true"]').count(),
-      0,
-      `${query} selected a Unit without keyboard or tap intent.`,
-    );
-  }
-
-  await prefixInput.fill('UNIT 60');
-  assert.equal(
-    await prefixPage.getByRole('option').count(),
-    3,
-    'UNIT 60 did not narrow suggestions to the matching numeric prefix.',
-  );
-
-  await prefixInput.fill('U');
-  const prefixMatches = prefixPage.getByRole('listbox', { name: 'Current Turn Unit matches' });
-  const scrollState = await prefixMatches.evaluate((element) => {
-    const computed = window.getComputedStyle(element);
-    return {
-      clientHeight: element.clientHeight,
-      overflowX: computed.overflowX,
-      overflowY: computed.overflowY,
-      overscrollBehavior: computed.overscrollBehavior,
-      scrollHeight: element.scrollHeight,
-      touchAction: computed.touchAction,
-    };
-  });
-  assert.equal(scrollState.overflowX, 'hidden', 'Unit suggestions allowed horizontal scrolling.');
-  assert.equal(scrollState.overflowY, 'auto', 'Unit suggestions did not allow vertical scrolling.');
-  assert.equal(scrollState.overscrollBehavior, 'contain', 'Unit suggestions did not contain scroll gestures.');
-  assert.equal(scrollState.touchAction, 'pan-y', 'Unit suggestions did not preserve vertical touch gestures.');
-
-  assert.equal(
-    await prefixPage.evaluate(() => window.location.hash),
-    '#/review',
-    'Showing Unit suggestions navigated without an explicit selection.',
-  );
-  assert.equal(
-    await prefixPage.locator('[role="dialog"]').count(),
-    0,
-    'Showing Unit suggestions opened Capture.',
-  );
-  assert.equal(
-    await prefixPage.locator('[role="option"][aria-selected="true"]').count(),
-    0,
-    'Showing Unit suggestions selected a Unit.',
-  );
-
-  await prefixPage.getByRole('option', { name: /Unit 603/ }).click();
-  await prefixPage.waitForFunction(() => window.location.hash === '#/units/jul28-unit-603');
-  assert.equal(
-    await prefixPage.locator('[role="dialog"]').count(),
-    0,
-    'Explicit Unit-prefix selection opened Capture.',
-  );
-  await assertNoHorizontalOverflow(prefixPage, 'Unit-prefix search iPhone');
-  assert.deepEqual(prefixFindings, [], `Unit-prefix runtime findings:\n${prefixFindings.join('\n')}`);
-  await prefixContext.close();
-
-  const ambiguousContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const ambiguousPage = await ambiguousContext.newPage();
-  await ambiguousPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  const ambiguousInput = ambiguousPage.getByRole('combobox', {
-    name: 'Ask, update, or search Turn OS',
-    exact: true,
-  });
-  await ambiguousInput.fill('60');
-  assert.equal(await ambiguousPage.getByRole('option').count(), 3, 'Ambiguous Unit suggestions were not visible.');
-  await ambiguousInput.press('Enter');
-  await assertSingleCommandSurface(ambiguousPage, 'Ambiguous Unit explicit submission');
-  assert.equal(
-    await ambiguousPage.evaluate(() => window.location.hash),
-    '#/review',
-    'Ambiguous Unit submission guessed a navigation destination.',
-  );
-  await ambiguousPage.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
-  await ambiguousContext.close();
-
-  console.log('Turn command bar passed on Mac, iPad landscape, and iPhone viewports.');
+  console.log('Native command-entry gate passed on Mac, iPad landscape, and iPhone viewports.');
 } finally {
   await browser?.close();
   await server.close();

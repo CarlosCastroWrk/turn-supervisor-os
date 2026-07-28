@@ -123,7 +123,7 @@ try {
     await page.getByRole('heading', { name: 'Unit 101', exact: true }).waitFor();
 
     await page.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'REVIEW', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Review', exact: true }).waitFor();
     await assertUnifiedShell(page, `${target.name} legacy Review`);
     assert.equal(await page.locator('[data-testid="wave1r-shell"]').count(), 0);
     await assertNoHorizontalOverflow(page, `${target.name} legacy Review`);
@@ -147,13 +147,23 @@ try {
   );
 
   await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
-  await assertSingleCapture(page, 'embedded TurnBoard central Add');
+  const addDialog = page.getByRole('dialog', { name: 'Add to Turn OS', exact: true });
+  await addDialog.waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 1);
+  assert.equal(await page.locator('.capture-workspace').count(), 0);
   assert.equal(await page.locator('.lcc-root').getAttribute('aria-hidden'), 'true');
   assert.notEqual(await page.locator('.lcc-root').getAttribute('inert'), null);
-  await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
-  await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
+  await addDialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
+  await addDialog.waitFor({ state: 'hidden' });
   await page.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
   assert.equal(await page.evaluate(() => window.location.hash), '#/units');
+
+  await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
+  await assertSingleCapture(page, 'legacy Capture bookmark');
+  assert.equal(await page.evaluate(() => window.location.hash), '#/dashboard');
+  await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
+  await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
+  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
 
   assert.deepEqual(findings, [], `Host interaction runtime findings:\n${findings.join('\n')}`);
   await context.close();

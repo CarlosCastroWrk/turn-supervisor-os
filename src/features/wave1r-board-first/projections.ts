@@ -217,6 +217,7 @@ export const projectBoardFirstUnit = (unit: Jul28UnitRecord): BoardFirstUnitProj
     unit.records.some((record) => record.section === section && record.applicability === 'applicable'),
   );
   const highestAttention = attentions[0] ?? null;
+  const waitingAttention = attentions.find((attention) => Boolean(attention.blockerKind));
   const assignmentConflict = unit.records.some((record) =>
     record.authorization === 'assignment-conflict'
     || activeAssignments(record).length > 1);
@@ -232,6 +233,8 @@ export const projectBoardFirstUnit = (unit: Jul28UnitRecord): BoardFirstUnitProj
     clean: projectTrade(unit, 'clean'),
     highestAttention,
     needsMe: Boolean(highestAttention && highestAttention.rank >= 76),
+    waiting: Boolean(waitingAttention),
+    waitingLabel: waitingAttention?.label,
   };
 };
 

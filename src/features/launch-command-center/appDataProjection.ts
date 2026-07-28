@@ -10,6 +10,7 @@ import { isBlockedUnit, isInProgressUnit } from '../../lib/metrics';
 import { getProjectFollowUpTasks } from '../../lib/projectScope';
 import type { TurnCommandUnitOption } from '../../lib/turnCommand';
 import type { BoardFirstActivityItem } from '../wave1r-board-first';
+import type { NativeHomeRecord } from '../wave2a1-native/track-a';
 import type {
   LaunchBlockerSummary,
   LaunchHomeCounts,
@@ -95,6 +96,7 @@ export interface LaunchAppDataProjection {
   counts: LaunchHomeCounts;
   dateISO: string;
   dateLabel: string;
+  homeRecords: readonly NativeHomeRecord[];
   notifications: readonly LaunchNotificationItem[];
   project?: Project;
   propertyName: string;
@@ -116,6 +118,7 @@ export const projectLaunchAppData = (
   const readyToWalkFollowUps = followUps.filter((task) =>
     READY_TO_WALK_PATTERN.test(followUpText(task))
   );
+  const workingUnits = units.filter(isInProgressUnit);
 
   const issueUnitIds = new Set(issues.flatMap((issue) => issue.unitId ? [issue.unitId] : []));
   const blockedUnitIds = new Set([
@@ -138,6 +141,53 @@ export const projectLaunchAppData = (
       unitLabel: `Unit ${unit.unitNumber}`,
     });
   }
+
+  const waitingRecords: NativeHomeRecord[] = [...blockedUnitIds].map((unitId) => {
+    const unit = units.find((candidate) => candidate.id === unitId);
+    const issue = issues.find((candidate) => candidate.unitId === unitId);
+    return {
+      destinationId: issue ? `issue:${issue.id}` : `unit:${unitId}`,
+      id: `home-waiting:${unitId}`,
+      meta: issue?.title ?? 'Personal Unit record is blocked.',
+      summaryStates: ['waiting'],
+      unitLabel: unit ? `Unit ${unit.unitNumber}` : unitLabel(unitId, unitNumbers),
+    };
+  });
+  const homeRecords: NativeHomeRecord[] = [
+    ...workingUnits.map((unit): NativeHomeRecord => ({
+      destinationId: `unit:${unit.id}`,
+      id: `home-working:${unit.id}`,
+      meta: `${unit.paintStatus} Paint · ${unit.cleanStatus} Clean`,
+      summaryStates: ['working'],
+      unitLabel: `Unit ${unit.unitNumber}`,
+    })),
+    ...waitingRecords,
+    ...callbackIssues.map((issue): NativeHomeRecord => ({
+      destinationId: `issue:${issue.id}`,
+      id: `home-callback-issue:${issue.id}`,
+      meta: issue.title,
+      summaryStates: ['callbacks'],
+      unitLabel: unitLabel(issue.unitId, unitNumbers),
+    })),
+    ...callbackFollowUps.map((task): NativeHomeRecord => ({
+      destinationId: followUpUnitId(task)
+        ? `unit:${followUpUnitId(task)}`
+        : 'activity',
+      id: `home-callback-follow-up:${task.id}`,
+      meta: task.title,
+      summaryStates: ['callbacks'],
+      unitLabel: unitLabel(followUpUnitId(task), unitNumbers),
+    })),
+    ...readyToWalkFollowUps.map((task): NativeHomeRecord => ({
+      destinationId: followUpUnitId(task)
+        ? `unit:${followUpUnitId(task)}`
+        : 'activity',
+      id: `home-ready-to-walk:${task.id}`,
+      meta: task.title,
+      summaryStates: ['ready-to-walk'],
+      unitLabel: unitLabel(followUpUnitId(task), unitNumbers),
+    })),
+  ];
 
   const activityItems = data.activityLogs
     .filter((activity) => activity.projectId === data.activeProjectId)
@@ -297,13 +347,14 @@ export const projectLaunchAppData = (
         { numeric: true, sensitivity: 'base' },
       )),
     counts: {
-      blocked: blockedUnitIds.size,
+      blocked: waitingRecords.length,
       callbacks: callbackIssues.length + callbackFollowUps.length,
       readyToWalk: readyToWalkFollowUps.length,
-      working: units.filter(isInProgressUnit).length,
+      working: workingUnits.length,
     },
     dateISO: localISODate(now),
     dateLabel: fieldDateLabel(now),
+    homeRecords,
     notifications: notifications.sort((left, right) => {
       const groupRank = { important: 0, today: 1, earlier: 2 };
       return groupRank[left.group] - groupRank[right.group];

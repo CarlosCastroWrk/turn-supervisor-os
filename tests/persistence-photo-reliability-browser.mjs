@@ -54,29 +54,31 @@ try {
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  await page.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}/#/unit/${encodeURIComponent(unit.id)}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(650);
 
-  const supervisor = page.getByLabel('Supervisor', { exact: true }).last();
-  const originalSupervisor = JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), storageKey)).projects
-    .find((project) => project.id === initialData.activeProjectId).supervisorName;
+  const originalUnitNotes = JSON.parse(
+    await page.evaluate((key) => window.localStorage.getItem(key), storageKey),
+  ).units.find((item) => item.id === unit.id).notes;
   await page.evaluate(() => window.__PDS_RELIABILITY_QA__.failAppDataWrites(true));
-  await supervisor.fill('QA Unsaved Supervisor');
-  await supervisor.press('Tab');
+  const initialQuickNote = page.getByLabel('Quick note', { exact: true });
+  await initialQuickNote.fill('QA unsaved Unit note');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
 
   const unsavedAlert = page.getByRole('alert').filter({ hasText: 'Changes are not saved on this device' });
   await unsavedAlert.waitFor();
   assert.match(await unsavedAlert.textContent(), /latest changes are still in memory/i);
   assert.equal(
-    JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), storageKey)).projects
-      .find((project) => project.id === initialData.activeProjectId).supervisorName,
-    originalSupervisor,
+    JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), storageKey)).units
+      .find((item) => item.id === unit.id).notes,
+    originalUnitNotes,
   );
 
+  await page.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
   await page.goto(`${baseUrl}/#/unit/${encodeURIComponent(unit.id)}`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Unit history', exact: true }).waitFor();
   await page.getByText('Current changes may still be in memory. Retry the local save before relying on this history.', { exact: true }).waitFor();
-  await page.goto(`${baseUrl}/#/setup`, { waitUntil: 'networkidle' });
   await unsavedAlert.waitFor();
 
   await unsavedAlert.getByRole('button', { name: 'Retry save', exact: true }).click();
@@ -84,13 +86,14 @@ try {
   await page.evaluate(() => window.__PDS_RELIABILITY_QA__.failAppDataWrites(false));
   await unsavedAlert.getByRole('button', { name: 'Retry save', exact: true }).click();
   await unsavedAlert.waitFor({ state: 'detached' });
-  assert.equal(
-    JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), storageKey)).projects
-      .find((project) => project.id === initialData.activeProjectId).supervisorName,
-    'QA Unsaved Supervisor',
+  const savedAfterRetry = JSON.parse(
+    await page.evaluate((key) => window.localStorage.getItem(key), storageKey),
+  );
+  assert.match(
+    savedAfterRetry.units.find((item) => item.id === unit.id).notes,
+    /QA unsaved Unit note/,
   );
 
-  await page.goto(`${baseUrl}/#/unit/${encodeURIComponent(unit.id)}`, { waitUntil: 'networkidle' });
   const photoCountBefore = JSON.parse(await page.evaluate((key) => window.localStorage.getItem(key), storageKey)).photoNotes.length;
   await page.evaluate(() => window.__PDS_RELIABILITY_QA__.failPhotoWrites(true));
   const onePixelPng = Buffer.from(

@@ -273,12 +273,12 @@ const UnitRow = memo(function UnitRow({
   selected: boolean;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
-  const waiting = Boolean(projection.highestAttention?.blockerKind);
+  const waiting = projection.waiting;
   const description = [
     `${projection.unitTypeLabel}, ${projection.locationLabel}.`,
     `Paint crew ${projection.paint.crewLabel}; ${projection.paint.summaryLabel}.`,
     `Clean crew ${projection.clean.crewLabel}; ${projection.clean.summaryLabel}.`,
-    waiting ? `Waiting: ${projection.highestAttention?.label}.` : '',
+    waiting ? `Waiting: ${projection.waitingLabel}.` : '',
     projection.needsMe ? 'Needs Me.' : '',
   ].filter(Boolean).join(' ');
 
@@ -418,11 +418,16 @@ function TurnBoardSurface({
 function ActivityList({
   activity,
   compact = false,
+  onOpenActivity,
   onOpenUnit,
   sourceMode,
 }: {
   activity: readonly BoardFirstActivityItem[];
   compact?: boolean;
+  onOpenActivity?: (
+    item: BoardFirstActivityItem,
+    trigger: HTMLButtonElement,
+  ) => void;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
   sourceMode: BoardFirstSourceMode;
 }) {
@@ -438,15 +443,34 @@ function ActivityList({
       {activity.map((item) => (
         <li key={item.id}>
           <span className={`w1r-activity-list__marker is-${item.kind}`} aria-hidden="true" />
-          <div>
-            <div className="w1r-activity-list__meta">
-              <strong>{item.title}</strong>
-              <time dateTime={item.recordedAt}>{formatActivityTime(item.recordedAt)}</time>
-            </div>
-            <p>{item.wording}</p>
-            <small>{item.sourceLabel}</small>
+          <div className="w1r-activity-list__content">
+            {onOpenActivity ? (
+              <button
+                aria-label={`Open ${item.title}`}
+                className="w1r-activity-list__open"
+                onClick={(event) => onOpenActivity(item, event.currentTarget)}
+                type="button"
+              >
+                <span className="w1r-activity-list__meta">
+                  <strong>{item.title}</strong>
+                  <time dateTime={item.recordedAt}>{formatActivityTime(item.recordedAt)}</time>
+                </span>
+                <span className="w1r-activity-list__wording">{item.wording}</span>
+                <small>{item.sourceLabel}</small>
+              </button>
+            ) : (
+              <>
+                <div className="w1r-activity-list__meta">
+                  <strong>{item.title}</strong>
+                  <time dateTime={item.recordedAt}>{formatActivityTime(item.recordedAt)}</time>
+                </div>
+                <p>{item.wording}</p>
+                <small>{item.sourceLabel}</small>
+              </>
+            )}
             {item.unitId && item.unitNumber ? (
               <button
+                className="w1r-activity-list__unit"
                 data-w1r-critical-target="true"
                 id={`w1r-activity-unit-${item.id}`}
                 onClick={(event) => onOpenUnit(item.unitId!, event.currentTarget)}
@@ -467,10 +491,15 @@ function ActivityList({
 
 function ActivitySurface({
   activity,
+  onOpenActivity,
   onOpenUnit,
   sourceMode,
 }: {
   activity: readonly BoardFirstActivityItem[];
+  onOpenActivity?: (
+    item: BoardFirstActivityItem,
+    trigger: HTMLButtonElement,
+  ) => void;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
   sourceMode: BoardFirstSourceMode;
 }) {
@@ -487,7 +516,12 @@ function ActivitySurface({
         </div>
         <span>{noteCount} notes · {transcriptCount} transcripts</span>
       </div>
-      <ActivityList activity={activity} onOpenUnit={onOpenUnit} sourceMode={sourceMode} />
+      <ActivityList
+        activity={activity}
+        onOpenActivity={onOpenActivity}
+        onOpenUnit={onOpenUnit}
+        sourceMode={sourceMode}
+      />
     </section>
   );
 }
@@ -644,6 +678,7 @@ function UnitDetail({
   sourceMode,
   unit,
   headingRef,
+  onOpenActivity,
   onClose,
   onOpenAssignment,
   onOpenPersonalUnit,
@@ -657,6 +692,10 @@ function UnitDetail({
   sourceMode: BoardFirstSourceMode;
   unit: Jul28UnitRecord;
   headingRef: RefObject<HTMLHeadingElement | null>;
+  onOpenActivity?: (
+    item: BoardFirstActivityItem,
+    trigger: HTMLButtonElement,
+  ) => void;
   onClose: () => void;
   onOpenAssignment: (trade: Jul28Trade, trigger: HTMLButtonElement) => void;
   onOpenPersonalUnit?: (unitId: string) => void;
@@ -794,6 +833,7 @@ function UnitDetail({
             <ActivityList
               compact
               activity={unitActivity}
+              onOpenActivity={onOpenActivity}
               onOpenUnit={onOpenUnitFromHistory}
               sourceMode={sourceMode}
             />
@@ -1215,6 +1255,7 @@ export function BoardFirstShell({
   onHostNavigate,
   onActiveViewChange,
   onDialogOpenChange,
+  onOpenActivity,
   onOpenPersonalUnit,
   onUnitNavigate,
 }: BoardFirstShellProps) {
@@ -1576,6 +1617,7 @@ export function BoardFirstShell({
               {activeView === 'activity' ? (
                 <ActivitySurface
                   activity={activity}
+                  onOpenActivity={onOpenActivity}
                   onOpenUnit={openUnit}
                   sourceMode={sourceMode}
                 />
@@ -1591,6 +1633,7 @@ export function BoardFirstShell({
               <UnitDetail
                 activity={activity}
                 headingRef={detailHeadingRef}
+                onOpenActivity={onOpenActivity}
                 panel={detailPanel}
                 projection={selectedProjection}
                 sourceMode={sourceMode}

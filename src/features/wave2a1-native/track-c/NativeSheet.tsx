@@ -20,7 +20,11 @@ const focusableElements = (container: HTMLElement) =>
     container.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
     ),
-  ).filter((element) => !element.hasAttribute('hidden'));
+  ).filter((element) => (
+    !element.hasAttribute('hidden')
+    && element.getAttribute('aria-hidden') !== 'true'
+    && element.tabIndex >= 0
+  ));
 
 export function NativeSheet({
   children,
@@ -33,6 +37,11 @@ export function NativeSheet({
   const descriptionId = useId();
   const sheetRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const onDismissRef = useRef(onDismiss);
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
 
   useEffect(() => {
     const origin =
@@ -45,7 +54,7 @@ export function NativeSheet({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onDismiss();
+        onDismissRef.current();
         return;
       }
       if (event.key !== 'Tab' || !sheetRef.current) return;
@@ -71,7 +80,7 @@ export function NativeSheet({
       document.removeEventListener('keydown', handleKeyDown);
       origin?.focus({ preventScroll: true });
     };
-  }, [initialFocusRef, onDismiss]);
+  }, [initialFocusRef]);
 
   return (
     <div

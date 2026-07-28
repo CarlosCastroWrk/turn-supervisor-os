@@ -62,6 +62,25 @@ const assertSingleCapture = async (page, label) => {
   assert.notEqual(await currentHash(page), '#/copilot', `${label} did not normalize the legacy Capture route.`);
 };
 
+const assertNativePlus = async (page, expectedHash, label) => {
+  await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add to Turn OS' });
+  await dialog.waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 1, `${label} stacked Add dialogs.`);
+  assert.equal(await page.locator('.capture-workspace').count(), 0, `${label} opened legacy Capture from the primary Plus.`);
+  await dialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await currentHash(page), expectedHash, `${label} changed route while dismissing Add.`);
+  await page.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
+};
+
+const openLegacyCapture = async (page, label) => {
+  await page.evaluate(() => {
+    window.location.hash = '#/copilot';
+  });
+  await assertSingleCapture(page, label);
+};
+
 const closeCaptureOnce = async (
   page,
   expectedHash,
@@ -101,11 +120,9 @@ try {
 
     for (const origin of origins) {
       await page.goto(`${baseUrl}/${origin.hash}`, { waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
       const label = `${viewport.name} ${origin.name}`;
-      await assertSingleCapture(page, label);
-      await assertNoHorizontalOverflow(page, `${label} Capture`);
-      await closeCaptureOnce(page, origin.hash, label);
+      await assertNativePlus(page, origin.hash, label);
+      await assertNoHorizontalOverflow(page, `${label} Add`);
     }
 
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
@@ -139,12 +156,13 @@ try {
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
   await historyPage.waitForFunction(() => window.location.hash === '#/units/unit_202');
-  await historyPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
-  await assertSingleCapture(historyPage, 'browser history origin');
+  await openLegacyCapture(historyPage, 'browser history legacy entry');
+  await historyPage.goBack();
+  await historyPage.waitForFunction(() => window.location.hash === '#/units/unit_202');
+  await historyPage.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
+  assert.equal(await historyPage.locator('[role="dialog"]').count(), 0, 'Browser Back left Capture stacked over the Unit.');
   await historyPage.goBack();
   await historyPage.waitForFunction(() => window.location.hash === '#/review');
-  await historyPage.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });
-  assert.equal(await historyPage.locator('[role="dialog"]').count(), 0, 'Browser Back left Capture stacked over Review.');
   await historyPage.goForward();
   await historyPage.waitForFunction(() => window.location.hash === '#/units/unit_202');
   assert.equal(await historyPage.locator('[role="dialog"]').count(), 0, 'Browser Forward reopened Capture unexpectedly.');
@@ -154,8 +172,7 @@ try {
   const sessionContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const sessionPage = await sessionContext.newPage();
   const sessionFindings = attachRuntimeChecks(sessionPage);
-  await sessionPage.goto(`${baseUrl}/#/review`, { waitUntil: 'networkidle' });
-  await sessionPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await sessionPage.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });
   await sessionPage.getByRole('button', { name: /UPDATE/ }).click();
   await sessionPage.getByRole('button', { name: 'Type', exact: true }).click();
   await sessionPage.getByRole('textbox', { name: 'Capture wording', exact: true }).fill(sourceText);
@@ -165,10 +182,9 @@ try {
     buffer: Buffer.from('Synthetic field note only.'),
   });
   await sessionPage.getByText(attachmentName, { exact: true }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/review', 'in-memory source close');
+  await closeCaptureOnce(sessionPage, '#/dashboard', 'in-memory source close');
 
-  await sessionPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
-  await assertSingleCapture(sessionPage, 'reopened in-memory source');
+  await openLegacyCapture(sessionPage, 'reopened in-memory source');
   assert.equal(
     await sessionPage.getByRole('textbox', { name: 'Capture wording', exact: true }).inputValue(),
     sourceText,
@@ -179,7 +195,7 @@ try {
   await sessionPage.getByRole('button', { name: 'Back', exact: true }).click();
   await sessionPage.getByRole('group', { name: 'What do you want to capture?' }).waitFor();
   assert.equal(await sessionPage.locator('[role="dialog"]').count(), 1, 'Internal Back exited or stacked Capture.');
-  assert.equal(await currentHash(sessionPage), '#/review', 'Internal Back changed the origin route.');
+  assert.equal(await currentHash(sessionPage), '#/dashboard', 'Internal Back changed the safe route.');
   await sessionPage.getByRole('button', { name: /UPDATE/ }).click();
   await sessionPage.getByRole('button', { name: 'Type', exact: true }).click();
   assert.equal(
@@ -202,10 +218,9 @@ try {
   await sessionPage.getByRole('button', { name: 'Create drafts', exact: true }).click();
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   await sessionPage.getByRole('heading', { name: /Added to Review/ }).waitFor();
-  await closeCaptureOnce(sessionPage, '#/review', 'Draft result close');
+  await closeCaptureOnce(sessionPage, '#/dashboard', 'Draft result close');
 
-  await sessionPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
-  await assertSingleCapture(sessionPage, 'reopened Draft result');
+  await openLegacyCapture(sessionPage, 'reopened Draft result');
   await sessionPage.getByRole('heading', { name: 'Draft review ready', exact: true }).waitFor();
   const preservedResultSource = sessionPage.locator('.capture-result-card__source p');
   await preservedResultSource.waitFor();
@@ -213,7 +228,7 @@ try {
   assert.match(preservedResultText, /Unit 202 paint is done\./, 'Completed Draft result lost its source wording.');
   assert.match(preservedResultText, /unit-202-field-note\.txt/, 'Completed Draft result lost its attachment reference.');
   assert.match(preservedResultText, /Synthetic field note only\./, 'Completed Draft result lost its attachment text.');
-  await closeCaptureOnce(sessionPage, '#/review', 'reopened Draft result');
+  await closeCaptureOnce(sessionPage, '#/dashboard', 'reopened Draft result');
   assert.deepEqual(sessionFindings, [], `Session runtime findings:\n${sessionFindings.join('\n')}`);
   await sessionContext.close();
 

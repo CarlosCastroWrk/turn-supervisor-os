@@ -91,6 +91,8 @@ interface CopilotViewProps {
 
 export interface CopilotViewHandle {
   openDefaultCapture: () => void;
+  openFileSource: (files: readonly File[], inputMethod: 'file' | 'photo') => Promise<void>;
+  openTextSource: () => void;
   openVoiceSource: () => void;
 }
 
@@ -730,11 +732,6 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
     setVoiceStatus(voiceGuidance.unavailableStatus);
   };
 
-  useImperativeHandle(ref, () => ({
-    openDefaultCapture,
-    openVoiceSource,
-  }));
-
   const openVoicePanel = () => {
     if (presentation === 'overlay') {
       dispatchCaptureSession({ type: 'SELECT_INPUT_METHOD', inputMethod: 'voice' });
@@ -771,7 +768,7 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
     window.requestAnimationFrame(() => quickInputRef.current?.focus({ preventScroll: true }));
   };
 
-  const stageCaptureFiles = async (files: FileList | null) => {
+  const stageCaptureFiles = async (files: FileList | readonly File[] | null) => {
     if (!files?.length) {
       return;
     }
@@ -834,6 +831,33 @@ export const CopilotView = forwardRef<CopilotViewHandle, CopilotViewProps>(funct
     }
     setIsPreparingAttachment(false);
   };
+
+  const openFileSource = async (
+    files: readonly File[],
+    inputMethod: 'file' | 'photo',
+  ) => {
+    if (files.length === 0) return;
+    openDefaultCapture();
+    dispatchCaptureSession({ type: 'START_OVER' });
+    dispatchCaptureSession({ type: 'SELECT_INTENT', intent: 'note' });
+    dispatchCaptureSession({ type: 'SELECT_INPUT_METHOD', inputMethod });
+    await stageCaptureFiles(files);
+  };
+
+  const openTextSource = () => {
+    openDefaultCapture();
+    dispatchCaptureSession({ type: 'START_OVER' });
+    dispatchCaptureSession({ type: 'SELECT_INTENT', intent: 'note' });
+    dispatchCaptureSession({ type: 'SELECT_INPUT_METHOD', inputMethod: 'text' });
+    window.requestAnimationFrame(() => quickInputRef.current?.focus({ preventScroll: true }));
+  };
+
+  useImperativeHandle(ref, () => ({
+    openDefaultCapture,
+    openFileSource,
+    openTextSource,
+    openVoiceSource,
+  }));
 
   const handleCaptureAttachmentChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;

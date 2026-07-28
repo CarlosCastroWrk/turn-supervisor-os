@@ -70,6 +70,7 @@ export interface LaunchCommandCenterShellProps {
   contentDialogOpen?: boolean;
   contentTitle: string;
   dateLabel: string;
+  intelligenceAvailable?: boolean;
   notificationCount?: number;
   onNavigate: (destination: LaunchPrimaryDestination) => void;
   onOpenIntelligence: () => void;

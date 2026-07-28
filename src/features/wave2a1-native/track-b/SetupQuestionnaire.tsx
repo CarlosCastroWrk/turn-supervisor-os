@@ -84,7 +84,7 @@ export function TrackBSetupQuestionnaire({
             type="button"
             onClick={isReview ? onReview : onContinue}
           >
-            {isReview ? 'Review and activate' : 'Continue'}
+            {isReview ? 'Finish review' : 'Continue'}
           </button>
         </div>
       </section>

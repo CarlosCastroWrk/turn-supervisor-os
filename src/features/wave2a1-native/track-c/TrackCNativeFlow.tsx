@@ -154,6 +154,19 @@ export function TrackCNativeFlow({
     [data.activeProjectId, draftStorage],
   );
 
+  const preserveNoteDraft = useCallback(() => {
+    const savedDraft = noteDraftStore.save(note);
+    const wordingRequiresDraft = Boolean(note.wording.trim());
+    if (wordingRequiresDraft && !savedDraft) {
+      setStatus(
+        'Turn OS could not preserve this note draft. Keep this sheet open and copy the wording before leaving.',
+      );
+      return false;
+    }
+    setHasResumeDraft(noteDraftStore.hasDraft());
+    return true;
+  }, [note, noteDraftStore]);
+
   useEffect(() => {
     if (!open) return;
     setScreen('menu');
@@ -163,14 +176,11 @@ export function TrackCNativeFlow({
   }, [initialUnitId, noteDraftStore, open]);
 
   const dismiss = useCallback(() => {
-    if (screen === 'note') {
-      noteDraftStore.save(note);
-      setHasResumeDraft(noteDraftStore.hasDraft());
-    }
+    if (screen === 'note' && !preserveNoteDraft()) return;
     setScreen('menu');
     setStatus('');
     onDismiss();
-  }, [note, noteDraftStore, onDismiss, screen]);
+  }, [onDismiss, preserveNoteDraft, screen]);
 
   const startNewNote = () => {
     setNote(createBlankPersonalNoteSession(initialUnitId));
@@ -300,28 +310,34 @@ export function TrackCNativeFlow({
 
           <input
             accept="image/*"
+            aria-hidden="true"
             capture="environment"
             className="tc-native-input"
             data-track-c-file-input="camera"
             onChange={(event) => selectedNativeFiles('camera', event)}
             ref={cameraInputRef}
+            tabIndex={-1}
             type="file"
           />
           <input
             accept="image/*"
+            aria-hidden="true"
             className="tc-native-input"
             data-track-c-file-input="photos"
             multiple
             onChange={(event) => selectedNativeFiles('photos', event)}
             ref={photosInputRef}
+            tabIndex={-1}
             type="file"
           />
           <input
             accept="image/*,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
+            aria-hidden="true"
             className="tc-native-input"
             data-track-c-file-input="files"
             onChange={(event) => selectedNativeFiles('files', event)}
             ref={filesInputRef}
+            tabIndex={-1}
             type="file"
           />
         </>
@@ -372,8 +388,7 @@ export function TrackCNativeFlow({
               className="tc-secondary-button"
               data-track-c-critical-target="true"
               onClick={() => {
-                noteDraftStore.save(note);
-                setHasResumeDraft(noteDraftStore.hasDraft());
+                if (!preserveNoteDraft()) return;
                 setScreen('menu');
                 setStatus('');
               }}

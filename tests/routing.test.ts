@@ -75,6 +75,28 @@ test('buildAppHash keeps ordinary top-level navigation compact', () => {
   assert.equal(buildAppHash(routeForNavigation('notifications')), '#/notifications');
 });
 
+test('Home summary destinations are exact, shareable filters without changing the primary Home route', () => {
+  const route = routeForNavigation('dashboard', undefined, { homeSummary: 'ready-to-walk' });
+
+  assert.deepEqual(route, {
+    view: 'dashboard',
+    homeSummary: 'ready-to-walk',
+    unitId: undefined,
+    unitSurface: undefined,
+    unitStatusFilter: 'All',
+  });
+  assert.equal(buildAppHash(route), '#/dashboard?summary=ready-to-walk');
+  assert.deepEqual(parseAppHash('#/dashboard?summary=ready-to-walk'), {
+    view: 'dashboard',
+    homeSummary: 'ready-to-walk',
+    unitStatusFilter: 'All',
+  });
+  assert.deepEqual(parseAppHash('#/dashboard?summary=unknown'), {
+    view: 'dashboard',
+    unitStatusFilter: 'All',
+  });
+});
+
 test('new Review and Sync routes do not change legacy route parsing', () => {
   assert.deepEqual(parseAppHash('#/review'), { view: 'review', unitStatusFilter: 'All' });
   assert.deepEqual(parseAppHash('#/sync'), { view: 'sync', unitStatusFilter: 'All' });

@@ -5,13 +5,17 @@ export interface AppRoute {
   unitId?: string;
   unitSurface?: 'board' | 'personal';
   issueId?: string;
+  homeSummary?: HomeSummaryFilter;
   unitStatusFilter: UnitStatusFilter;
 }
+
+export type HomeSummaryFilter = 'working' | 'waiting' | 'callbacks' | 'ready-to-walk';
 
 export interface NavigateOptions {
   unitStatusFilter?: UnitStatusFilter;
   unitSurface?: 'board' | 'personal';
   issueId?: string;
+  homeSummary?: HomeSummaryFilter;
 }
 
 export interface ResolvedAppHash {
@@ -47,6 +51,7 @@ const topLevelViews = new Set<AppView>([
 ]);
 
 const unitStatusFilters: UnitStatusFilter[] = ['All', 'Blocked', 'Ready', 'Not Started', 'In Progress', 'Needs Inspection'];
+const homeSummaryFilters: HomeSummaryFilter[] = ['working', 'waiting', 'callbacks', 'ready-to-walk'];
 
 const decodePathPart = (value: string) => {
   try {
@@ -61,6 +66,9 @@ const encodePathPart = (value: string) => encodeURIComponent(value);
 export const isUnitStatusFilter = (value: string | null): value is UnitStatusFilter =>
   Boolean(value && unitStatusFilters.includes(value as UnitStatusFilter));
 
+export const isHomeSummaryFilter = (value: string | null): value is HomeSummaryFilter =>
+  Boolean(value && homeSummaryFilters.includes(value as HomeSummaryFilter));
+
 export const parseAppHash = (hash: string): AppRoute => {
   const normalizedHash = hash.replace(/^#\/?/, '');
   const [rawPath, rawQuery = ''] = normalizedHash.split('?');
@@ -72,6 +80,7 @@ export const parseAppHash = (hash: string): AppRoute => {
   const params = new URLSearchParams(rawQuery);
   const statusParam = params.get('status');
   const unitStatusFilter = isUnitStatusFilter(statusParam) ? statusParam : defaultRoute.unitStatusFilter;
+  const summaryParam = params.get('summary');
 
   if (pathParts.length === 0) {
     return { ...defaultRoute };
@@ -106,8 +115,12 @@ export const parseAppHash = (hash: string): AppRoute => {
   }
 
   if (topLevelViews.has(viewOrResource as AppView)) {
+    const homeSummary = viewOrResource === 'dashboard' && isHomeSummaryFilter(summaryParam)
+      ? summaryParam
+      : undefined;
     return {
       view: viewOrResource as AppView,
+      ...(homeSummary ? { homeSummary } : {}),
       unitStatusFilter,
     };
   }
@@ -146,6 +159,11 @@ export const buildAppHash = (route: AppRoute) => {
     return `#/units?${params.toString()}`;
   }
 
+  if (route.view === 'dashboard' && route.homeSummary) {
+    const params = new URLSearchParams({ summary: route.homeSummary });
+    return `#/dashboard?${params.toString()}`;
+  }
+
   return `#/${route.view}`;
 };
 
@@ -182,6 +200,9 @@ export const routeForNavigation = (
     view,
     unitId: view === 'unitDetail' ? unitId : undefined,
     unitSurface: view === 'unitDetail' ? options?.unitSurface ?? 'board' : undefined,
+    ...(view === 'dashboard' && options?.homeSummary
+      ? { homeSummary: options.homeSummary }
+      : {}),
     unitStatusFilter: view === 'units' ? options?.unitStatusFilter ?? 'All' : 'All',
   };
 };

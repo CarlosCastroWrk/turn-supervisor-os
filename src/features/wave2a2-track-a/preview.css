@@ -1,0 +1,46 @@
+.w2a2-preview-checks {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  margin: 0 auto;
+  max-width: 720px;
+  padding: 0 16px 24px;
+}
+
+.w2a2-preview-checks button {
+  align-items: center;
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 14px;
+  color: var(--turn-color-primary);
+  display: flex;
+  font-weight: 760;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 14px;
+}
+
+.w2a2-preview-checks span {
+  color: var(--turn-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.w2a2-preview-scroll {
+  max-height: min(56dvh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.w2a2-preview-status {
+  align-items: center;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  color: var(--turn-color-secondary);
+  display: none;
+  gap: 6px;
+  inset-inline-end: 12px;
+  pointer-events: none;
+  position: fixed;
+  z-index: 2;
+}

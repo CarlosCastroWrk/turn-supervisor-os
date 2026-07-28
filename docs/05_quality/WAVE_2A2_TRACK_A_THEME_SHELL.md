@@ -1,6 +1,7 @@
 # Wave 2A.2 Track A — Theme and Unified Shell
 
-Status: implemented on the isolated Track A branch for integration review.
+Status: bounded repair complete on the isolated Track A branch; awaiting a
+fresh independent rereview before integration.
 
 Scope: presentation and navigation only. No operational state, persistence,
 schema, sync, service-worker, approval, payroll, AI, or official-paper behavior
@@ -46,9 +47,10 @@ meaning continues to use labels and icons; color is supplemental.
 
 The module applies the last device preference before React renders and updates
 `meta[name="theme-color"]`. CSS provides a system-dark fallback before the
-module runs. A truly parser-blocking first-paint bootstrap would require an
-`index.html` seam owned by the integration track; Track A intentionally does
-not edit that reserved file.
+module runs. The feature-local preview demonstrates the parser-blocking
+first-paint bootstrap contract. Registering that same bootstrap in the
+application `index.html` remains an integration-owned seam; Track A
+intentionally does not edit that reserved file.
 
 Reduced motion follows `prefers-reduced-motion` and suppresses Track A route
 animation and inherited transitions.
@@ -85,9 +87,9 @@ zoom.
 | TurnBoard and Board detail | Unified shell, contained scroll region | Unit/board behavior stays host-owned |
 | Activity | Unified shell | Activity sheets close to the invoking item |
 | More | Unified shell | Detail Back returns to More |
-| Search | Standalone themed route | Browser-history origin, safe Home fallback |
-| Notifications | Standalone themed route | Browser-history origin, safe Home fallback |
-| Login/recovery | Standalone themed route | Existing authentication behavior |
+| Search | Shared shell in detail mode, one child-owned `main` landmark | Back returns to the invoking primary route |
+| Notifications | Shared shell in detail mode, one child-owned `main` landmark | Back returns to the invoking primary route |
+| Login/recovery | Integration-owned themed boundary | Existing authentication behavior |
 | Legacy personal tools | Native detail containment inside unified shell | Deterministic tool-family fallback |
 | Capture/Plus sheets | Existing single owner above the shell | One close returns focus to origin |
 
@@ -101,8 +103,10 @@ changed.
 
 ## Integration seams
 
-Track A changes only the authorized host integration file and new Track A
-files. The following remain reserved:
+Track A does not wire itself into the production host. It changes only its
+feature module, focused tests, and this quality record. Host registration,
+route handoff, account identity, and document-head bootstrap remain owned by
+the integration track. The following remain reserved:
 
 - `src/App.tsx`
 - `src/lib/routing.ts`
@@ -116,6 +120,26 @@ files. The following remain reserved:
 If the integration track wants a parser-blocking no-flash bootstrap, it may call
 the same storage-key and theme-color contract from the document head without
 changing the preference semantics.
+
+The `Wave2A2OverlayBoundary` carries semantic presentation tokens into the
+existing host-owned Capture and Plus dialogs. It does not own their open state,
+session state, route origin, or close behavior. This preserves the existing
+single-Capture-owner contract.
+
+## Focused verification
+
+- Contract test covers theme persistence, system resolution, account/device
+  fallback, semantic-token contrast, shell hierarchy, detail-mode landmark
+  ownership, scroll selection, overlay ownership boundaries, and reserved-file
+  isolation.
+- Browser gate covers 320px, 390px, and 430px iPhone widths, iPad landscape,
+  Mac, Light/Dark, Search, Notifications, Capture, Plus, scroll restoration,
+  reduced motion, target sizing, input sizing, first paint, and horizontal
+  overflow.
+- Settled-state dark screenshots were compared side by side with Los's iPhone
+  Settings and ChatGPT references. The comparison exposed and closed the
+  retained Wave 2A.1 row-color transition timing and dark overlay presentation
+  gaps before rereview.
 
 ## Physical acceptance still required
 

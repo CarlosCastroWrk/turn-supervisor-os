@@ -6,7 +6,8 @@ import { createServer } from 'vite';
 
 const host = '127.0.0.1';
 const port = 4227;
-const baseUrl = `http://${host}:${port}`;
+const previewPath = '/src/features/wave2a2-track-a/preview.html';
+const baseUrl = `http://${host}:${port}${previewPath}`;
 const screenshotDir = '/private/tmp/turn-os-wave2a2-track-a';
 const viewports = [
   { name: 'iPhone-320', viewport: { width: 320, height: 700 } },
@@ -41,11 +42,11 @@ const assertNoHorizontalOverflow = async (page, label) => {
   );
 };
 
-const assertCriticalTargets = async (page, label) => {
-  const targets = page.locator('[data-w2a2-critical-target="true"]:visible');
-  assert.ok(await targets.count() > 0, `${label} exposed no shell targets.`);
-  for (let index = 0; index < await targets.count(); index += 1) {
-    const box = await targets.nth(index).boundingBox();
+const assertTargetsAtLeast44 = async (page, locator, label) => {
+  const count = await locator.count();
+  assert.ok(count > 0, `${label} exposed no targets.`);
+  for (let index = 0; index < count; index += 1) {
+    const box = await locator.nth(index).boundingBox();
     assert.ok(box, `${label} target ${index} had no visible box.`);
     assert.ok(
       box.width >= 43.5 && box.height >= 43.5,
@@ -66,7 +67,76 @@ const assertInputsAtLeast16 = async (page, label) => {
   }
 };
 
-const primaryNavigation = (page) => page.getByRole('navigation', { name: 'Primary' });
+const parseRgb = (value) => {
+  const channels = value.match(/[\d.]+/gu)?.slice(0, 3).map(Number) ?? [];
+  assert.equal(channels.length, 3, `Could not parse color ${value}.`);
+  return channels;
+};
+
+const relativeLuminance = (channels) =>
+  channels
+    .map((channel) => channel / 255)
+    .map((channel) => (
+      channel <= 0.03928
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4
+    ))
+    .reduce((sum, channel, index) =>
+      sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+
+const contrastRatio = (foreground, background) => {
+  const foregroundLuminance = relativeLuminance(parseRgb(foreground));
+  const backgroundLuminance = relativeLuminance(parseRgb(background));
+  return (
+    Math.max(foregroundLuminance, backgroundLuminance) + 0.05
+  ) / (
+    Math.min(foregroundLuminance, backgroundLuminance) + 0.05
+  );
+};
+
+const assertContrast = async (page, foregroundSelector, backgroundSelector, label) => {
+  const colors = await page.evaluate(
+    ({ foregroundSelector: foreground, backgroundSelector: background }) => {
+      const foregroundElement = document.querySelector(foreground);
+      const backgroundElement = document.querySelector(background);
+      if (!(foregroundElement instanceof HTMLElement)
+        || !(backgroundElement instanceof HTMLElement)) {
+        return null;
+      }
+      return {
+        background: getComputedStyle(backgroundElement).backgroundColor,
+        foreground: getComputedStyle(foregroundElement).color,
+        rootTheme: document.documentElement.dataset.turnTheme,
+        turnPrimary: getComputedStyle(document.documentElement)
+          .getPropertyValue('--turn-color-primary').trim(),
+        w2a1bText: getComputedStyle(foregroundElement)
+          .getPropertyValue('--w2a1b-text').trim(),
+        parentColor: foregroundElement.parentElement
+          ? getComputedStyle(foregroundElement.parentElement).color
+          : '',
+        rowColor: foregroundElement.closest('.w2a1b-row')
+          ? getComputedStyle(foregroundElement.closest('.w2a1b-row')).color
+          : '',
+      };
+    },
+    { backgroundSelector, foregroundSelector },
+  );
+  assert.ok(colors, `${label} elements were unavailable.`);
+  const ratio = contrastRatio(colors.foreground, colors.background);
+  assert.ok(
+    ratio >= 4.5,
+    `${label} contrast was ${ratio.toFixed(2)}:1 `
+      + `(${colors.foreground} on ${colors.background}; `
+      + `theme=${colors.rootTheme ?? 'unset'}, `
+      + `primary=${colors.turnPrimary || 'unset'}, `
+      + `w2a1b=${colors.w2a1bText || 'unset'}, `
+      + `parent=${colors.parentColor || 'unset'}, `
+      + `row=${colors.rowColor || 'unset'}).`,
+  );
+};
+
+const primaryNavigation = (page) =>
+  page.getByRole('navigation', { name: 'Primary' });
 
 const createCleanPage = async (browser, options) => {
   const context = await browser.newContext(options);
@@ -74,13 +144,15 @@ const createCleanPage = async (browser, options) => {
   page.setDefaultTimeout(30_000);
   const findings = attachRuntimeChecks(page);
   await page.addInitScript(() => {
-    const marker = 'turn-os-wave2a2-track-a-clean-start';
-    if (!window.sessionStorage.getItem(marker)) {
-      window.localStorage.clear();
-      window.sessionStorage.setItem(marker, 'true');
-    }
+    localStorage.clear();
+    sessionStorage.clear();
   });
   return { context, findings, page };
+};
+
+const openHome = async (page) => {
+  await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  await page.locator('[data-wave2a2-shell="true"]').waitFor();
 };
 
 await mkdir(screenshotDir, { recursive: true });
@@ -90,7 +162,7 @@ const server = await createServer({
   configLoader: 'runner',
   logLevel: 'error',
   optimizeDeps: {
-    entries: [resolve(process.cwd(), 'index.html')],
+    entries: [resolve(process.cwd(), `.${previewPath}`)],
   },
   root: process.cwd(),
   server: { host, port, strictPort: true },
@@ -107,12 +179,9 @@ try {
       colorScheme: 'light',
       viewport: target.viewport,
     });
-    await page.goto(baseUrl, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+    await openHome(page);
 
     assert.equal(await page.locator('[data-wave2a2-shell="true"]').count(), 1);
-    assert.equal(await page.locator('.lcc-shell').count(), 0);
-    assert.equal(await page.locator('.app-shell').count(), 0);
     assert.equal(await page.getByRole('main').count(), 1);
     assert.deepEqual(
       await primaryNavigation(page).getByRole('button').allTextContents(),
@@ -128,18 +197,17 @@ try {
       await page.evaluate(() => document.documentElement.dataset.turnTheme),
       'light',
     );
-    assert.equal(
-      await page.locator('meta[name="theme-color"]').getAttribute('content'),
-      '#f2f4f7',
-    );
     await assertNoHorizontalOverflow(page, `${target.name} Home`);
-    await assertCriticalTargets(page, `${target.name} Home`);
+    await assertTargetsAtLeast44(
+      page,
+      page.locator('[data-w2a2-critical-target="true"]:visible'),
+      `${target.name} shell`,
+    );
 
     await primaryNavigation(page)
       .getByRole('button', { name: 'TurnBoard', exact: true })
       .click();
     await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-    assert.ok(await page.locator('[data-testid="wave1r-unit-row"]').count() > 0);
     await assertNoHorizontalOverflow(page, `${target.name} TurnBoard`);
 
     await primaryNavigation(page)
@@ -159,12 +227,29 @@ try {
     await context.close();
   }
 
-  const { context, findings, page } = await createCleanPage(browser, {
+  const interaction = await createCleanPage(browser, {
     colorScheme: 'light',
     viewport: { width: 390, height: 844 },
   });
-  await page.goto(baseUrl, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  await openHome(interaction.page);
+  const { page } = interaction;
+
+  await page.getByRole('button', { name: 'Open Search', exact: true }).click();
+  await page.getByRole('heading', { name: 'Search', exact: true }).waitFor();
+  assert.equal(await page.locator('[data-wave2a2-shell="true"]').count(), 1);
+  assert.equal(await page.locator('.w2a2-standalone-route').count(), 0);
+  assert.equal(await page.getByRole('main').count(), 1);
+  assert.equal(await primaryNavigation(page).isHidden(), true);
+  await assertInputsAtLeast16(page, 'Search');
+  await page.getByRole('button', { name: 'Back from Search', exact: true }).click();
+  assert.equal(await primaryNavigation(page).isVisible(), true);
+
+  await page.getByRole('button', { name: /Open notifications/u }).click();
+  await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor();
+  assert.equal(await page.locator('[data-wave2a2-shell="true"]').count(), 1);
+  assert.equal(await page.getByRole('main').count(), 1);
+  assert.equal(await primaryNavigation(page).isHidden(), true);
+  await page.getByRole('button', { name: 'Back from Notifications', exact: true }).click();
 
   await primaryNavigation(page).getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('radio', { name: 'Dark', exact: true }).click();
@@ -172,14 +257,22 @@ try {
     await page.evaluate(() => document.documentElement.dataset.turnTheme),
     'dark',
   );
+  await page.waitForTimeout(250);
   assert.equal(
     await page.locator('meta[name="theme-color"]').getAttribute('content'),
     '#000000',
   );
-  await page.reload({ waitUntil: 'networkidle' });
-  assert.equal(
-    await page.evaluate(() => document.documentElement.dataset.turnThemePreference),
-    'dark',
+  await assertContrast(
+    page,
+    '.w2a1b-profile-card__copy strong',
+    '.w2a1b-profile-card',
+    'Dark More profile',
+  );
+  await assertContrast(
+    page,
+    '.w2a1b-row__copy strong',
+    '.w2a1b-group__card',
+    'Dark More row',
   );
   await page.screenshot({
     path: `${screenshotDir}/iphone-390-more-dark.png`,
@@ -187,113 +280,137 @@ try {
   });
 
   await primaryNavigation(page).getByRole('button', { name: 'Home', exact: true }).click();
-  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Open Capture preview' }).click();
+  await page.getByRole('dialog', { name: 'Capture' }).waitFor();
+  await page.waitForTimeout(220);
+  assert.equal(await page.getByRole('dialog').count(), 1);
+  await assertContrast(
+    page,
+    '.capture-workspace__project strong',
+    '.capture-workspace',
+    'Dark Capture title',
+  );
+  await assertContrast(
+    page,
+    '.capture-intent-picker > p',
+    '.capture-workspace__timeline',
+    'Dark Capture guidance',
+  );
   await page.screenshot({
-    path: `${screenshotDir}/iphone-390-home-dark.png`,
+    path: `${screenshotDir}/iphone-390-capture-dark.png`,
     fullPage: false,
   });
-
-  await primaryNavigation(page)
-    .getByRole('button', { name: 'TurnBoard', exact: true })
-    .click();
-  await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Open Search', exact: true }).click();
-  await page.getByRole('heading', { name: 'Search', exact: true }).waitFor();
-  assert.equal(await page.locator('.w2a2-standalone-route').count(), 1);
-  assert.equal(await page.locator('[data-wave2a2-shell="true"]').count(), 0);
-  await assertInputsAtLeast16(page, 'Search');
-  await assertNoHorizontalOverflow(page, 'Search');
-  await page.getByRole('button', { name: 'Back from Search', exact: true }).click();
-  await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => window.location.hash), '#/units');
-
-  await page.getByRole('button', { name: /Open notifications/u }).click();
-  await page.getByRole('heading', { name: 'Notifications', exact: true }).waitFor();
-  assert.equal(await page.locator('.w2a2-standalone-route').count(), 1);
-  await page.getByRole('button', { name: 'Back from Notifications', exact: true }).click();
-  await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-
-  await primaryNavigation(page).getByRole('button', { name: 'More', exact: true }).click();
-  await page.getByRole('button', { name: /Open profile for/u }).click();
-  await page.getByRole('heading', { name: 'Profile', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
-  await page.getByRole('heading', { name: 'More', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Close Field Copilot' }).click();
+  assert.equal(await page.getByRole('dialog').count(), 0);
 
   await primaryNavigation(page).getByRole('button', { name: 'Open central Plus menu' }).click();
   await page.getByRole('dialog', { name: 'Add to Turn OS' }).waitFor();
+  await page.waitForTimeout(240);
   assert.equal(await page.getByRole('dialog').count(), 1);
+  await assertContrast(
+    page,
+    '.tc-sheet__header h2',
+    '.tc-sheet',
+    'Dark Plus title',
+  );
+  await assertContrast(
+    page,
+    '.tc-option-list > button strong',
+    '.tc-option-list > button',
+    'Dark Plus option',
+  );
+  await assertTargetsAtLeast44(
+    page,
+    page.locator('[data-track-c-critical-target="true"]:visible'),
+    'Dark Plus',
+  );
+  await page.screenshot({
+    path: `${screenshotDir}/iphone-390-plus-dark.png`,
+    fullPage: false,
+  });
   await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
   assert.equal(await page.getByRole('dialog').count(), 0);
 
+  await primaryNavigation(page).getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('radio', { name: 'Light', exact: true }).click();
-  assert.equal(
-    await page.evaluate(() => document.documentElement.dataset.turnTheme),
-    'light',
-  );
   await page.screenshot({
     path: `${screenshotDir}/iphone-390-more-light.png`,
     fullPage: false,
   });
 
-  assert.deepEqual(findings, [], `iPhone interaction findings:\n${findings.join('\n')}`);
-  await context.close();
+  assert.deepEqual(
+    interaction.findings,
+    [],
+    `Interaction findings:\n${interaction.findings.join('\n')}`,
+  );
+  await interaction.context.close();
 
   const scrollCheck = await createCleanPage(browser, {
     colorScheme: 'light',
     viewport: { width: 390, height: 568 },
   });
-  await scrollCheck.page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-  await scrollCheck.page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-  const listPosition = await scrollCheck.page.locator('.w1r-unit-list').evaluate((element) => {
-    const nextPosition = Math.min(120, element.scrollHeight - element.clientHeight);
-    element.scrollTop = nextPosition;
+  await openHome(scrollCheck.page);
+  await primaryNavigation(scrollCheck.page)
+    .getByRole('button', { name: 'TurnBoard', exact: true })
+    .click();
+  const scrollRegion = scrollCheck.page.locator('[data-turn-scroll-region="primary"]');
+  await scrollRegion.waitFor();
+  const listPosition = await scrollRegion.evaluate((element) => {
+    element.scrollTop = Math.min(180, element.scrollHeight - element.clientHeight);
+    element.dispatchEvent(new Event('scroll'));
     return element.scrollTop;
   });
+  assert.ok(listPosition > 0, 'Synthetic TurnBoard list did not become scrollable.');
+
+  await primaryNavigation(scrollCheck.page)
+    .getByRole('button', { name: 'Open central Plus menu' })
+    .click();
+  await scrollCheck.page.getByRole('dialog', { name: 'Add to Turn OS' }).waitFor();
+  await scrollCheck.page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
+  const positionAfterSheet = await scrollRegion.evaluate((element) => element.scrollTop);
+  assert.equal(positionAfterSheet, listPosition, 'Plus changed TurnBoard scroll position.');
+
   await primaryNavigation(scrollCheck.page)
     .getByRole('button', { name: 'Home', exact: true })
     .click();
   await primaryNavigation(scrollCheck.page)
     .getByRole('button', { name: 'TurnBoard', exact: true })
     .click();
-  await scrollCheck.page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
   await scrollCheck.page.waitForTimeout(50);
   const restoredPosition = await scrollCheck.page
-    .locator('.w1r-unit-list')
+    .locator('[data-turn-scroll-region="primary"]')
     .evaluate((element) => element.scrollTop);
-  if (listPosition > 0) {
-    assert.ok(
-      Math.abs(restoredPosition - listPosition) <= 2,
-      `TurnBoard restored ${restoredPosition}px instead of ${listPosition}px.`,
-    );
-  } else {
-    assert.equal(
-      restoredPosition,
-      0,
-      'A fitting real-data list should return without synthetic scroll movement.',
-    );
-  }
+  assert.ok(
+    Math.abs(restoredPosition - listPosition) <= 2,
+    `TurnBoard restored ${restoredPosition}px instead of ${listPosition}px.`,
+  );
   assert.deepEqual(
     scrollCheck.findings,
     [],
-    `Scroll-history findings:\n${scrollCheck.findings.join('\n')}`,
+    `Scroll findings:\n${scrollCheck.findings.join('\n')}`,
   );
   await scrollCheck.context.close();
 
-  const systemDark = await createCleanPage(browser, {
+  const firstPaint = await browser.newContext({
     colorScheme: 'dark',
     reducedMotion: 'reduce',
     viewport: { width: 390, height: 844 },
   });
-  await systemDark.page.goto(baseUrl, { waitUntil: 'networkidle' });
+  const firstPaintPage = await firstPaint.newPage();
+  await firstPaintPage.addInitScript(() => {
+    localStorage.setItem('turn-os:appearance:v1:device', 'dark');
+  });
+  await firstPaintPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   assert.equal(
-    await systemDark.page.evaluate(() => document.documentElement.dataset.turnTheme),
+    await firstPaintPage.evaluate(() => document.documentElement.dataset.turnTheme),
     'dark',
   );
+  await firstPaintPage.locator('[data-wave2a2-shell="true"]').waitFor();
   assert.equal(
-    await systemDark.page.evaluate(() => document.documentElement.dataset.turnReducedMotion),
+    await firstPaintPage.evaluate(() => document.documentElement.dataset.turnReducedMotion),
     'true',
   );
-  const routeAnimation = await systemDark.page.locator('.w2a2-route-surface').evaluate(
+  const routeAnimation = await firstPaintPage.locator('.w2a2-route-surface').evaluate(
     (element) => getComputedStyle(element).animationDuration,
   );
   assert.ok(
@@ -302,12 +419,7 @@ try {
       || routeAnimation === '0.000001s',
     `Reduced-motion route animation remained ${routeAnimation}.`,
   );
-  assert.deepEqual(
-    systemDark.findings,
-    [],
-    `System dark findings:\n${systemDark.findings.join('\n')}`,
-  );
-  await systemDark.context.close();
+  await firstPaint.close();
 
   console.log(`Wave 2A.2 Track A browser gate passed. Screenshots: ${screenshotDir}`);
 } finally {

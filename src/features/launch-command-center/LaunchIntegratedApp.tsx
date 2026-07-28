@@ -25,6 +25,7 @@ import {
   type ActivityItem,
 } from '../operational-memory';
 import {
+  LaunchCommandCenterShell,
   LaunchLoginSurface,
 } from './LaunchCommandCenter';
 import { projectLaunchAppData } from './appDataProjection';
@@ -53,6 +54,7 @@ import {
   TRACK_B_SETUP_QUESTIONS,
   TrackBCrewFormPage,
   TrackBCrewListPage,
+  TrackBMorePage,
   TrackBProfilePage,
   TrackBReportsAndProofPage,
   TrackBSetupQuestionnaire,
@@ -70,12 +72,6 @@ import {
   type TrackCNativeFileSelection,
   type TrackCPlusAction,
 } from '../wave2a1-native/track-c';
-import {
-  ThemeAwareMorePage,
-  Wave2A2StandaloneRoute,
-  Wave2A2UnifiedShell,
-  useTurnTheme,
-} from '../wave2a2-track-a';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
 import { addCrewMember, updateCrewMember } from '../../lib/actions';
@@ -194,12 +190,6 @@ const boardActivityKind = (
 export function LaunchIntegratedApp() {
   const { data, setData, hasStoredData, retrySave, saveStatus } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
-  const theme = useTurnTheme(
-    sync.userId
-      ?? sync.lastAuthenticatedUserId
-      ?? getLocalCacheOwner()
-      ?? 'local-unconfigured-device',
-  );
   const [route, setRoute] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
   );
@@ -1009,80 +999,74 @@ export function LaunchIntegratedApp() {
     );
   if (!appAvailable) {
     return (
-      <Wave2A2StandaloneRoute routeName="login" theme={theme}>
-        <LaunchLoginSurface
-          busy={authBusy || !sync.authReady}
-          email={loginEmail}
-          online={online}
-          onEmailChange={setLoginEmail}
-          onForgotPassword={() => {
-            if (!online) {
-              setAuthFeedback('Reconnect before requesting a password reset. Saved field data is not deleted.');
-              return;
-            }
-            if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim())) {
-              setAuthFeedback('Enter a valid email before requesting a password reset.');
-              return;
-            }
-            setAuthBusy(true);
-            setAuthFeedback(undefined);
-            void authAdapter.requestPasswordReset(loginEmail.trim()).then((result) => {
-              setAuthFeedback(
-                result.ok
-                  ? 'Password-reset request sent. Check the email address you entered.'
-                  : result.error,
-              );
-            }).finally(() => setAuthBusy(false));
-          }}
-          onPasswordChange={setLoginPassword}
-          onSubmit={() => {
-            if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim()) || !loginPassword) {
-              setAuthFeedback('Enter a valid email and password.');
-              return;
-            }
-            setAuthBusy(true);
-            setAuthFeedback(undefined);
-            void sync.signIn(loginEmail.trim(), loginPassword)
-              .then(() => setLoginPassword(''))
-              .finally(() => setAuthBusy(false));
-          }}
-          password={loginPassword}
-          recovery={sync.signedIn && sync.status === 'cache_transition_required'
-            ? <SyncPanel presentation="page" sync={sync} />
-            : undefined}
-          sessionMessage={authFeedback ?? sync.message}
-        />
-      </Wave2A2StandaloneRoute>
+      <LaunchLoginSurface
+        busy={authBusy || !sync.authReady}
+        email={loginEmail}
+        online={online}
+        onEmailChange={setLoginEmail}
+        onForgotPassword={() => {
+          if (!online) {
+            setAuthFeedback('Reconnect before requesting a password reset. Saved field data is not deleted.');
+            return;
+          }
+          if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim())) {
+            setAuthFeedback('Enter a valid email before requesting a password reset.');
+            return;
+          }
+          setAuthBusy(true);
+          setAuthFeedback(undefined);
+          void authAdapter.requestPasswordReset(loginEmail.trim()).then((result) => {
+            setAuthFeedback(
+              result.ok
+                ? 'Password-reset request sent. Check the email address you entered.'
+                : result.error,
+            );
+          }).finally(() => setAuthBusy(false));
+        }}
+        onPasswordChange={setLoginPassword}
+        onSubmit={() => {
+          if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim()) || !loginPassword) {
+            setAuthFeedback('Enter a valid email and password.');
+            return;
+          }
+          setAuthBusy(true);
+          setAuthFeedback(undefined);
+          void sync.signIn(loginEmail.trim(), loginPassword)
+            .then(() => setLoginPassword(''))
+            .finally(() => setAuthBusy(false));
+        }}
+        password={loginPassword}
+        recovery={sync.signedIn && sync.status === 'cache_transition_required'
+          ? <SyncPanel presentation="page" sync={sync} />
+          : undefined}
+        sessionMessage={authFeedback ?? sync.message}
+      />
     );
   }
 
   if (route.view === 'search') {
     return (
-      <Wave2A2StandaloneRoute routeName="search" theme={theme}>
-        <NativeSearchPage
-          groups={nativeSearchGroups}
-          onBack={closeFullPage}
-          onOpenResult={handleSearchResult}
-          onQueryChange={setSearchQuery}
-          onSelectRecent={(query) => setSearchQuery(query)}
-          query={searchQuery}
-          recentSearches={recentSearches}
-        />
-      </Wave2A2StandaloneRoute>
+      <NativeSearchPage
+        groups={nativeSearchGroups}
+        onBack={closeFullPage}
+        onOpenResult={handleSearchResult}
+        onQueryChange={setSearchQuery}
+        onSelectRecent={(query) => setSearchQuery(query)}
+        query={searchQuery}
+        recentSearches={recentSearches}
+      />
     );
   }
 
   if (route.view === 'notifications') {
     return (
-      <Wave2A2StandaloneRoute routeName="notifications" theme={theme}>
-        <NativeNotificationsPage
-          activeTab={notificationTab}
-          items={nativeNotifications}
-          onBack={closeFullPage}
-          onOpenNotification={handleNotification}
-          onTabChange={setNotificationTab}
-        />
-      </Wave2A2StandaloneRoute>
+      <NativeNotificationsPage
+        activeTab={notificationTab}
+        items={nativeNotifications}
+        onBack={closeFullPage}
+        onOpenNotification={handleNotification}
+        onTabChange={setNotificationTab}
+      />
     );
   }
 
@@ -1222,18 +1206,14 @@ export function LaunchIntegratedApp() {
           </GroupedInsetSection>
         </NativeDetailShell>
       ) : (
-        <ThemeAwareMorePage
+        <TrackBMorePage
           onNavigate={handleMoreNavigation}
-          onPreferenceChange={theme.setPreference}
           onRequestSignOut={requestSignOut}
-          preference={theme.preference}
           profile={{
             currentProperty: launchProjection.propertyName,
             name: launchProjection.project?.supervisorName || 'Los',
             role: 'Turn Supervisor',
           }}
-          reducedMotion={theme.reducedMotion}
-          resolvedTheme={theme.resolvedTheme}
           statusLabel={moreStatus}
         />
       )}
@@ -1329,7 +1309,7 @@ export function LaunchIntegratedApp() {
 
   return (
     <>
-      <Wave2A2UnifiedShell
+      <LaunchCommandCenterShell
         activeDestination={primaryDestinationForRoute(route.view)}
         backgroundInert={captureOpen || plusOpen || Boolean(selectedActivity)}
         contentFocusKey={buildAppHash(route)}
@@ -1344,14 +1324,9 @@ export function LaunchIntegratedApp() {
         onOpenPlus={openNativePlus}
         onOpenSearch={() => openFullPage('search')}
         propertyName={launchProjection.propertyName}
-        restoreContentScroll={
-          route.view === 'units'
-          && route.unitStatusFilter === 'All'
-        }
-        theme={theme}
       >
         {shellContent}
-      </Wave2A2UnifiedShell>
+      </LaunchCommandCenterShell>
       <CopilotView
         ref={copilotRef}
         commandSourceRequest={commandSourceRequest}

@@ -14,6 +14,7 @@
   --turn-color-brand: #0879e8;
   --turn-color-brand-strong: #0066cc;
   --turn-color-brand-soft: #e8f3ff;
+  --turn-color-on-brand: #ffffff;
   --turn-color-waiting: #a45f00;
   --turn-color-waiting-soft: #fff3dc;
   --turn-color-working: #0879e8;
@@ -24,6 +25,7 @@
   --turn-color-ready-soft: #eaf6ed;
   --turn-color-destructive: #c43d36;
   --turn-color-destructive-soft: #fff0ef;
+  --turn-color-on-destructive: #ffffff;
   --turn-color-focus: #0879e8;
   --turn-color-sheet-backdrop: rgb(4 12 20 / 48%);
   --turn-shadow-grouped: 0 8px 24px rgb(15 34 54 / 6%);
@@ -47,6 +49,7 @@
   --turn-color-brand: #43a3ff;
   --turn-color-brand-strong: #63b3ff;
   --turn-color-brand-soft: #153b5f;
+  --turn-color-on-brand: #001a31;
   --turn-color-waiting: #f1a238;
   --turn-color-waiting-soft: #49300f;
   --turn-color-working: #43a3ff;
@@ -57,6 +60,7 @@
   --turn-color-ready-soft: #173b21;
   --turn-color-destructive: #ff6b64;
   --turn-color-destructive-soft: #4a1d1a;
+  --turn-color-on-destructive: #2b0000;
   --turn-color-focus: #43a3ff;
   --turn-color-sheet-backdrop: rgb(0 0 0 / 72%);
   --turn-shadow-grouped: none;
@@ -80,6 +84,7 @@
     --turn-color-brand: #43a3ff;
     --turn-color-brand-strong: #63b3ff;
     --turn-color-brand-soft: #153b5f;
+    --turn-color-on-brand: #001a31;
     --turn-color-waiting: #f1a238;
     --turn-color-waiting-soft: #49300f;
     --turn-color-working: #43a3ff;
@@ -90,6 +95,7 @@
     --turn-color-ready-soft: #173b21;
     --turn-color-destructive: #ff6b64;
     --turn-color-destructive-soft: #4a1d1a;
+    --turn-color-on-destructive: #2b0000;
     --turn-color-focus: #43a3ff;
     --turn-color-sheet-backdrop: rgb(0 0 0 / 72%);
     --turn-shadow-grouped: none;
@@ -106,9 +112,12 @@
   --border: var(--turn-color-divider);
   --border-strong: var(--turn-color-divider-strong);
   --blue: var(--turn-color-brand);
+  --orange: var(--turn-color-callback);
   --green: var(--turn-color-ready);
   --amber: var(--turn-color-waiting);
   --red: var(--turn-color-destructive);
+  --radius: 12px;
+  --shadow: var(--turn-shadow-grouped);
   background: var(--turn-color-page);
   color: var(--turn-color-primary);
 }
@@ -175,24 +184,68 @@
 }
 
 :root[data-turn-theme] .w2a1b-page {
-  --w2a1b-accent: var(--turn-color-brand);
-  --w2a1b-accent-strong: var(--turn-color-brand-strong);
-  --w2a1b-background: var(--turn-color-page);
-  --w2a1b-border: var(--turn-color-divider);
-  --w2a1b-danger: var(--turn-color-destructive);
-  --w2a1b-muted: var(--turn-color-secondary);
-  --w2a1b-surface: var(--turn-color-elevated);
-  --w2a1b-surface-muted: var(--turn-color-grouped);
-  --w2a1b-text: var(--turn-color-primary);
+  /* Override the retained component's own light/dark media palette. */
+  --w2a1b-accent: var(--turn-color-brand) !important;
+  --w2a1b-accent-strong: var(--turn-color-brand-strong) !important;
+  --w2a1b-background: var(--turn-color-page) !important;
+  --w2a1b-border: var(--turn-color-divider) !important;
+  --w2a1b-danger: var(--turn-color-destructive) !important;
+  --w2a1b-muted: var(--turn-color-secondary) !important;
+  --w2a1b-surface: var(--turn-color-elevated) !important;
+  --w2a1b-surface-muted: var(--turn-color-grouped) !important;
+  --w2a1b-text: var(--turn-color-primary) !important;
 }
 
-:root[data-turn-theme] .tc-sheet-backdrop,
-:root[data-turn-theme] .j28-sheet-backdrop,
-:root[data-turn-theme] .capture-workspace-backdrop {
+:root[data-turn-theme] .w2a1b-row,
+:root[data-turn-theme] .w2a1b-profile-card,
+:root[data-turn-theme] .w2a1b-icon-button,
+:root[data-turn-theme] .w2a1b-page__compact-title {
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .w2a1b-row__copy small,
+:root[data-turn-theme] .w2a1b-row__value,
+:root[data-turn-theme] .w2a1b-row__chevron,
+:root[data-turn-theme] .w2a1b-profile-card__copy span,
+:root[data-turn-theme] .w2a1b-profile-card__copy small,
+:root[data-turn-theme] .w2a1b-group > h2,
+:root[data-turn-theme] .w2a1b-group__footer,
+:root[data-turn-theme] .w2a1b-page__heading > p:not(.w2a1b-status-pill):not(.w2a1b-eyebrow) {
+  color: var(--turn-color-secondary);
+}
+
+:root[data-turn-theme] .tc-sheet-backdrop {
+  --tc-bg: var(--turn-color-elevated);
+  --tc-surface: var(--turn-color-grouped);
+  --tc-text: var(--turn-color-primary);
+  --tc-muted: var(--turn-color-secondary);
+  --tc-border: var(--turn-color-divider);
+  --tc-navy: var(--turn-color-primary);
+  --tc-blue: var(--turn-color-brand);
+  background: var(--turn-color-sheet-backdrop);
+}
+
+:root[data-turn-theme] .j28-sheet-backdrop {
+  --j28-bg: var(--turn-color-elevated);
+  --j28-surface: var(--turn-color-grouped);
+  --j28-surface-strong: var(--turn-color-elevated);
+  --j28-text: var(--turn-color-primary);
+  --j28-muted: var(--turn-color-secondary);
+  --j28-border: var(--turn-color-divider);
+  --j28-blue: var(--turn-color-brand);
+  --j28-blue-strong: var(--turn-color-brand-strong);
+  --j28-danger: var(--turn-color-destructive);
+  background: var(--turn-color-sheet-backdrop);
+}
+
+:root[data-turn-theme] .capture-workspace-backdrop,
+:root[data-turn-theme] .field-entry-backdrop,
+:root[data-turn-theme] .voice-sheet-backdrop {
   background: var(--turn-color-sheet-backdrop);
 }
 
 .w2a2-shell,
+.w2a2-overlay-boundary,
 .w2a2-standalone-route {
   background: var(--turn-color-page);
   color: var(--turn-color-primary);
@@ -207,6 +260,9 @@
 .w2a2-shell *,
 .w2a2-shell *::before,
 .w2a2-shell *::after,
+.w2a2-overlay-boundary *,
+.w2a2-overlay-boundary *::before,
+.w2a2-overlay-boundary *::after,
 .w2a2-standalone-route *,
 .w2a2-standalone-route *::before,
 .w2a2-standalone-route *::after {
@@ -218,6 +274,10 @@
 .w2a2-shell input,
 .w2a2-shell select,
 .w2a2-shell textarea,
+.w2a2-overlay-boundary button,
+.w2a2-overlay-boundary input,
+.w2a2-overlay-boundary select,
+.w2a2-overlay-boundary textarea,
 .w2a2-standalone-route button,
 .w2a2-standalone-route input,
 .w2a2-standalone-route select,
@@ -228,6 +288,9 @@
 .w2a2-shell input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .w2a2-shell select,
 .w2a2-shell textarea,
+.w2a2-overlay-boundary input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.w2a2-overlay-boundary select,
+.w2a2-overlay-boundary textarea,
 .w2a2-standalone-route input:not([type='checkbox']):not([type='radio']):not([type='file']),
 .w2a2-standalone-route select,
 .w2a2-standalone-route textarea {
@@ -236,6 +299,8 @@
 
 .w2a2-shell button,
 .w2a2-shell a,
+.w2a2-overlay-boundary button,
+.w2a2-overlay-boundary a,
 .w2a2-standalone-route button,
 .w2a2-standalone-route a {
   -webkit-tap-highlight-color: transparent;
@@ -247,6 +312,11 @@
 .w2a2-shell input:focus-visible,
 .w2a2-shell select:focus-visible,
 .w2a2-shell textarea:focus-visible,
+.w2a2-overlay-boundary button:focus-visible,
+.w2a2-overlay-boundary a:focus-visible,
+.w2a2-overlay-boundary input:focus-visible,
+.w2a2-overlay-boundary select:focus-visible,
+.w2a2-overlay-boundary textarea:focus-visible,
 .w2a2-standalone-route button:focus-visible,
 .w2a2-standalone-route a:focus-visible,
 .w2a2-standalone-route input:focus-visible,
@@ -264,6 +334,10 @@
   position: relative;
 }
 
+.w2a2-overlay-boundary {
+  display: contents;
+}
+
 .w2a2-standalone-route {
   block-size: 100dvh;
   inline-size: 100%;
@@ -272,13 +346,18 @@
 }
 
 .w2a2-skip-link {
+  align-items: center;
   background: var(--turn-color-primary);
   border-radius: 0 0 10px 0;
   color: var(--turn-color-page);
   font-size: 14px;
   font-weight: 800;
+  display: inline-flex;
   inset-block-start: -80px;
   inset-inline-start: 0;
+  justify-content: center;
+  min-block-size: 44px;
+  min-inline-size: 44px;
   padding: 10px 14px;
   position: absolute;
   z-index: 1000;
@@ -405,7 +484,7 @@
   background: var(--turn-color-destructive);
   border: 2px solid var(--turn-color-header);
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--turn-color-on-destructive);
   display: flex;
   font-size: 9px;
   font-weight: 850;
@@ -441,6 +520,24 @@
 .w2a2-shell__main.is-contained {
   overflow: hidden;
   padding-bottom: calc(66px + env(safe-area-inset-bottom));
+}
+
+.w2a2-shell.is-detail-mode .w2a2-shell__main,
+.w2a2-shell.is-detail-mode .w2a2-shell__main.is-contained {
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.w2a2-shell.is-detail-mode .w2a2-navigation {
+  display: none;
+}
+
+.w2a2-shell.is-detail-mode .w2a2-route-surface {
+  height: 100%;
+}
+
+.w2a2-shell.is-detail-mode .w2a1-a-detail-page {
+  height: 100%;
 }
 
 .w2a2-route-surface {
@@ -515,7 +612,7 @@
   background: var(--turn-color-brand);
   border: 4px solid var(--turn-color-bottom-nav);
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--turn-color-on-brand);
   display: flex;
   block-size: 48px;
   inline-size: 48px;
@@ -582,6 +679,209 @@
 
 :root[data-turn-theme='dark'] .w2a1b-row--attention .w2a1b-row__value {
   color: var(--turn-color-waiting);
+}
+
+:root[data-turn-theme] .w2a2-overlay-boundary .button,
+:root[data-turn-theme] .w2a2-overlay-boundary .icon-button,
+:root[data-turn-theme] .w2a2-overlay-boundary input,
+:root[data-turn-theme] .w2a2-overlay-boundary select,
+:root[data-turn-theme] .w2a2-overlay-boundary textarea {
+  background: var(--turn-color-input-background);
+  border-color: var(--turn-color-input-border);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .w2a2-overlay-boundary .button--primary,
+:root[data-turn-theme] .w2a2-overlay-boundary .capture-send-button,
+:root[data-turn-theme] .tc-primary-button,
+:root[data-turn-theme] .w2a1-a-primary-button {
+  background: var(--turn-color-brand);
+  border-color: var(--turn-color-brand);
+  color: var(--turn-color-on-brand);
+}
+
+:root[data-turn-theme] .w2a2-overlay-boundary .button--danger {
+  background: var(--turn-color-destructive);
+  border-color: var(--turn-color-destructive);
+  color: var(--turn-color-on-destructive);
+}
+
+:root[data-turn-theme] .w2a2-overlay-boundary .button--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--turn-color-secondary);
+}
+
+:root[data-turn-theme] .w2a2-overlay-boundary .field span,
+:root[data-turn-theme] .w2a2-overlay-boundary .quiet-label {
+  color: var(--turn-color-secondary);
+}
+
+:root[data-turn-theme] .capture-workspace,
+:root[data-turn-theme] .field-entry-dialog,
+:root[data-turn-theme] .voice-sheet {
+  background: var(--turn-color-elevated);
+  border-color: var(--turn-color-divider-strong);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .capture-workspace__timeline {
+  background: var(--turn-color-page);
+}
+
+:root[data-turn-theme] .capture-workspace__title svg,
+:root[data-turn-theme] .voice-safety-line svg {
+  color: var(--turn-color-brand-strong);
+}
+
+:root[data-turn-theme] .capture-empty-state,
+:root[data-turn-theme] .capture-attachment-chip,
+:root[data-turn-theme] .voice-session-meta,
+:root[data-turn-theme] .voice-transcript-panel {
+  background: var(--turn-color-grouped);
+  border-color: var(--turn-color-divider);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .capture-empty-state__icon,
+:root[data-turn-theme] .capture-thread-event__marker--assistant,
+:root[data-turn-theme] .capture-message-bubble {
+  background: var(--turn-color-brand-soft);
+  border-color: color-mix(
+    in srgb,
+    var(--turn-color-brand) 42%,
+    var(--turn-color-divider)
+  );
+  color: var(--turn-color-brand-strong);
+}
+
+:root[data-turn-theme] .capture-thread-event__marker,
+:root[data-turn-theme] .capture-workspace .voice-orb {
+  background: var(--turn-color-brand);
+  color: var(--turn-color-on-brand);
+}
+
+:root[data-turn-theme] .capture-message-bubble p,
+:root[data-turn-theme] .capture-source-card__body p,
+:root[data-turn-theme] .voice-transcript-panel p,
+:root[data-turn-theme] .voice-transcript-panel textarea {
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .capture-source-card,
+:root[data-turn-theme] .capture-review-panel,
+:root[data-turn-theme] .capture-composer,
+:root[data-turn-theme] .capture-recent-list > button,
+:root[data-turn-theme] .capture-composer__attachments > button,
+:root[data-turn-theme] .capture-composer__actions > button {
+  background: var(--turn-color-elevated);
+  border-color: var(--turn-color-divider);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .capture-photo-review.is-saved,
+:root[data-turn-theme] .capture-applied-event {
+  background: var(--turn-color-ready-soft);
+  border-color: color-mix(
+    in srgb,
+    var(--turn-color-ready) 48%,
+    var(--turn-color-divider)
+  );
+  color: var(--turn-color-ready);
+}
+
+:root[data-turn-theme] .capture-photo-review.is-failed {
+  background: var(--turn-color-waiting-soft);
+}
+
+:root[data-turn-theme] .capture-photo-review__body label,
+:root[data-turn-theme] .capture-attachment-chip > span,
+:root[data-turn-theme] .capture-composer__attachments > button,
+:root[data-turn-theme] .capture-composer__actions > button,
+:root[data-turn-theme] .voice-capture-tools button,
+:root[data-turn-theme] .voice-session-meta span {
+  color: var(--turn-color-secondary);
+}
+
+:root[data-turn-theme] .capture-photo-review__error {
+  color: var(--turn-color-destructive);
+}
+
+:root[data-turn-theme] .capture-composer__actions > .capture-send-button {
+  background: var(--turn-color-brand);
+  border-color: var(--turn-color-brand);
+  color: var(--turn-color-on-brand);
+}
+
+:root[data-turn-theme] .capture-composer__actions > .capture-send-button:disabled {
+  background: var(--turn-color-grouped);
+  border-color: var(--turn-color-divider);
+  color: var(--turn-color-disabled);
+}
+
+:root[data-turn-theme] .voice-sheet__handle,
+:root[data-turn-theme] .tc-sheet__grabber {
+  background: var(--turn-color-divider-strong);
+}
+
+:root[data-turn-theme] .voice-capture-tools button {
+  background: var(--turn-color-elevated);
+  border-color: var(--turn-color-divider);
+}
+
+:root[data-turn-theme] .voice-sheet-meter span {
+  background: var(--turn-color-brand);
+}
+
+:root[data-turn-theme] .field-entry-dialog .form-card {
+  background: var(--turn-color-grouped);
+  border-color: var(--turn-color-divider);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .tc-option-list,
+:root[data-turn-theme] .tc-option-list > button,
+:root[data-turn-theme] .tc-resume,
+:root[data-turn-theme] .tc-note-form textarea,
+:root[data-turn-theme] .tc-note-form select,
+:root[data-turn-theme] .tc-unit-link,
+:root[data-turn-theme] .tc-activity-card {
+  background: var(--turn-color-elevated);
+  border-color: var(--turn-color-divider);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .tc-option__icon,
+:root[data-turn-theme] .tc-activity-detail > p:not(.tc-safety-copy),
+:root[data-turn-theme] .tc-secondary-button {
+  background: var(--turn-color-grouped);
+  border-color: var(--turn-color-divider);
+  color: var(--turn-color-primary);
+}
+
+:root[data-turn-theme] .tc-status {
+  background: var(--turn-color-waiting-soft);
+  border-color: color-mix(
+    in srgb,
+    var(--turn-color-waiting) 48%,
+    var(--turn-color-divider)
+  );
+  color: var(--turn-color-waiting);
+}
+
+:root[data-turn-theme] .tc-option-list > button > svg,
+:root[data-turn-theme] .tc-resume > svg,
+:root[data-turn-theme] .tc-activity-card > svg {
+  color: var(--turn-color-secondary);
+}
+
+:root[data-turn-theme] .w2a1-a-sheet-layer__scrim {
+  background: var(--turn-color-sheet-backdrop);
+}
+
+:root[data-turn-theme] .w2a1-a-sheet {
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
 }
 
 .w2a2-shell .lcc-host-stack,
@@ -713,6 +1013,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   .w2a2-shell button:not(:disabled):hover,
+  .w2a2-overlay-boundary button:not(:disabled):hover,
   .w2a2-standalone-route button:not(:disabled):hover {
     filter: brightness(0.97);
   }
@@ -722,6 +1023,9 @@
   .w2a2-shell *,
   .w2a2-shell *::before,
   .w2a2-shell *::after,
+  .w2a2-overlay-boundary *,
+  .w2a2-overlay-boundary *::before,
+  .w2a2-overlay-boundary *::after,
   .w2a2-standalone-route *,
   .w2a2-standalone-route *::before,
   .w2a2-standalone-route *::after {
@@ -735,6 +1039,9 @@
 :root[data-turn-reduced-motion='true'] .w2a2-shell *,
 :root[data-turn-reduced-motion='true'] .w2a2-shell *::before,
 :root[data-turn-reduced-motion='true'] .w2a2-shell *::after,
+:root[data-turn-reduced-motion='true'] .w2a2-overlay-boundary *,
+:root[data-turn-reduced-motion='true'] .w2a2-overlay-boundary *::before,
+:root[data-turn-reduced-motion='true'] .w2a2-overlay-boundary *::after,
 :root[data-turn-reduced-motion='true'] .w2a2-standalone-route *,
 :root[data-turn-reduced-motion='true'] .w2a2-standalone-route *::before,
 :root[data-turn-reduced-motion='true'] .w2a2-standalone-route *::after {

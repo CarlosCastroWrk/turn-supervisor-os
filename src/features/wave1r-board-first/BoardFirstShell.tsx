@@ -104,7 +104,7 @@ interface BoardFirstSheetHistoryEntry {
 const DETAIL_TABS: readonly DetailTab[] = [
   { id: 'paint', label: 'Paint' },
   { id: 'clean', label: 'Clean' },
-  { id: 'blockers', label: 'Blockers' },
+  { id: 'blockers', label: 'Waiting' },
   { id: 'history', label: 'Notes & History' },
 ];
 
@@ -247,64 +247,19 @@ function PrimaryNavigation({
   );
 }
 
-function TradeStrip({
-  onOpenAssignment,
-  onOpenSection,
+function TradeSummary({
   trade,
-  unitId,
-  unitNumber,
 }: {
-  onOpenAssignment: (trigger: HTMLButtonElement) => void;
-  onOpenSection: (section: Jul28Section, trigger: HTMLButtonElement) => void;
   trade: BoardFirstTradeProjection;
-  unitId: string;
-  unitNumber: string;
 }) {
   return (
-    <div className={`w1r-trade-strip is-${trade.trade}`}>
-      <div className="w1r-trade-strip__summary">
-        <strong>{tradeLabels[trade.trade]}</strong>
-        <small>{trade.summaryLabel}</small>
-      </div>
-      <div className="w1r-section-buttons" aria-label={`${tradeLabels[trade.trade]} sections`}>
-        {trade.sections.map((section) => (
-          <button
-            aria-label={`Unit ${unitNumber} ${tradeLabels[trade.trade]} ${section.label}`}
-            className={`is-${section.tone} ${section.applicable ? '' : 'is-not-applicable'}`}
-            data-w1r-critical-target="true"
-            id={`w1r-section-${unitId}-${trade.trade}-${section.section}`}
-            key={section.section}
-            onClick={(event) => onOpenSection(section.section, event.currentTarget)}
-            title={section.label}
-            type="button"
-          >
-            {sectionLabels[section.section]}
-          </button>
-        ))}
-      </div>
-      {trade.sourceCoverageComplete ? (
-        <button
-          className="w1r-crew-button"
-          data-w1r-critical-target="true"
-          id={`w1r-crew-${unitId}-${trade.trade}`}
-          onClick={(event) => onOpenAssignment(event.currentTarget)}
-          type="button"
-          aria-label={`${tradeLabels[trade.trade]} crew for Unit ${unitNumber}: ${trade.crewLabel}. Open assignment proposal`}
-        >
-          <Users size={14} aria-hidden="true" />
-          <span><small>{tradeLabels[trade.trade]} crew</small><strong>{trade.crewLabel}</strong></span>
-          <ChevronRight size={15} aria-hidden="true" />
-        </button>
-      ) : (
-        <div
-          aria-label={`${tradeLabels[trade.trade]} crew for Unit ${unitNumber}: Assignment unknown`}
-          className="w1r-crew-button is-read-only"
-          id={`w1r-crew-${unitId}-${trade.trade}`}
-        >
-          <Users size={14} aria-hidden="true" />
-          <span><small>{tradeLabels[trade.trade]} crew</small><strong>Assignment unknown</strong></span>
-        </div>
-      )}
+    <div
+      className={`w1r-unit-row__trade is-${trade.trade}`}
+      data-testid={`wave2a1-${trade.trade}-summary`}
+    >
+      <strong>{tradeLabels[trade.trade]}</strong>
+      <span title={trade.crewLabel}>{trade.crewLabel}</span>
+      <small>{trade.summaryLabel}</small>
     </div>
   );
 }
@@ -312,91 +267,60 @@ function TradeStrip({
 const UnitRow = memo(function UnitRow({
   projection,
   selected,
-  onOpenAssignment,
-  onOpenSection,
   onOpenUnit,
 }: {
   projection: BoardFirstUnitProjection;
   selected: boolean;
-  onOpenAssignment: (
-    unitId: string,
-    trade: Jul28Trade,
-    trigger: HTMLButtonElement,
-  ) => void;
-  onOpenSection: (
-    unitId: string,
-    trade: Jul28Trade,
-    section: Jul28Section,
-    trigger: HTMLButtonElement,
-  ) => void;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
+  const waiting = Boolean(projection.highestAttention?.blockerKind);
+  const description = [
+    `${projection.unitTypeLabel}, ${projection.locationLabel}.`,
+    `Paint crew ${projection.paint.crewLabel}; ${projection.paint.summaryLabel}.`,
+    `Clean crew ${projection.clean.crewLabel}; ${projection.clean.summaryLabel}.`,
+    waiting ? `Waiting: ${projection.highestAttention?.label}.` : '',
+    projection.needsMe ? 'Needs Me.' : '',
+  ].filter(Boolean).join(' ');
+
   return (
     <article
       className={`w1r-unit-row ${selected ? 'is-selected' : ''}`}
       data-testid="wave1r-unit-row"
       data-unit-id={projection.unitId}
     >
-      <div className="w1r-unit-row__heading">
-        <button
-          className="w1r-unit-row__identity"
-          data-w1r-critical-target="true"
-          id={`w1r-unit-open-${projection.unitId}`}
-          onClick={(event) => onOpenUnit(projection.unitId, event.currentTarget)}
-          type="button"
-          aria-label={`Open Unit ${projection.unitNumber}`}
+      <button
+        aria-describedby={`w1r-unit-description-${projection.unitId}`}
+        aria-label={`Open Unit ${projection.unitNumber}`}
+        className="w1r-unit-row__identity"
+        data-w1r-critical-target="true"
+        id={`w1r-unit-open-${projection.unitId}`}
+        onClick={(event) => onOpenUnit(projection.unitId, event.currentTarget)}
+        type="button"
+      >
+        <span
+          className="w1r-visually-hidden"
+          id={`w1r-unit-description-${projection.unitId}`}
         >
-          <span>
-            <strong>Unit {projection.unitNumber}</strong>
+          {description}
+        </span>
+        <span className="w1r-unit-row__topline">
+          <span className="w1r-unit-row__unit">
+            <strong data-testid="wave2a1-unit-number">Unit {projection.unitNumber}</strong>
             <small>{projection.unitTypeLabel} · {projection.locationLabel}</small>
           </span>
-          <ChevronRight size={18} aria-hidden="true" />
-        </button>
-        {projection.needsMe ? (
-          <span className="w1r-needs-label"><span aria-hidden="true" />Needs Me</span>
-        ) : null}
-      </div>
-
-      <TradeStrip
-        trade={projection.paint}
-        unitId={projection.unitId}
-        unitNumber={projection.unitNumber}
-        onOpenAssignment={(trigger) =>
-          onOpenAssignment(projection.unitId, 'paint', trigger)}
-        onOpenSection={(section, trigger) =>
-          onOpenSection(projection.unitId, 'paint', section, trigger)}
-      />
-      <TradeStrip
-        trade={projection.clean}
-        unitId={projection.unitId}
-        unitNumber={projection.unitNumber}
-        onOpenAssignment={(trigger) =>
-          onOpenAssignment(projection.unitId, 'clean', trigger)}
-        onOpenSection={(section, trigger) =>
-          onOpenSection(projection.unitId, 'clean', section, trigger)}
-      />
-
-      {projection.highestAttention ? (
-        <button
-          className={`w1r-unit-row__attention is-${projection.highestAttention.tone}`}
-          data-w1r-critical-target="true"
-          id={`w1r-attention-${projection.unitId}`}
-          onClick={(event) => onOpenSection(
-            projection.unitId,
-            projection.highestAttention!.trade,
-            projection.highestAttention!.section,
-            event.currentTarget,
-          )}
-          type="button"
-        >
-          <AlertTriangle size={15} aria-hidden="true" />
-          <span>
-            <strong>{projection.highestAttention.label}</strong>
-            <small>{projection.highestAttention.nextAction}</small>
+          <span className="w1r-unit-row__indicators">
+            {waiting ? <span className="w1r-waiting-label"><span aria-hidden="true" />Waiting</span> : null}
+            {projection.needsMe ? (
+              <span className="w1r-needs-label"><span aria-hidden="true" />Needs Me</span>
+            ) : null}
           </span>
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-      ) : null}
+          <ChevronRight size={18} aria-hidden="true" />
+        </span>
+        <span className="w1r-unit-row__trades">
+          <TradeSummary trade={projection.paint} />
+          <TradeSummary trade={projection.clean} />
+        </span>
+      </button>
     </article>
   );
 });
@@ -412,8 +336,6 @@ function TurnBoardSurface({
   sourceMode,
   totalCount,
   onQueryChange,
-  onOpenAssignment,
-  onOpenSection,
   onOpenUnit,
 }: {
   assignmentConflictCount: number;
@@ -426,13 +348,6 @@ function TurnBoardSurface({
   sourceMode: BoardFirstSourceMode;
   totalCount: number;
   onQueryChange: (query: string) => void;
-  onOpenAssignment: (unitId: string, trade: Jul28Trade, trigger: HTMLButtonElement) => void;
-  onOpenSection: (
-    unitId: string,
-    trade: Jul28Trade,
-    section: Jul28Section,
-    trigger: HTMLButtonElement,
-  ) => void;
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
@@ -487,8 +402,6 @@ function TurnBoardSurface({
             key={projection.unitId}
             projection={projection}
             selected={selectedUnitId === projection.unitId}
-            onOpenAssignment={onOpenAssignment}
-            onOpenSection={onOpenSection}
             onOpenUnit={onOpenUnit}
           />
         ))}
@@ -848,7 +761,7 @@ function UnitDetail({
         ) : null}
         {panel === 'blockers' ? (
           <section className="w1r-blocker-list" aria-labelledby="w1r-blockers-title">
-            <h3 id="w1r-blockers-title">Blockers</h3>
+            <h3 id="w1r-blockers-title">Waiting</h3>
             {blockers.length > 0 ? blockers.slice(0, 8).map((blocker) => (
               <button
                 data-w1r-critical-target="true"
@@ -867,7 +780,7 @@ function UnitDetail({
               </button>
             )) : (
               <p className="w1r-empty-copy">
-                No source-grounded blocker is projected for this {sourceMode === 'synthetic' ? 'synthetic ' : ''}Unit.
+                No source-grounded waiting detail is projected for this {sourceMode === 'synthetic' ? 'synthetic ' : ''}Unit.
               </p>
             )}
           </section>
@@ -1549,16 +1462,6 @@ export function BoardFirstShell({
     setPendingCapture(nextRequest);
   }, [requestSheetClose]);
 
-  const openBoardAssignment = useCallback((
-    unitId: string,
-    trade: Jul28Trade,
-    trigger: HTMLButtonElement,
-  ) => {
-    const unit = repository.getUnit(unitId);
-    if (!unit || !validateJul28SourceCoverage(unit).complete) return;
-    openAssignment(unitId, trade, undefined, trigger);
-  }, [openAssignment, repository]);
-
   useEffect(() => {
     if (!pendingCapture || openSheet || dispatchedCaptureIdsRef.current.has(pendingCapture.requestId)) {
       return;
@@ -1667,8 +1570,6 @@ export function BoardFirstShell({
                   selectedUnitId={selectedUnitId}
                   sourceMode={sourceMode}
                   totalCount={projections.length}
-                  onOpenAssignment={openBoardAssignment}
-                  onOpenSection={openSection}
                   onOpenUnit={openUnit}
                 />
               ) : null}

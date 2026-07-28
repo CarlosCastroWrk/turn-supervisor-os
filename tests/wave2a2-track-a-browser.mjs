@@ -135,6 +135,40 @@ const assertContrast = async (page, foregroundSelector, backgroundSelector, labe
   );
 };
 
+const assertMoreThemeState = async (page, theme, label) => {
+  const displayName = theme === 'dark' ? 'Dark' : 'Light';
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      preference: document.documentElement.dataset.turnThemePreference,
+      resolved: document.documentElement.dataset.turnTheme,
+    })),
+    { preference: theme, resolved: theme },
+    `${label} did not update the document theme state.`,
+  );
+  assert.equal(
+    await page.getByRole('radio', { name: displayName, exact: true }).isChecked(),
+    true,
+    `${label} did not select the ${displayName} theme control.`,
+  );
+  assert.deepEqual(
+    await page.locator('.w2a2-theme-picker button.is-selected').allTextContents(),
+    [displayName],
+    `${label} exposed the wrong selected-theme styling.`,
+  );
+  await assertContrast(
+    page,
+    '.w2a1b-profile-card__copy strong',
+    '.w2a1b-profile-card',
+    `${label} More profile`,
+  );
+  await assertContrast(
+    page,
+    '.w2a1b-row__copy strong',
+    '.w2a1b-group__card',
+    `${label} More row`,
+  );
+};
+
 const primaryNavigation = (page) =>
   page.getByRole('navigation', { name: 'Primary' });
 
@@ -253,27 +287,13 @@ try {
 
   await primaryNavigation(page).getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('radio', { name: 'Dark', exact: true }).click();
-  assert.equal(
-    await page.evaluate(() => document.documentElement.dataset.turnTheme),
-    'dark',
-  );
+  await assertMoreThemeState(page, 'dark', 'Immediate Light to Dark');
   await page.waitForTimeout(250);
   assert.equal(
     await page.locator('meta[name="theme-color"]').getAttribute('content'),
     '#000000',
   );
-  await assertContrast(
-    page,
-    '.w2a1b-profile-card__copy strong',
-    '.w2a1b-profile-card',
-    'Dark More profile',
-  );
-  await assertContrast(
-    page,
-    '.w2a1b-row__copy strong',
-    '.w2a1b-group__card',
-    'Dark More row',
-  );
+  await assertMoreThemeState(page, 'dark', 'Settled Dark');
   await page.screenshot({
     path: `${screenshotDir}/iphone-390-more-dark.png`,
     fullPage: false,
@@ -333,10 +353,17 @@ try {
 
   await primaryNavigation(page).getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('radio', { name: 'Light', exact: true }).click();
+  await assertMoreThemeState(page, 'light', 'Immediate Dark to Light');
   await page.screenshot({
     path: `${screenshotDir}/iphone-390-more-light.png`,
     fullPage: false,
   });
+  await page.waitForTimeout(250);
+  assert.equal(
+    await page.locator('meta[name="theme-color"]').getAttribute('content'),
+    '#f2f4f7',
+  );
+  await assertMoreThemeState(page, 'light', 'Settled Light');
 
   assert.deepEqual(
     interaction.findings,

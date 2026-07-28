@@ -17,7 +17,6 @@
   --turn-color-brand: #0879e8;
   --turn-color-brand-strong: #0066cc;
   --turn-color-brand-soft: #e8f3ff;
-  --turn-color-on-brand: #ffffff;
   --turn-color-waiting: #a45f00;
   --turn-color-waiting-soft: #fff3dc;
   --turn-color-destructive: #c43d36;
@@ -42,7 +41,6 @@
   --turn-color-brand: #43a3ff;
   --turn-color-brand-strong: #63b3ff;
   --turn-color-brand-soft: #153b5f;
-  --turn-color-on-brand: #001a31;
   --turn-color-waiting: #f1a238;
   --turn-color-waiting-soft: #49300f;
   --turn-color-destructive: #ff6b64;
@@ -68,7 +66,6 @@
     --turn-color-brand: #43a3ff;
     --turn-color-brand-strong: #63b3ff;
     --turn-color-brand-soft: #153b5f;
-    --turn-color-on-brand: #001a31;
     --turn-color-waiting: #f1a238;
     --turn-color-waiting-soft: #49300f;
     --turn-color-destructive: #ff6b64;

@@ -220,11 +220,56 @@ try {
     name: 'Confirm reviewed intake',
     exact: true,
   });
-  await confirmButton.evaluate((button) => {
-    button.click();
-    button.click();
+  await selectTheme(page, 'Dark');
+  await assertContrast(
+    confirmButton,
+    null,
+    'explicit-dark import primary action without a host on-brand token',
+  );
+
+  const startOverButton = page.getByRole('button', {
+    name: 'Start over',
+    exact: true,
   });
+  const unitInput = page.getByLabel('Unit', { exact: true });
+  const reviewCheckbox = page.getByLabel(
+    /I reviewed this personal preview/,
+  );
+
+  await confirmButton.click();
+  await page
+    .getByRole('button', { name: 'Confirming…', exact: true })
+    .waitFor();
+  assert.equal(await startOverButton.isDisabled(), true);
+  assert.equal(await unitInput.isDisabled(), true);
+  assert.equal(await reviewCheckbox.isDisabled(), true);
+
+  await startOverButton.evaluate((button) => {
+    button.removeAttribute('disabled');
+    button.click();
+    button.setAttribute('disabled', '');
+  });
+  await unitInput.evaluate((input) => {
+    input.removeAttribute('disabled');
+    input.value = '999';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.setAttribute('disabled', '');
+  });
+  await page
+    .getByRole('button', { name: 'Confirming…', exact: true })
+    .evaluate((button) => {
+      button.removeAttribute('disabled');
+      button.click();
+      button.setAttribute('disabled', '');
+    });
+
   await page.getByText(/Intake confirmed once and locked/).waitFor();
+  await page.getByRole('heading', { name: 'release.pdf', exact: true }).waitFor();
+  assert.equal(
+    await page.getByLabel('Unit', { exact: true }).inputValue(),
+    '101',
+  );
   assert.equal(
     await page.getByRole('button', { name: 'Intake confirmed' }).isDisabled(),
     true,

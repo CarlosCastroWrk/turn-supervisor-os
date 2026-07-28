@@ -64,6 +64,11 @@
   }
 }
 
+:root[data-turn-theme="dark"] .w2a2d-page,
+:root[data-turn-theme="dark"] .w2a2d-sheet {
+  --w2a2d-on-accent: var(--turn-color-on-brand, #001a31);
+}
+
 .w2a2d-page {
   inline-size: 100%;
   max-inline-size: 100%;

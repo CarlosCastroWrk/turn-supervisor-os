@@ -83,7 +83,7 @@ export function TrackDPreview() {
   }, [theme]);
 
   const confirmImport = async (confirmed: TrackDConfirmedImport) => {
-    await new Promise((resolve) => window.setTimeout(resolve, 40));
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
     setConfirmCount((count) => count + 1);
     setResult(
       JSON.stringify(

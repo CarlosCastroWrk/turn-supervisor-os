@@ -480,10 +480,16 @@ test('Track D shell and source contracts encode the repaired integration seams',
 });
 
 test('Track D styles consume Track A tokens and enforce exact target, responsive, and AA fallback contracts', async () => {
-  const css = await readFile(
-    new URL('../src/features/wave2a2-track-d/track-d.css', import.meta.url),
-    'utf8',
-  );
+  const [css, previewCss] = await Promise.all([
+    readFile(
+      new URL('../src/features/wave2a2-track-d/track-d.css', import.meta.url),
+      'utf8',
+    ),
+    readFile(
+      new URL('../src/features/wave2a2-track-d/preview.css', import.meta.url),
+      'utf8',
+    ),
+  ]);
 
   assert.match(css, /overflow-x:\s*clip/);
   assert.match(css, /font-size:\s*16px/);
@@ -507,6 +513,11 @@ test('Track D styles consume Track A tokens and enforce exact target, responsive
     css,
     /--w2a2d-on-accent:\s*var\(--turn-color-on-brand,\s*#001a31\)/,
   );
+  assert.match(
+    css,
+    /:root\[data-turn-theme="dark"\]\s+\.w2a2d-page,[^}]*--w2a2d-on-accent:\s*var\(--turn-color-on-brand,\s*#001a31\)/s,
+  );
+  assert.doesNotMatch(previewCss, /--turn-color-on-brand/);
   assert.match(
     css,
     /\.w2a2d-filter-grid button\s*\{[^}]*min-block-size:\s*44px;[^}]*min-inline-size:\s*44px;/s,

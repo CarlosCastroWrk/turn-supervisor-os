@@ -8,6 +8,7 @@ import {
   Keyboard,
 } from 'lucide-react';
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -140,16 +141,30 @@ export function SourceFirstImport({
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
   const confirmationInFlightRef = useRef(false);
+  const confirmationAttemptRef = useRef(0);
+  const mountedRef = useRef(true);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      confirmationAttemptRef.current += 1;
+    };
+  }, []);
 
   const includedRows = useMemo(
     () => draft?.rows.filter((row) => !row.excluded) ?? [],
     [draft],
   );
 
+  const canMutateIntake = () =>
+    !saving && !confirmationInFlightRef.current;
+
   const resetIntake = () => {
+    if (!canMutateIntake()) return;
     setDraft(null);
     setProvenance(null);
     setTextMode(null);
@@ -157,10 +172,10 @@ export function SourceFirstImport({
     setReviewed(false);
     setConfirmed(false);
     setStatus('');
-    confirmationInFlightRef.current = false;
   };
 
   const chooseSource = (choice: TrackDImportSourceKind) => {
+    if (!canMutateIntake()) return;
     setStatus('');
     if (choice === 'camera') {
       cameraInputRef.current?.click();
@@ -185,6 +200,7 @@ export function SourceFirstImport({
     sourceKind: Extract<TrackDImportSourceKind, 'camera' | 'photos' | 'file'>,
     event: ChangeEvent<HTMLInputElement>,
   ) => {
+    if (!canMutateIntake()) return;
     const files = Array.from(event.currentTarget.files ?? []);
     event.currentTarget.value = '';
     if (files.length === 0) return;
@@ -224,7 +240,7 @@ export function SourceFirstImport({
   };
 
   const createTextPreview = async () => {
-    if (!textMode) return;
+    if (!textMode || !canMutateIntake()) return;
     const fallbackSource = createSourceReference(
       textMode,
       textMode === 'paste' ? 'Pasted source text' : 'Manual entry',
@@ -260,7 +276,7 @@ export function SourceFirstImport({
     rowId: string,
     patch: Partial<TrackDImportRow>,
   ) => {
-    if (!draft || confirmed) return;
+    if (!draft || confirmed || !canMutateIntake()) return;
     const rows = revalidateTrackDImportRows(
       draft.rows.map((row) =>
         row.id === rowId ? { ...row, ...patch } : row,
@@ -283,6 +299,8 @@ export function SourceFirstImport({
       return;
     }
     confirmationInFlightRef.current = true;
+    const attemptId = confirmationAttemptRef.current + 1;
+    confirmationAttemptRef.current = attemptId;
     setSaving(true);
     setStatus('');
     try {
@@ -296,15 +314,30 @@ export function SourceFirstImport({
           ? { transcriptionKind: draft.transcriptionKind }
           : {}),
       });
+      if (
+        !mountedRef.current ||
+        confirmationAttemptRef.current !== attemptId
+      ) {
+        return;
+      }
       setConfirmed(true);
       setStatus(
         'Intake confirmed once and locked on this screen. Official paper remains authoritative.',
       );
     } catch {
-      setStatus('Confirmation failed. The reviewed source remains on this screen.');
+      if (
+        mountedRef.current &&
+        confirmationAttemptRef.current === attemptId
+      ) {
+        setStatus(
+          'Confirmation failed. The reviewed source remains on this screen.',
+        );
+      }
     } finally {
-      confirmationInFlightRef.current = false;
-      setSaving(false);
+      if (confirmationAttemptRef.current === attemptId) {
+        confirmationInFlightRef.current = false;
+        if (mountedRef.current) setSaving(false);
+      }
     }
   };
 
@@ -324,7 +357,7 @@ export function SourceFirstImport({
               disabled={saving || confirmed}
               key={option}
               onClick={() => {
-                if (kind !== option) {
+                if (canMutateIntake() && kind !== option) {
                   setKind(option);
                   resetIntake();
                 }
@@ -361,7 +394,7 @@ export function SourceFirstImport({
               return (
                 <button
                   className="w2a2d-source-choice"
-                  disabled={disabled}
+                  disabled={saving || disabled}
                   key={choice.id}
                   onClick={() => chooseSource(choice.id)}
                   type="button"
@@ -394,7 +427,12 @@ export function SourceFirstImport({
                 <code>Unit: 413; sections: A,C,D; paint: yes</code>.
               </p>
             </div>
-            <button className="w2a2d-text-button" onClick={resetIntake} type="button">
+            <button
+              className="w2a2d-text-button"
+              disabled={saving}
+              onClick={resetIntake}
+              type="button"
+            >
               Change source
             </button>
           </div>
@@ -402,7 +440,12 @@ export function SourceFirstImport({
             <span>Source wording</span>
             <textarea
               autoFocus
-              onChange={(event) => setSourceText(event.currentTarget.value)}
+              disabled={saving}
+              onChange={(event) => {
+                if (canMutateIntake()) {
+                  setSourceText(event.currentTarget.value);
+                }
+              }}
               placeholder="Paste or type the source exactly as received"
               rows={8}
               value={sourceText}
@@ -416,7 +459,7 @@ export function SourceFirstImport({
           ) : null}
           <button
             className="w2a2d-primary-button"
-            disabled={!sourceText.trim()}
+            disabled={saving || !sourceText.trim()}
             onClick={() => void createTextPreview()}
             type="button"
           >
@@ -426,7 +469,11 @@ export function SourceFirstImport({
       ) : null}
 
       {draft ? (
-        <section className="w2a2d-preview" aria-labelledby="preview-label">
+        <section
+          aria-busy={saving}
+          aria-labelledby="preview-label"
+          className="w2a2d-preview"
+        >
           <div className="w2a2d-section-heading">
             <div>
               <p className="w2a2d-eyebrow">Source attached</p>
@@ -437,7 +484,12 @@ export function SourceFirstImport({
                 included
               </p>
             </div>
-            <button className="w2a2d-text-button" onClick={resetIntake} type="button">
+            <button
+              className="w2a2d-text-button"
+              disabled={saving}
+              onClick={resetIntake}
+              type="button"
+            >
               {confirmed ? 'Start a new intake' : 'Start over'}
             </button>
           </div>
@@ -455,10 +507,18 @@ export function SourceFirstImport({
 
           {!draft.extractionAvailable ? (
             <div className="w2a2d-unavailable-actions">
-              <button onClick={() => chooseSource('paste')} type="button">
+              <button
+                disabled={saving}
+                onClick={() => chooseSource('paste')}
+                type="button"
+              >
                 Paste Text
               </button>
-              <button onClick={() => chooseSource('manual')} type="button">
+              <button
+                disabled={saving}
+                onClick={() => chooseSource('manual')}
+                type="button"
+              >
                 Enter manually
               </button>
             </div>
@@ -468,7 +528,7 @@ export function SourceFirstImport({
             <div className="w2a2d-import-rows">
               {draft.rows.map((row) => (
                 <ImportReviewCard
-                  disabled={confirmed}
+                  disabled={saving || confirmed}
                   key={row.id}
                   onChange={updateRow}
                   row={row}
@@ -482,8 +542,12 @@ export function SourceFirstImport({
               <label className="w2a2d-review-check">
                 <input
                   checked={reviewed}
-                  disabled={confirmed}
-                  onChange={(event) => setReviewed(event.currentTarget.checked)}
+                  disabled={saving || confirmed}
+                  onChange={(event) => {
+                    if (canMutateIntake()) {
+                      setReviewed(event.currentTarget.checked);
+                    }
+                  }}
                   type="checkbox"
                 />
                 <span>
@@ -535,6 +599,7 @@ export function SourceFirstImport({
       <input
         accept="image/*"
         capture="environment"
+        disabled={saving}
         hidden
         onChange={(event) => void attachFiles('camera', event)}
         ref={cameraInputRef}
@@ -542,6 +607,7 @@ export function SourceFirstImport({
       />
       <input
         accept="image/*"
+        disabled={saving}
         hidden
         multiple
         onChange={(event) => void attachFiles('photos', event)}
@@ -550,6 +616,7 @@ export function SourceFirstImport({
       />
       <input
         accept=".csv,.txt,.pdf,image/*,text/csv,text/plain,application/pdf"
+        disabled={saving}
         hidden
         onChange={(event) => void attachFiles('file', event)}
         ref={fileInputRef}

@@ -8,6 +8,10 @@ export {
   type ThemeAwareMorePageProps,
 } from './ThemeAwareMorePage';
 export {
+  Wave2A2OverlayBoundary,
+  type Wave2A2OverlayBoundaryProps,
+} from './OverlayBoundary';
+export {
   applyTurnThemeToDocument,
   getThemePreferenceStorageKey,
   initializeTurnTheme,

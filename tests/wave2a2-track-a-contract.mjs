@@ -10,6 +10,10 @@ const shellSource = readFileSync(
   new URL('../src/features/wave2a2-track-a/UnifiedShell.tsx', import.meta.url),
   'utf8',
 );
+const overlaySource = readFileSync(
+  new URL('../src/features/wave2a2-track-a/OverlayBoundary.tsx', import.meta.url),
+  'utf8',
+);
 const themeStyles = readFileSync(
   new URL('../src/features/wave2a2-track-a/trackA.css', import.meta.url),
   'utf8',
@@ -51,11 +55,13 @@ test('Track A declares the complete semantic token contract', () => {
     '--turn-color-input-background',
     '--turn-color-input-border',
     '--turn-color-brand',
+    '--turn-color-on-brand',
     '--turn-color-waiting',
     '--turn-color-working',
     '--turn-color-callback',
     '--turn-color-ready',
     '--turn-color-destructive',
+    '--turn-color-on-destructive',
     '--turn-color-focus',
     '--turn-color-sheet-backdrop',
   ]) {
@@ -75,6 +81,32 @@ test('unified shell owns only the approved primary hierarchy', () => {
   }
   assert.doesNotMatch(shellSource, /Payroll|Client approval|PDS approval/u);
   assert.match(shellSource, /Intelligence unavailable until a later reviewed release/u);
+});
+
+test('detail routes retain the shared shell without creating a second main landmark', () => {
+  assert.match(shellSource, /detailMode\?: boolean/u);
+  assert.match(shellSource, /hidden=\{detailMode\}/u);
+  assert.match(shellSource, /detailMode \? \(\s*<div/u);
+  assert.match(shellSource, /:\s*\(\s*<main/u);
+});
+
+test('overlay state cannot reset route scroll history', () => {
+  const scrollEffectStart = shellSource.indexOf('const scrollPositions = scrollPositionsRef.current');
+  const focusEffectStart = shellSource.indexOf('if (backgroundInert) return undefined');
+  assert.ok(scrollEffectStart >= 0 && focusEffectStart > scrollEffectStart);
+  const scrollEffect = shellSource.slice(scrollEffectStart, focusEffectStart);
+  assert.doesNotMatch(scrollEffect, /backgroundInert/u);
+  assert.match(scrollEffect, /rememberPosition/u);
+  assert.match(scrollEffect, /addEventListener\('scroll'/u);
+  assert.match(shellSource, /\.w1r-unit-detail__body/u);
+});
+
+test('host-owned overlays inherit the same theme without moving dialog ownership', () => {
+  assert.match(overlaySource, /data-wave2a2-overlay-boundary="true"/u);
+  assert.doesNotMatch(overlaySource, /useState|role="dialog"|AppData/u);
+  assert.match(themeStyles, /\.w2a2-overlay-boundary/u);
+  assert.match(themeStyles, /\.capture-workspace/u);
+  assert.match(themeStyles, /\.tc-sheet-backdrop/u);
 });
 
 test('legacy surfaces are contained without importing AppData or persistence modules', () => {

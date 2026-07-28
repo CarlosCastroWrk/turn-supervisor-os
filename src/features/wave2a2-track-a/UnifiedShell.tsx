@@ -47,6 +47,7 @@ const navigationItems: readonly {
 const scrollRegionSelector = [
   '[data-turn-scroll-region="primary"]',
   '.w1r-unit-list',
+  '.w1r-unit-detail__body',
   '.w1r-activity-list',
   '.w1r-more-list',
   '.w2a1-a-scroll-page',
@@ -63,6 +64,7 @@ const findPrimaryScrollRegion = (main: HTMLElement) => {
 
 export interface Wave2A2UnifiedShellProps
   extends LaunchCommandCenterShellProps {
+  detailMode?: boolean;
   restoreContentScroll?: boolean;
   theme: Pick<TurnThemeState, 'reducedMotion' | 'resolvedTheme'>;
 }
@@ -88,6 +90,7 @@ export function Wave2A2UnifiedShell({
   contentFocusKey,
   contentTitle,
   dateLabel,
+  detailMode = false,
   intelligenceAvailable = false,
   notificationCount = 0,
   onNavigate,
@@ -101,39 +104,62 @@ export function Wave2A2UnifiedShell({
 }: Wave2A2UnifiedShellProps) {
   const mainRef = useRef<HTMLElement | null>(null);
   const scrollPositionsRef = useRef(new Map<string, number>());
+  const setMainRef = (node: HTMLElement | null) => {
+    mainRef.current = node;
+  };
 
   useLayoutEffect(() => {
     document.title = `${contentTitle} · Turn OS`;
+  }, [contentTitle]);
+
+  useLayoutEffect(() => {
     const main = mainRef.current;
     if (!main) return undefined;
     const scrollPositions = scrollPositionsRef.current;
+    let scrollRegion: HTMLElement | null = null;
+    let lastKnownPosition = 0;
+
+    const rememberPosition = () => {
+      if (scrollRegion) {
+        lastKnownPosition = scrollRegion.scrollTop;
+        scrollPositions.set(contentFocusKey, lastKnownPosition);
+      }
+    };
 
     const frame = window.requestAnimationFrame(() => {
-      const scrollRegion = findPrimaryScrollRegion(main);
+      scrollRegion = findPrimaryScrollRegion(main);
       scrollRegion.scrollTop = restoreContentScroll
         ? scrollPositions.get(contentFocusKey) ?? 0
         : 0;
+      lastKnownPosition = scrollRegion.scrollTop;
+      scrollRegion.addEventListener('scroll', rememberPosition, { passive: true });
+    });
 
+    return () => {
+      window.cancelAnimationFrame(frame);
+      scrollRegion?.removeEventListener('scroll', rememberPosition);
+      scrollPositions.set(contentFocusKey, lastKnownPosition);
+    };
+  }, [contentFocusKey, restoreContentScroll]);
+
+  useLayoutEffect(() => {
+    if (backgroundInert) return undefined;
+    const main = mainRef.current;
+    if (!main) return undefined;
+
+    const frame = window.requestAnimationFrame(() => {
       const activeElement = document.activeElement;
       if (
-        !backgroundInert
-        && (!activeElement || activeElement === document.body || !main.contains(activeElement))
+        !activeElement
+        || activeElement === document.body
+        || !main.contains(activeElement)
       ) {
         main.focus({ preventScroll: true });
       }
     });
 
-    return () => {
-      window.cancelAnimationFrame(frame);
-      const scrollRegion = findPrimaryScrollRegion(main);
-      scrollPositions.set(contentFocusKey, scrollRegion.scrollTop);
-    };
-  }, [
-    backgroundInert,
-    contentFocusKey,
-    contentTitle,
-    restoreContentScroll,
-  ]);
+    return () => window.cancelAnimationFrame(frame);
+  }, [backgroundInert, contentFocusKey]);
 
   const notificationLabel = notificationCount === 1
     ? 'Open notifications, 1 unread'
@@ -142,7 +168,8 @@ export function Wave2A2UnifiedShell({
   return (
     <div
       aria-hidden={backgroundInert || undefined}
-      className="w2a2-shell"
+      className={`w2a2-shell ${detailMode ? 'is-detail-mode' : ''}`}
+      data-detail-mode={detailMode || undefined}
       data-reduced-motion={theme.reducedMotion}
       data-testid="launch-command-center-shell"
       data-theme={theme.resolvedTheme}
@@ -214,10 +241,11 @@ export function Wave2A2UnifiedShell({
 
       <div className="w2a2-shell__body">
         <nav
-          aria-hidden={contentDialogOpen || undefined}
+          aria-hidden={contentDialogOpen || detailMode || undefined}
           aria-label="Primary"
           className="w2a2-navigation"
-          inert={contentDialogOpen || undefined}
+          hidden={detailMode}
+          inert={contentDialogOpen || detailMode || undefined}
         >
           {navigationItems.map((item) => {
             if (item.id === 'plus') {
@@ -256,18 +284,32 @@ export function Wave2A2UnifiedShell({
           })}
         </nav>
 
-        <main
-          aria-label={contentTitle}
-          className={`w2a2-shell__main ${contentContained ? 'is-contained' : ''}`}
-          data-route-key={contentFocusKey}
-          id="launch-command-center-main"
-          ref={mainRef}
-          tabIndex={-1}
-        >
-          <div className="w2a2-route-surface" key={contentFocusKey}>
-            {children}
+        {detailMode ? (
+          <div
+            className={`w2a2-shell__main ${contentContained ? 'is-contained' : ''}`}
+            data-route-key={contentFocusKey}
+            id="launch-command-center-main"
+            ref={setMainRef}
+            tabIndex={-1}
+          >
+            <div className="w2a2-route-surface" key={contentFocusKey}>
+              {children}
+            </div>
           </div>
-        </main>
+        ) : (
+          <main
+            aria-label={contentTitle}
+            className={`w2a2-shell__main ${contentContained ? 'is-contained' : ''}`}
+            data-route-key={contentFocusKey}
+            id="launch-command-center-main"
+            ref={setMainRef}
+            tabIndex={-1}
+          >
+            <div className="w2a2-route-surface" key={contentFocusKey}>
+              {children}
+            </div>
+          </main>
+        )}
       </div>
     </div>
   );

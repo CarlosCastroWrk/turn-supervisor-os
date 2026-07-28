@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f2f4f7" />
+    <script>
+      (() => {
+        try {
+          const preference = localStorage.getItem('turn-os:appearance:v1:device') || 'system';
+          const dark = preference === 'dark'
+            || (preference === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          const theme = dark ? 'dark' : 'light';
+          document.documentElement.dataset.turnTheme = theme;
+          document.documentElement.dataset.turnThemePreference = preference;
+          document.documentElement.style.colorScheme = theme;
+          document.querySelector('meta[name="theme-color"]').content =
+            dark ? '#000000' : '#f2f4f7';
+        } catch {
+          // The module applies the system preference when storage is unavailable.
+        }
+      })();
+    </script>
+    <title>Wave 2A.2 Track A Preview</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./preview.tsx"></script>
+  </body>
+</html>

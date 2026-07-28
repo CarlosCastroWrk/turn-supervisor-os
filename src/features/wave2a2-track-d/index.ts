@@ -55,6 +55,7 @@ export {
   parseTrackDImportText,
   projectLegacyActivityRecord,
   revalidateTrackDImportRows,
+  resolveTrackDImportProvenance,
   TRACK_D_ACTIVITY_FILTERS,
   TRACK_D_MORE_GROUPS,
   TRACK_D_OFFICIAL_FORMS,
@@ -67,6 +68,7 @@ export {
   type TrackDImportDraft,
   type TrackDImportKind,
   type TrackDImportParseOptions,
+  type TrackDImportProvenance,
   type TrackDImportRow,
   type TrackDImportSourceKind,
   type TrackDLegacyActivityContext,
@@ -84,4 +86,5 @@ export {
   type TrackDReportRecordLink,
   type TrackDSaveReceipt,
   type TrackDSourceReference,
+  type TrackDTextTranscriptionKind,
 } from './model';

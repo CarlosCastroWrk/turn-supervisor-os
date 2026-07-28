@@ -419,26 +419,45 @@ export function TrackDReportsAndProof({
       </div>
 
       <section aria-label="Project record summaries" className="w2a2d-report-grid">
-        {metrics.map((metric) => (
-          <button
-            className="w2a2d-report-card"
-            key={metric.id}
-            onClick={() =>
-              onOpenRecords(
-                metric.id,
-                metric.records.map((record) => record.id),
-              )
-            }
-            type="button"
-          >
-            <strong>{metric.statusLabel ?? metric.records.length}</strong>
-            <span>{metric.label}</span>
-            <small>
-              {metric.records.length} linked record
-              {metric.records.length === 1 ? '' : 's'}
-            </small>
-          </button>
-        ))}
+        {metrics.map((metric) => {
+          const records = metric.records;
+          const connected = records !== undefined;
+          const unavailableLabel =
+            metric.statusLabel?.trim() || 'Not connected';
+          return (
+            <button
+              className="w2a2d-report-card"
+              data-dataset-state={connected ? 'available' : 'unavailable'}
+              disabled={!connected}
+              key={metric.id}
+              onClick={() => {
+                if (records) {
+                  onOpenRecords(
+                    metric.id,
+                    records.map((record) => record.id),
+                  );
+                }
+              }}
+              type="button"
+            >
+              <strong>
+                {connected
+                  ? metric.statusLabel ?? records.length
+                  : unavailableLabel}
+              </strong>
+              <span>{metric.label}</span>
+              <small>
+                {connected
+                  ? `${records.length} linked record${
+                      records.length === 1 ? '' : 's'
+                    }`
+                  : unavailableLabel === 'Not recorded'
+                    ? 'No recorded dataset supplied'
+                    : 'Dataset not connected'}
+              </small>
+            </button>
+          );
+        })}
       </section>
 
       {crewReports.length > 0 ? (

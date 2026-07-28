@@ -7,6 +7,11 @@ export type TrackDImportSourceKind =
   | 'paste'
   | 'manual';
 
+export type TrackDTextTranscriptionKind = Extract<
+  TrackDImportSourceKind,
+  'paste' | 'manual'
+>;
+
 export interface TrackDSourceReference {
   id: string;
   kind: TrackDImportSourceKind;
@@ -39,6 +44,7 @@ export interface TrackDImportDraft {
   rows: TrackDImportRow[];
   warnings: string[];
   extractionAvailable: boolean;
+  transcriptionKind?: TrackDTextTranscriptionKind;
 }
 
 export interface TrackDConfirmedImport {
@@ -47,6 +53,12 @@ export interface TrackDConfirmedImport {
   rows: TrackDImportRow[];
   sourceFiles: readonly File[];
   confirmedAt: string;
+  transcriptionKind?: TrackDTextTranscriptionKind;
+}
+
+export interface TrackDImportProvenance {
+  source: TrackDSourceReference;
+  sourceFiles: readonly File[];
 }
 
 export interface TrackDImportParseOptions {
@@ -163,7 +175,7 @@ export type TrackDReportMetricId =
 export interface TrackDReportMetric {
   id: TrackDReportMetricId;
   label: string;
-  records: readonly TrackDReportRecordLink[];
+  records?: readonly TrackDReportRecordLink[];
   statusLabel?: string;
 }
 
@@ -440,12 +452,14 @@ const emptyRow = (
 const TRACK_D_ROW_CONFLICTS = new Set([
   'Duplicate Unit in this source.',
   'Unit already exists in the supplied roster.',
+  'Unit is not in the supplied property roster.',
   'Unit number is required.',
 ]);
 
 export const revalidateTrackDImportRows = (
   rows: TrackDImportRow[],
   existingUnitNumbers: Iterable<string> = [],
+  kind: TrackDImportKind = 'property-roster',
 ) => {
   const existing = new Set(
     Array.from(existingUnitNumbers, (unitNumber) => normalizeUnitKey(unitNumber)),
@@ -464,8 +478,21 @@ export const revalidateTrackDImportRows = (
     if (!row.excluded && key && (counts.get(key) ?? 0) > 1) {
       conflicts.push('Duplicate Unit in this source.');
     }
-    if (!row.excluded && key && existing.has(key)) {
+    if (
+      !row.excluded &&
+      key &&
+      kind === 'property-roster' &&
+      existing.has(key)
+    ) {
       conflicts.push('Unit already exists in the supplied roster.');
+    }
+    if (
+      !row.excluded &&
+      key &&
+      kind === 'daily-release' &&
+      !existing.has(key)
+    ) {
+      conflicts.push('Unit is not in the supplied property roster.');
     }
     if (!row.excluded && !key) conflicts.push('Unit number is required.');
     return { ...row, conflicts };
@@ -520,7 +547,11 @@ const parseDelimitedText = async (
     return row;
   });
   return {
-    rows: revalidateTrackDImportRows(rows, options.existingUnitNumbers),
+    rows: revalidateTrackDImportRows(
+      rows,
+      options.existingUnitNumbers,
+      options.kind,
+    ),
     warnings,
   };
 };
@@ -603,7 +634,11 @@ const parseManualText = (
       return row;
     });
   return {
-    rows: revalidateTrackDImportRows(rows, options.existingUnitNumbers),
+    rows: revalidateTrackDImportRows(
+      rows,
+      options.existingUnitNumbers,
+      options.kind,
+    ),
     warnings: [] as string[],
   };
 };
@@ -659,6 +694,22 @@ export function canConfirmTrackDImport(draft: TrackDImportDraft) {
   );
 }
 
+export function resolveTrackDImportProvenance(
+  attached: TrackDImportProvenance | null | undefined,
+  fallbackSource: TrackDSourceReference,
+): TrackDImportProvenance {
+  if (attached) {
+    return {
+      source: attached.source,
+      sourceFiles: attached.sourceFiles,
+    };
+  }
+  return {
+    source: fallbackSource,
+    sourceFiles: [],
+  };
+}
+
 export function filterTrackDActivity(
   records: readonly TrackDActivityRecord[],
   filter: TrackDActivityFilter,
@@ -695,6 +746,9 @@ export function projectLegacyActivityRecord(
   activity: TrackDLegacyActivityInput,
   context: TrackDLegacyActivityContext = {},
 ): TrackDActivityRecord {
+  const isUnconfirmedProposal =
+    context.confirmed === false ||
+    (activity.entityType === 'DraftAction' && context.confirmed !== true);
   return {
     id: activity.id,
     recordedAt: activity.createdAt,
@@ -708,7 +762,7 @@ export function projectLegacyActivityRecord(
     boundary: context.boundary ?? 'personal-record',
     category: context.category ?? 'other',
     summary: activity.note || activity.action,
-    state: context.confirmed === false ? 'proposal' : 'recorded',
+    state: isUnconfirmedProposal ? 'proposal' : 'recorded',
   };
 }
 
@@ -718,14 +772,15 @@ export function buildTrackDReportMetrics(
   >,
   statuses: Partial<Record<TrackDReportMetricId, string>> = {},
 ): TrackDReportMetric[] {
-  return (Object.keys(TRACK_D_REPORT_LABELS) as TrackDReportMetricId[]).map(
-    (id) => ({
+  return (Object.keys(TRACK_D_REPORT_LABELS) as TrackDReportMetricId[]).map((id) => {
+    const records = recordsByMetric[id];
+    return {
       id,
       label: TRACK_D_REPORT_LABELS[id],
-      records: recordsByMetric[id] ?? [],
+      ...(records !== undefined ? { records } : {}),
       ...(statuses[id] ? { statusLabel: statuses[id] } : {}),
-    }),
-  );
+    };
+  });
 }
 
 export function displayPermissionValue(permission: TrackDPermissionRecord) {

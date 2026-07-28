@@ -195,6 +195,7 @@ export function DirectNoteFlow({
 }
 
 export interface DirectPhotoFlowProps {
+  initialFile?: File;
   initialUnitId?: string;
   onBack?: () => void;
   onSave: (
@@ -213,6 +214,7 @@ export interface DirectPhotoFlowProps {
 }
 
 export function DirectPhotoFlow({
+  initialFile,
   initialUnitId,
   onBack,
   onSave,
@@ -222,14 +224,21 @@ export function DirectPhotoFlow({
   propertyId,
   units,
 }: DirectPhotoFlowProps) {
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(() =>
+    initialFile && isImageFile(initialFile) ? initialFile : null,
+  );
   const [previewUrl, setPreviewUrl] = useState('');
   const [unitId, setUnitId] = useState(initialUnitId ?? '');
   const [trade, setTrade] = useState<'' | 'Paint' | 'Clean'>('');
   const [section, setSection] = useState('');
   const [caption, setCaption] = useState('');
   const [receipt, setReceipt] = useState<TrackDSaveReceipt | null>(null);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(() => {
+    if (!initialFile) return '';
+    return isImageFile(initialFile)
+      ? 'Photo selected by the opening action. Add optional context, then save.'
+      : 'The opening action did not supply an image. Choose a photo instead.';
+  });
   const [saving, setSaving] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
@@ -248,7 +257,7 @@ export function DirectPhotoFlow({
     const selected = event.currentTarget.files?.[0] ?? null;
     event.currentTarget.value = '';
     if (!selected) return;
-    if (!selected.type.startsWith('image/')) {
+    if (!isImageFile(selected)) {
       setStatus('Choose an image file. Nothing was saved.');
       return;
     }
@@ -345,7 +354,13 @@ export function DirectPhotoFlow({
       {file ? (
         <TrackDSection label="Preview">
           <div className="w2a2d-photo-preview">
-            <img alt="Selected field attachment preview" src={previewUrl} />
+            {previewUrl ? (
+              <img alt="Selected field attachment preview" src={previewUrl} />
+            ) : (
+              <div className="w2a2d-photo-preview__pending" role="status">
+                Preparing photo preview…
+              </div>
+            )}
             <p>
               <strong>{file.name}</strong>
               <span>{Math.max(1, Math.round(file.size / 1024))} KB</span>
@@ -440,3 +455,5 @@ export function DirectPhotoFlow({
     </TrackDPage>
   );
 }
+
+const isImageFile = (file: File) => file.type.startsWith('image/');

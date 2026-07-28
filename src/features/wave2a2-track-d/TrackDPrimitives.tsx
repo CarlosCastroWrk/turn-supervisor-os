@@ -24,7 +24,7 @@ export function TrackDPage({
   title,
 }: TrackDPageProps) {
   return (
-    <main className="w2a2d-page">
+    <div className="w2a2d-page" data-track-d-page={title}>
       <header className="w2a2d-page__bar">
         <span className="w2a2d-page__bar-side">
           {onBack ? (
@@ -51,7 +51,7 @@ export function TrackDPage({
         </header>
         {children}
       </div>
-    </main>
+    </div>
   );
 }
 
@@ -160,15 +160,24 @@ export function TrackDReceipt({
     >
       <strong>{receipt.message}</strong>
       <span className="w2a2d-receipt__actions">
-        <button onClick={() => onView(receipt.recordId)} type="button">
+        <button
+          data-track-d-critical-target="receipt-action"
+          onClick={() => onView(receipt.recordId)}
+          type="button"
+        >
           View
         </button>
-        <button onClick={() => onUndo(receipt.recordId)} type="button">
+        <button
+          data-track-d-critical-target="receipt-action"
+          onClick={() => onUndo(receipt.recordId)}
+          type="button"
+        >
           Undo
         </button>
         <button
           aria-label={`Dismiss ${receipt.message}`}
           className="w2a2d-receipt__dismiss"
+          data-track-d-critical-target="receipt-action"
           onClick={onDismiss}
           type="button"
         >

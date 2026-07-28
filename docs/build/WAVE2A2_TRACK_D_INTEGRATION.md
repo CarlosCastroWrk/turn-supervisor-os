@@ -1,6 +1,6 @@
 # Wave 2A.2 Track D Integration Contract
 
-Status: feature-local implementation complete; shared-shell integration not performed
+Status: feature-local bounded repair complete; shared-shell integration not performed
 Base: `20acfab750c53c889edf981ca5a944dff1f388db`
 Owner: Track D — intake, visible Activity, operational tools
 
@@ -66,8 +66,16 @@ The callback includes:
 - import kind (`property-roster` or `daily-release`);
 - original source metadata;
 - the original in-session `File` objects where applicable;
+- optional transcription method (`paste` or `manual`) when an attachment was
+  transcribed without extraction;
 - only non-excluded reviewed rows; and
 - confirmation time.
+
+Conflict validation is import-kind aware:
+
+- property-roster imports reject Units already present in the supplied roster;
+- daily-release imports accept known roster Units and reject unknown Units;
+- duplicate source rows and missing Unit numbers remain explicit in both flows.
 
 ### Required host behavior
 
@@ -88,6 +96,13 @@ values become visible uncertainties. Image and PDF sources show:
 They do not create rows. The user may then Paste Text or Enter Manually. No OCR,
 image extraction, AI, release, assignment, approval, or payroll state is
 introduced.
+
+When Paste Text or Enter Manually follows an attached image/PDF, Track D keeps
+the original source reference and the exact original `File` objects. The typed
+text is labeled as transcription rather than extraction. Paint and Clean scope
+remain independently editable during review. After the host resolves a
+successful `onConfirm`, the reviewed intake locks against duplicate submission;
+Los must choose **Start a new intake** before another confirmation.
 
 ## Direct Note
 
@@ -115,6 +130,12 @@ Export: `DirectPhotoFlow`
 Camera and Photos use native file inputs. The flow keeps the chosen file in
 memory, shows a local preview, accepts optional Property/Unit/Paint-or-Clean/
 section/caption context, and calls `onSave` only after **Save photo**.
+
+`initialFile?: File` is the bounded Plus integration seam. When the shared
+Central Plus Camera/Photos owner has already returned an image, pass that exact
+`File` while mounting the flow and Track D opens directly in preview. Camera and
+Photos picker buttons remain available as fallback. `initialFile` is initial
+mount input; remount/key the flow for a later distinct picker handoff.
 
 The host must:
 
@@ -148,8 +169,12 @@ Activity requires explicit:
 - summary.
 
 Unknown actor or source stays `Not recorded`. A record with
-`state: "proposal"` is excluded. The UI labels time as the time Turn OS recorded
-the item and does not invent an occurrence time.
+`state: "proposal"` is excluded. Legacy `DraftAction` Activity defaults to
+proposal unless the integration host explicitly supplies `confirmed: true`;
+ordinary legacy Activity remains recorded by default. Visible cards render
+Action, Source, and personal/official Boundary as separate labeled facts. The UI
+labels time as the time Turn OS recorded the item and does not invent an
+occurrence time.
 
 Every visible item calls `onOpenRecord(recordId)`. The host must route that ID to
 the exact underlying record.
@@ -208,12 +233,21 @@ Optional crew summaries call:
 The surface does not estimate, synthesize, or aggregate unlinked operational
 truth. It does not claim time saved or calculate payroll.
 
+An explicitly supplied empty array is a verified zero and remains tappable with
+an empty exact-record list. An omitted dataset is unavailable, disabled, and
+renders `Not connected` by default or the host-supplied status such as
+`Not recorded`; it is never converted into a false zero.
+
 ## Styling and accessibility
 
-Track D owns only `track-d.css`.
+Track D owns only feature-local styles.
 
 - Namespace: `w2a2d-*`
-- 44-pixel minimum interactive targets
+- consumes Track A `--turn-color-*` semantic tokens, with bounded matching
+  light/dark fallbacks for isolated rendering
+- WCAG AA fallback contrast for normal primary, secondary, accent, status, and
+  destructive text pairs
+- 44-pixel minimum filter, receipt, and critical interactive targets
 - 16-pixel form controls to avoid iPhone input zoom
 - light, dark, system, and reduced-motion behavior
 - safe-area bottom padding
@@ -222,6 +256,28 @@ Track D owns only `track-d.css`.
 - no horizontal import table
 - import rows use `content-visibility` for 400–500-row review
 - wrap-safe layouts at 320-pixel width
+- `TrackDPage` is a non-landmark container so it can render inside the shared
+  shell's single `<main>` without nested-main semantics
+
+## Feature-local verification surface
+
+`src/features/wave2a2-track-d/preview.html` is a synthetic, non-registered
+browser fixture. `tests/wave2a2-track-d-browser.mjs` starts it directly through
+Vite and verifies:
+
+- 320, 390, and 430-pixel iPhone widths, iPad landscape, and Mac;
+- light and dark token consumption, AA contrast, and no horizontal overflow;
+- exactly one outer `<main>` and no nested `<main>`;
+- image/PDF attachment → Paste Text provenance retention;
+- editable Paint/Clean review and one-shot durable confirmation locking;
+- Central Plus preselected-photo preview with fallback pickers;
+- DraftAction proposal exclusion plus explicit Action/Source/Boundary labels;
+- report missing-versus-explicit-zero rendering; and
+- exact 44-pixel Activity filter, record, receipt, and other marked critical
+  targets.
+
+This test is intentionally invoked directly. `package.json`, the shared test
+manifest, and a registered app route remain reserved integration seams.
 
 ## Integration sequence
 
@@ -237,6 +293,9 @@ The shared integration owner should:
 8. expose Official PDS Forms under More → Work;
 9. route every report and Activity click to exact records; and
 10. rerun full physical iPhone Safari/PWA acceptance.
+
+For Camera/Photos, the shared Plus owner should pass its selected `File` through
+`initialFile`; it should not invoke Track D's fallback picker a second time.
 
 Do not merge Track D by copying its local models into shared persisted types.
 The local types are view/input contracts, not a schema proposal.

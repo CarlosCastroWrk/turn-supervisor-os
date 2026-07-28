@@ -19,9 +19,11 @@ import {
   createUnavailableExtractionDraft,
   parseTrackDImportText,
   revalidateTrackDImportRows,
+  resolveTrackDImportProvenance,
   type TrackDConfirmedImport,
   type TrackDImportDraft,
   type TrackDImportKind,
+  type TrackDImportProvenance,
   type TrackDImportRow,
   type TrackDImportSourceKind,
   type TrackDSourceReference,
@@ -129,12 +131,15 @@ export function SourceFirstImport({
 }: SourceFirstImportProps) {
   const [kind, setKind] = useState<TrackDImportKind>(initialKind);
   const [draft, setDraft] = useState<TrackDImportDraft | null>(null);
-  const [sourceFiles, setSourceFiles] = useState<readonly File[]>([]);
+  const [provenance, setProvenance] =
+    useState<TrackDImportProvenance | null>(null);
   const [textMode, setTextMode] = useState<'paste' | 'manual' | null>(null);
   const [sourceText, setSourceText] = useState('');
   const [reviewed, setReviewed] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
+  const confirmationInFlightRef = useRef(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -146,11 +151,13 @@ export function SourceFirstImport({
 
   const resetIntake = () => {
     setDraft(null);
-    setSourceFiles([]);
+    setProvenance(null);
     setTextMode(null);
     setSourceText('');
     setReviewed(false);
+    setConfirmed(false);
     setStatus('');
+    confirmationInFlightRef.current = false;
   };
 
   const chooseSource = (choice: TrackDImportSourceKind) => {
@@ -162,11 +169,15 @@ export function SourceFirstImport({
     } else if (choice === 'file') {
       fileInputRef.current?.click();
     } else {
+      const continuesAttachedSource =
+        draft?.extractionAvailable === false &&
+        (provenance?.sourceFiles.length ?? 0) > 0;
       setTextMode(choice);
       setSourceText('');
       setDraft(null);
-      setSourceFiles([]);
+      if (!continuesAttachedSource) setProvenance(null);
       setReviewed(false);
+      setConfirmed(false);
     }
   };
 
@@ -182,9 +193,10 @@ export function SourceFirstImport({
     const name =
       files.length === 1 ? first.name : `${files.length} source photos`;
     const source = createSourceReference(sourceKind, name, first);
-    setSourceFiles(files);
+    setProvenance({ source, sourceFiles: files });
     setTextMode(null);
     setReviewed(false);
+    setConfirmed(false);
 
     if (files.length === 1 && isTextSource(first)) {
       try {
@@ -213,21 +225,33 @@ export function SourceFirstImport({
 
   const createTextPreview = async () => {
     if (!textMode) return;
-    const source = createSourceReference(
+    const fallbackSource = createSourceReference(
       textMode,
       textMode === 'paste' ? 'Pasted source text' : 'Manual entry',
+    );
+    const attachedSource =
+      (provenance?.sourceFiles.length ?? 0) > 0 ? provenance : null;
+    const nextProvenance = resolveTrackDImportProvenance(
+      attachedSource,
+      fallbackSource,
     );
     const nextDraft = await parseTrackDImportText(sourceText, {
       existingUnitNumbers,
       kind,
-      source,
+      source: nextProvenance.source,
     });
-    setDraft(nextDraft);
-    setSourceFiles([]);
+    setDraft({
+      ...nextDraft,
+      ...(attachedSource ? { transcriptionKind: textMode } : {}),
+    });
+    setProvenance(nextProvenance);
     setReviewed(false);
+    setConfirmed(false);
     setStatus(
       nextDraft.rows.length > 0
-        ? 'Preview created. Review every row before confirming.'
+        ? attachedSource
+          ? 'Preview created from the transcription. The original attachment remains linked.'
+          : 'Preview created. Review every row before confirming.'
         : 'No reviewable rows were found.',
     );
   };
@@ -236,19 +260,29 @@ export function SourceFirstImport({
     rowId: string,
     patch: Partial<TrackDImportRow>,
   ) => {
-    if (!draft) return;
+    if (!draft || confirmed) return;
     const rows = revalidateTrackDImportRows(
       draft.rows.map((row) =>
         row.id === rowId ? { ...row, ...patch } : row,
       ),
       existingUnitNumbers,
+      draft.kind,
     );
     setDraft({ ...draft, rows });
     setReviewed(false);
   };
 
   const confirm = async () => {
-    if (!draft || !reviewed || !canConfirmTrackDImport(draft)) return;
+    if (
+      !draft ||
+      !reviewed ||
+      confirmed ||
+      confirmationInFlightRef.current ||
+      !canConfirmTrackDImport(draft)
+    ) {
+      return;
+    }
+    confirmationInFlightRef.current = true;
     setSaving(true);
     setStatus('');
     try {
@@ -256,15 +290,20 @@ export function SourceFirstImport({
         kind: draft.kind,
         source: draft.source,
         rows: includedRows,
-        sourceFiles,
+        sourceFiles: provenance?.sourceFiles ?? [],
         confirmedAt: new Date().toISOString(),
+        ...(draft.transcriptionKind
+          ? { transcriptionKind: draft.transcriptionKind }
+          : {}),
       });
+      setConfirmed(true);
       setStatus(
-        'Confirmed personal intake sent to the host. Official paper remains authoritative.',
+        'Intake confirmed once and locked on this screen. Official paper remains authoritative.',
       );
     } catch {
       setStatus('Confirmation failed. The reviewed source remains on this screen.');
     } finally {
+      confirmationInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -282,6 +321,7 @@ export function SourceFirstImport({
           {(Object.keys(importKindCopy) as TrackDImportKind[]).map((option) => (
             <button
               aria-pressed={kind === option}
+              disabled={saving || confirmed}
               key={option}
               onClick={() => {
                 if (kind !== option) {
@@ -368,6 +408,12 @@ export function SourceFirstImport({
               value={sourceText}
             />
           </label>
+          {(provenance?.sourceFiles.length ?? 0) > 0 ? (
+            <p className="w2a2d-retained-source">
+              Original attachment retained: {provenance?.source.name}. This text
+              is a manual transcription, not image or PDF extraction.
+            </p>
+          ) : null}
           <button
             className="w2a2d-primary-button"
             disabled={!sourceText.trim()}
@@ -392,7 +438,7 @@ export function SourceFirstImport({
               </p>
             </div>
             <button className="w2a2d-text-button" onClick={resetIntake} type="button">
-              Start over
+              {confirmed ? 'Start a new intake' : 'Start over'}
             </button>
           </div>
 
@@ -421,7 +467,12 @@ export function SourceFirstImport({
           {draft.rows.length > 0 ? (
             <div className="w2a2d-import-rows">
               {draft.rows.map((row) => (
-                <ImportReviewCard key={row.id} onChange={updateRow} row={row} />
+                <ImportReviewCard
+                  disabled={confirmed}
+                  key={row.id}
+                  onChange={updateRow}
+                  row={row}
+                />
               ))}
             </div>
           ) : null}
@@ -431,6 +482,7 @@ export function SourceFirstImport({
               <label className="w2a2d-review-check">
                 <input
                   checked={reviewed}
+                  disabled={confirmed}
                   onChange={(event) => setReviewed(event.currentTarget.checked)}
                   type="checkbox"
                 />
@@ -441,21 +493,34 @@ export function SourceFirstImport({
               </label>
               {!canConfirmTrackDImport(draft) ? (
                 <p className="w2a2d-error-copy">
-                  Resolve duplicate, existing-Unit, and missing-Unit conflicts
-                  before confirming.
+                  Resolve every duplicate, roster, unknown-Unit, and missing-Unit
+                  conflict before confirming.
                 </p>
               ) : null}
               <button
                 className="w2a2d-primary-button"
                 disabled={
-                  saving || !reviewed || !canConfirmTrackDImport(draft)
+                  saving ||
+                  confirmed ||
+                  !reviewed ||
+                  !canConfirmTrackDImport(draft)
                 }
                 onClick={() => void confirm()}
                 type="button"
               >
                 <CheckCircle2 aria-hidden="true" size={20} />
-                {saving ? 'Confirming…' : 'Confirm reviewed intake'}
+                {confirmed
+                  ? 'Intake confirmed'
+                  : saving
+                    ? 'Confirming…'
+                    : 'Confirm reviewed intake'}
               </button>
+              {confirmed ? (
+                <p className="w2a2d-confirmed-lock">
+                  Durable confirmation succeeded. Start a new intake to submit
+                  another source.
+                </p>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -495,11 +560,16 @@ export function SourceFirstImport({
 }
 
 interface ImportReviewCardProps {
+  disabled: boolean;
   onChange: (rowId: string, patch: Partial<TrackDImportRow>) => void;
   row: TrackDImportRow;
 }
 
-function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
+function ImportReviewCard({
+  disabled,
+  onChange,
+  row,
+}: ImportReviewCardProps) {
   return (
     <article className="w2a2d-import-row">
       <header>
@@ -510,6 +580,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-exclude-check">
           <input
             checked={row.excluded}
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, { excluded: event.currentTarget.checked })
             }
@@ -522,6 +593,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-field">
           <span>Unit</span>
           <input
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, { unitNumber: event.currentTarget.value })
             }
@@ -531,6 +603,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-field">
           <span>Unit type</span>
           <input
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, { unitType: event.currentTarget.value })
             }
@@ -540,6 +613,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-field">
           <span>Building</span>
           <input
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, { building: event.currentTarget.value })
             }
@@ -549,6 +623,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-field">
           <span>Floor</span>
           <input
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, { floor: event.currentTarget.value })
             }
@@ -558,6 +633,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-field w2a2d-field--wide">
           <span>Applicable sections</span>
           <input
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, {
                 applicableSections: event.currentTarget.value
@@ -573,6 +649,7 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
         <label className="w2a2d-field w2a2d-field--wide">
           <span>Restrictions or source notes</span>
           <textarea
+            disabled={disabled}
             onChange={(event) =>
               onChange(row.id, { restrictions: event.currentTarget.value })
             }
@@ -581,16 +658,44 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
           />
         </label>
       </div>
-      <dl className="w2a2d-scope-summary">
-        <div>
-          <dt>Paint</dt>
-          <dd>{scopeLabel(row.paintRequested)}</dd>
-        </div>
-        <div>
-          <dt>Clean</dt>
-          <dd>{scopeLabel(row.cleanRequested)}</dd>
-        </div>
-      </dl>
+      <div className="w2a2d-scope-editors">
+        <label className="w2a2d-field">
+          <span>Paint scope</span>
+          <select
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(row.id, {
+                paintRequested: parseScopeReviewValue(
+                  event.currentTarget.value,
+                ),
+              })
+            }
+            value={scopeReviewValue(row.paintRequested)}
+          >
+            <option value="not-stated">Not stated</option>
+            <option value="included">Explicitly included</option>
+            <option value="excluded">Explicitly excluded</option>
+          </select>
+        </label>
+        <label className="w2a2d-field">
+          <span>Clean scope</span>
+          <select
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(row.id, {
+                cleanRequested: parseScopeReviewValue(
+                  event.currentTarget.value,
+                ),
+              })
+            }
+            value={scopeReviewValue(row.cleanRequested)}
+          >
+            <option value="not-stated">Not stated</option>
+            <option value="included">Explicitly included</option>
+            <option value="excluded">Explicitly excluded</option>
+          </select>
+        </label>
+      </div>
       {row.conflicts.length > 0 || row.uncertainties.length > 0 ? (
         <div className="w2a2d-row-messages">
           {row.conflicts.map((message) => (
@@ -611,8 +716,14 @@ function ImportReviewCard({ onChange, row }: ImportReviewCardProps) {
   );
 }
 
-const scopeLabel = (value: boolean | undefined) => {
-  if (value === true) return 'Explicitly included';
-  if (value === false) return 'Explicitly excluded';
-  return 'Not stated';
+const scopeReviewValue = (value: boolean | undefined) => {
+  if (value === true) return 'included';
+  if (value === false) return 'excluded';
+  return 'not-stated';
+};
+
+const parseScopeReviewValue = (value: string) => {
+  if (value === 'included') return true;
+  if (value === 'excluded') return false;
+  return undefined;
 };

@@ -9,6 +9,8 @@ import {
   filterTrackDActivity,
   parseTrackDImportText,
   projectLegacyActivityRecord,
+  resolveTrackDImportProvenance,
+  revalidateTrackDImportRows,
   TRACK_D_MORE_GROUPS,
   TRACK_D_OFFICIAL_FORMS,
 } from '../src/features/wave2a2-track-d/model.ts';
@@ -33,6 +35,7 @@ test('deterministic CSV parsing preserves source rows and explicit Paint/Clean s
       '416,2,4,4,"Common,A,B",required,needed,',
     ].join('\n'),
     {
+      existingUnitNumbers: ['413', '416'],
       kind: 'daily-release',
       source,
     },
@@ -67,8 +70,8 @@ test('manual parsing uses explicit labels and surfaces unlabeled uncertainty', a
   assert.match(draft.rows[1].uncertainties.join(' '), /Unlabeled text/);
 });
 
-test('duplicate, existing, and missing Units block confirmation', async () => {
-  const draft = await parseTrackDImportText('101\n101\n202', {
+test('property roster blocks existing duplicates while preserving duplicate and missing conflicts', async () => {
+  const draft = await parseTrackDImportText('101\n101\n202\nUnit:', {
     existingUnitNumbers: ['202'],
     kind: 'property-roster',
     source,
@@ -77,6 +80,21 @@ test('duplicate, existing, and missing Units block confirmation', async () => {
   assert.equal(canConfirmTrackDImport(draft), false);
   assert.match(draft.rows[0].conflicts.join(' '), /Duplicate Unit/);
   assert.match(draft.rows[2].conflicts.join(' '), /already exists/);
+  assert.match(draft.rows[3].conflicts.join(' '), /required/);
+});
+
+test('daily release accepts known roster Units and explicitly blocks unknown, duplicate, and missing Units', async () => {
+  const draft = await parseTrackDImportText('101\n102\n999\n102\nUnit:', {
+    existingUnitNumbers: ['101', '102'],
+    kind: 'daily-release',
+    source,
+  });
+
+  assert.deepEqual(draft.rows[0].conflicts, []);
+  assert.match(draft.rows[1].conflicts.join(' '), /Duplicate Unit/);
+  assert.match(draft.rows[2].conflicts.join(' '), /not in the supplied property roster/);
+  assert.match(draft.rows[4].conflicts.join(' '), /required/);
+  assert.equal(canConfirmTrackDImport(draft), false);
 });
 
 test('explicitly excluding a duplicate row lets the remaining reviewed row proceed', async () => {
@@ -84,9 +102,6 @@ test('explicitly excluding a duplicate row lets the remaining reviewed row proce
     kind: 'property-roster',
     source,
   });
-  const { revalidateTrackDImportRows } = await import(
-    '../src/features/wave2a2-track-d/model.ts'
-  );
   const rows = revalidateTrackDImportRows([
     draft.rows[0],
     { ...draft.rows[1], excluded: true },
@@ -112,6 +127,40 @@ test('image and PDF attachments never fabricate extracted rows', () => {
     'Source attached — extraction not yet available.',
   );
   assert.equal(canConfirmTrackDImport(draft), false);
+});
+
+test('attachment transcription retains the original source reference and File objects', () => {
+  const originalFile = new File(['synthetic pdf bytes'], 'release.pdf', {
+    type: 'application/pdf',
+  });
+  const originalSource = {
+    ...source,
+    id: 'source-pdf',
+    kind: 'file',
+    mimeType: 'application/pdf',
+    name: originalFile.name,
+  };
+  const fallbackSource = {
+    ...source,
+    id: 'source-paste',
+    kind: 'paste',
+    name: 'Pasted source text',
+  };
+  const retained = resolveTrackDImportProvenance(
+    {
+      source: originalSource,
+      sourceFiles: [originalFile],
+    },
+    fallbackSource,
+  );
+
+  assert.strictEqual(retained.source, originalSource);
+  assert.strictEqual(retained.sourceFiles[0], originalFile);
+  assert.notStrictEqual(retained.source, fallbackSource);
+
+  const directText = resolveTrackDImportProvenance(null, fallbackSource);
+  assert.strictEqual(directText.source, fallbackSource);
+  assert.deepEqual(directText.sourceFiles, []);
 });
 
 test('500 deterministic roster rows remain reviewable without truncation', async () => {
@@ -180,6 +229,38 @@ test('Activity leaves missing actor and source explicitly unrecorded', () => {
 
   assert.equal(record.actor, 'Actor not recorded');
   assert.equal(record.source, 'Source not recorded');
+  assert.equal(record.state, 'recorded');
+});
+
+test('DraftAction Activity is a proposal by default and requires explicit confirmation to become visible', () => {
+  const draftActivity = {
+    id: 'draft-activity',
+    createdAt: '2026-07-28T17:12:00.000Z',
+    action: 'Created draft actions',
+    note: 'Two model proposals require review',
+    entityType: 'DraftAction',
+    entityId: 'draft-1',
+  };
+  const proposal = projectLegacyActivityRecord(draftActivity);
+  const explicitlyConfirmed = projectLegacyActivityRecord(draftActivity, {
+    confirmed: true,
+    source: 'Confirmed host event',
+  });
+  const ordinaryLegacy = projectLegacyActivityRecord({
+    ...draftActivity,
+    id: 'ordinary-activity',
+    entityType: 'Unit',
+  });
+
+  assert.equal(proposal.state, 'proposal');
+  assert.equal(explicitlyConfirmed.state, 'recorded');
+  assert.equal(ordinaryLegacy.state, 'recorded');
+  assert.deepEqual(
+    filterTrackDActivity([proposal, explicitlyConfirmed, ordinaryLegacy], 'all')
+      .map((record) => record.id)
+      .sort(),
+    ['draft-activity', 'ordinary-activity'],
+  );
 });
 
 test('AppData adapters are read-only, active-project projections with no status inference', () => {
@@ -268,14 +349,20 @@ test('official form destinations match the authorized external links exactly', (
   );
 });
 
-test('Reports derive counts from exact record links and include every authorized metric', () => {
-  const metrics = buildTrackDReportMetrics({
-    'property-roster': [
-      { id: 'unit-1', label: 'Unit 101' },
-      { id: 'unit-2', label: 'Unit 102' },
-    ],
-    'notes-photos': [{ id: 'note-1', label: 'Unit 101 note' }],
-  });
+test('Reports distinguish explicit empty datasets from unavailable and not-recorded datasets', () => {
+  const metrics = buildTrackDReportMetrics(
+    {
+      'property-roster': [
+        { id: 'unit-1', label: 'Unit 101' },
+        { id: 'unit-2', label: 'Unit 102' },
+      ],
+      'notes-photos': [{ id: 'note-1', label: 'Unit 101 note' }],
+      'ready-to-walk': [],
+    },
+    {
+      working: 'Not recorded',
+    },
+  );
 
   assert.equal(metrics.length, 16);
   assert.equal(
@@ -283,8 +370,16 @@ test('Reports derive counts from exact record links and include every authorized
     2,
   );
   assert.equal(
-    metrics.find((metric) => metric.id === 'released-today').records.length,
+    metrics.find((metric) => metric.id === 'ready-to-walk').records.length,
     0,
+  );
+  assert.equal(
+    metrics.find((metric) => metric.id === 'released-today').records,
+    undefined,
+  );
+  assert.equal(
+    metrics.find((metric) => metric.id === 'working').statusLabel,
+    'Not recorded',
   );
 });
 
@@ -348,19 +443,122 @@ test('Track D implementation contains no blocked intelligence or official mutati
   assert.match(sourceText, /Nothing is released or assigned before confirmation/);
 });
 
-test('Track D styles contain mobile overflow and accessibility safeguards', async () => {
-  const css = await readFile(
-    new URL(
-      '../src/features/wave2a2-track-d/track-d.css',
-      import.meta.url,
+test('Track D shell and source contracts encode the repaired integration seams', async () => {
+  const [primitives, sourceFirstImport, directPhoto] = await Promise.all([
+    readFile(
+      new URL(
+        '../src/features/wave2a2-track-d/TrackDPrimitives.tsx',
+        import.meta.url,
+      ),
+      'utf8',
     ),
+    readFile(
+      new URL(
+        '../src/features/wave2a2-track-d/SourceFirstImport.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+    readFile(
+      new URL(
+        '../src/features/wave2a2-track-d/DirectNotePhoto.tsx',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ]);
+
+  assert.doesNotMatch(primitives, /<main\b/);
+  assert.match(primitives, /data-track-d-page=/);
+  assert.match(directPhoto, /initialFile\?: File/);
+  assert.match(directPhoto, /useState<File \| null>\(\(\) =>/);
+  assert.match(sourceFirstImport, /sourceFiles: provenance\?\.sourceFiles \?\? \[\]/);
+  assert.match(sourceFirstImport, /transcriptionKind/);
+  assert.match(sourceFirstImport, /confirmationInFlightRef/);
+  assert.match(sourceFirstImport, /Paint scope/);
+  assert.match(sourceFirstImport, /Clean scope/);
+});
+
+test('Track D styles consume Track A tokens and enforce exact target, responsive, and AA fallback contracts', async () => {
+  const css = await readFile(
+    new URL('../src/features/wave2a2-track-d/track-d.css', import.meta.url),
     'utf8',
   );
 
   assert.match(css, /overflow-x:\s*clip/);
   assert.match(css, /font-size:\s*16px/);
-  assert.match(css, /min-block-size:\s*44px/);
+  assert.match(
+    css,
+    /--w2a2d-background:\s*var\(--turn-color-page,\s*#f2f4f7\)/,
+  );
+  assert.match(
+    css,
+    /--w2a2d-text:\s*var\(--turn-color-primary,\s*#0a0d12\)/,
+  );
+  assert.match(
+    css,
+    /--w2a2d-accent-strong:\s*var\(--turn-color-brand-strong,\s*#0066cc\)/,
+  );
+  assert.match(
+    css,
+    /--w2a2d-on-accent:\s*var\(--turn-color-on-brand,\s*#ffffff\)/,
+  );
+  assert.match(
+    css,
+    /--w2a2d-on-accent:\s*var\(--turn-color-on-brand,\s*#001a31\)/,
+  );
+  assert.match(
+    css,
+    /\.w2a2d-filter-grid button\s*\{[^}]*min-block-size:\s*44px;[^}]*min-inline-size:\s*44px;/s,
+  );
+  assert.match(
+    css,
+    /\[data-track-d-critical-target\][^{]*\{[^}]*min-block-size:\s*44px;[^}]*min-inline-size:\s*44px;/s,
+  );
+  assert.doesNotMatch(
+    css,
+    /\.w2a2d-filter-grid button\s*\{[^}]*min-block-size:\s*38px/s,
+  );
   assert.match(css, /content-visibility:\s*auto/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /safe-area-inset-bottom/);
+  assert.match(css, /@media \(max-width:\s*520px\)/);
+
+  for (const [foreground, background] of [
+    ['#ffffff', '#0066cc'],
+    ['#001a31', '#63b3ff'],
+    ['#0066cc', '#e8f3ff'],
+    ['#63b3ff', '#153b5f'],
+    ['#626c78', '#ffffff'],
+    ['#aaaab0', '#1c1c1e'],
+    ['#c43d36', '#ffffff'],
+    ['#ff6b64', '#1c1c1e'],
+  ]) {
+    assert.ok(
+      contrastRatio(foreground, background) >= 4.5,
+      `${foreground} on ${background} must meet WCAG AA.`,
+    );
+  }
 });
+
+const contrastRatio = (foreground, background) => {
+  const values = [relativeLuminance(foreground), relativeLuminance(background)]
+    .sort((left, right) => right - left);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+};
+
+const relativeLuminance = (hex) => {
+  const channels = hex
+    .match(/[0-9a-f]{2}/gi)
+    .map((channel) => Number.parseInt(channel, 16) / 255)
+    .map((channel) =>
+      channel <= 0.04045
+        ? channel / 12.92
+        : ((channel + 0.055) / 1.055) ** 2.4,
+    );
+  return (
+    0.2126 * channels[0] +
+    0.7152 * channels[1] +
+    0.0722 * channels[2]
+  );
+};

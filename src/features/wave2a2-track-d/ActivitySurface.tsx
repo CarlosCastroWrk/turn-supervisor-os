@@ -64,6 +64,7 @@ export function ActivitySurface({
         {TRACK_D_ACTIVITY_FILTERS.map((option) => (
           <button
             aria-pressed={filter === option.id}
+            data-track-d-critical-target="activity-filter"
             key={option.id}
             onClick={() => setFilter(option.id)}
             type="button"
@@ -87,6 +88,7 @@ export function ActivitySurface({
             <li key={record.id}>
               <button
                 className="w2a2d-activity-card"
+                data-track-d-critical-target="activity-record"
                 onClick={() => onOpenRecord(record.id)}
                 type="button"
               >
@@ -106,9 +108,17 @@ export function ActivitySurface({
                     {record.section ? ` · ${record.section}` : ''}
                   </span>
                   <span className="w2a2d-activity-card__meta">
-                    <span>Source: {record.source}</span>
+                    <span>
+                      <b>Action</b>
+                      {record.action}
+                    </span>
+                    <span>
+                      <b>Source</b>
+                      {record.source}
+                    </span>
                     <span>
                       <ShieldCheck aria-hidden="true" size={14} />
+                      <b>Boundary</b>
                       {boundaryLabel[record.boundary]}
                     </span>
                   </span>

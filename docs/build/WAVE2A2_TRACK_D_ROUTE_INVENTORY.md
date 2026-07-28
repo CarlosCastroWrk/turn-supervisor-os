@@ -28,7 +28,7 @@ Observed base: `20acfab750c53c889edf981ca5a944dff1f388db`
 | `#/notifications` | `NativeNotificationsPage` | Full-page Track A surface | Full-page owner | Preserve. Not Track D. |
 | `#/copilot` legacy bookmark | hash resolver normalizes to dashboard and requests the single Capture overlay | Launch shell | Universal Capture overlay | Preserve one-Capture-owner safeguard. Track D must not own or stack Capture. |
 | Plus → Note | Track C native flow | Track C sheet | Track C | Replace action body with `DirectNoteFlow`; blank by default, explicit Save, View/Undo. |
-| Plus → Camera/Photos | Track C native picker handoff | Track C sheet | Track C | Open `DirectPhotoFlow` directly; preview then explicit Save. |
+| Plus → Camera/Photos | Track C native picker handoff | Track C sheet | Track C | Open `DirectPhotoFlow` directly with the exact selected `File` in `initialFile`; preview then explicit Save. Keep Track D Camera/Photos buttons as fallback only, avoiding a second picker tap. |
 | More → Official PDS Forms | currently blocked in Track B handler | Track B More | None | Connect `TrackDOfficialFormsSurface`; exact external links only. |
 
 ## Old UI leakage risks
@@ -52,6 +52,12 @@ Track D intentionally did not change:
 - shared types, storage, AppData, migrations, Supabase, sync, or service worker
 - global `src/styles.css`
 - existing Track A/B/C feature files
+- `package.json`, lockfile, and the shared test manifest
+- any registered browser/app route for the feature-local Track D preview
 
 Those files require the shared integration owner after all Wave 2A.2 tracks are
 reviewed together.
+
+Track D browser coverage runs directly against
+`src/features/wave2a2-track-d/preview.html`; integration still owns the
+registered route and full shared-shell browser regression.

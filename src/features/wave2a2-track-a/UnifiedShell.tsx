@@ -1,0 +1,295 @@
+import {
+  Activity,
+  Bell,
+  Home,
+  ListChecks,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Sparkles,
+} from 'lucide-react';
+import {
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+} from 'react';
+import type {
+  LaunchCommandCenterShellProps,
+  LaunchPrimaryDestination,
+} from '../launch-command-center/types';
+import type { TurnThemeState } from './theme';
+import './trackA.css';
+
+const navigationItems: readonly {
+  id: LaunchPrimaryDestination | 'plus';
+  label: string;
+  icon: ReactNode;
+}[] = [
+  { id: 'home', label: 'Home', icon: <Home aria-hidden="true" size={21} /> },
+  {
+    id: 'turnboard',
+    label: 'TurnBoard',
+    icon: <ListChecks aria-hidden="true" size={21} />,
+  },
+  { id: 'plus', label: 'Plus', icon: <Plus aria-hidden="true" size={24} /> },
+  {
+    id: 'activity',
+    label: 'Activity',
+    icon: <Activity aria-hidden="true" size={21} />,
+  },
+  {
+    id: 'more',
+    label: 'More',
+    icon: <MoreHorizontal aria-hidden="true" size={22} />,
+  },
+];
+
+const scrollRegionSelector = [
+  '[data-turn-scroll-region="primary"]',
+  '.w1r-unit-list',
+  '.w1r-activity-list',
+  '.w1r-more-list',
+  '.w2a1-a-scroll-page',
+  '.w2a1-a-detail-page__scroll',
+].join(',');
+
+const findPrimaryScrollRegion = (main: HTMLElement) => {
+  const candidates = [...main.querySelectorAll<HTMLElement>(scrollRegionSelector)];
+  return candidates.find((candidate) => (
+    candidate.getClientRects().length > 0
+    && candidate.scrollHeight > candidate.clientHeight
+  )) ?? main;
+};
+
+export interface Wave2A2UnifiedShellProps
+  extends LaunchCommandCenterShellProps {
+  restoreContentScroll?: boolean;
+  theme: Pick<TurnThemeState, 'reducedMotion' | 'resolvedTheme'>;
+}
+
+function TurnOsLockup() {
+  return (
+    <span className="w2a2-lockup" aria-label="Turn OS, Supervisor">
+      <span className="w2a2-lockup__mark" aria-hidden="true">TO</span>
+      <span className="w2a2-lockup__name">
+        <strong>Turn OS</strong>
+        <small>Supervisor</small>
+      </span>
+    </span>
+  );
+}
+
+export function Wave2A2UnifiedShell({
+  activeDestination,
+  backgroundInert = false,
+  children,
+  contentContained = false,
+  contentDialogOpen = false,
+  contentFocusKey,
+  contentTitle,
+  dateLabel,
+  intelligenceAvailable = false,
+  notificationCount = 0,
+  onNavigate,
+  onOpenIntelligence,
+  onOpenNotifications,
+  onOpenPlus,
+  onOpenSearch,
+  propertyName,
+  restoreContentScroll = false,
+  theme,
+}: Wave2A2UnifiedShellProps) {
+  const mainRef = useRef<HTMLElement | null>(null);
+  const scrollPositionsRef = useRef(new Map<string, number>());
+
+  useLayoutEffect(() => {
+    document.title = `${contentTitle} · Turn OS`;
+    const main = mainRef.current;
+    if (!main) return undefined;
+    const scrollPositions = scrollPositionsRef.current;
+
+    const frame = window.requestAnimationFrame(() => {
+      const scrollRegion = findPrimaryScrollRegion(main);
+      scrollRegion.scrollTop = restoreContentScroll
+        ? scrollPositions.get(contentFocusKey) ?? 0
+        : 0;
+
+      const activeElement = document.activeElement;
+      if (
+        !backgroundInert
+        && (!activeElement || activeElement === document.body || !main.contains(activeElement))
+      ) {
+        main.focus({ preventScroll: true });
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      const scrollRegion = findPrimaryScrollRegion(main);
+      scrollPositions.set(contentFocusKey, scrollRegion.scrollTop);
+    };
+  }, [
+    backgroundInert,
+    contentFocusKey,
+    contentTitle,
+    restoreContentScroll,
+  ]);
+
+  const notificationLabel = notificationCount === 1
+    ? 'Open notifications, 1 unread'
+    : `Open notifications, ${notificationCount} unread`;
+
+  return (
+    <div
+      aria-hidden={backgroundInert || undefined}
+      className="w2a2-shell"
+      data-reduced-motion={theme.reducedMotion}
+      data-testid="launch-command-center-shell"
+      data-theme={theme.resolvedTheme}
+      data-wave2a2-shell="true"
+      inert={backgroundInert || undefined}
+    >
+      <a className="w2a2-skip-link" href="#launch-command-center-main">
+        Skip to main content
+      </a>
+
+      <header
+        aria-hidden={contentDialogOpen || undefined}
+        className="w2a2-header"
+        inert={contentDialogOpen || undefined}
+      >
+        <TurnOsLockup />
+        <div
+          aria-label={`${propertyName}. ${dateLabel}.`}
+          className="w2a2-header__context"
+        >
+          <strong>{propertyName}</strong>
+          <span aria-hidden="true">·</span>
+          <time>{dateLabel}</time>
+        </div>
+        <div className="w2a2-header__actions">
+          <button
+            aria-label="Open Search"
+            data-lcc-critical-target="true"
+            data-w2a2-critical-target="true"
+            onClick={onOpenSearch}
+            type="button"
+          >
+            <Search aria-hidden="true" size={20} />
+          </button>
+          <button
+            aria-label={notificationLabel}
+            data-lcc-critical-target="true"
+            data-w2a2-critical-target="true"
+            onClick={onOpenNotifications}
+            type="button"
+          >
+            <Bell aria-hidden="true" size={20} />
+            {notificationCount > 0 ? (
+              <span className="w2a2-header__badge" aria-hidden="true">
+                {notificationCount > 99 ? '99+' : notificationCount}
+              </span>
+            ) : null}
+          </button>
+          <button
+            aria-haspopup={intelligenceAvailable ? 'dialog' : undefined}
+            aria-label={intelligenceAvailable
+              ? 'Open Turn OS Intelligence'
+              : 'Turn OS Intelligence unavailable until a later reviewed release'}
+            data-lcc-critical-target="true"
+            data-w2a2-critical-target="true"
+            disabled={!intelligenceAvailable}
+            onClick={() => {
+              if (intelligenceAvailable) onOpenIntelligence();
+            }}
+            title={intelligenceAvailable
+              ? 'Open Turn OS Intelligence'
+              : 'Reserved for a later reviewed release'}
+            type="button"
+          >
+            <Sparkles aria-hidden="true" size={20} />
+          </button>
+        </div>
+      </header>
+
+      <div className="w2a2-shell__body">
+        <nav
+          aria-hidden={contentDialogOpen || undefined}
+          aria-label="Primary"
+          className="w2a2-navigation"
+          inert={contentDialogOpen || undefined}
+        >
+          {navigationItems.map((item) => {
+            if (item.id === 'plus') {
+              return (
+                <button
+                  aria-label="Open central Plus menu"
+                  className="w2a2-navigation__plus"
+                  data-lcc-critical-target="true"
+                  data-w2a2-critical-target="true"
+                  id="lcc-central-plus"
+                  key={item.id}
+                  onClick={onOpenPlus}
+                  type="button"
+                >
+                  <span>{item.icon}</span>
+                  <small>{item.label}</small>
+                </button>
+              );
+            }
+
+            const isActive = activeDestination === item.id;
+            return (
+              <button
+                aria-current={isActive ? 'page' : undefined}
+                className={isActive ? 'is-active' : undefined}
+                data-lcc-critical-target="true"
+                data-w2a2-critical-target="true"
+                key={item.id}
+                onClick={() => onNavigate(item.id as LaunchPrimaryDestination)}
+                type="button"
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        <main
+          aria-label={contentTitle}
+          className={`w2a2-shell__main ${contentContained ? 'is-contained' : ''}`}
+          data-route-key={contentFocusKey}
+          id="launch-command-center-main"
+          ref={mainRef}
+          tabIndex={-1}
+        >
+          <div className="w2a2-route-surface" key={contentFocusKey}>
+            {children}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export function Wave2A2StandaloneRoute({
+  children,
+  routeName,
+  theme,
+}: {
+  children: ReactNode;
+  routeName: string;
+  theme: Pick<TurnThemeState, 'reducedMotion' | 'resolvedTheme'>;
+}) {
+  return (
+    <div
+      className="w2a2-standalone-route"
+      data-reduced-motion={theme.reducedMotion}
+      data-route={routeName}
+      data-theme={theme.resolvedTheme}
+    >
+      {children}
+    </div>
+  );
+}

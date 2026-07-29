@@ -27,8 +27,11 @@ const createCleanPage = async (browser, viewport, colorScheme = 'light') => {
     findings.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`);
   });
   await page.addInitScript(() => {
+    const initializationKey = 'wave2a2-core-browser-initialized';
+    if (window.sessionStorage.getItem(initializationKey) === 'true') return;
     window.localStorage.clear();
     window.sessionStorage.clear();
+    window.sessionStorage.setItem(initializationKey, 'true');
   });
   return { context, findings, page };
 };
@@ -112,9 +115,9 @@ try {
     const addDialog = page.getByRole('dialog', { name: 'Add to Turn OS' });
     await addDialog.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 1);
-    assert.equal(await addDialog.getByRole('button', { name: 'Note', exact: true }).count(), 1);
-    assert.equal(await addDialog.getByRole('button', { name: 'Photos', exact: true }).count(), 1);
-    assert.equal(await addDialog.getByRole('button', { name: 'Import Work', exact: true }).count(), 1);
+    assert.equal(await addDialog.getByRole('button', { name: /^Note(?:\s|$)/u }).count(), 1);
+    assert.equal(await addDialog.getByRole('button', { name: /^Photos(?:\s|$)/u }).count(), 1);
+    assert.equal(await addDialog.getByRole('button', { name: /^Import Work(?:\s|$)/u }).count(), 1);
     await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
     await addDialog.waitFor({ state: 'hidden' });
 
@@ -151,10 +154,12 @@ try {
 
     await page.getByRole('button', { name: 'Open central Plus menu' }).click();
     await page.getByRole('dialog', { name: 'Add to Turn OS' })
-      .getByRole('button', { name: 'Note', exact: true })
+      .getByRole('button', { name: /^Note(?:\s|$)/u })
       .click();
-    await page.getByRole('dialog', { name: 'New Note' }).waitFor();
-    await page.getByLabel('Note').fill('Synthetic accepted-core regression note.');
+    const noteDialog = page.getByRole('dialog', { name: 'New Note' });
+    await noteDialog.waitFor();
+    await noteDialog.getByRole('textbox', { name: 'Note', exact: true })
+      .fill('Synthetic accepted-core regression note.');
     await page.getByRole('button', { name: 'Save Note', exact: true }).click();
     await page.getByRole('dialog').waitFor({ state: 'hidden' });
     await primaryNavigation(page)
@@ -164,9 +169,9 @@ try {
 
     await page.getByRole('button', { name: 'Open central Plus menu' }).click();
     await page.getByRole('dialog', { name: 'Add to Turn OS' })
-      .getByRole('button', { name: 'Import Work', exact: true })
+      .getByRole('button', { name: /^Import Work(?:\s|$)/u })
       .click();
-    await page.getByRole('heading', { name: 'Assignments', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Import work', exact: true }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Create Assignment' }).count(), 1);
 
     await primaryNavigation(page)
@@ -187,8 +192,10 @@ try {
     );
     await page.getByText('Official PDS Forms', { exact: true }).click();
     await page.getByRole('heading', { name: 'Official PDS Forms', exact: true }).waitFor();
-    assert.equal(await page.getByRole('link').count(), 3);
-    for (const link of await page.getByRole('link').all()) {
+    const officialFormsPage = page.getByTestId('official-pds-forms');
+    const officialFormLinks = officialFormsPage.getByRole('link');
+    assert.equal(await officialFormLinks.count(), 3);
+    for (const link of await officialFormLinks.all()) {
       assert.equal(await link.getAttribute('target'), '_blank');
       assert.match(await link.getAttribute('rel'), /noopener/u);
     }

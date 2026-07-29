@@ -296,7 +296,7 @@ try {
     assert.equal(await page.getByText('Import today’s released work', { exact: true }).count(), 1);
     await page.getByRole('button', { name: /Import today.s released work/u }).click();
     await page.getByText(
-      'Import handoff requested. Integration owns the source-first import route.',
+      'Manual release review opened. Import upgrade is not included in this candidate.',
       { exact: true },
     ).waitFor();
     await page.getByRole('button', { name: 'Dismiss message', exact: true }).click();

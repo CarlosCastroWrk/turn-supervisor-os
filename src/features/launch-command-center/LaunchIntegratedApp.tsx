@@ -48,17 +48,14 @@ import {
   GroupedInsetRow,
   GroupedInsetSection,
   NativeDetailShell,
-  TRACK_B_SETUP_QUESTIONS,
   TrackBCrewFormPage,
   TrackBCrewListPage,
   TrackBProfilePage,
   TrackBReportsAndProofPage,
-  TrackBSetupQuestionnaire,
   type TrackBCrewDraft,
   type TrackBCrewRecord,
   type TrackBDataStatus,
   type TrackBReportCounts,
-  type TrackBSetupQuestionId,
   type TrackBToolDestination,
 } from '../wave2a1-native/track-b';
 import {
@@ -77,6 +74,7 @@ import {
 } from '../wave2a2-track-a';
 import {
   DayTaskWorkspace,
+  type StartDayPrefill,
   type TrackBCrewOption,
 } from '../wave2a2-track-b';
 import {
@@ -101,6 +99,37 @@ import {
   projectTodayTask,
   projectTrackCState,
 } from '../wave2a2-core/appDataAdapters';
+import {
+  adaptAppDataForTrackA,
+  buildCanonicalFieldProjectionFromAppData,
+  persistPreparedProjectActivation,
+  prepareProjectActivation,
+  ProfilePrivacyScrollRegion,
+  ProjectSetupFlow,
+  resolveStartDayValues,
+  TodayTaskDetail,
+  type CanonicalFieldProjection,
+  type ProjectActivationDraft,
+  type StartDayResolvedValues,
+} from '../wave2a21-track-a';
+import {
+  TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS,
+  captureTrackCTransientOrigin,
+  createTrackCTabRouteMemory,
+  getTrackCCurrentTabRoute,
+  rememberTrackCTabRoute,
+  rememberTrackCTabScroll,
+  restoreTrackCTransientOrigin,
+  selectTrackCPrimaryTab,
+  type TrackCPrimaryTab,
+  type TrackCTransientOriginSnapshot,
+} from '../wave2a21-track-c';
+import {
+  addProjectContact,
+  createProjectActivationDraft,
+  prepareDraftForActivationAttempt,
+  removeProjectContact,
+} from '../wave2a21-field-activation/model';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
 import { addCrewMember, updateCrewMember } from '../../lib/actions';
@@ -111,12 +140,12 @@ import {
   routeForNavigation,
   type AppNavigate,
 } from '../../lib/routing';
-import { usePersistentAppData } from '../../lib/storage';
+import { persistAppDataNow, usePersistentAppData } from '../../lib/storage';
 import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useSupabaseSync } from '../../lib/supabase/sync';
 import type { TurnCommandSourceRequest } from '../../lib/turnCommand';
-import type { ActivityLog, AppView } from '../../types';
+import type { ActivityLog, AppData, AppView } from '../../types';
 import { SyncPanel } from '../../components/SyncPanel';
 import { AssignmentsView } from '../../views/AssignmentsView';
 import { CopilotView, type CopilotViewHandle } from '../../views/CopilotView';
@@ -141,7 +170,28 @@ type CrewEditorState =
   | null;
 
 type MoreDetailPage = 'forms' | 'profile' | 'privacy' | 'storage' | null;
-type HomeMode = 'day' | 'manual-release';
+type HomeMode = 'day' | 'manual-release' | 'start-day';
+
+const TRACK_C_TAB_ROOTS = {
+  activity: '#/activity',
+  home: '#/dashboard',
+  more: '#/more',
+  turnboard: '#/units',
+} as const;
+
+const trackCTabForRoute = (view: AppView): TrackCPrimaryTab => {
+  if (view === 'activity') return 'activity';
+  if (view === 'units' || view === 'unitDetail') return 'turnboard';
+  if (
+    view === 'more'
+    || view === 'setup'
+    || view === 'crews'
+    || view === 'reports'
+    || view === 'sync'
+    || view === 'export'
+  ) return 'more';
+  return 'home';
+};
 
 const readHistoryState = (): Record<string, unknown> => {
   if (typeof window === 'undefined') return {};
@@ -243,13 +293,30 @@ export function LaunchIntegratedApp() {
   const [moreStatus, setMoreStatus] = useState(
     'Personal workspace · paper remains authoritative',
   );
-  const [setupQuestionIndex, setSetupQuestionIndex] = useState(0);
-  const [setupAnswers, setSetupAnswers] = useState<
-    Partial<Record<TrackBSetupQuestionId, string>>
-  >({});
+  const [setupStep, setSetupStep] = useState(0);
+  const [setupDraft, setSetupDraft] = useState<ProjectActivationDraft | null>(() => {
+    try {
+      return createProjectActivationDraft(data, nowISO(), 'Los');
+    } catch {
+      return null;
+    }
+  });
+  const [setupErrors, setSetupErrors] = useState<readonly string[]>([]);
+  const [setupBusy, setSetupBusy] = useState(false);
   const [setupStatus, setSetupStatus] = useState(
-    'Provisional session answers · nothing saved',
+    'Review and activate this personal project before field use.',
   );
+  const setupActivationInFlightRef = useRef(false);
+  const tabRouteMemoryRef = useRef((() => {
+    const initialTab = trackCTabForRoute(route.view);
+    const initialMemory = createTrackCTabRouteMemory(TRACK_C_TAB_ROOTS, initialTab);
+    const initialRouteKey = buildAppHash(route);
+    return initialRouteKey === TRACK_C_TAB_ROOTS[initialTab]
+      ? initialMemory
+      : rememberTrackCTabRoute(initialMemory, initialTab, initialRouteKey);
+  })());
+  const transientOriginRef = useRef<TrackCTransientOriginSnapshot | null>(null);
+  const [scrollRequestToken, setScrollRequestToken] = useState(0);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
@@ -329,6 +396,70 @@ export function LaunchIntegratedApp() {
     [activeDaySession, data],
   );
   const trackCState = useMemo(() => projectTrackCState(data), [data]);
+  const activeProject = useMemo(
+    () => data.projects.find((project) => project.id === data.activeProjectId),
+    [data.activeProjectId, data.projects],
+  );
+  const activeProjectContacts = useMemo(
+    () => (data.propertyContacts ?? []).filter(
+      (contact) => contact.projectId === data.activeProjectId,
+    ),
+    [data.activeProjectId, data.propertyContacts],
+  );
+  const startDayResolution = useMemo<{
+    error?: string;
+    values?: StartDayResolvedValues;
+  }>(() => {
+    if (!activeProject?.fieldConfiguration) {
+      return { error: 'Activate the personal project setup before using saved Start Day defaults.' };
+    }
+    try {
+      return {
+        values: resolveStartDayValues(
+          activeProject.fieldConfiguration,
+          activeProjectContacts,
+        ),
+      };
+    } catch (error) {
+      return {
+        error: error instanceof Error
+          ? error.message
+          : 'Saved Start Day defaults are unavailable.',
+      };
+    }
+  }, [activeProject?.fieldConfiguration, activeProjectContacts]);
+  const startDayPrefill = useMemo<StartDayPrefill | undefined>(() => {
+    const values = startDayResolution.values;
+    if (!values) return undefined;
+    return {
+      activeCrewIdsByTrade: {
+        Clean: values.activeCrewIdsByTrade.Clean.value,
+        Paint: values.activeCrewIdsByTrade.Paint.value,
+      },
+      propertyContact: values.propertyContact.value.name,
+      walkthroughScheduleWording: values.walkthroughScheduleWording.value,
+      workingHoursWording: values.workingHoursWording.value,
+    };
+  }, [startDayResolution.values]);
+  const canonicalProjectionResult = useMemo<{
+    error?: string;
+    projection?: CanonicalFieldProjection;
+  }>(() => {
+    try {
+      return {
+        projection: buildCanonicalFieldProjectionFromAppData(
+          data,
+          operationalScope.accountId,
+        ),
+      };
+    } catch (error) {
+      return {
+        error: error instanceof Error
+          ? error.message
+          : 'The canonical field projection is unavailable.',
+      };
+    }
+  }, [data, operationalScope.accountId]);
   const operationalSource = useMemo(
     () => createAppDataOperationalReadSource(operationalScope, data),
     [data, operationalScope],
@@ -338,12 +469,25 @@ export function LaunchIntegratedApp() {
     [launchProjection.commandUnits],
   );
   const persistedActivity = useMemo(() => {
-    if (!operationalSource.ok) return launchProjection.activityItems;
-    return listOperationalActivity(
-      operationalScope,
-      operationalRepositories,
-      operationalSource.source,
-    ).map((activity): BoardFirstActivityItem => ({
+    const legacyItems = operationalSource.ok
+      ? listOperationalActivity(
+          operationalScope,
+          operationalRepositories,
+          operationalSource.source,
+        ).map((activity): BoardFirstActivityItem => ({
+          id: activity.id,
+          kind: boardActivityKind(activity),
+          recordedAt: activity.recordedAt,
+          sourceLabel: activity.sourceRefs[0]?.label ?? 'Personal operational memory',
+          synthetic: launchProjection.project?.mode === 'demo',
+          title: activity.title,
+          wording: activity.wording,
+          unitId: activity.unitId,
+          unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,
+        }))
+      : launchProjection.activityItems;
+    const canonicalItems = (canonicalProjectionResult.projection?.activity ?? [])
+      .map((activity): BoardFirstActivityItem => ({
       id: activity.id,
       kind: boardActivityKind(activity),
       recordedAt: activity.recordedAt,
@@ -354,7 +498,11 @@ export function LaunchIntegratedApp() {
       unitId: activity.unitId,
       unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,
     }));
+    return [...new Map(
+      [...canonicalItems, ...legacyItems].map((item) => [item.id, item]),
+    ).values()].sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
   }, [
+    canonicalProjectionResult.projection?.activity,
     launchProjection.activityItems,
     launchProjection.project?.mode,
     operationalRepositories,
@@ -443,9 +591,19 @@ export function LaunchIntegratedApp() {
     selectedActivity,
   ]);
   const reportCounts = useMemo<TrackBReportCounts>(() => {
-    const unitsTouched = new Set(
-      boardActivity.flatMap((item) => item.unitId ? [item.unitId] : []),
-    ).size;
+    const canonical = canonicalProjectionResult.projection;
+    if (canonical) {
+      return {
+        activityCount: boardActivity.length,
+        callbacksFound: canonical.counts.callbacks,
+        callbacksResolved: 0,
+        readyToWalk: canonical.counts.ready,
+        sectionsInspected: canonical.todayTask.progress.actual,
+        unitsTouched: canonical.counts.unitsTouched,
+        waiting: canonical.counts.waiting,
+        working: canonical.counts.working,
+      };
+    }
     return {
       activityCount: boardActivity.length,
       callbacksFound: launchProjection.counts.callbacks,
@@ -454,11 +612,13 @@ export function LaunchIntegratedApp() {
       sectionsInspected: boardActivity.filter(
         (item) => item.kind === 'los-inspection' && Boolean(item.section),
       ).length,
-      unitsTouched,
+      unitsTouched: new Set(
+        boardActivity.flatMap((item) => item.unitId ? [item.unitId] : []),
+      ).size,
       waiting: launchProjection.counts.blocked,
       working: launchProjection.counts.working,
     };
-  }, [boardActivity, launchProjection.counts]);
+  }, [boardActivity, canonicalProjectionResult.projection, launchProjection.counts]);
   const backupStatus = useMemo<TrackBDataStatus>(() => {
     if (saveStatus.state === 'failed') {
       return {
@@ -504,11 +664,32 @@ export function LaunchIntegratedApp() {
   const routeUnitNumber = route.unitId
     ? launchProjection.commandUnits.find((unit) => unit.unitId === route.unitId)?.unitNumber
     : undefined;
-  const contentTitle = contentTitleForRoute(route.view, routeUnitNumber);
+  const contentTitle = route.view === 'dashboard' && route.homeSummary === 'today-task'
+    ? 'Today’s Task'
+    : contentTitleForRoute(route.view, routeUnitNumber);
 
   useEffect(() => {
     document.title = `${contentTitle} · Turn OS`;
   }, [contentTitle]);
+
+  const rememberRouteInTab = useCallback((
+    nextRoute: typeof route,
+    historyMode: 'push' | 'replace' = 'push',
+  ) => {
+    const tab = trackCTabForRoute(nextRoute.view);
+    let memory = tabRouteMemoryRef.current;
+    if (memory.activeTab !== tab) {
+      memory = selectTrackCPrimaryTab(memory, tab).state;
+    }
+    memory = rememberTrackCTabRoute(
+      memory,
+      tab,
+      buildAppHash(nextRoute),
+      { historyMode },
+    );
+    tabRouteMemoryRef.current = memory;
+    setScrollRequestToken((token) => token + 1);
+  }, []);
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -522,6 +703,12 @@ export function LaunchIntegratedApp() {
       }
       setCaptureOpen(nextLocation.captureRequested || historyRequestsCapture());
       setRoute(nextLocation.route);
+      if (
+        nextLocation.route.view !== 'search'
+        && nextLocation.route.view !== 'notifications'
+      ) {
+        rememberRouteInTab(nextLocation.route, 'replace');
+      }
       window.scrollTo({ top: 0, behavior: 'auto' });
     };
 
@@ -532,7 +719,7 @@ export function LaunchIntegratedApp() {
       window.removeEventListener('hashchange', handleRouteChange);
       window.removeEventListener('popstate', handleRouteChange);
     };
-  }, []);
+  }, [rememberRouteInTab]);
 
   const navigate = useCallback<AppNavigate>((view, unitId, options) => {
     if (view === 'copilot') {
@@ -556,14 +743,19 @@ export function LaunchIntegratedApp() {
 
     const nextRoute = routeForNavigation(view, unitId, options);
     const nextHash = buildAppHash(nextRoute);
+    rememberRouteInTab(nextRoute);
     if (window.location.hash !== nextHash) {
       window.history.pushState(null, '', nextHash);
     }
     setRoute(nextRoute);
     window.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
-  }, []);
+  }, [rememberRouteInTab]);
 
   const openFullPage = useCallback((view: 'search' | 'notifications') => {
+    transientOriginRef.current = captureTrackCTransientOrigin(
+      tabRouteMemoryRef.current,
+      view,
+    );
     const nextRoute = routeForNavigation(view);
     const nextHash = buildAppHash(nextRoute);
     const originHash = buildAppHash(route);
@@ -577,6 +769,16 @@ export function LaunchIntegratedApp() {
   }, [route]);
 
   const closeFullPage = useCallback(() => {
+    const snapshot = transientOriginRef.current;
+    if (snapshot) {
+      const restored = restoreTrackCTransientOrigin(
+        tabRouteMemoryRef.current,
+        snapshot,
+      );
+      tabRouteMemoryRef.current = restored.state;
+      transientOriginRef.current = null;
+      setScrollRequestToken((token) => token + 1);
+    }
     const originHash = readHistoryState()[FULL_PAGE_RETURN_HISTORY_KEY];
     if (typeof originHash === 'string' && originHash.startsWith('#/')) {
       window.history.back();
@@ -711,15 +913,33 @@ export function LaunchIntegratedApp() {
   }, [openDestination]);
 
   const handlePrimaryNavigation = useCallback((destination: LaunchPrimaryDestination) => {
-    const view: Record<LaunchPrimaryDestination, AppView> = {
-      activity: 'activity',
-      home: 'dashboard',
-      more: 'more',
-      turnboard: 'units',
-    };
+    const tab = destination as TrackCPrimaryTab;
+    const decision = selectTrackCPrimaryTab(tabRouteMemoryRef.current, tab);
+    const nextRoute = resolveAppHash(decision.target.routeKey).route;
+    const nextHash = buildAppHash(nextRoute);
+
+    clearLegacyCaptureHistoryState();
+    setPlusOpen(false);
+    setSelectedActivity(null);
+    activityReturnFocusRef.current = null;
+    boardCaptureContextRef.current = null;
+    boardCaptureReturnFocusRef.current = null;
+    launchCaptureReturnFocusIdRef.current = null;
+    setCaptureOpen(false);
+    setCrewEditor(null);
+    setMoreDetailPage(null);
+    setHomeMode('day');
     if (destination === 'turnboard') setTrackCView('board');
-    navigate(view[destination]);
-  }, [navigate]);
+
+    tabRouteMemoryRef.current = decision.state;
+    if (decision.historyMode === 'replace') {
+      window.history.replaceState(null, '', nextHash);
+    } else {
+      window.history.pushState(null, '', nextHash);
+    }
+    setRoute(nextRoute);
+    setScrollRequestToken((token) => token + 1);
+  }, []);
 
   const handleQuickAction = useCallback((action: LaunchQuickActionId) => {
     if (action === 'import-work') {
@@ -828,8 +1048,20 @@ export function LaunchIntegratedApp() {
       return;
     }
     if (destination === 'setup') {
-      setSetupQuestionIndex(0);
-      setSetupStatus('Provisional session answers · nothing saved');
+      try {
+        setSetupDraft(createProjectActivationDraft(data, nowISO(), 'Los'));
+        setSetupErrors([]);
+        setSetupStep(0);
+        setSetupStatus('Review all five steps before activating this personal project.');
+      } catch (error) {
+        setSetupDraft(null);
+        setSetupErrors([
+          error instanceof Error
+            ? error.message
+            : 'The personal project setup could not be prepared.',
+        ]);
+        setSetupStatus('Project setup is unavailable. Nothing was changed.');
+      }
       navigate('setup');
       return;
     }
@@ -846,7 +1078,55 @@ export function LaunchIntegratedApp() {
       return;
     }
     navigate('export');
-  }, [navigate]);
+  }, [data, navigate]);
+
+  const activateProject = useCallback(async () => {
+    if (!setupDraft || setupActivationInFlightRef.current) return;
+
+    setupActivationInFlightRef.current = true;
+    setSetupBusy(true);
+    setSetupErrors([]);
+    setSetupStatus('Saving the personal project setup on this device…');
+
+    const attemptDraft = prepareDraftForActivationAttempt(
+      setupDraft,
+      nowISO(),
+      'Los',
+    );
+    setSetupDraft(attemptDraft);
+    const prepared = prepareProjectActivation(
+      adaptAppDataForTrackA(data),
+      attemptDraft,
+    );
+
+    if (!prepared.ok) {
+      setSetupErrors(prepared.errors);
+      setSetupStatus('Project was not activated. Review the highlighted requirements.');
+      setupActivationInFlightRef.current = false;
+      setSetupBusy(false);
+      return;
+    }
+
+    const result = await persistPreparedProjectActivation(
+      prepared,
+      (candidate) => persistAppDataNow(candidate as AppData),
+    );
+
+    if (!result.ok) {
+      setSetupDraft(result.retry.draft);
+      setSetupErrors(result.errors);
+      setSetupStatus('The setup remains available to retry. No activation receipt was created.');
+      setupActivationInFlightRef.current = false;
+      setSetupBusy(false);
+      return;
+    }
+
+    setData(result.data as AppData);
+    setSetupStatus('Personal project activated and saved on this device.');
+    setupActivationInFlightRef.current = false;
+    setSetupBusy(false);
+    navigate('dashboard');
+  }, [data, navigate, setData, setupDraft]);
 
   const requestSignOut = useCallback(() => {
     if (!sync.enabled) {
@@ -1093,12 +1373,20 @@ export function LaunchIntegratedApp() {
     );
   }
 
-  const currentSetupQuestion = TRACK_B_SETUP_QUESTIONS[
-    Math.min(setupQuestionIndex, TRACK_B_SETUP_QUESTIONS.length - 1)
-  ];
   const editingCrew = crewEditor?.mode === 'edit'
     ? crewRecords.find((crew) => crew.id === crewEditor.crewId)
     : undefined;
+  const currentRouteKey = buildAppHash(route);
+  const currentRouteTab = trackCTabForRoute(route.view);
+  const rememberedRoute = getTrackCCurrentTabRoute(
+    tabRouteMemoryRef.current,
+    currentRouteTab,
+  );
+  const routeSupportsScrollRestoration = (
+    route.view !== 'search'
+    && route.view !== 'notifications'
+    && rememberedRoute.routeKey === currentRouteKey
+  );
 
   const shellContent = fieldOpsRouteActive ? (
     <div className="lcc-host-stack lcc-host-stack--field-ops">
@@ -1163,7 +1451,40 @@ export function LaunchIntegratedApp() {
   ) : route.view === 'dashboard' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
-      {route.homeSummary ? (
+      {route.homeSummary === 'today-task' ? (
+        canonicalProjectionResult.projection && startDayResolution.values ? (
+          <TodayTaskDetail
+            onBack={() => navigate('dashboard')}
+            onOpenQueue={(queueId) => navigate(
+              'dashboard',
+              undefined,
+              { homeSummary: queueId },
+            )}
+            onReviewStartDay={() => {
+              setHomeMode('start-day');
+              navigate('dashboard');
+            }}
+            projection={canonicalProjectionResult.projection}
+            startDayValues={startDayResolution.values}
+          />
+        ) : (
+          <NativeDetailShell
+            description="Turn OS could not build a safe task detail from the current project."
+            onBack={() => navigate('dashboard')}
+            statusLabel="Nothing was changed"
+            title="Today’s Task"
+          >
+            <div className="lcc-host-alert lcc-host-alert--error" role="alert">
+              <AlertTriangle aria-hidden="true" size={18} />
+              <span>
+                {canonicalProjectionResult.error
+                  ?? startDayResolution.error
+                  ?? 'Activate the personal project setup before reviewing Today’s Task.'}
+              </span>
+            </div>
+          </NativeDetailShell>
+        )
+      ) : route.homeSummary ? (
         <NativeHomeSummaryPage
           destination={selectNativeHomeSummary(
             launchProjection.homeRecords,
@@ -1190,14 +1511,21 @@ export function LaunchIntegratedApp() {
           currentDate={currentDate}
           events={dayEvents}
           existingSessions={daySessions}
+          initialView={homeMode === 'start-day' ? 'start-day' : 'home'}
           initialSession={activeDaySession}
           initialTask={todayTask}
           onDayStateChange={(change) => {
             setData((current) => applyDayTaskStateChange(current, change));
           }}
           onExternalAction={handleQuickAction}
+          onOpenTaskDetail={() => navigate(
+            'dashboard',
+            undefined,
+            { homeSummary: 'today-task' },
+          )}
           propertyRoster={propertyRoster}
           releases={dailyReleases}
+          startDayPrefill={startDayPrefill}
           startedBy="Los"
         />
       )}
@@ -1208,60 +1536,64 @@ export function LaunchIntegratedApp() {
       {moreDetailPage === 'forms' ? (
         <OfficialPdsFormsPage onBack={() => setMoreDetailPage(null)} />
       ) : moreDetailPage === 'profile' ? (
-        <TrackBProfilePage
-          appVersion="0.1.0"
-          currentProperty={launchProjection.propertyName}
-          dataPermissions={[
-            {
-              detail: 'No tenant information is permitted in this personal workspace.',
-              label: 'Tenant information',
-              value: 'Keep out',
-            },
-            {
-              detail: 'Confirm property and company permission before storing field photos.',
-              label: 'Field photos',
-              value: 'Review needed',
-            },
-          ]}
-          name={launchProjection.project?.supervisorName || 'Los'}
-          onBack={() => setMoreDetailPage(null)}
-          onRequestSignOut={requestSignOut}
-          preferences={[
-            'Local-first field capture',
-            'Paper remains authoritative',
-            'No automatic messages',
-          ]}
-          role="Turn Supervisor"
-          statusLabel={moreStatus}
-        />
+        <ProfilePrivacyScrollRegion kind="profile">
+          <TrackBProfilePage
+            appVersion="0.1.0"
+            currentProperty={launchProjection.propertyName}
+            dataPermissions={[
+              {
+                detail: 'No tenant information is permitted in this personal workspace.',
+                label: 'Tenant information',
+                value: 'Keep out',
+              },
+              {
+                detail: 'Confirm property and company permission before storing field photos.',
+                label: 'Field photos',
+                value: 'Review needed',
+              },
+            ]}
+            name={launchProjection.project?.supervisorName || 'Los'}
+            onBack={() => setMoreDetailPage(null)}
+            onRequestSignOut={requestSignOut}
+            preferences={[
+              'Local-first field capture',
+              'Paper remains authoritative',
+              'No automatic messages',
+            ]}
+            role="Turn Supervisor"
+            statusLabel={moreStatus}
+          />
+        </ProfilePrivacyScrollRegion>
       ) : moreDetailPage === 'privacy' ? (
-        <NativeDetailShell
-          description="Review the personal-app boundary before recording field information."
-          onBack={() => setMoreDetailPage(null)}
-          statusLabel="Permissions remain evidence-gated"
-          title="Privacy"
-        >
-          <GroupedInsetSection
-            label="Current boundary"
-            footer="These labels do not grant company or property permission."
+        <ProfilePrivacyScrollRegion kind="privacy">
+          <NativeDetailShell
+            description="Review the personal-app boundary before recording field information."
+            onBack={() => setMoreDetailPage(null)}
+            statusLabel="Permissions remain evidence-gated"
+            title="Privacy"
           >
-            <GroupedInsetRow
-              detail="Do not record resident names, contact details, or other tenant information."
-              label="Tenant information"
-              value="Keep out"
-            />
-            <GroupedInsetRow
-              detail="Use only after property and company permission is confirmed."
-              label="Photos and documents"
-              value="Review needed"
-            />
-            <GroupedInsetRow
-              detail="No autonomous approval, payroll, or external communication."
-              label="Consequential actions"
-              value="Human only"
-            />
-          </GroupedInsetSection>
-        </NativeDetailShell>
+            <GroupedInsetSection
+              label="Current boundary"
+              footer="These labels do not grant company or property permission."
+            >
+              <GroupedInsetRow
+                detail="Do not record resident names, contact details, or other tenant information."
+                label="Tenant information"
+                value="Keep out"
+              />
+              <GroupedInsetRow
+                detail="Use only after property and company permission is confirmed."
+                label="Photos and documents"
+                value="Review needed"
+              />
+              <GroupedInsetRow
+                detail="No autonomous approval, payroll, or external communication."
+                label="Consequential actions"
+                value="Human only"
+              />
+            </GroupedInsetSection>
+          </NativeDetailShell>
+        </ProfilePrivacyScrollRegion>
       ) : moreDetailPage === 'storage' ? (
         <NativeDetailShell
           description="A read-only view of records currently held by this personal app."
@@ -1326,43 +1658,50 @@ export function LaunchIntegratedApp() {
   ) : route.view === 'setup' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
-      <TrackBSetupQuestionnaire
-        currentQuestionId={currentSetupQuestion.id}
-        onBack={() => setSetupQuestionIndex((index) => Math.max(0, index - 1))}
-        onContinue={() => setSetupQuestionIndex((index) =>
-          Math.min(TRACK_B_SETUP_QUESTIONS.length - 1, index + 1))}
-        onExit={() => navigate('more')}
-        onReview={() => setSetupStatus(
-          'Review complete · answers remain session-only and were not activated',
-        )}
-        statusLabel={setupStatus}
-      >
-        {currentSetupQuestion.id === 'review' ? (
-          <div className="lcc-setup-review">
-            {TRACK_B_SETUP_QUESTIONS
-              .filter((question) => question.id !== 'review')
-              .map((question) => (
-                <div key={question.id}>
-                  <strong>{question.title}</strong>
-                  <span>{setupAnswers[question.id]?.trim() || 'Not recorded'}</span>
-                </div>
-              ))}
+      <p aria-live="polite" className="lcc-host-status">
+        {setupBusy ? 'Saving… ' : ''}{setupStatus}
+      </p>
+      {setupDraft ? (
+        <ProjectSetupFlow
+          activationErrors={setupErrors}
+          crewOptions={dayCrewOptions.map((crew) => ({
+            id: crew.id,
+            name: crew.name,
+            trade: crew.trade === 'Paint' ? 'paint' : 'clean',
+          }))}
+          currentStep={setupStep}
+          draft={setupDraft}
+          existingProjectRequiresConfirmation={data.projects.some(
+            (project) => project.id === setupDraft.project.id,
+          )}
+          onActivate={() => {
+            void activateProject();
+          }}
+          onAddContact={() => setSetupDraft((current) => current
+            ? addProjectContact(current, createId('property-contact'), nowISO())
+            : current)}
+          onDraftChange={(draft) => {
+            setSetupDraft(draft);
+            setSetupErrors([]);
+          }}
+          onRemoveContact={(contactId) => setSetupDraft((current) => current
+            ? removeProjectContact(current, contactId)
+            : current)}
+          onStepChange={setSetupStep}
+        />
+      ) : (
+        <NativeDetailShell
+          description="Turn OS could not prepare a safe activation draft."
+          onBack={() => navigate('more')}
+          statusLabel="Nothing was changed"
+          title="Project setup unavailable"
+        >
+          <div className="lcc-host-alert lcc-host-alert--error" role="alert">
+            <AlertTriangle aria-hidden="true" size={18} />
+            <span>{setupErrors[0] ?? 'Return to More and try opening setup again.'}</span>
           </div>
-        ) : (
-          <label className="lcc-setup-answer">
-            <span>Provisional answer</span>
-            <textarea
-              onChange={(event) => setSetupAnswers((answers) => ({
-                ...answers,
-                [currentSetupQuestion.id]: event.target.value,
-              }))}
-              placeholder="Enter only reviewed, synthetic, or approved personal context"
-              rows={5}
-              value={setupAnswers[currentSetupQuestion.id] ?? ''}
-            />
-          </label>
-        )}
-      </TrackBSetupQuestionnaire>
+        </NativeDetailShell>
+      )}
     </div>
   ) : route.view === 'reports' ? (
     <div className="lcc-host-stack">
@@ -1402,13 +1741,35 @@ export function LaunchIntegratedApp() {
           captureOpen || plusOpen || Boolean(selectedActivity) || trackCDialogOpen
         }
         contentFocusKey={buildAppHash(route)}
-        contentContained={boardRouteActive || fieldOpsRouteActive}
+        contentContained={
+          boardRouteActive
+          || fieldOpsRouteActive
+          || moreDetailPage === 'profile'
+          || moreDetailPage === 'privacy'
+        }
         contentDialogOpen={boardDialogOpen || trackCDialogOpen}
         contentTitle={contentTitle}
+        contentScrollRestoration={{
+          key: currentRouteKey,
+          onScrollTopChange: (scrollTop) => {
+            tabRouteMemoryRef.current = rememberTrackCTabScroll(
+              tabRouteMemoryRef.current,
+              currentRouteTab,
+              currentRouteKey,
+              scrollTop,
+            );
+          },
+          requestToken: scrollRequestToken,
+          restore: routeSupportsScrollRestoration,
+          scrollTop: routeSupportsScrollRestoration
+            ? rememberedRoute.scrollTop
+            : 0,
+        }}
         dateLabel={launchProjection.dateLabel}
         detailMode={shellDetailMode}
         notificationCount={launchProjection.notifications.filter((item) => !item.read).length}
         onNavigate={handlePrimaryNavigation}
+        onOpenHome={() => handlePrimaryNavigation('home')}
         onOpenIntelligence={() => undefined}
         onOpenNotifications={() => openFullPage('notifications')}
         onOpenPlus={openNativePlus}
@@ -1434,6 +1795,7 @@ export function LaunchIntegratedApp() {
           setData={setData}
         />
         <TrackCNativeFlow
+          actionAvailability={TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS}
           data={data}
           initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
           onDismiss={() => setPlusOpen(false)}

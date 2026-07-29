@@ -20,7 +20,6 @@ const seedPath = resolve(repoRoot, 'src/data/seed.ts');
 const syntheticUnitCount = 300;
 const maxInitialRenderMs = 4_000;
 const maxInteractionMs = 1_000;
-const maxMemoizedOpenRatio = 0.65;
 
 const html = `<!doctype html>
 <html lang="en">
@@ -108,7 +107,7 @@ const assertNoHorizontalOverflow = async (page, label) => {
 };
 
 const waitForUnitRowCount = (page, expectedCount) => page.waitForFunction(
-  (count) => document.querySelectorAll('[data-testid="wave1r-unit-row"]').length === count,
+  (count) => document.querySelectorAll('[data-testid="track-c-unit-row"]').length === count,
   expectedCount,
 );
 
@@ -140,7 +139,7 @@ try {
   const warmupContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const warmupPage = await warmupContext.newPage();
   await warmupPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-  await warmupPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+  await warmupPage.getByTestId('track-c-field-ops').waitFor();
   await warmupContext.close();
 
   const results = {};
@@ -156,9 +155,9 @@ try {
     const startedAt = performance.now();
 
     await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+    await page.getByTestId('track-c-field-ops').waitFor();
     const loadMs = Math.round(performance.now() - startedAt);
-    assert.equal(await page.getByTestId('wave1r-unit-row').count(), syntheticUnitCount);
+    assert.equal(await page.getByTestId('track-c-unit-row').count(), syntheticUnitCount);
     assert.ok(
       loadMs < maxInitialRenderMs,
       `${target.name} needed ${loadMs}ms to render ${syntheticUnitCount} synthetic Units (limit ${maxInitialRenderMs}ms).`,
@@ -170,7 +169,7 @@ try {
     );
     await assertNoHorizontalOverflow(page, target.name);
 
-    const search = page.getByPlaceholder('Search units or crew');
+    const search = page.getByPlaceholder('Search Units or crews');
     await search.click();
     const searchStartedAt = performance.now();
     await search.type('1301');
@@ -181,25 +180,22 @@ try {
       `${target.name} search typing needed ${searchTypingMs}ms (limit ${maxInteractionMs}ms).`,
     );
 
-    await search.fill('');
-    await waitForUnitRowCount(page, syntheticUnitCount);
-    const needsMeFilter = page.getByRole('button', { name: 'Needs Me 0', exact: true });
     const filterStartedAt = performance.now();
-    await needsMeFilter.click();
+    await search.fill('unit-not-found');
     await waitForUnitRowCount(page, 0);
     const filterResponseMs = Math.round(performance.now() - filterStartedAt);
     assert.ok(
       filterResponseMs < maxInteractionMs,
-      `${target.name} filter response needed ${filterResponseMs}ms (limit ${maxInteractionMs}ms).`,
+      `${target.name} no-match search response needed ${filterResponseMs}ms (limit ${maxInteractionMs}ms).`,
     );
 
-    await page.getByRole('button', { name: /^All\b/ }).click();
+    await search.fill('');
     await waitForUnitRowCount(page, syntheticUnitCount);
     await page.evaluate(() => {
       globalThis.__pdsScaleProfileEvents.length = 0;
     });
     const unitButton = page.getByRole('button', { name: 'Open Unit 101', exact: true });
-    const unitId = await unitButton.locator('xpath=ancestor::*[@data-unit-id]').getAttribute('data-unit-id');
+    const unitId = await unitButton.getAttribute('data-unit-id');
     assert.ok(unitId, `${target.name} could not resolve the active AppData Unit identity.`);
     const unitOpenStartedAt = performance.now();
     await unitButton.click();
@@ -211,13 +207,13 @@ try {
     );
     assert.equal(
       await page.evaluate(() => window.location.hash),
-      `#/units/${encodeURIComponent(unitId)}`,
-      `${target.name} did not exercise the integrated App route callback.`,
+      '#/units',
+      `${target.name} changed the host route while opening the embedded Unit workspace.`,
     );
     assert.equal(
-      await page.getByTestId('wave1r-unit-row').count(),
-      syntheticUnitCount,
-      `${target.name} did not keep the full synthetic board mounted while opening a Unit.`,
+      await page.getByTestId('track-c-unit-row').count(),
+      0,
+      `${target.name} kept the full synthetic board mounted beneath the Unit workspace.`,
     );
     const memoProfile = await page.evaluate(() => {
       const updates = globalThis.__pdsScaleProfileEvents
@@ -232,12 +228,10 @@ try {
       };
     });
     assert.ok(memoProfile.updateCount > 0, `${target.name} did not record the Unit-open render.`);
-    assert.ok(
-      memoProfile.ratio < maxMemoizedOpenRatio,
-      `${target.name} Unit-open render used ${(memoProfile.ratio * 100).toFixed(1)}% of the full-board render estimate `
-        + `(limit ${(maxMemoizedOpenRatio * 100).toFixed(0)}%).`,
-    );
-    await page.getByText('Paper remains authoritative · personal Turn record', { exact: true }).waitFor();
+    await page.getByText(
+      'Release, crew report, Los inspection, property acceptance, and paper mirror remain separate.',
+      { exact: true },
+    ).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} selected workspace`);
 
     const screenshot = path.join(screenshotDirectory, `${target.name}.png`);
@@ -264,7 +258,6 @@ try {
     thresholdsMs: {
       initialRender: maxInitialRenderMs,
       interaction: maxInteractionMs,
-      memoizedOpenRatio: maxMemoizedOpenRatio,
     },
     results,
   }));

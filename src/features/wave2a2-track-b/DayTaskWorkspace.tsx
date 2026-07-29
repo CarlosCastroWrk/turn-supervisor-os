@@ -133,11 +133,19 @@ interface StartDayFlowProps {
   onCancel: () => void;
   onImportWork: () => void;
   onStarted: (session: DaySession, event: DaySessionEvent) => void;
+  prefill?: StartDayPrefill;
   propertyName: string;
   propertyId: string;
   propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
   startedBy: string;
+}
+
+export interface StartDayPrefill {
+  readonly activeCrewIdsByTrade?: Readonly<Record<TrackBTrade, readonly string[]>>;
+  readonly propertyContact?: string;
+  readonly walkthroughScheduleWording?: string;
+  readonly workingHoursWording?: string;
 }
 
 export function StartDayFlow({
@@ -150,6 +158,7 @@ export function StartDayFlow({
   onCancel,
   onImportWork,
   onStarted,
+  prefill,
   propertyId,
   propertyName,
   propertyRoster,
@@ -182,8 +191,14 @@ export function StartDayFlow({
   const [review, setReview] = useState<StartDayReview>(() => ({
     accountId,
     activeCrewIdsByTrade: {
-      Clean: crews.filter((crew) => crew.activeToday && crew.trade === 'Clean').map((crew) => crew.id),
-      Paint: crews.filter((crew) => crew.activeToday && crew.trade === 'Paint').map((crew) => crew.id),
+      Clean: [...(
+        prefill?.activeCrewIdsByTrade?.Clean
+        ?? crews.filter((crew) => crew.activeToday && crew.trade === 'Clean').map((crew) => crew.id)
+      )],
+      Paint: [...(
+        prefill?.activeCrewIdsByTrade?.Paint
+        ?? crews.filter((crew) => crew.activeToday && crew.trade === 'Paint').map((crew) => crew.id)
+      )],
     },
     assignmentEvidenceReviewNote: '',
     crewReviewConfirmed: { Clean: false, Paint: false },
@@ -200,24 +215,24 @@ export function StartDayFlow({
         },
     keyStatus: 'yes',
     morningNote: '',
-    propertyContact: confirmedReleases[0]?.propertyContact ?? '',
+    propertyContact: prefill?.propertyContact ?? confirmedReleases[0]?.propertyContact ?? '',
     propertyId,
     releaseBatchIds: confirmedReleases.map((release) => release.id),
     startedBy,
-    walkthroughScheduleWording: '',
-    workingHoursWording: '',
+    walkthroughScheduleWording: prefill?.walkthroughScheduleWording ?? '',
+    workingHoursWording: prefill?.workingHoursWording ?? '',
   }));
 
   const currentTitle = START_DAY_STEPS[step];
   const canContinue = (
-    (step !== 2 || (
-      review.propertyContact.trim().length > 0
-      && review.workingHoursWording.trim().length > 0
-      && review.walkthroughScheduleWording.trim().length > 0
-    ))
-    && (step !== 4 || (
+    (step !== 1 || review.propertyContact.trim().length > 0)
+    && (step !== 3 || (
       Boolean(releaseProjection.task)
       && review.assignmentEvidenceReviewNote.trim().length > 0
+    ))
+    && (step !== 5 || (
+      review.workingHoursWording.trim().length > 0
+      && review.walkthroughScheduleWording.trim().length > 0
     ))
   );
 
@@ -243,11 +258,10 @@ export function StartDayFlow({
 
   const continueFlow = () => {
     if (!canContinue) return;
-    if (step === 5 || step === 6) {
-      const trade = step === 5 ? 'Paint' : 'Clean';
+    if (step === 4) {
       setReview((current) => ({
         ...current,
-        crewReviewConfirmed: { ...current.crewReviewConfirmed, [trade]: true },
+        crewReviewConfirmed: { Clean: true, Paint: true },
       }));
     }
     setStep((current) => Math.min(START_DAY_STEPS.length - 1, current + 1));
@@ -268,65 +282,34 @@ export function StartDayFlow({
         <section className="w2a2b-review-card">
           <span className="w2a2b-eyebrow">Personal workspace</span>
           <h2>{propertyName}</h2>
-          <p>Confirm this is the property you are supporting before starting the day.</p>
+          <p>Confirm this is the project and field date you are supporting.</p>
+          <dl>
+            <div><dt>Field date</dt><dd>{review.date}</dd></div>
+          </dl>
+          <p>A date change never silently creates another Day Session.</p>
         </section>
       );
     }
     if (step === 1) {
       return (
-        <section className="w2a2b-review-card">
-          <span className="w2a2b-eyebrow">Field date</span>
-          <h2>{review.date}</h2>
-          <p>A date change never silently creates another Day Session.</p>
-        </section>
+        <label className="w2a2b-field">
+          <span>Property contact</span>
+          <input
+            autoComplete="off"
+            onChange={(event) => {
+              const { value } = event.currentTarget;
+              setReview((current) => ({ ...current, propertyContact: value }));
+            }}
+            value={review.propertyContact}
+          />
+          <small>Record the person Los expects to coordinate with today.</small>
+        </label>
       );
     }
     if (step === 2) {
       return (
-        <div className="w2a2b-field-stack">
-          <label className="w2a2b-field">
-            <span>Property contact</span>
-            <input
-              autoComplete="off"
-              onChange={(event) => {
-                const { value } = event.currentTarget;
-                setReview((current) => ({ ...current, propertyContact: value }));
-              }}
-              value={review.propertyContact}
-            />
-            <small>Record the person Los expects to coordinate with today.</small>
-          </label>
-          <label className="w2a2b-field">
-            <span>Exact working-hours wording</span>
-            <textarea
-              onChange={(event) => {
-                const { value } = event.currentTarget;
-                setReview((current) => ({ ...current, workingHoursWording: value }));
-              }}
-              placeholder="Preserve the property’s wording exactly"
-              rows={3}
-              value={review.workingHoursWording}
-            />
-          </label>
-          <label className="w2a2b-field">
-            <span>Walkthrough schedule wording</span>
-            <textarea
-              onChange={(event) => {
-                const { value } = event.currentTarget;
-                setReview((current) => ({ ...current, walkthroughScheduleWording: value }));
-              }}
-              placeholder="Preserve the agreed schedule wording exactly"
-              rows={3}
-              value={review.walkthroughScheduleWording}
-            />
-          </label>
-        </div>
-      );
-    }
-    if (step === 3) {
-      return (
         <fieldset className="w2a2b-choice-group">
-          <legend>Keys received?</legend>
+          <legend>Keys and access</legend>
           {(['yes', 'no', 'partial-issue'] as const).map((status) => (
             <label key={status}>
               <input
@@ -344,7 +327,7 @@ export function StartDayFlow({
         </fieldset>
       );
     }
-    if (step === 4) {
+    if (step === 3) {
       return confirmedReleases.length > 0 ? (
         <div className="w2a2b-field-stack">
           <section className="w2a2b-review-card">
@@ -393,37 +376,74 @@ export function StartDayFlow({
           <FileUp aria-hidden="true" size={24} />
           <span>
             <strong>Import today’s released work</strong>
-            <small>No explicitly confirmed release exists for this property and date.</small>
+            <small>No explicitly confirmed release exists for this project and date.</small>
           </span>
           <ChevronRight aria-hidden="true" size={19} />
         </button>
       );
     }
-    if (step === 5 || step === 6) {
-      const trade: TrackBTrade = step === 5 ? 'Paint' : 'Clean';
-      const options = crews.filter((crew) => crew.trade === trade);
+    if (step === 4) {
       return (
-        <fieldset className="w2a2b-choice-group">
-          <legend>Active {trade} crews</legend>
-          {options.length > 0 ? options.map((crew) => (
-            <label key={crew.id}>
-              <input
-                checked={review.activeCrewIdsByTrade[trade].includes(crew.id)}
-                onChange={() => toggleCrew(trade, crew.id)}
-                type="checkbox"
-              />
-              <span>
-                <strong>{crew.name}</strong>
-                <small>{crew.activeToday ? 'Marked active today' : 'Available but not active'}</small>
-              </span>
-            </label>
-          )) : (
-            <p>No {trade} crews are recorded. Confirming none is allowed.</p>
-          )}
-        </fieldset>
+        <div className="w2a2b-field-stack">
+          {(['Paint', 'Clean'] as const).map((trade) => {
+            const options = crews.filter((crew) => crew.trade === trade);
+            return (
+              <fieldset className="w2a2b-choice-group" key={trade}>
+                <legend>Active {trade} crews</legend>
+                {options.length > 0 ? options.map((crew) => (
+                  <label key={crew.id}>
+                    <input
+                      checked={review.activeCrewIdsByTrade[trade].includes(crew.id)}
+                      onChange={() => toggleCrew(trade, crew.id)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>{crew.name}</strong>
+                      <small>
+                        {crew.activeToday ? 'Marked active today' : 'Available but not active'}
+                      </small>
+                    </span>
+                  </label>
+                )) : (
+                  <p>No {trade} crews are recorded. Confirming none is allowed.</p>
+                )}
+              </fieldset>
+            );
+          })}
+        </div>
       );
     }
-    if (step === 7) {
+    if (step === 5) {
+      return (
+        <div className="w2a2b-field-stack">
+          <label className="w2a2b-field">
+            <span>Exact working-hours wording</span>
+            <textarea
+              onChange={(event) => {
+                const { value } = event.currentTarget;
+                setReview((current) => ({ ...current, workingHoursWording: value }));
+              }}
+              placeholder="Preserve the property’s wording exactly"
+              rows={3}
+              value={review.workingHoursWording}
+            />
+          </label>
+          <label className="w2a2b-field">
+            <span>Walkthrough schedule wording</span>
+            <textarea
+              onChange={(event) => {
+                const { value } = event.currentTarget;
+                setReview((current) => ({ ...current, walkthroughScheduleWording: value }));
+              }}
+              placeholder="Preserve the agreed schedule wording exactly"
+              rows={3}
+              value={review.walkthroughScheduleWording}
+            />
+          </label>
+        </div>
+      );
+    }
+    if (step === 6) {
       return (
         <label className="w2a2b-field">
           <span>Morning note <small>Optional</small></span>
@@ -439,70 +459,63 @@ export function StartDayFlow({
         </label>
       );
     }
-    if (step === 8) {
+    if (step === 7) {
       return (
-        <section className="w2a2b-review-list" aria-label="Start Day review">
-          <dl>
-            <div><dt>Property</dt><dd>{propertyName}</dd></div>
-            <div><dt>Date</dt><dd>{review.date}</dd></div>
-            <div><dt>Contact</dt><dd>{review.propertyContact}</dd></div>
-            <div><dt>Keys</dt><dd>{keyStatusLabel[review.keyStatus]}</dd></div>
-            <div><dt>Confirmed releases</dt><dd>{review.releaseBatchIds.length}</dd></div>
-            <div>
-              <dt>Assignment evidence / review note</dt>
-              <dd>{review.assignmentEvidenceReviewNote}</dd>
-            </div>
-            <div><dt>Exact working-hours wording</dt><dd>{review.workingHoursWording}</dd></div>
-            <div>
-              <dt>Walkthrough schedule wording</dt>
-              <dd>{review.walkthroughScheduleWording}</dd>
-            </div>
-            <div>
-              <dt>Morning note</dt>
-              <dd>{review.morningNote?.trim() || 'None recorded'}</dd>
-            </div>
-            <div>
-              <dt>Goal scope</dt>
-              <dd>{review.goal.scope}</dd>
-            </div>
-            <div>
-              <dt>Goal metric / milestone</dt>
-              <dd>{review.goal.metric} / {review.goal.milestone}</dd>
-            </div>
-            <div><dt>Goal target</dt><dd>{review.goal.target} physical sections</dd></div>
-            <div>
-              <dt>Paint crews</dt>
-              <dd>{selectedCrewNames('Paint').join(', ') || 'None selected'}</dd>
-            </div>
-            <div>
-              <dt>Clean crews</dt>
-              <dd>{selectedCrewNames('Clean').join(', ') || 'None selected'}</dd>
-            </div>
-          </dl>
-        </section>
+        <div className="w2a2b-field-stack">
+          <section className="w2a2b-review-list" aria-label="Start Day review">
+            <dl>
+              <div><dt>Project</dt><dd>{propertyName}</dd></div>
+              <div><dt>Date</dt><dd>{review.date}</dd></div>
+              <div><dt>Contact</dt><dd>{review.propertyContact}</dd></div>
+              <div><dt>Keys and access</dt><dd>{keyStatusLabel[review.keyStatus]}</dd></div>
+              <div><dt>Confirmed releases</dt><dd>{review.releaseBatchIds.length}</dd></div>
+              <div>
+                <dt>Assignment evidence / review note</dt>
+                <dd>{review.assignmentEvidenceReviewNote}</dd>
+              </div>
+              <div><dt>Exact working-hours wording</dt><dd>{review.workingHoursWording}</dd></div>
+              <div>
+                <dt>Walkthrough schedule wording</dt>
+                <dd>{review.walkthroughScheduleWording}</dd>
+              </div>
+              <div>
+                <dt>Morning note</dt>
+                <dd>{review.morningNote?.trim() || 'None recorded'}</dd>
+              </div>
+              <div><dt>Goal target</dt><dd>{review.goal.target} physical sections</dd></div>
+              <div>
+                <dt>Paint crews</dt>
+                <dd>{selectedCrewNames('Paint').join(', ') || 'None selected'}</dd>
+              </div>
+              <div>
+                <dt>Clean crews</dt>
+                <dd>{selectedCrewNames('Clean').join(', ') || 'None selected'}</dd>
+              </div>
+            </dl>
+          </section>
+          <section className="w2a2b-confirm-card">
+            <CheckCircle2 aria-hidden="true" size={28} />
+            <h2>Start this personal Day Session?</h2>
+            <p>
+              Today’s Task will use only the explicitly confirmed release. This does not update
+              paper, property, approval, or payroll records.
+            </p>
+            <label>
+              <input
+                checked={review.explicitConfirmation}
+                onChange={(event) => {
+                  const { checked } = event.currentTarget;
+                  setReview((current) => ({ ...current, explicitConfirmation: checked }));
+                }}
+                type="checkbox"
+              />
+              <span>I reviewed the Start Day details.</span>
+            </label>
+          </section>
+        </div>
       );
     }
-    return (
-      <section className="w2a2b-confirm-card">
-        <CheckCircle2 aria-hidden="true" size={28} />
-        <h2>Start this personal Day Session?</h2>
-        <p>
-          Today’s Task will use only the explicitly confirmed release. This does not update
-          paper, property, approval, or payroll records.
-        </p>
-        <label>
-          <input
-            checked={review.explicitConfirmation}
-            onChange={(event) => {
-              const { checked } = event.currentTarget;
-              setReview((current) => ({ ...current, explicitConfirmation: checked }));
-            }}
-            type="checkbox"
-          />
-          <span>I reviewed the Start Day details.</span>
-        </label>
-      </section>
-    );
+    return null;
   })();
 
   return (
@@ -732,6 +745,7 @@ interface DayTaskHomeProps {
   onAction: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
   onEndDay: () => void;
   onOpenQueue: (queue: TodayTaskQueue) => void;
+  onOpenTaskDetail?: () => void;
   onStartDay: () => void;
   propertyName: string;
   rosterCount: number;
@@ -745,6 +759,7 @@ function DayTaskHome({
   onAction,
   onEndDay,
   onOpenQueue,
+  onOpenTaskDetail,
   onStartDay,
   propertyName,
   rosterCount,
@@ -841,6 +856,15 @@ function DayTaskHome({
               <span style={{ width: `${progress.percentage}%` }} />
             </div>
             <small>{progress.percentage}% of today’s confirmed release</small>
+            {onOpenTaskDetail ? (
+              <button
+                className="w2a2b-primary-button"
+                onClick={onOpenTaskDetail}
+                type="button"
+              >
+                Open Today’s Task
+              </button>
+            ) : null}
           </section>
         )}
       </section>
@@ -1027,13 +1051,16 @@ export interface DayTaskWorkspaceProps {
   events?: readonly DaySessionEvent[];
   existingSessions?: readonly DaySession[];
   idFactory?: () => string;
+  initialView?: 'home' | 'start-day';
   initialSession?: DaySession;
   initialTask?: TodayTask | null;
   now?: () => string;
   onDayStateChange?: (change: DayTaskStateChange) => void;
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
+  onOpenTaskDetail?: () => void;
   propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
+  startDayPrefill?: StartDayPrefill;
   startedBy: string;
 }
 
@@ -1056,13 +1083,16 @@ export function DayTaskWorkspace({
   events: initialEvents = [],
   existingSessions = [],
   idFactory = createId,
+  initialView = 'home',
   initialSession,
   initialTask,
   now = nowIso,
   onDayStateChange,
   onExternalAction,
+  onOpenTaskDetail,
   propertyRoster,
   releases,
+  startDayPrefill,
   startedBy,
 }: DayTaskWorkspaceProps) {
   const recovery = getDayRecoveryDecision(
@@ -1072,7 +1102,9 @@ export function DayTaskWorkspace({
     currentDate,
   );
   const [view, setView] = useState<WorkspaceView>(
-    recovery.kind === 'date-rollover' ? { id: 'recovery' } : { id: 'home' },
+    recovery.kind === 'date-rollover'
+      ? { id: 'recovery' }
+      : { id: initialView },
   );
   const [session, setSession] = useState<DaySession | undefined>(
     recovery.session ?? initialSession,
@@ -1121,6 +1153,7 @@ export function DayTaskWorkspace({
           setReceipt('Day Session started and restored as Los’s personal active day.');
           setView({ id: 'home' });
         }}
+        prefill={startDayPrefill}
         propertyId={propertyRoster.propertyId}
         propertyName={propertyRoster.propertyName}
         propertyRoster={propertyRoster}
@@ -1186,6 +1219,7 @@ export function DayTaskWorkspace({
         onAction={externalAction}
         onEndDay={() => setView({ id: 'end-day' })}
         onOpenQueue={(queue) => setView({ id: 'queue', queue })}
+        onOpenTaskDetail={onOpenTaskDetail}
         onStartDay={() => setView({ id: 'start-day' })}
         propertyName={propertyRoster.propertyName}
         rosterCount={propertyRoster.units.length}

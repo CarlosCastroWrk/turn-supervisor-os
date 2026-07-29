@@ -208,8 +208,8 @@ try {
   const boardPage = await boardContext.newPage();
   const boardFindings = attachRuntimeChecks(boardPage);
   await boardPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-  await boardPage.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-  await boardPage.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await boardPage.getByTestId('track-c-field-ops').waitFor();
+  await boardPage.getByRole('button', { name: 'Open central Plus menu', exact: true }).click();
   const addDialog = boardPage.getByRole('dialog', { name: 'Add to Turn OS' });
   await addDialog.waitFor();
   assert.equal(await boardPage.locator('.capture-workspace').count(), 0);
@@ -220,7 +220,9 @@ try {
   await boardCaptureDialog.waitFor();
   assert.equal(await boardPage.locator('[role="dialog"]').count(), 1, 'Legacy Capture entry stacked dialogs.');
   assert.equal(
-    await boardPage.locator('.lcc-root[inert][aria-hidden="true"]').count(),
+    await boardPage.locator(
+      '[data-wave2a2-shell="true"][inert][aria-hidden="true"]',
+    ).count(),
     1,
     'Unified shell background remained interactive beneath Capture.',
   );

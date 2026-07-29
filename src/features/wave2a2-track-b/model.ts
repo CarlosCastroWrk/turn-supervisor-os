@@ -19,16 +19,14 @@ import type {
 } from './types';
 
 export const START_DAY_STEPS = [
-  'Confirm property',
-  'Confirm date',
+  'Confirm project and day',
   'Confirm property contact',
-  'Confirm keys received',
+  'Confirm keys and access',
   'Confirm today’s released work',
-  'Confirm active Paint crews',
-  'Confirm active Clean crews',
+  'Confirm active Paint and Clean crews',
+  'Review hours and walkthrough defaults',
   'Morning note',
-  'Review',
-  'Start Day',
+  'Review and Start Day',
 ] as const;
 
 type EndDaySummaryCountKey = keyof Omit<

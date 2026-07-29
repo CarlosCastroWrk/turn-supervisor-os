@@ -335,20 +335,18 @@ test('Home queue filters return only exact released section records', () => {
   assert.equal(emptyReady.emptyMessage, 'No released sections are ready for a property walk.');
 });
 
-test('Start Day uses ten explicit steps, requires confirmation, and treats keys as access only', () => {
+test('Start Day uses eight grouped steps, requires confirmation, and treats keys as access only', () => {
   const roster = createSyntheticRoster();
   const release = createSyntheticRelease(roster);
   assert.deepEqual(START_DAY_STEPS, [
-    'Confirm property',
-    'Confirm date',
+    'Confirm project and day',
     'Confirm property contact',
-    'Confirm keys received',
+    'Confirm keys and access',
     'Confirm today’s released work',
-    'Confirm active Paint crews',
-    'Confirm active Clean crews',
+    'Confirm active Paint and Clean crews',
+    'Review hours and walkthrough defaults',
     'Morning note',
-    'Review',
-    'Start Day',
+    'Review and Start Day',
   ]);
 
   const missingConfirmation = startDaySession(

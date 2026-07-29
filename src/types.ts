@@ -129,6 +129,44 @@ export type FieldEventBoundary =
 export type WalkOutcome = 'accepted' | 'correction-requested' | 'not-walked' | 'deferred';
 export type WalkSessionStatus = 'active' | 'closed';
 
+export interface PropertyContact {
+  id: EntityId;
+  projectId: EntityId;
+  name: string;
+  title: string;
+  phone?: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectFieldConfiguration {
+  version: 1;
+  status: 'active';
+  projectId: EntityId;
+  activatedAt: string;
+  activatedBy: string;
+  role: 'turn-supervisor';
+  enabledTrades: {
+    paint: boolean;
+    clean: boolean;
+  };
+  defaultCrewIdsByTrade: {
+    paint: readonly string[];
+    clean: readonly string[];
+  };
+  defaultWorkingHoursWording: string;
+  defaultWalkthroughScheduleWording: string;
+  defaultPropertyContactId: EntityId;
+  permissions: {
+    personalAppData: 'synthetic-or-explicitly-approved-only';
+    photos: 'not-confirmed' | 'permitted' | 'prohibited';
+    paperTurnBoardAuthoritative: true;
+    payrollCalculations: false;
+    officialApprovals: false;
+  };
+}
+
 export interface Project {
   id: EntityId;
   mode: ProjectMode;
@@ -145,6 +183,7 @@ export interface Project {
   estimatedBeds: number;
   estimatedCommonAreas: number;
   aiBudgetUsd: number;
+  fieldConfiguration?: ProjectFieldConfiguration;
   archivedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -548,6 +587,7 @@ export interface SmartSuggestion {
 export interface AppData {
   activeProjectId: EntityId;
   projects: Project[];
+  propertyContacts?: PropertyContact[];
   buildings: Building[];
   floors: Floor[];
   units: Unit[];

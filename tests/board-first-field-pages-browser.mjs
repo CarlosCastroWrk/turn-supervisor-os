@@ -33,13 +33,16 @@ const assertNoHorizontalOverflow = async (page, label) => {
 
 const assertBoardNavigation = async (page, label) => {
   const navigation = page.getByRole('navigation', { name: 'Primary' });
-  for (const destination of ['TurnBoard', 'Activity', 'More']) {
-    assert.equal(
-      await navigation.getByRole('button', { name: destination, exact: true }).count(),
-      1,
-      `${label} was missing ${destination}.`,
-    );
-  }
+  assert.deepEqual(
+    await navigation.getByRole('button').allTextContents(),
+    ['Home', 'TurnBoard', 'Plus', 'Activity', 'More'],
+    `${label} did not expose the accepted primary destinations.`,
+  );
+  assert.equal(
+    await navigation.getByRole('button', { name: 'Open central Plus menu' }).count(),
+    1,
+    `${label} was missing the accessible Plus action.`,
+  );
   assert.equal(
     await navigation.getByRole('button', { name: /Today|Queue/ }).count(),
     0,
@@ -68,19 +71,14 @@ try {
     const findings = attachRuntimeChecks(page);
 
     await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
-    await page.getByText('Paper remains authoritative', { exact: true }).waitFor();
+    await page.getByTestId('track-c-field-ops').waitFor();
+    await page.getByRole('heading', { name: 'TurnBoard companion', exact: true }).waitFor();
+    await page.getByText('Compact Paint/Clean field projection', { exact: true }).waitFor();
     await assertBoardNavigation(page, `${target.name} TurnBoard`);
-    assert.equal(await page.getByTestId('wave1r-unit-row').count(), 6);
-    assert.equal(await page.getByLabel('Search TurnBoard Units or crew', { exact: true }).count(), 1);
-    const filters = page.getByRole('group', { name: 'Filter TurnBoard Units', exact: true });
-    for (const label of ['All', 'Needs Me', 'Assignment conflict']) {
-      assert.equal(
-        await filters.getByRole('button', { name: new RegExp(`^${label}\\b`) }).count(),
-        1,
-        `${target.name} TurnBoard was missing the ${label} filter.`,
-      );
-    }
+    assert.equal(await page.getByTestId('track-c-unit-row').count(), 6);
+    assert.equal(await page.getByPlaceholder('Search Units or crews').count(), 1);
+    assert.ok(await page.getByText('Paint', { exact: true }).count() > 0);
+    assert.ok(await page.getByText('Clean', { exact: true }).count() > 0);
     assert.equal(
       await page.getByRole('region', { name: 'Turn OS command bar' }).count(),
       0,
@@ -96,21 +94,21 @@ try {
     await assertNoHorizontalOverflow(page, `${target.name} TurnBoard`);
 
     await page.getByRole('button', { name: 'Open Unit 101', exact: true }).click();
-    await page.waitForFunction(() => window.location.hash === '#/units/unit_101');
+    await page.getByTestId('track-c-unit-detail').waitFor();
     await page.getByRole('heading', { name: 'Unit 101', exact: true }).waitFor();
-    await page.getByRole('tab', { name: 'Paint', exact: true }).waitFor();
-    await page.getByRole('tab', { name: 'Clean', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Paint', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Clean', exact: true }).waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0, 'Opening Unit 101 opened a dialog.');
     assert.equal(
-      await page.getByTestId('wave1r-unit-row').count(),
-      6,
-      'Opening a Unit unmounted the compact TurnBoard list.',
+      await page.getByTestId('track-c-unit-row').count(),
+      0,
+      'Opening a Unit left the compact TurnBoard rows mounted underneath.',
     );
     await assertNoHorizontalOverflow(page, `${target.name} Unit 101`);
 
-    await page.goBack();
-    await page.waitForFunction(() => window.location.hash === '#/units');
-    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Back to compact TurnBoard', exact: true }).click();
+    await page.getByRole('heading', { name: 'TurnBoard companion', exact: true }).waitFor();
+    assert.equal(await page.getByTestId('track-c-unit-row').count(), 6);
 
     await page.getByRole('navigation', { name: 'Primary' })
       .getByRole('button', { name: 'Activity', exact: true })
@@ -175,7 +173,7 @@ try {
   const hostRoutes = [
     { button: 'Crews', hash: '#/crews', heading: 'Crews' },
     { button: 'Reports', hash: '#/reports', heading: 'Reports and Proof' },
-    { button: 'Setup', hash: '#/setup', heading: 'Setup' },
+    { button: 'Setup', hash: '#/setup', heading: 'Activate project' },
     { button: 'Backup', hash: '#/export', heading: 'Data and backup' },
     { button: 'Sync', hash: '#/sync', heading: 'Sync' },
   ];
@@ -183,10 +181,8 @@ try {
   const hostPage = await hostContext.newPage();
   const hostFindings = attachRuntimeChecks(hostPage);
   for (const route of hostRoutes) {
-    await hostPage.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-    await hostPage.getByRole('navigation', { name: 'Primary' })
-      .getByRole('button', { name: 'More', exact: true })
-      .click();
+    await hostPage.goto(`${baseUrl}/#/more`, { waitUntil: 'networkidle' });
+    await hostPage.getByRole('heading', { name: 'More', exact: true }).waitFor();
     await hostPage.getByRole('button', { name: new RegExp(`^${route.button}\\b`) }).click();
     await hostPage.waitForFunction((hash) => window.location.hash === hash, route.hash);
     await hostPage.getByRole('heading', { name: route.heading, exact: true }).waitFor();
@@ -199,9 +195,9 @@ try {
     const page = await context.newPage();
     const findings = attachRuntimeChecks(page);
     await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+    await page.getByTestId('track-c-field-ops').waitFor();
     await assertNoHorizontalOverflow(page, `${width}px TurnBoard`);
-    const searchBox = await page.getByLabel('Search TurnBoard Units or crew', { exact: true }).boundingBox();
+    const searchBox = await page.getByPlaceholder('Search Units or crews').boundingBox();
     assert.ok(
       searchBox && searchBox.height >= 44,
       `${width}px TurnBoard search target was smaller than 44px.`,

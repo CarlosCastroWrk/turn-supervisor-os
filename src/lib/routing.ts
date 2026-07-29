@@ -9,7 +9,12 @@ export interface AppRoute {
   unitStatusFilter: UnitStatusFilter;
 }
 
-export type HomeSummaryFilter = 'working' | 'waiting' | 'callbacks' | 'ready-to-walk';
+export type HomeSummaryFilter =
+  | 'working'
+  | 'waiting'
+  | 'callbacks'
+  | 'ready-to-walk'
+  | 'today-task';
 
 export interface NavigateOptions {
   unitStatusFilter?: UnitStatusFilter;
@@ -51,7 +56,13 @@ const topLevelViews = new Set<AppView>([
 ]);
 
 const unitStatusFilters: UnitStatusFilter[] = ['All', 'Blocked', 'Ready', 'Not Started', 'In Progress', 'Needs Inspection'];
-const homeSummaryFilters: HomeSummaryFilter[] = ['working', 'waiting', 'callbacks', 'ready-to-walk'];
+const homeSummaryFilters: HomeSummaryFilter[] = [
+  'working',
+  'waiting',
+  'callbacks',
+  'ready-to-walk',
+  'today-task',
+];
 
 const decodePathPart = (value: string) => {
   try {

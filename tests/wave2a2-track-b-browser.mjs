@@ -204,12 +204,17 @@ try {
     );
     contrastMeasurements.push(primaryCtaContrast);
 
-    for (let step = 1; step <= 9; step += 1) {
-      await page.getByText(`Step ${step} of 10`, { exact: true }).waitFor();
+    for (let step = 1; step <= 7; step += 1) {
+      await page.getByText(`Step ${step} of 8`, { exact: true }).waitFor();
       await assertNoHorizontalOverflow(page, `Start Day step ${step}`);
       await assertCriticalTargets(page, `Start Day step ${step}`);
       await assertVisibleInputsAtLeast16(page, `Start Day step ${step}`);
-      if (step === 3) {
+      if (step === 4) {
+        await page.getByLabel('Assignment evidence / review note').fill(
+          'Reviewed exact synthetic assignment evidence.',
+        );
+      }
+      if (step === 6) {
         await page.getByLabel('Exact working-hours wording').fill(
           'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
         );
@@ -217,37 +222,28 @@ try {
           'Daily walkthrough at 12:00 PM with the synthetic contact.',
         );
       }
-      if (step === 5) {
-        await page.getByLabel('Assignment evidence / review note').fill(
-          'Reviewed exact synthetic assignment evidence.',
-        );
-      }
-      if (step === 8) {
+      if (step === 7) {
         await page.getByLabel('Morning note Optional').fill(
           'Keep south stairwell access note visible.',
         );
       }
-      if (step === 9) {
-        await page.getByText('Reviewed exact synthetic assignment evidence.', { exact: true }).waitFor();
-        await page.getByText(
-          'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
-          { exact: true },
-        ).waitFor();
-        await page.getByText(
-          'Daily walkthrough at 12:00 PM with the synthetic contact.',
-          { exact: true },
-        ).waitFor();
-        await page.getByText('today-confirmed-release', { exact: true }).waitFor();
-        await page.getByText('sections / los-inspected', { exact: true }).waitFor();
-        await page.getByText('112 physical sections', { exact: true }).waitFor();
-        await page.getByText('Keep south stairwell access note visible.', { exact: true }).waitFor();
-        await page.getByText('Blue Paint, Gold Paint', { exact: true }).waitFor();
-        await page.getByText('Green Clean', { exact: true }).waitFor();
-      }
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
     }
 
-    await page.getByText('Step 10 of 10', { exact: true }).waitFor();
+    await page.getByText('Step 8 of 8', { exact: true }).waitFor();
+    await page.getByText('Reviewed exact synthetic assignment evidence.', { exact: true }).waitFor();
+    await page.getByText(
+      'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
+      { exact: true },
+    ).waitFor();
+    await page.getByText(
+      'Daily walkthrough at 12:00 PM with the synthetic contact.',
+      { exact: true },
+    ).waitFor();
+    await page.getByText('112 physical sections', { exact: true }).waitFor();
+    await page.getByText('Keep south stairwell access note visible.', { exact: true }).waitFor();
+    await page.getByText('Blue Paint, Gold Paint', { exact: true }).waitFor();
+    await page.getByText('Green Clean', { exact: true }).waitFor();
     await page.getByText('I reviewed the Start Day details.', { exact: true }).click();
     await page.getByRole('button', { name: 'Start Day', exact: true }).click();
     await page.getByText('Active', { exact: true }).waitFor();
@@ -301,20 +297,14 @@ try {
     ).waitFor();
     await page.getByRole('button', { name: 'Dismiss message', exact: true }).click();
     await page.getByRole('button', { name: 'Start Day', exact: true }).click();
-    for (let step = 1; step <= 4; step += 1) {
-      await page.getByText(`Step ${step} of 10`, { exact: true }).waitFor();
-      if (step === 3) {
+    for (let step = 1; step <= 3; step += 1) {
+      await page.getByText(`Step ${step} of 8`, { exact: true }).waitFor();
+      if (step === 2) {
         await page.getByLabel('Property contact').fill('Synthetic property contact');
-        await page.getByLabel('Exact working-hours wording').fill(
-          'Occupied areas: 10:00 AM–5:00 PM.',
-        );
-        await page.getByLabel('Walkthrough schedule wording').fill(
-          'Daily walkthrough at 12:00 PM.',
-        );
       }
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
     }
-    await page.getByText('Step 5 of 10', { exact: true }).waitFor();
+    await page.getByText('Step 4 of 8', { exact: true }).waitFor();
     assert.equal(
       await page.getByRole('button', { name: /Import today.s released work/u }).count(),
       1,

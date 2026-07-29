@@ -170,6 +170,7 @@ export const normalizeAppData = (data: AppData): AppData => {
     ...data,
     activeProjectId,
     projects,
+    propertyContacts: arrayOrEmpty(data.propertyContacts),
     buildings,
     floors,
     units: arrayOrEmpty(data.units),

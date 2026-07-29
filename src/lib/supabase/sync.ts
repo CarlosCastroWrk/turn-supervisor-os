@@ -776,10 +776,26 @@ export const remotePullPageSize = 1000;
 export const remoteUploadBatchSize = 500;
 export const remoteActivityPullLimit = ACTIVITY_LOG_RETENTION_LIMIT;
 
+const preserveLocalProjectConfiguration = (
+  localProjects: readonly Project[],
+  nextProjects: readonly Project[],
+): Project[] => {
+  const localById = new Map(localProjects.map((project) => [project.id, project]));
+  return nextProjects.map((project) => {
+    const localConfiguration = localById.get(project.id)?.fieldConfiguration;
+    return localConfiguration
+      ? { ...project, fieldConfiguration: structuredClone(localConfiguration) }
+      : project;
+  });
+};
+
 export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData =>
   normalizeAppData({
     ...local,
-    projects: mergeRows(local.projects, (remote.projects ?? []) as Project[]),
+    projects: preserveLocalProjectConfiguration(
+      local.projects,
+      mergeRows(local.projects, (remote.projects ?? []) as Project[]),
+    ),
     buildings: mergeRows(local.buildings, (remote.buildings ?? []) as AppData['buildings']),
     floors: mergeRows(local.floors, (remote.floors ?? []) as AppData['floors']),
     units: mergeRows(local.units, (remote.units ?? []) as Unit[]),
@@ -1078,10 +1094,13 @@ const localFieldParentScope = (local: AppData) => {
 export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
   const remoteWithLocalDemo = withLocalDemoRows(local, remote);
   const required = localFieldParentScope(local);
-  const projects = appendRequiredLocalRows(
-    (remoteWithLocalDemo.projects ?? local.projects) as Project[],
+  const projects = preserveLocalProjectConfiguration(
     local.projects,
-    required.projectIds,
+    appendRequiredLocalRows(
+      (remoteWithLocalDemo.projects ?? local.projects) as Project[],
+      local.projects,
+      required.projectIds,
+    ),
   );
   const buildings = appendRequiredLocalRows(
     (remoteWithLocalDemo.buildings ?? local.buildings) as AppData['buildings'],

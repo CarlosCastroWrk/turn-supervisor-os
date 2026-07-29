@@ -35,6 +35,32 @@ const isoTimestamp = z.iso.datetime({ offset: true });
 const knownText = (values: readonly string[], label: string) =>
   z.string().refine((value) => values.includes(value), `Invalid ${label}.`);
 const recordSchema = z.object({ id: nonEmptyText }).passthrough();
+const projectFieldConfigurationSchema = z.object({
+  version: z.literal(1),
+  status: z.literal('active'),
+  projectId: nonEmptyText,
+  activatedAt: isoTimestamp,
+  activatedBy: nonEmptyText,
+  role: z.literal('turn-supervisor'),
+  enabledTrades: z.object({
+    paint: z.boolean(),
+    clean: z.boolean(),
+  }),
+  defaultCrewIdsByTrade: z.object({
+    paint: stringList,
+    clean: stringList,
+  }),
+  defaultWorkingHoursWording: nonEmptyText,
+  defaultWalkthroughScheduleWording: nonEmptyText,
+  defaultPropertyContactId: nonEmptyText,
+  permissions: z.object({
+    personalAppData: z.literal('synthetic-or-explicitly-approved-only'),
+    photos: z.enum(['not-confirmed', 'permitted', 'prohibited']),
+    paperTurnBoardAuthoritative: z.literal(true),
+    payrollCalculations: z.literal(false),
+    officialApprovals: z.literal(false),
+  }),
+});
 const projectSchema = recordSchema.extend({
   mode: z.enum(['demo', 'real']).optional(),
   name: nonEmptyText,
@@ -50,9 +76,19 @@ const projectSchema = recordSchema.extend({
   estimatedBeds: nonNegativeNumber,
   estimatedCommonAreas: nonNegativeNumber,
   aiBudgetUsd: nonNegativeNumber.max(10_000).optional(),
+  fieldConfiguration: projectFieldConfigurationSchema.optional(),
   archivedAt: text.optional(),
   createdAt: text,
   updatedAt: text,
+});
+const propertyContactSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  name: nonEmptyText,
+  title: nonEmptyText,
+  phone: text.optional(),
+  isPrimary: z.boolean(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 const buildingSchema = recordSchema.extend({
   projectId: nonEmptyText,
@@ -444,6 +480,7 @@ const aiUsageEventSchema = recordSchema.extend({
 
 const recordCollectionKeys = [
   'projects',
+  'propertyContacts',
   'buildings',
   'floors',
   'units',
@@ -475,6 +512,7 @@ type BackupValidationData = Partial<AppData> & Pick<AppData, 'projects'>;
 const appDataBackupShape: z.ZodRawShape = {
     activeProjectId: z.string().optional(),
     projects: z.array(projectSchema).min(1, 'At least one project is required.'),
+    propertyContacts: z.array(propertyContactSchema).optional(),
     buildings: z.array(buildingSchema).optional(),
     floors: z.array(floorSchema).optional(),
     units: z.array(unitSchema).optional(),
@@ -577,10 +615,53 @@ const appDataBackupSchema = z
       });
     };
     validateProjectScope('daySessions', data.daySessions ?? []);
+    validateProjectScope('propertyContacts', data.propertyContacts ?? []);
     validateProjectScope('dailyReleaseBatches', data.dailyReleaseBatches ?? []);
     validateProjectScope('todayTasks', data.todayTasks ?? []);
     validateProjectScope('fieldEvents', data.fieldEvents ?? []);
     validateProjectScope('walkSessions', data.walkSessions ?? []);
+
+    const primaryContactCounts = new Map<string, number>();
+    (data.propertyContacts ?? []).forEach((contact, index) => {
+      if (contact.isPrimary) {
+        primaryContactCounts.set(
+          contact.projectId,
+          (primaryContactCounts.get(contact.projectId) ?? 0) + 1,
+        );
+      }
+      validateTimestampOrder(
+        contact.createdAt,
+        contact.updatedAt,
+        ['propertyContacts', index, 'updatedAt'],
+        'Property contact update time cannot precede its creation time.',
+      );
+    });
+    data.projects.forEach((project, index) => {
+      const configuration = project.fieldConfiguration;
+      if (!configuration) return;
+      if (configuration.projectId !== project.id) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Project field configuration must reference its owning project.',
+          path: ['projects', index, 'fieldConfiguration', 'projectId'],
+        });
+      }
+      const contacts = (data.propertyContacts ?? []).filter(
+        (contact) => contact.projectId === project.id,
+      );
+      if (
+        primaryContactCounts.get(project.id) !== 1
+        || !contacts.some((contact) =>
+          contact.id === configuration.defaultPropertyContactId
+          && contact.isPrimary)
+      ) {
+        context.addIssue({
+          code: 'custom',
+          message: 'An activated project requires exactly one matching primary property contact.',
+          path: ['projects', index, 'fieldConfiguration', 'defaultPropertyContactId'],
+        });
+      }
+    });
 
     const openDaySessionByProject = new Map<string, number>();
     (data.daySessions ?? []).forEach((session, index) => {

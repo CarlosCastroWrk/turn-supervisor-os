@@ -1145,8 +1145,7 @@ const appDataBackupSchema = z
                   (otherOutcome) =>
                     otherOutcome.selectedItemId === outcome.selectedItemId &&
                     otherOutcome.outcome === 'accepted',
-                ) &&
-                Date.parse(otherSession.endedAt ?? otherSession.updatedAt) <= Date.parse(session.startedAt),
+                ),
             );
             if (alreadyAcceptedByEvent || alreadyAcceptedByWalk) {
               context.addIssue({

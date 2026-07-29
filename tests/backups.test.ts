@@ -603,6 +603,32 @@ test('property-accepted walk outcomes reject blocked or already-accepted scope',
   );
 });
 
+test('overlapping closed walks cannot both accept the same Day Session scope', () => {
+  const overlappingAcceptedWalks = withLocalFieldState();
+  overlappingAcceptedWalks.fieldEvents[0].recordedAt = minutesAfterStamp(1);
+  overlappingAcceptedWalks.walkSessions[0] = {
+    ...overlappingAcceptedWalks.walkSessions[0],
+    startedAt: minutesAfterStamp(2),
+    endedAt: minutesAfterStamp(5),
+    createdAt: minutesAfterStamp(2),
+    updatedAt: minutesAfterStamp(5),
+  };
+  overlappingAcceptedWalks.walkSessions.push({
+    ...overlappingAcceptedWalks.walkSessions[0],
+    id: 'walk_session_overlapping_acceptance',
+    startedAt: minutesAfterStamp(3),
+    endedAt: minutesAfterStamp(4),
+    createdAt: minutesAfterStamp(3),
+    updatedAt: minutesAfterStamp(4),
+  });
+  overlappingAcceptedWalks.daySessions[0].updatedAt = minutesAfterStamp(5);
+
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(overlappingAcceptedWalks)),
+    /walkSessions\.[01]\.outcomes\.0\.outcome.*cannot be recorded again for scope already accepted/,
+  );
+});
+
 test('Walk Sessions stay scoped to one Day Session and close with complete outcomes', () => {
   const unknownSelection = withLocalFieldState();
   unknownSelection.walkSessions[0].selectedItemIds = ['release_item_not_in_day'];

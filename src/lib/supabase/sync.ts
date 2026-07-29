@@ -1051,6 +1051,7 @@ const localFieldParentScope = (local: AppData) => {
   (local.fieldEvents ?? []).forEach((event) => {
     projectIds.add(event.projectId);
     if (event.unitId) unitIds.add(event.unitId);
+    if (event.actorType === 'crew' && event.actorId) crewIds.add(event.actorId);
   });
   (local.walkSessions ?? []).forEach((session) => projectIds.add(session.projectId));
 

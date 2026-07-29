@@ -321,7 +321,7 @@ export function LaunchIntegratedApp() {
     () => [...daySessions]
       .filter((session) => ['active', 'ending', 'reopened'].includes(session.status))
       .sort((left, right) => (right.startedAt ?? '').localeCompare(left.startedAt ?? ''))
-      .at(0),
+      .slice(0, 1)[0],
     [daySessions],
   );
   const todayTask = useMemo(

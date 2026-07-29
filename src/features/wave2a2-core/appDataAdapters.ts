@@ -173,7 +173,7 @@ const contextWording = (
   .filter((event) =>
     event.daySessionId === daySessionId && event.eventType === eventType)
   .sort(byRecordedAt)
-  .at(-1)?.summary ?? fallback;
+  .slice(-1)[0]?.summary ?? fallback;
 
 export function projectDaySessions(
   data: AppData,

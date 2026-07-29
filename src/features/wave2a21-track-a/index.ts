@@ -2,6 +2,7 @@ export * from './activation';
 export * from './activity';
 export * from './appDataAdapter';
 export * from './projections';
+export * from './projectSetup';
 export * from './startDayDefaults';
 export * from './contracts';
 export * from './ProfilePrivacyScrollRegion';

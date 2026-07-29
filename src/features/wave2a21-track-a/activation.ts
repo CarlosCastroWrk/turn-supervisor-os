@@ -1,7 +1,11 @@
+import { z } from 'zod';
 import type { FieldEvent } from '../../types';
 import type {
+  PreparedProjectActivation,
   ProjectActivationDraft,
-  ProjectActivationResult,
+  ProjectActivationPersistenceCallback,
+  ProjectActivationPersistenceResult,
+  ProjectActivationPreparationResult,
   PropertyContact,
   TrackAAppData,
   TrackAProject,
@@ -9,6 +13,7 @@ import type {
 
 const nonEmpty = (value: string) => value.trim().length > 0;
 const unique = (values: readonly string[]) => new Set(values).size === values.length;
+const offsetIsoTimestamp = z.iso.datetime({ offset: true });
 
 const stableJson = (value: unknown) => JSON.stringify(value, (_key, candidate) => {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return candidate;
@@ -67,8 +72,11 @@ const validateConfiguration = (draft: ProjectActivationDraft): readonly string[]
   if (configuration.version !== 1 || configuration.status !== 'active') {
     errors.push('Project configuration must be an active version 1 record.');
   }
-  if (!nonEmpty(configuration.activatedAt) || !nonEmpty(configuration.activatedBy)) {
-    errors.push('Activation time and actor are required.');
+  if (!offsetIsoTimestamp.safeParse(configuration.activatedAt).success) {
+    errors.push('Activation time must be an offset-capable ISO timestamp.');
+  }
+  if (!nonEmpty(configuration.activatedBy)) {
+    errors.push('Activation actor is required.');
   }
   if (configuration.projectId !== draft.project.id) {
     errors.push('Project configuration must match the project being activated.');
@@ -147,27 +155,43 @@ const projectActivationEvent = (draft: ProjectActivationDraft): FieldEvent => ({
   summary: `Activated the personal Turn OS project for ${draft.project.propertyName}. The paper TurnBoard remains authoritative.`,
 });
 
-export function activateProjectLocally(
+export function prepareProjectActivation(
   data: Readonly<TrackAAppData>,
   draft: ProjectActivationDraft,
-): ProjectActivationResult {
+): ProjectActivationPreparationResult {
   const projectErrors = validateProject(draft.project);
   if (projectErrors.length > 0) {
-    return { ok: false, code: 'invalid-project', errors: projectErrors };
+    return {
+      ok: false,
+      stage: 'preparation',
+      code: 'invalid-project',
+      errors: projectErrors,
+    };
   }
   const configurationErrors = validateConfiguration(draft);
   if (configurationErrors.length > 0) {
-    return { ok: false, code: 'invalid-configuration', errors: configurationErrors };
+    return {
+      ok: false,
+      stage: 'preparation',
+      code: 'invalid-configuration',
+      errors: configurationErrors,
+    };
   }
   const contactErrors = validateContacts(draft);
   if (contactErrors.length > 0) {
-    return { ok: false, code: 'invalid-contacts', errors: contactErrors };
+    return {
+      ok: false,
+      stage: 'preparation',
+      code: 'invalid-contacts',
+      errors: contactErrors,
+    };
   }
 
   const matchingProjects = data.projects.filter((project) => project.id === draft.project.id);
   if (matchingProjects.length > 1) {
     return {
       ok: false,
+      stage: 'preparation',
       code: 'invalid-project',
       errors: ['Project activation requires exactly one existing record for a matching project ID.'],
     };
@@ -191,6 +215,7 @@ export function activateProjectLocally(
   if (existingProject && !alreadyMatches && !draft.confirmOverwrite) {
     return {
       ok: false,
+      stage: 'preparation',
       code: 'overwrite-confirmation-required',
       errors: ['This project already exists. Confirm before replacing its personal setup defaults.'],
     };
@@ -201,18 +226,25 @@ export function activateProjectLocally(
   if (existingEvent && stableJson(existingEvent) !== stableJson(event)) {
     return {
       ok: false,
+      stage: 'preparation',
       code: 'invalid-configuration',
       errors: ['Project activation event ID conflicts with a different durable field event.'],
     };
   }
   const eventExists = Boolean(existingEvent);
   const activeProjectMatches = data.activeProjectId === draft.project.id;
+  const retry = {
+    draft: structuredClone(draft),
+    sourceData: structuredClone(data) as TrackAAppData,
+  };
   if (alreadyMatches && eventExists && activeProjectMatches) {
     return {
       ok: true,
+      stage: 'prepared',
       changed: false,
-      data: data as TrackAAppData,
+      data: structuredClone(data) as TrackAAppData,
       event,
+      retry,
     };
   }
 
@@ -226,6 +258,7 @@ export function activateProjectLocally(
   );
   return {
     ok: true,
+    stage: 'prepared',
     changed: true,
     data: {
       ...next,
@@ -235,7 +268,44 @@ export function activateProjectLocally(
       propertyContacts: [...retainedContacts, ...candidateContacts],
     },
     event,
+    retry,
   };
 }
 
-export const activateProjectAtomically = activateProjectLocally;
+export async function persistPreparedProjectActivation(
+  prepared: PreparedProjectActivation,
+  persist: ProjectActivationPersistenceCallback,
+): Promise<ProjectActivationPersistenceResult> {
+  let saved = false;
+  try {
+    saved = await persist(prepared.data);
+  } catch {
+    saved = false;
+  }
+
+  if (!saved) {
+    return {
+      ok: false,
+      stage: 'persistence',
+      code: 'persistence-failed',
+      errors: [
+        'Project activation was prepared but could not be saved. Retry from the preserved setup draft.',
+      ],
+      retry: prepared.retry,
+    };
+  }
+
+  return {
+    ok: true,
+    stage: 'persisted',
+    data: prepared.data,
+    event: prepared.event,
+    receipt: {
+      acknowledgement: 'durable-save-succeeded',
+      activatedAt: prepared.event.recordedAt,
+      changed: prepared.changed,
+      eventId: prepared.event.id,
+      projectId: prepared.event.projectId,
+    },
+  };
+}

@@ -2,7 +2,8 @@ import { NativeDetailShell } from '../wave2a1-native/track-b/NativeDetailShell';
 import type { TodayTaskQueueId } from '../wave2a2-track-b/types';
 import type {
   CanonicalFieldProjection,
-  StartDaySavedDefaults,
+  StartDayResolvedValues,
+  StartDayValueSource,
 } from './contracts';
 import './trackA.css';
 
@@ -14,21 +15,59 @@ const QUEUE_LABELS: Readonly<Record<TodayTaskQueueId, string>> = {
 };
 
 export interface TodayTaskDetailProps {
-  readonly defaults: StartDaySavedDefaults;
   readonly onBack: () => void;
-  readonly onEditDefaults: () => void;
   readonly onOpenQueue: (queueId: TodayTaskQueueId) => void;
+  readonly onReviewStartDay: () => void;
   readonly projection: CanonicalFieldProjection;
+  readonly startDayValues: StartDayResolvedValues;
 }
 
+const SOURCE_LABELS: Readonly<Record<StartDayValueSource, string>> = {
+  'saved-project-default': 'Saved project default',
+  'today-only-override': 'Today-only override',
+};
+
 export function TodayTaskDetail({
-  defaults,
   onBack,
-  onEditDefaults,
   onOpenQueue,
+  onReviewStartDay,
   projection,
+  startDayValues,
 }: TodayTaskDetailProps) {
   const progress = projection.todayTask.progress;
+  const startDayRows = [
+    {
+      id: 'property-contact',
+      label: 'Property contact',
+      source: startDayValues.propertyContact.source,
+      value: startDayValues.propertyContact.value.name,
+    },
+    {
+      id: 'working-hours',
+      label: 'Working hours',
+      source: startDayValues.workingHoursWording.source,
+      value: startDayValues.workingHoursWording.value,
+    },
+    {
+      id: 'walkthrough',
+      label: 'Walkthrough',
+      source: startDayValues.walkthroughScheduleWording.source,
+      value: startDayValues.walkthroughScheduleWording.value,
+    },
+    {
+      id: 'paint-crews',
+      label: 'Paint crews',
+      source: startDayValues.activeCrewIdsByTrade.Paint.source,
+      value: `${startDayValues.activeCrewIdsByTrade.Paint.value.length} active`,
+    },
+    {
+      id: 'clean-crews',
+      label: 'Clean crews',
+      source: startDayValues.activeCrewIdsByTrade.Clean.source,
+      value: `${startDayValues.activeCrewIdsByTrade.Clean.value.length} active`,
+    },
+  ] as const;
+
   return (
     <NativeDetailShell
       backLabel="Back from Today’s Task"
@@ -67,23 +106,25 @@ export function TodayTaskDetail({
         </section>
 
         <section aria-labelledby="w2a21a-task-defaults">
-          <h2 id="w2a21a-task-defaults">Saved day defaults</h2>
+          <h2 id="w2a21a-task-defaults">Start Day choices</h2>
           <dl>
-            <div><dt>Property contact</dt><dd>{defaults.propertyContact}</dd></div>
-            <div><dt>Working hours</dt><dd>{defaults.workingHoursWording}</dd></div>
-            <div><dt>Walkthrough</dt><dd>{defaults.walkthroughScheduleWording}</dd></div>
-            <div>
-              <dt>Default crews</dt>
-              <dd>
-                Paint {defaults.activeCrewIdsByTrade.Paint.length}
-                {' · '}
-                Clean {defaults.activeCrewIdsByTrade.Clean.length}
-              </dd>
-            </div>
+            {startDayRows.map((row) => (
+              <div
+                data-start-day-source={row.source}
+                data-start-day-value={row.id}
+                key={row.id}
+              >
+                <dt>
+                  {row.label}
+                  <small>{SOURCE_LABELS[row.source]}</small>
+                </dt>
+                <dd>{row.value}</dd>
+              </div>
+            ))}
           </dl>
-          <button onClick={onEditDefaults} type="button">Edit personal defaults</button>
+          <button onClick={onReviewStartDay} type="button">Review Start Day choices</button>
           <p>
-            Editing personal defaults does not change today’s confirmed release,
+            Changing a saved project default or today-only override does not change today’s confirmed release,
             the paper TurnBoard, property approval, or payroll.
           </p>
         </section>

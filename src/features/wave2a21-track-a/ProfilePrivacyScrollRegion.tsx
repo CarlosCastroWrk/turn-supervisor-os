@@ -12,9 +12,11 @@ export function ProfilePrivacyScrollRegion({
 }: ProfilePrivacyScrollRegionProps) {
   return (
     <div
+      aria-label={`${kind === 'profile' ? 'Profile' : 'Privacy'} detail content`}
       className="w2a21a-profile-privacy-scroll"
       data-detail-scroll-owner={kind}
       data-turn-scroll-region="primary"
+      role="region"
       tabIndex={-1}
     >
       {children}

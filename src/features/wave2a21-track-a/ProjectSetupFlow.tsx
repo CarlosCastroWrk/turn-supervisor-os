@@ -4,15 +4,11 @@ import type {
   ProjectConfiguration,
   PropertyContact,
 } from './contracts';
+import {
+  PROJECT_SETUP_STEPS,
+  clampProjectSetupStep,
+} from './projectSetup';
 import './trackA.css';
-
-export const PROJECT_SETUP_STEPS = Object.freeze([
-  { id: 'project', label: 'Project' },
-  { id: 'role-trades', label: 'Role and trades' },
-  { id: 'daily-defaults', label: 'Daily defaults' },
-  { id: 'contacts', label: 'Property contacts' },
-  { id: 'review', label: 'Review and activate' },
-] as const);
 
 export interface ProjectSetupCrewOption {
   readonly id: string;
@@ -51,7 +47,7 @@ export function ProjectSetupFlow({
   onRemoveContact,
   onStepChange,
 }: ProjectSetupFlowProps) {
-  const step = Math.max(0, Math.min(PROJECT_SETUP_STEPS.length - 1, currentStep));
+  const step = clampProjectSetupStep(currentStep);
   const setProject = (
     field: 'endDate' | 'location' | 'name' | 'propertyName' | 'startDate' | 'supervisorName',
     value: string,
@@ -106,7 +102,11 @@ export function ProjectSetupFlow({
         <ol aria-label="Project setup progress" className="w2a21a-setup__steps">
           {PROJECT_SETUP_STEPS.map((item, index) => (
             <li aria-current={index === step ? 'step' : undefined} key={item.id}>
-              <button onClick={() => onStepChange(index)} type="button">
+              <button
+                aria-label={`Go to step ${index + 1}: ${item.label}`}
+                onClick={() => onStepChange(index)}
+                type="button"
+              >
                 <span>{index + 1}</span>
                 {item.label}
               </button>

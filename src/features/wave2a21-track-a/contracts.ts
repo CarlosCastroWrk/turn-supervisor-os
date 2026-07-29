@@ -79,28 +79,80 @@ export type ProjectActivationFailureCode =
   | 'invalid-contacts'
   | 'overwrite-confirmation-required';
 
-export type ProjectActivationResult =
+export interface ProjectActivationRetryState {
+  readonly sourceData: TrackAAppData;
+  readonly draft: ProjectActivationDraft;
+}
+
+export type ProjectActivationPreparationResult =
   | {
       readonly ok: true;
+      readonly stage: 'prepared';
       readonly data: TrackAAppData;
       readonly event: FieldEvent;
       readonly changed: boolean;
+      readonly retry: ProjectActivationRetryState;
     }
   | {
       readonly ok: false;
+      readonly stage: 'preparation';
       readonly code: ProjectActivationFailureCode;
       readonly errors: readonly string[];
     };
 
-export interface StartDaySavedDefaults {
+export type PreparedProjectActivation = Extract<
+  ProjectActivationPreparationResult,
+  { readonly ok: true }
+>;
+
+export type ProjectActivationPersistenceCallback = (
+  data: Readonly<TrackAAppData>,
+) => boolean | Promise<boolean>;
+
+export interface ProjectActivationPersistenceReceipt {
+  readonly acknowledgement: 'durable-save-succeeded';
+  readonly activatedAt: string;
+  readonly changed: boolean;
+  readonly eventId: string;
+  readonly projectId: string;
+}
+
+export type ProjectActivationPersistenceResult =
+  | {
+      readonly ok: true;
+      readonly stage: 'persisted';
+      readonly data: TrackAAppData;
+      readonly event: FieldEvent;
+      readonly receipt: ProjectActivationPersistenceReceipt;
+    }
+  | {
+      readonly ok: false;
+      readonly stage: 'persistence';
+      readonly code: 'persistence-failed';
+      readonly errors: readonly string[];
+      readonly retry: ProjectActivationRetryState;
+    };
+
+export type StartDayValueSource =
+  | 'saved-project-default'
+  | 'today-only-override';
+
+export interface StartDayResolvedValue<T> {
+  readonly value: T;
+  readonly source: StartDayValueSource;
+}
+
+export interface StartDayResolvedValues {
   readonly activeCrewIdsByTrade: {
-    readonly Paint: readonly string[];
-    readonly Clean: readonly string[];
+    readonly Paint: StartDayResolvedValue<readonly string[]>;
+    readonly Clean: StartDayResolvedValue<readonly string[]>;
   };
-  readonly propertyContact: string;
-  readonly propertyContactId: string;
-  readonly walkthroughScheduleWording: string;
-  readonly workingHoursWording: string;
+  readonly propertyContact: StartDayResolvedValue<{
+    readonly id: string;
+    readonly name: string;
+  }>;
+  readonly walkthroughScheduleWording: StartDayResolvedValue<string>;
+  readonly workingHoursWording: StartDayResolvedValue<string>;
 }
 
 export interface TrackAFieldActivity extends ActivityItem {

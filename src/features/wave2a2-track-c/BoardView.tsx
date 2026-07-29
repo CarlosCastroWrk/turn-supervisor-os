@@ -85,12 +85,24 @@ const actionsFor = (
 ): readonly { action: TrackCSectionAction; label: string; tone?: string }[] => {
   if (
     work.release !== 'released' ||
-    work.access !== 'clear' ||
     work.assignmentConflict ||
     work.sourceConfidence !== 'confirmed'
   ) {
     return [];
   }
+  if (
+    work.activeCrewIds.length === 1 &&
+    (work.execution === 'assigned' || work.execution === 'working') &&
+    work.access !== 'clear'
+  ) {
+    return [
+      {
+        action: 'record-crew-complete',
+        label: 'Record crew completion report',
+      },
+    ];
+  }
+  if (work.access !== 'clear') return [];
   if (work.execution === 'assigned') {
     return [{ action: 'start-work', label: 'Start work' }];
   }
@@ -230,8 +242,13 @@ const WorkSection = ({
           {blocked ? (
             <p className="track-c-section-row__warning">
               <ShieldAlert aria-hidden="true" size={16} />
-              {work.restrictionLabel ??
-                'This section is not eligible for field actions until release, access, and source conflicts are resolved.'}
+              {work.access !== 'clear' &&
+              work.release === 'released' &&
+              work.sourceConfidence === 'confirmed' &&
+              !work.assignmentConflict
+                ? `${work.restrictionLabel ?? 'Access is currently blocked.'} Do not enter or inspect. A crew completion report already received may still be recorded as evidence.`
+                : work.restrictionLabel ??
+                  'This section is not eligible for field actions until release, access, and source conflicts are resolved.'}
             </p>
           ) : null}
           <dl className="track-c-layer-list">

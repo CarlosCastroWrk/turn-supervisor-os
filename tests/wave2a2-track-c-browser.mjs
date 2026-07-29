@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 
 const host = '127.0.0.1';
@@ -139,6 +140,13 @@ const assertSeveralRowsVisible = async (page, label, minimumRows) => {
   );
 };
 
+const performanceMetrics = async (client) => {
+  const response = await client.send('Performance.getMetrics');
+  return Object.fromEntries(
+    response.metrics.map((metric) => [metric.name, metric.value]),
+  );
+};
+
 let browser;
 const screenshots = [];
 
@@ -221,6 +229,121 @@ try {
     await context.close();
   }
 
+  const scaleContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'dark',
+  });
+  const scalePage = await scaleContext.newPage();
+  const scaleFindings = attachRuntimeChecks(scalePage);
+  const scaleClient = await scaleContext.newCDPSession(scalePage);
+  await scaleClient.send('Performance.enable');
+  await scaleClient.send('HeapProfiler.enable');
+
+  const scaleRenderStartedAt = performance.now();
+  await scalePage.goto(`${baseUrl}${previewPath}?scale=500`, {
+    waitUntil: 'networkidle',
+  });
+  await scalePage
+    .getByRole('heading', { name: 'TurnBoard companion' })
+    .waitFor();
+  const scaleRenderMs = performance.now() - scaleRenderStartedAt;
+  assert.equal(
+    await scalePage.locator('[data-testid="track-c-unit-row"]').count(),
+    500,
+    'The scale gate must render the complete 500-Unit board.',
+  );
+  assert.ok(
+    scaleRenderMs < 10_000,
+    `500-Unit board rendered in ${scaleRenderMs.toFixed(0)}ms.`,
+  );
+
+  const scaleList = scalePage.locator('.track-c-unit-list');
+  const scrollDimensions = await scaleList.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }));
+  assert.ok(
+    scrollDimensions.scrollHeight > scrollDimensions.clientHeight * 20,
+    'The 500-Unit board did not expose a meaningfully scrollable list.',
+  );
+  await scaleList.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await scalePage.getByRole('button', { name: 'Open Unit 1500' }).waitFor();
+  assert.equal(
+    await scalePage
+      .getByRole('button', { name: 'Open Unit 1500' })
+      .isVisible(),
+    true,
+  );
+
+  const scaleSearch = scalePage.getByPlaceholder('Search Units or crews');
+  const searchStartedAt = performance.now();
+  await scaleSearch.fill('1499');
+  await scalePage.waitForFunction(
+    () =>
+      document.querySelectorAll('[data-testid="track-c-unit-row"]').length === 1,
+  );
+  const searchMs = performance.now() - searchStartedAt;
+  assert.equal(
+    await scalePage.locator('[data-testid="track-c-unit-row"]').count(),
+    1,
+  );
+  assert.equal(
+    await scalePage.getByRole('button', { name: 'Open Unit 1499' }).count(),
+    1,
+  );
+  assert.ok(
+    searchMs < 4_000,
+    `500-Unit search completed in ${searchMs.toFixed(0)}ms.`,
+  );
+  await scaleSearch.fill('');
+  await scalePage.waitForFunction(
+    () =>
+      document.querySelectorAll('[data-testid="track-c-unit-row"]').length ===
+      500,
+  );
+
+  await scaleClient.send('HeapProfiler.collectGarbage');
+  const beforeRepeatMetrics = await performanceMetrics(scaleClient);
+  for (const query of ['1001', '1250', '1499', 'unit-not-found', '']) {
+    await scaleSearch.fill(query);
+  }
+  await scalePage.waitForFunction(
+    () =>
+      document.querySelectorAll('[data-testid="track-c-unit-row"]').length ===
+      500,
+  );
+  await scaleClient.send('HeapProfiler.collectGarbage');
+  const afterRepeatMetrics = await performanceMetrics(scaleClient);
+  const heapUsed = afterRepeatMetrics.JSHeapUsedSize ?? Number.POSITIVE_INFINITY;
+  const heapGrowth =
+    heapUsed - (beforeRepeatMetrics.JSHeapUsedSize ?? heapUsed);
+  assert.ok(
+    heapUsed < 128 * 1024 * 1024,
+    `500-Unit board retained ${(heapUsed / 1024 / 1024).toFixed(1)} MB of JS heap.`,
+  );
+  assert.ok(
+    heapGrowth < 32 * 1024 * 1024,
+    `Repeated 500-Unit search retained ${(heapGrowth / 1024 / 1024).toFixed(1)} MB of additional JS heap.`,
+  );
+  assert.ok(
+    (afterRepeatMetrics.Nodes ?? Number.POSITIVE_INFINITY) < 50_000,
+    `500-Unit board rendered ${afterRepeatMetrics.Nodes} DOM nodes.`,
+  );
+  await assertNoHorizontalOverflow(scalePage, '500-Unit compact board');
+  await assertInputFontSize(scalePage, '500-Unit compact board');
+
+  const scaleScreenshot = '/private/tmp/wave2a2-track-c-500-unit.png';
+  await scalePage.screenshot({ path: scaleScreenshot, fullPage: false });
+  screenshots.push(scaleScreenshot);
+  assert.deepEqual(
+    scaleFindings,
+    [],
+    `500-Unit runtime findings:\n${scaleFindings.join('\n')}`,
+  );
+  await scaleContext.close();
+
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     colorScheme: 'dark',
@@ -248,6 +371,40 @@ try {
     0,
   );
   await assertNoHorizontalOverflow(page, 'Unit 707 detail');
+  await unitDetail.getByRole('button', { name: 'Back to compact TurnBoard' }).click();
+
+  await page.getByRole('button', { name: 'Open Unit 401' }).click();
+  await unitDetail.getByRole('heading', { name: 'Unit 401' }).waitFor();
+  const blockedCleanSection = unitDetail
+    .locator('.track-c-trade-panel.is-clean .track-c-section-row')
+    .filter({
+      has: page.locator('.track-c-section-row__section', { hasText: /^B$/ }),
+    });
+  await blockedCleanSection.locator('.track-c-section-row__trigger').click();
+  await blockedCleanSection.getByText(/Do not enter or inspect/i).waitFor();
+  const recordBlockedCrewReport = blockedCleanSection.getByRole('button', {
+    name: 'Record crew completion report',
+  });
+  assert.equal(await recordBlockedCrewReport.count(), 1);
+  assert.equal(
+    await blockedCleanSection.getByRole('button', { name: /Los pass/i }).count(),
+    0,
+  );
+  await recordBlockedCrewReport.click();
+  await page
+    .getByText(/Personal section record saved/i)
+    .waitFor();
+  assert.equal(
+    await blockedCleanSection.getByText('Needs Los inspection', {
+      exact: true,
+    }).count(),
+    1,
+  );
+  assert.equal(
+    await blockedCleanSection.getByRole('button', { name: /Los pass/i }).count(),
+    0,
+    'Blocked access must still prevent Los inspection after recording crew evidence.',
+  );
   await unitDetail.getByRole('button', { name: 'Back to compact TurnBoard' }).click();
 
   const navigation = page.getByRole('navigation', {
@@ -320,15 +477,72 @@ try {
   const mirrorButton = page.locator('.track-c-mirror-list button').first();
   await mirrorButton.click();
   const mirrorDialog = page.getByRole('dialog', {
-    name: 'Confirm personal paper mirror',
+    name: 'Confirm personal mirror',
   });
   await mirrorDialog.waitFor();
   assert.equal(await page.getByRole('dialog').count(), 1);
   const cancelMirror = mirrorDialog.getByRole('button', { name: 'Cancel' });
+  const confirmMirror = mirrorDialog.getByRole('button', {
+    name: 'Confirm personal mirror',
+  });
   assert.equal(
     await cancelMirror.evaluate((element) => element === document.activeElement),
     true,
   );
+  assert.deepEqual(
+    await page.evaluate(() =>
+      [
+        '.track-c-shell__header',
+        '.track-c-shell__main',
+        '.track-c-nav',
+      ].map((selector) => {
+        const element = document.querySelector(selector);
+        return {
+          ariaHidden: element?.getAttribute('aria-hidden'),
+          inert: element?.inert,
+        };
+      })
+    ),
+    [
+      { ariaHidden: 'true', inert: true },
+      { ariaHidden: 'true', inert: true },
+      { ariaHidden: 'true', inert: true },
+    ],
+  );
+  await page.locator('.track-c-nav button').first().evaluate((element) => {
+    element.focus();
+  });
+  assert.equal(
+    await cancelMirror.evaluate((element) => element === document.activeElement),
+    true,
+    'An inert background control must not take focus.',
+  );
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(
+    await confirmMirror.evaluate(
+      (element) => element === document.activeElement,
+    ),
+    true,
+  );
+  await page.keyboard.press('Tab');
+  assert.equal(
+    await cancelMirror.evaluate((element) => element === document.activeElement),
+    true,
+  );
+  await page.keyboard.press('Escape');
+  await mirrorDialog.waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    (selector) => document.activeElement?.matches(selector),
+    '.track-c-mirror-list button',
+  );
+  assert.equal(
+    await mirrorButton.evaluate((element) => element === document.activeElement),
+    true,
+    'Escape must close and restore focus to the invoking control.',
+  );
+
+  await mirrorButton.click();
+  await mirrorDialog.waitFor();
   await cancelMirror.click();
   await page.waitForFunction(
     (selector) => document.activeElement?.matches(selector),
@@ -340,7 +554,7 @@ try {
   );
   await mirrorButton.click();
   await mirrorDialog.waitFor();
-  await page.getByRole('button', { name: 'Confirm personal mirror' }).click();
+  await confirmMirror.click();
   await page.getByText(/Personal PDS Approved paper mirror recorded/).waitFor();
   assert.equal(
     await page.getByText(/paper TurnBoard/).count() >= 1,

@@ -430,9 +430,18 @@ try {
     name: 'Assignment proposal review',
   });
   await proposal.waitFor();
-  assert.equal(await proposal.getByText(/3 eligible/).count(), 1);
+  assert.equal(
+    await proposal.getByText('Unit 707', { exact: true }).count(),
+    1,
+  );
+  assert.equal(
+    await proposal.getByText(/All released sections: Common, A, B/).count(),
+    1,
+  );
   await proposal.getByRole('button', { name: 'Confirm personal assignment' }).click();
-  await page.getByText(/3 personal assignment records saved/).waitFor();
+  await page
+    .getByText(/1 Unit assigned across 3 released sections/)
+    .waitFor();
 
   await navigation.getByRole('button', { name: 'Walk' }).click();
   await page.getByPlaceholder('Property contact').fill('Joseph');

@@ -5,62 +5,106 @@ import {
   Paintbrush,
   ShieldAlert,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  TRACK_C_SECTIONS,
   type TrackCAssignmentReceipt,
   type TrackCBulkAssignmentProposal,
-  type TrackCSection,
   type TrackCState,
   type TrackCTrade,
   trackCSectionLabel,
 } from './model';
+import { confirmTrackCBulkAssignmentProposal } from './operations';
+import { AdditionalScopePanel } from './phase2-track-b/AdditionalScopePanel';
 import {
-  confirmTrackCBulkAssignmentProposal,
-  createTrackCBulkAssignmentProposal,
-} from './operations';
-import {
-  projectTrackCAssignmentEligibleUnits,
-} from './projections';
+  createPhase2TrackBAssignmentProposal,
+  projectPhase2TrackBAssignmentUnits,
+  type Phase2AdditionalScopeRecord,
+} from './phase2-track-b/contracts';
+import './phase2-track-b/phase2TrackB.css';
 
 interface AssignmentViewProps {
   readonly state: TrackCState;
   readonly createId: (prefix: string) => string;
   readonly now: () => string;
   readonly onStateChange: (state: TrackCState, reason: string) => void;
+  readonly initialCrewId?: string;
+  readonly additionalScopes?: readonly Phase2AdditionalScopeRecord[];
+  readonly onAdditionalScopeCreate?: (
+    record: Phase2AdditionalScopeRecord,
+  ) => void;
+  readonly onOpenChangeOrder?: (
+    record: Phase2AdditionalScopeRecord,
+  ) => void;
 }
+
+const uniqueWarnings = (proposal: TrackCBulkAssignmentProposal) =>
+  [...proposal.warnings, ...proposal.items.flatMap((item) => item.warnings)]
+    .filter(
+      (warning, index, all) =>
+        all.findIndex(
+          (candidate) =>
+            candidate.code === warning.code &&
+            candidate.message === warning.message &&
+            JSON.stringify(candidate.target) ===
+              JSON.stringify(warning.target),
+        ) === index,
+    );
 
 export const AssignmentView = ({
   state,
   createId,
   now,
   onStateChange,
+  initialCrewId,
+  additionalScopes = [],
+  onAdditionalScopeCreate,
+  onOpenChangeOrder,
 }: AssignmentViewProps) => {
-  const [trade, setTrade] = useState<TrackCTrade>('paint');
+  const initialCrew = state.crews.find((crew) => crew.id === initialCrewId);
+  const [trade, setTrade] = useState<TrackCTrade>(
+    initialCrew?.trade ?? 'paint',
+  );
+  const [crewId, setCrewId] = useState(initialCrew?.id ?? '');
+  const [unitIds, setUnitIds] = useState<readonly string[]>([]);
+  const [proposal, setProposal] = useState<TrackCBulkAssignmentProposal>();
+  const [receipt, setReceipt] = useState<TrackCAssignmentReceipt>();
+  const [message, setMessage] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
+  const confirmInFlightRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialCrewId) return;
+    const crew = state.crews.find((candidate) => candidate.id === initialCrewId);
+    if (!crew) return;
+    setTrade(crew.trade);
+    setCrewId(crew.id);
+    setUnitIds([]);
+    setProposal(undefined);
+    setReceipt(undefined);
+    setMessage(undefined);
+  }, [initialCrewId, state.crews]);
+
   const compatibleCrews = useMemo(
     () => state.crews.filter((crew) => crew.trade === trade),
     [state.crews, trade],
   );
   const eligibleUnits = useMemo(
-    () => projectTrackCAssignmentEligibleUnits(state, trade),
+    () =>
+      projectPhase2TrackBAssignmentUnits(state, trade).filter(
+        (option) => option.eligible,
+      ),
     [state, trade],
   );
-  const [crewId, setCrewId] = useState('');
-  const [unitIds, setUnitIds] = useState<readonly string[]>([]);
-  const [sectionMode, setSectionMode] = useState<'all-released' | 'specific'>(
-    'all-released',
-  );
-  const [sections, setSections] = useState<readonly TrackCSection[]>(['common']);
-  const [proposal, setProposal] = useState<TrackCBulkAssignmentProposal>();
-  const [receipt, setReceipt] = useState<TrackCAssignmentReceipt>();
-  const [message, setMessage] = useState<string>();
 
   const selectTrade = (nextTrade: TrackCTrade) => {
     setTrade(nextTrade);
     setCrewId('');
+    setUnitIds([]);
     setProposal(undefined);
     setReceipt(undefined);
     setMessage(undefined);
+    confirmInFlightRef.current = false;
+    setConfirming(false);
   };
 
   const toggleUnit = (unitId: string) => {
@@ -70,63 +114,86 @@ export const AssignmentView = ({
         : [...current, unitId],
     );
     setProposal(undefined);
-  };
-
-  const toggleSection = (section: TrackCSection) => {
-    setSections((current) =>
-      current.includes(section)
-        ? current.filter((candidate) => candidate !== section)
-        : [...current, section],
-    );
-    setProposal(undefined);
+    setReceipt(undefined);
+    setMessage(undefined);
+    confirmInFlightRef.current = false;
+    setConfirming(false);
   };
 
   const review = () => {
     setReceipt(undefined);
     setMessage(undefined);
-    setProposal(
-      createTrackCBulkAssignmentProposal(state, {
-        proposalId: createId('track-c-assignment-proposal'),
-        trade,
-        crewId,
-        unitIds,
-        sectionMode,
-        sections,
-        createdAt: now(),
-        createdBy: 'Los',
-      }),
-    );
+    confirmInFlightRef.current = false;
+    setConfirming(false);
+    const result = createPhase2TrackBAssignmentProposal(state, {
+      proposalId: createId('phase2-track-b-assignment-proposal'),
+      trade,
+      crewId,
+      unitIds,
+      createdAt: now(),
+      createdBy: 'Los',
+    });
+    if (!result.ok) {
+      setProposal(undefined);
+      setMessage(result.error);
+      return;
+    }
+    setProposal(result.value);
   };
 
   const confirm = () => {
-    if (!proposal) return;
+    if (!proposal || confirmInFlightRef.current) return;
+    confirmInFlightRef.current = true;
+    setConfirming(true);
     const result = confirmTrackCBulkAssignmentProposal(state, proposal, {
       recordedAt: now(),
       recordedBy: 'Los',
-      eventIdPrefix: createId('track-c-assignment'),
+      eventIdPrefix: `${proposal.id}-confirmed`,
       confirmed: true,
     });
     if (!result.ok) {
+      confirmInFlightRef.current = false;
+      setConfirming(false);
       setMessage(result.error.message);
       return;
     }
+
     onStateChange(result.value.state, 'bulk-assignment-confirmed');
     setReceipt(result.value.receipt);
+    const assignedUnitCount = new Set(
+      result.value.receipt.assignedTargets.map((target) => target.unitId),
+    ).size;
     setMessage(
-      `${result.value.receipt.assignedTargets.length} personal assignment records saved.`,
+      `${assignedUnitCount} Unit${assignedUnitCount === 1 ? '' : 's'} assigned across ${result.value.receipt.assignedTargets.length} released sections.`,
     );
     setProposal(undefined);
+    setUnitIds([]);
+    setConfirming(false);
+    // Keep the synchronous guard closed after success. A new Review explicitly
+    // opens it, so a rapid second confirm cannot append the same proposal twice.
   };
 
+  const proposalUnits = proposal?.unitIds.map((unitId) => {
+    const unit = state.units.find((candidate) => candidate.id === unitId);
+    const items = proposal.items.filter(
+      (item) => item.target.unitId === unitId && item.eligible,
+    );
+    return { unit, items };
+  });
+
   return (
-    <section className="track-c-assignment" aria-labelledby="track-c-assignment-heading">
+    <section
+      aria-labelledby="track-c-assignment-heading"
+      className="track-c-assignment phase2-track-b-assignment"
+    >
       <header className="track-c-view-heading">
         <div>
-          <h1 id="track-c-assignment-heading">Bulk assign</h1>
-          <p>Review before personal records change</p>
+          <h1 id="track-c-assignment-heading">Assign work</h1>
+          <p>One crew · one trade · released Units</p>
         </div>
         <ClipboardCheck aria-hidden="true" size={20} />
       </header>
+
       <div className="track-c-form-stack">
         <fieldset className="track-c-segmented">
           <legend>Trade</legend>
@@ -146,6 +213,7 @@ export const AssignmentView = ({
             );
           })}
         </fieldset>
+
         <label className="track-c-field">
           <span>Compatible crew</span>
           <select
@@ -153,18 +221,26 @@ export const AssignmentView = ({
             onChange={(event) => {
               setCrewId(event.target.value);
               setProposal(undefined);
+              setReceipt(undefined);
+              setMessage(undefined);
+              confirmInFlightRef.current = false;
+              setConfirming(false);
             }}
             value={crewId}
           >
             <option value="">Choose {trade} crew</option>
             {compatibleCrews.map((crew) => (
-              <option key={crew.id} value={crew.id}>{crew.name}</option>
+              <option key={crew.id} value={crew.id}>
+                {crew.name}
+                {crew.activeToday ? '' : ' · Not active today'}
+              </option>
             ))}
           </select>
         </label>
-        <fieldset className="track-c-choice-list">
-          <legend>Select Units</legend>
-          {eligibleUnits.map((unit) => (
+
+        <fieldset className="track-c-choice-list phase2-track-b-unit-list">
+          <legend>Eligible released Units</legend>
+          {eligibleUnits.map(({ unit, releasedTargets }) => (
             <label key={unit.id}>
               <input
                 checked={unitIds.includes(unit.id)}
@@ -173,143 +249,148 @@ export const AssignmentView = ({
               />
               <span>
                 <strong>Unit {unit.unitNumber}</strong>
-                <small>{unit.unitType} · {unit.locationLabel}</small>
+                <small>
+                  {unit.unitType} · {unit.locationLabel} ·{' '}
+                  {releasedTargets.length} released section
+                  {releasedTargets.length === 1 ? '' : 's'}
+                </small>
               </span>
             </label>
           ))}
           {eligibleUnits.length === 0 ? (
-            <p>No confirmed released {trade} work is eligible for assignment.</p>
+            <p>
+              No confirmed released {trade} Units are fully eligible for
+              assignment.
+            </p>
           ) : null}
         </fieldset>
-        <fieldset className="track-c-section-mode">
-          <legend>Section scope</legend>
-          <label>
-            <input
-              checked={sectionMode === 'all-released'}
-              name="track-c-section-mode"
-              onChange={() => {
-                setSectionMode('all-released');
-                setProposal(undefined);
-              }}
-              type="radio"
-            />
-            <span>All released sections</span>
-          </label>
-          <label>
-            <input
-              checked={sectionMode === 'specific'}
-              name="track-c-section-mode"
-              onChange={() => {
-                setSectionMode('specific');
-                setProposal(undefined);
-              }}
-              type="radio"
-            />
-            <span>Specific sections</span>
-          </label>
-          {sectionMode === 'specific' ? (
-            <div className="track-c-section-chips">
-              {TRACK_C_SECTIONS.map((section) => (
-                <button
-                  aria-pressed={sections.includes(section)}
-                  data-track-c-critical-target="true"
-                  key={section}
-                  onClick={() => toggleSection(section)}
-                  type="button"
-                >
-                  {trackCSectionLabel(section)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </fieldset>
-        <button
-          className="track-c-primary-button"
-          data-track-c-critical-target="true"
-          disabled={!crewId || unitIds.length === 0 || (sectionMode === 'specific' && sections.length === 0)}
-          onClick={review}
-          type="button"
-        >
-          Review personal proposal
-        </button>
+
+        <p className="phase2-track-b-inline-note">
+          All confirmed released sections are included automatically. Unreleased
+          or restricted sections are never added.
+        </p>
+
+        <div className="phase2-track-b-primary-dock">
+          <button
+            className="track-c-primary-button"
+            data-track-c-critical-target="true"
+            disabled={!crewId || unitIds.length === 0}
+            onClick={review}
+            type="button"
+          >
+            Review personal proposal
+          </button>
+        </div>
       </div>
+
       {proposal ? (
-        <section className="track-c-proposal" aria-label="Assignment proposal review">
+        <section
+          aria-label="Assignment proposal review"
+          className="track-c-proposal phase2-track-b-proposal"
+        >
           <header>
             <h2>Review</h2>
-            <span>
-              {proposal.items.filter((item) => item.eligible).length} eligible ·{' '}
-              {proposal.items.filter((item) => !item.eligible).length} blocked
-            </span>
+            <span>{proposalUnits?.length ?? 0} Units</span>
           </header>
           <p>
             {state.crews.find((crew) => crew.id === proposal.crewId)?.name} ·{' '}
             {proposal.trade === 'paint' ? 'Paint' : 'Clean'}
           </p>
-          {[...proposal.warnings, ...proposal.items.flatMap((item) => item.warnings)]
-            .filter(
-              (warning, index, all) =>
-                all.findIndex(
-                  (candidate) =>
-                    candidate.code === warning.code &&
-                    candidate.message === warning.message &&
-                    JSON.stringify(candidate.target) === JSON.stringify(warning.target),
-                ) === index,
-            )
-            .map((warning) => (
-              <div className="track-c-proposal__warning" key={`${warning.code}:${warning.message}:${warning.target?.unitId ?? ''}:${warning.target?.section ?? ''}`}>
-                <ShieldAlert aria-hidden="true" size={17} />
-                <span>
-                  <strong>{warning.code.replaceAll('-', ' ')}</strong>
-                  <small>{warning.message}</small>
-                </span>
-              </div>
-            ))}
+
+          {uniqueWarnings(proposal).map((warning) => (
+            <div
+              className="track-c-proposal__warning"
+              key={`${warning.code}:${warning.message}:${warning.target?.unitId ?? ''}:${warning.target?.section ?? ''}`}
+            >
+              <ShieldAlert aria-hidden="true" size={17} />
+              <span>
+                <strong>
+                  {warning.severity === 'blocking' ? 'Blocked' : 'Check'}
+                </strong>
+                <small>{warning.message}</small>
+              </span>
+            </div>
+          ))}
+
           <ul>
-            {proposal.items.map((item) => {
-              const unit = state.units.find((candidate) => candidate.id === item.target.unitId);
-              return (
-                <li className={item.eligible ? 'is-eligible' : 'is-blocked'} key={`${item.target.unitId}:${item.target.section}`}>
-                  {item.eligible ? <Check aria-hidden="true" size={16} /> : <ShieldAlert aria-hidden="true" size={16} />}
-                  Unit {unit?.unitNumber} · {trackCSectionLabel(item.target.section)}
-                </li>
-              );
-            })}
+            {proposalUnits?.map(({ unit, items }) => (
+              <li
+                className={items.length > 0 ? 'is-eligible' : 'is-blocked'}
+                key={unit?.id}
+              >
+                <Check aria-hidden="true" size={16} />
+                <span>
+                  <strong>Unit {unit?.unitNumber ?? 'Unavailable'}</strong>
+                  <small>
+                    All released sections:{' '}
+                    {items
+                      .map((item) => trackCSectionLabel(item.target.section))
+                      .join(', ') || 'None'}
+                  </small>
+                </span>
+              </li>
+            ))}
           </ul>
+
           <p className="track-c-boundary-copy">
-            Confirming changes personal Turn OS assignment records only. Paper and
-            payroll remain unchanged.
+            Confirmation records personal responsibility only. Paper, property
+            approval, and payroll remain unchanged.
           </p>
-          <div className="track-c-action-row">
+          <div className="track-c-action-row phase2-track-b-primary-dock">
             <button
               data-track-c-critical-target="true"
-              onClick={() => setProposal(undefined)}
+              onClick={() => {
+                setProposal(undefined);
+                confirmInFlightRef.current = false;
+                setConfirming(false);
+              }}
               type="button"
             >
-              Cancel
+              Edit
             </button>
             <button
               className="is-positive"
               data-track-c-critical-target="true"
-              disabled={!proposal.items.some((item) => item.eligible)}
+              disabled={
+                confirming ||
+                proposal.items.every((item) => !item.eligible) ||
+                proposal.warnings.some(
+                  (warning) => warning.severity === 'blocking',
+                )
+              }
               onClick={confirm}
               type="button"
             >
-              Confirm personal assignment
+              {confirming ? 'Saving…' : 'Confirm personal assignment'}
             </button>
           </div>
         </section>
       ) : null}
-      {message ? (
-        <div className="track-c-receipt" role="status">
+
+      {receipt ? (
+        <p className="phase2-track-b-receipt" role="status">
           <Check aria-hidden="true" size={18} />
-          <span>
-            <strong>{message}</strong>
-            <small>
-              {receipt?.skippedTargets.length ?? 0} blocked section(s) stayed unchanged.
-            </small>
-          </span>
-        </div>
+          Assignment saved to confirmed personal events.
+        </p>
+      ) : null}
+      {message ? <p role="status">{message}</p> : null}
+
+      {onAdditionalScopeCreate ? (
+        <details className="phase2-track-b-exceptions">
+          <summary>Exceptions</summary>
+          <p>
+            Record added scope separately. Normal crew assignment remains all
+            released sections.
+          </p>
+          <AdditionalScopePanel
+            createId={createId}
+            now={now}
+            onCreate={onAdditionalScopeCreate}
+            onOpenChangeOrder={onOpenChangeOrder}
+            records={additionalScopes}
+            state={state}
+          />
+        </details>
       ) : null}
     </section>
   );

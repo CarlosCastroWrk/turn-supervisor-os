@@ -2,22 +2,26 @@ import {
   ArrowLeft,
   ChevronRight,
   Droplets,
+  ListPlus,
   Paintbrush,
   Pencil,
   Phone,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import type {
-  TrackCCrewDetail,
   TrackCState,
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
 import {
-  projectTrackCCrewDetail,
   projectTrackCCrewSummaries,
   trackCUnitForTarget,
 } from './projections';
+import {
+  projectPhase2TrackBCrewDetail,
+  type Phase2TrackBCrewDetail,
+} from './phase2-track-b/contracts';
+import './phase2-track-b/phase2TrackB.css';
 
 interface CrewViewProps {
   readonly state: TrackCState;
@@ -26,13 +30,14 @@ interface CrewViewProps {
   readonly onCloseCrew: () => void;
   readonly onEditCrew?: (crewId: string) => void;
   readonly onContactCrew?: (crewId: string) => void;
+  readonly onAssignCrew?: (crewId: string) => void;
 }
 
 const CrewWorkList = ({
   detail,
   state,
 }: {
-  detail: TrackCCrewDetail;
+  detail: Phase2TrackBCrewDetail;
   state: TrackCState;
 }) => {
   const groups: readonly {
@@ -43,6 +48,7 @@ const CrewWorkList = ({
     { label: 'Crew-reported complete', work: detail.crewCompleteWork },
     { label: 'Los passed', work: detail.losPassedWork },
     { label: 'Open callbacks', work: detail.openCallbackWork },
+    { label: 'Resolved callbacks', work: detail.resolvedCallbackWork },
     { label: 'Property accepted', work: detail.propertyAcceptedWork },
   ];
   return (
@@ -82,16 +88,18 @@ const CrewDetail = ({
   onClose,
   onEdit,
   onContact,
+  onAssign,
 }: {
   state: TrackCState;
   crewId: string;
   onClose: () => void;
   onEdit?: () => void;
   onContact?: () => void;
+  onAssign?: () => void;
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const detail = useMemo(
-    () => projectTrackCCrewDetail(state, crewId),
+    () => projectPhase2TrackBCrewDetail(state, crewId),
     [crewId, state],
   );
 
@@ -120,10 +128,13 @@ const CrewDetail = ({
             {detail.crew.trade === 'paint' ? 'Paint' : 'Clean'} crew ·{' '}
             {detail.crew.activeToday ? 'Active today' : 'Not active today'}
           </p>
+          {detail.crew.phone && onContact ? (
+            <p className="phase2-track-b-crew-phone">{detail.crew.phone}</p>
+          ) : null}
         </div>
       </header>
       <div className="track-c-crew-detail__actions">
-        {onContact ? (
+        {onContact && detail.crew.phone ? (
           <button
             data-track-c-critical-target="true"
             onClick={onContact}
@@ -143,15 +154,26 @@ const CrewDetail = ({
             Edit
           </button>
         ) : null}
+        {onAssign ? (
+          <button
+            data-track-c-critical-target="true"
+            onClick={onAssign}
+            type="button"
+          >
+            <ListPlus aria-hidden="true" size={17} />
+            Assign work
+          </button>
+        ) : null}
       </div>
       <section className="track-c-stat-grid" aria-label="Confirmed crew event stats">
         {[
-          ['Current', detail.stats.currentAssignments],
+          ['Assigned Units', detail.currentAssignedUnitIds.length],
           ['Crew complete', detail.stats.crewReportedComplete],
-          ['Needs Los', detail.stats.needsLosInspection],
+          ['Awaiting Los', detail.stats.needsLosInspection],
+          ['Open callbacks', detail.stats.openCallbacks],
+          ['Resolved callbacks', detail.stats.resolvedCallbacks],
           ['Los passed', detail.stats.losPassed],
-          ['Callbacks', detail.stats.openCallbacks],
-          ['Accepted', detail.stats.propertyAccepted],
+          ['Property accepted', detail.stats.propertyAccepted],
         ].map(([label, value]) => (
           <div key={label}>
             <strong>{value}</strong>
@@ -196,6 +218,7 @@ export const CrewView = ({
   onCloseCrew,
   onEditCrew,
   onContactCrew,
+  onAssignCrew,
 }: CrewViewProps) => {
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
 
@@ -208,6 +231,9 @@ export const CrewView = ({
           onContactCrew ? () => onContactCrew(selectedCrewId) : undefined
         }
         onEdit={onEditCrew ? () => onEditCrew(selectedCrewId) : undefined}
+        onAssign={
+          onAssignCrew ? () => onAssignCrew(selectedCrewId) : undefined
+        }
         state={state}
       />
     );

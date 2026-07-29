@@ -17,7 +17,13 @@ const stylesPath = resolve(repoRoot, 'src/styles.css');
 const toastProviderPath = resolve(repoRoot, 'src/components/ToastProvider.tsx');
 const actionsPath = resolve(repoRoot, 'src/lib/actions.ts');
 const seedPath = resolve(repoRoot, 'src/data/seed.ts');
-const syntheticUnitCount = 300;
+const requestedUnitCount = Number(process.env.PDS_SCALE_UNIT_COUNT ?? 300);
+const syntheticUnitCount = Number.isInteger(requestedUnitCount) && requestedUnitCount > 0
+  ? requestedUnitCount
+  : 300;
+const unitsPerFloor = 20;
+const floorsPerBuilding = Math.ceil(syntheticUnitCount / unitsPerFloor);
+const searchUnitNumber = `${floorsPerBuilding}01`;
 const maxInitialRenderMs = 4_000;
 const maxInteractionMs = 1_000;
 
@@ -43,7 +49,7 @@ import { seedData } from ${JSON.stringify(seedPath)};
 import ${JSON.stringify(stylesPath)};
 
 const scaleData = createRealTurnProject(structuredClone(seedData), {
-  projectName: 'QA 300 Unit Launch Turn',
+  projectName: 'QA ${syntheticUnitCount} Unit Launch Turn',
   propertyName: 'Synthetic Scale Property',
   location: 'Synthetic browser test',
   startDate: '2026-07-27',
@@ -52,13 +58,13 @@ const scaleData = createRealTurnProject(structuredClone(seedData), {
   projectManagerName: 'QA Manager',
   buildingNames: ['Building A'],
   buildingCount: 1,
-  floorsPerBuilding: 15,
-  unitsPerFloor: 20,
+  floorsPerBuilding: ${floorsPerBuilding},
+  unitsPerFloor: ${unitsPerFloor},
   firstUnitNumber: 101,
   bedCount: 4,
   bathroomCount: 4,
   hasCommonArea: true,
-  notes: 'Synthetic 300-Unit browser fixture.',
+  notes: 'Synthetic ${syntheticUnitCount}-Unit browser fixture.',
 });
 localStorage.setItem('turn-supervisor-os:v0.1', JSON.stringify(scaleData));
 const { default: App } = await import(${JSON.stringify(appPath)});
@@ -145,9 +151,9 @@ try {
   const results = {};
 
   for (const target of [
-    { name: 'mac-300', viewport: { width: 1440, height: 900 } },
-    { name: 'ipad-300', viewport: { width: 1024, height: 768 } },
-    { name: 'iphone-300', viewport: { width: 390, height: 844 } },
+    { name: `mac-${syntheticUnitCount}`, viewport: { width: 1440, height: 900 } },
+    { name: `ipad-${syntheticUnitCount}`, viewport: { width: 1024, height: 768 } },
+    { name: `iphone-${syntheticUnitCount}`, viewport: { width: 390, height: 844 } },
   ]) {
     const context = await browser.newContext({ viewport: target.viewport });
     const page = await context.newPage();
@@ -172,7 +178,7 @@ try {
     const search = page.getByPlaceholder('Search Units or crews');
     await search.click();
     const searchStartedAt = performance.now();
-    await search.type('1301');
+    await search.type(searchUnitNumber);
     await waitForUnitRowCount(page, 1);
     const searchTypingMs = Math.round(performance.now() - searchStartedAt);
     assert.ok(
@@ -207,8 +213,8 @@ try {
     );
     assert.equal(
       await page.evaluate(() => window.location.hash),
-      '#/units',
-      `${target.name} changed the host route while opening the embedded Unit workspace.`,
+      `#/units/${encodeURIComponent(unitId)}`,
+      `${target.name} did not preserve the selected Unit in the durable host route.`,
     );
     assert.equal(
       await page.getByTestId('track-c-unit-row').count(),

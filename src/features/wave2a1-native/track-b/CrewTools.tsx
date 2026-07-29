@@ -17,11 +17,13 @@ const tradeIcons = {
 export interface TrackBCrewListPageProps {
   crews: readonly TrackBCrewRecord[];
   statusLabel: string;
+  backLabel?: string;
   onAdd: () => void;
   onBack: () => void;
   onEdit: (crew: TrackBCrewRecord) => void;
 }
 export function TrackBCrewListPage({
+  backLabel,
   crews,
   onAdd,
   onBack,
@@ -30,6 +32,7 @@ export function TrackBCrewListPage({
 }: TrackBCrewListPageProps) {
   return (
     <NativeDetailShell
+      backLabel={backLabel}
       description="Paint and Clean contacts for this personal workspace."
       onBack={onBack}
       statusLabel={statusLabel}

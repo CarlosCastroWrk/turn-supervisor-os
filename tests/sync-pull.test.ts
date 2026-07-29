@@ -933,6 +933,66 @@ test('initial remote replacement preserves only parent rows required by local fi
   assert.deepEqual(replaced.walkSessions, local.walkSessions);
 });
 
+test('remote absence cannot delete the active configured local project or its scoped roster', () => {
+  const local = appData({
+    ...project(),
+    fieldConfiguration: {
+      activatedAt: stamp,
+      activatedBy: 'Los',
+      defaultCrewIdsByTrade: { clean: [], paint: [] },
+      defaultPropertyContactId: 'contact-sync-pull',
+      defaultWalkthroughScheduleWording: 'Synthetic daily walkthrough at noon.',
+      defaultWorkingHoursWording: 'Synthetic occupied-room window: 10 AM–5 PM.',
+      enabledTrades: { clean: true, paint: true },
+      permissions: {
+        officialApprovals: false,
+        paperTurnBoardAuthoritative: true,
+        payrollCalculations: false,
+        personalAppData: 'synthetic-or-explicitly-approved-only',
+        photos: 'not-confirmed',
+      },
+      projectId: 'project_sync_pull',
+      role: 'turn-supervisor',
+      status: 'active',
+      version: 1,
+    },
+  });
+
+  const replaced = replaceRemoteData(local, {
+    buildings: [],
+    crewMembers: [],
+    floors: [],
+    projects: [],
+    units: [],
+  });
+
+  assert.equal(replaced.activeProjectId, local.activeProjectId);
+  assert.deepEqual(replaced.projects.map((item) => item.id), ['project_sync_pull']);
+  assert.deepEqual(
+    replaced.projects[0]?.fieldConfiguration,
+    local.projects[0]?.fieldConfiguration,
+  );
+  assert.deepEqual(replaced.units, local.units);
+});
+
+test('remote replacement fails closed when the retained project identity points at a different remote id', () => {
+  const local = appData();
+  const conflictingRemoteProject = {
+    ...project('2026-07-08T12:05:00.000Z'),
+    id: 'different-remote-project-id',
+  };
+
+  assert.throws(
+    () => replaceRemoteData(local, {
+      projects: [conflictingRemoteProject],
+      units: [],
+    }),
+    /identity conflicts.*Sync stopped without replacing local data/iu,
+  );
+  assert.deepEqual(local.projects.map((item) => item.id), ['project_sync_pull']);
+  assert.deepEqual(local.units.map((item) => item.id), ['unit_sync_pull_104']);
+});
+
 test('initial remote replacement preserves a real-project crew referenced only by a Field Event actor', () => {
   const local = withLocalFieldCollections();
   const eventActorCrew = {

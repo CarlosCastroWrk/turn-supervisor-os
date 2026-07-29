@@ -143,6 +143,59 @@ export const projectTrackCWork = (
   };
 };
 
+export interface TrackCAssignmentEligibility {
+  readonly eligible: boolean;
+  readonly reasons: readonly string[];
+  readonly projection?: TrackCWorkProjection;
+}
+
+export const projectTrackCAssignmentEligibility = (
+  state: TrackCState,
+  target: TrackCWorkTarget,
+): TrackCAssignmentEligibility => {
+  const projection = projectTrackCWork(state, target);
+  if (!projection) {
+    return {
+      eligible: false,
+      reasons: ['The Unit, trade, or section is not present in the active project roster.'],
+    };
+  }
+
+  const reasons: string[] = [];
+  if (projection.release !== 'released') {
+    reasons.push('The selected section and trade are not confirmed released.');
+  }
+  if (projection.sourceConfidence !== 'confirmed') {
+    reasons.push('Release or assignment-source evidence is unresolved.');
+  }
+  if (projection.access !== 'clear') {
+    reasons.push('Access or occupancy restrictions block assignment.');
+  }
+  if (projection.assignmentConflict) {
+    reasons.push('Conflicting assignment responsibility remains unresolved.');
+  }
+  if (projection.activeCrewIds.length > 0) {
+    reasons.push('A confirmed active crew is already responsible for this work.');
+  }
+
+  return {
+    eligible: reasons.length === 0,
+    projection,
+    reasons,
+  };
+};
+
+export const projectTrackCAssignmentEligibleUnits = (
+  state: TrackCState,
+  trade: TrackCTrade,
+): readonly TrackCUnit[] => state.units.filter((unit) =>
+  unit.applicableSections.some((section) =>
+    projectTrackCAssignmentEligibility(state, {
+      section,
+      trade,
+      unitId: unit.id,
+    }).eligible));
+
 export const projectTrackCUnitWork = (
   state: TrackCState,
   unitId: string,

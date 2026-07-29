@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCoalescedWriter, type CoalescedTimer } from '../src/lib/coalescedWriter.ts';
 import { seedData } from '../src/data/seed.ts';
-import { getAppDataSaveStatus, loadAppData, persistAppDataNow } from '../src/lib/storage.ts';
+import {
+  commitAppDataUpdateNow,
+  getAppDataSaveStatus,
+  loadAppData,
+  persistAppDataNow,
+} from '../src/lib/storage.ts';
+import { applyDayTaskStateChange } from '../src/features/wave2a2-core/appDataAdapters.ts';
+import { createSyntheticActiveSession } from '../src/features/wave2a2-track-b/fixtures.ts';
 
 const fakeTimer = () => {
   let callback: (() => void) | undefined;
@@ -187,6 +194,64 @@ test('immediate persistence reports quota failure so a large import can fail clo
       Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
     }
   }
+});
+
+test('Start Day state and success remain atomic across failure, retry, and rapid duplicate confirmation', () => {
+  const initial = structuredClone(seedData);
+  const started = createSyntheticActiveSession();
+  assert.equal(started.errors.length, 0);
+  assert.ok(started.session);
+  assert.ok(started.startEvent);
+  if (!started.session || !started.startEvent) return;
+
+  const change = {
+    event: started.startEvent,
+    reason: 'day-started' as const,
+    recordedAt: started.session.startedAt ?? '2026-08-03T12:15:00.000Z',
+    session: started.session,
+  };
+  const update = (current: typeof initial) => applyDayTaskStateChange(current, change);
+  let persistedCandidate: typeof initial | undefined;
+
+  const failed = commitAppDataUpdateNow(initial, update, (candidate) => {
+    persistedCandidate = candidate;
+    return false;
+  });
+  assert.equal(failed.ok, false);
+  assert.strictEqual(failed.data, initial);
+  assert.ok(persistedCandidate?.daySessions.some(
+    (session) => session.id === started.session?.daySessionId,
+  ));
+  assert.equal(initial.daySessions.some(
+    (session) => session.id === started.session?.daySessionId,
+  ), false);
+  assert.equal(initial.fieldEvents.some(
+    (event) => event.id === started.startEvent?.eventId,
+  ), false);
+
+  const retried = commitAppDataUpdateNow(initial, update, () => true);
+  assert.equal(retried.ok, true);
+  assert.equal(retried.data.daySessions.filter(
+    (session) => session.id === started.session?.daySessionId,
+  ).length, 1);
+  assert.equal(retried.data.fieldEvents.filter(
+    (event) => event.id === started.startEvent?.eventId,
+  ).length, 1);
+
+  const duplicate = commitAppDataUpdateNow(retried.data, update, () => true);
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.data.daySessions.filter(
+    (session) => session.id === started.session?.daySessionId,
+  ).length, 1);
+  assert.equal(duplicate.data.fieldEvents.filter(
+    (event) => event.id === started.startEvent?.eventId,
+  ).length, 1);
+
+  const thrown = commitAppDataUpdateNow(initial, update, () => {
+    throw new DOMException('Synthetic storage failure', 'QuotaExceededError');
+  });
+  assert.equal(thrown.ok, false);
+  assert.strictEqual(thrown.data, initial);
 });
 
 test('malformed local field arrays fail safely on reopen without replacing stored data', () => {

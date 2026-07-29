@@ -10,6 +10,9 @@ import type {
 } from '../wave2a2-track-b/types';
 import type {
   TrackCState,
+  TrackCTrade,
+  TrackCWorkProjection,
+  TrackCWorkTarget,
 } from '../wave2a2-track-c/model';
 import type { ActivityItem } from '../operational-memory/contracts';
 
@@ -175,6 +178,26 @@ export interface CanonicalTodayTaskProjection {
   readonly queueCounts: Readonly<Record<TodayTaskQueueId, number>>;
 }
 
+export type CanonicalWorkQueueId =
+  | 'working'
+  | 'waiting'
+  | 'callbacks'
+  | 'ready-to-walk';
+
+export interface CanonicalWorkRecord {
+  readonly id: string;
+  readonly target: TrackCWorkTarget;
+  readonly unitNumber: string;
+  readonly unitType: string;
+  readonly locationLabel: string;
+  readonly trade: TrackCTrade;
+  readonly crewId?: string;
+  readonly crewName?: string;
+  readonly queue?: CanonicalWorkQueueId;
+  readonly waitingReasons: readonly string[];
+  readonly projection: TrackCWorkProjection;
+}
+
 export interface CanonicalFieldProjection {
   readonly projectId: string;
   readonly daySessionId?: string;
@@ -184,16 +207,26 @@ export interface CanonicalFieldProjection {
     readonly callbacks: number;
     readonly ready: number;
     readonly unitsTouched: number;
+    readonly activity: number;
   };
   readonly grains: {
     readonly activity: 'events';
     readonly crewCurrentWork: 'section-trades';
-    readonly queues: 'sections';
+    readonly queues: 'section-trades';
     readonly todayTaskProgress: 'sections';
     readonly unitsTouched: 'units';
   };
   readonly activity: readonly TrackAFieldActivity[];
+  readonly workRecords: readonly CanonicalWorkRecord[];
+  readonly queues: Readonly<Record<
+    CanonicalWorkQueueId,
+    readonly CanonicalWorkRecord[]
+  >>;
+  readonly releasedWork: readonly CanonicalWorkRecord[];
+  readonly walkCandidates: readonly CanonicalWorkRecord[];
+  readonly assignmentConflicts: readonly CanonicalWorkRecord[];
   readonly crewCurrentWork: readonly CanonicalCrewCurrentWork[];
+  readonly trackCState: TrackCState;
   readonly todayTask: CanonicalTodayTaskProjection;
   readonly boundaries: {
     readonly paperTurnBoardAuthoritative: true;

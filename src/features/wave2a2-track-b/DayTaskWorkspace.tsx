@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import {
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -132,7 +133,10 @@ interface StartDayFlowProps {
   now: () => string;
   onCancel: () => void;
   onImportWork: () => void;
-  onStarted: (session: DaySession, event: DaySessionEvent) => void;
+  onStarted: (
+    session: DaySession,
+    event: DaySessionEvent,
+  ) => boolean | Promise<boolean>;
   prefill?: StartDayPrefill;
   propertyName: string;
   propertyId: string;
@@ -188,6 +192,9 @@ export function StartDayFlow({
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<readonly string[]>([]);
   const [warnings, setWarnings] = useState<readonly string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [persistenceFailed, setPersistenceFailed] = useState(false);
+  const startInFlight = useRef(false);
   const [review, setReview] = useState<StartDayReview>(() => ({
     accountId,
     activeCrewIdsByTrade: {
@@ -267,12 +274,32 @@ export function StartDayFlow({
     setStep((current) => Math.min(START_DAY_STEPS.length - 1, current + 1));
   };
 
-  const start = () => {
+  const start = async () => {
+    if (startInFlight.current) return;
     const result = startDaySession(review, releases, propertyRoster, existingSessions, now());
     setErrors(result.errors);
     setWarnings(result.warnings);
-    if (result.session && result.startEvent) {
-      onStarted(result.session, result.startEvent);
+    if (!result.session || !result.startEvent) return;
+
+    startInFlight.current = true;
+    setSaving(true);
+    setPersistenceFailed(false);
+    try {
+      const persisted = await onStarted(result.session, result.startEvent);
+      if (!persisted) {
+        setPersistenceFailed(true);
+        setErrors([
+          'Start Day was not saved. Nothing was started or added to Activity. Retry, edit the review, or cancel.',
+        ]);
+      }
+    } catch {
+      setPersistenceFailed(true);
+      setErrors([
+        'Start Day could not be saved. Nothing was started or added to Activity. Retry, edit the review, or cancel.',
+      ]);
+    } finally {
+      startInFlight.current = false;
+      setSaving(false);
     }
   };
 
@@ -551,15 +578,35 @@ export function StartDayFlow({
             Continue
           </button>
         ) : (
-          <button
-            className="w2a2b-primary-button"
-            data-track-b-critical-target="true"
-            disabled={!review.explicitConfirmation}
-            onClick={start}
-            type="button"
-          >
-            Start Day
-          </button>
+          <>
+            {persistenceFailed ? (
+              <>
+                <button
+                  data-track-b-critical-target="true"
+                  onClick={() => setStep(6)}
+                  type="button"
+                >
+                  Edit review
+                </button>
+                <button
+                  data-track-b-critical-target="true"
+                  onClick={onCancel}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : null}
+            <button
+              className="w2a2b-primary-button"
+              data-track-b-critical-target="true"
+              disabled={!review.explicitConfirmation || saving}
+              onClick={() => void start()}
+              type="button"
+            >
+              {saving ? 'Saving Day Session…' : persistenceFailed ? 'Retry Start Day' : 'Start Day'}
+            </button>
+          </>
         )}
       </footer>
     </section>
@@ -752,6 +799,7 @@ interface DayTaskHomeProps {
   scopeErrors: readonly string[];
   session?: DaySession;
   task: TodayTask | null;
+  queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
 }
 
 function DayTaskHome({
@@ -766,8 +814,9 @@ function DayTaskHome({
   scopeErrors,
   session,
   task,
+  queueCounts,
 }: DayTaskHomeProps) {
-  const counts = getTodayTaskQueueCounts(task);
+  const counts = queueCounts ?? getTodayTaskQueueCounts(task);
   const progress = calculateTodayTaskProgress(task);
   const active = isOpenDay(session);
 
@@ -1055,9 +1104,13 @@ export interface DayTaskWorkspaceProps {
   initialSession?: DaySession;
   initialTask?: TodayTask | null;
   now?: () => string;
-  onDayStateChange?: (change: DayTaskStateChange) => void;
+  onDayStateChange?: (
+    change: DayTaskStateChange,
+  ) => boolean | Promise<boolean> | void;
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
+  onOpenQueueId?: (queueId: TodayTaskQueueId) => void;
   onOpenTaskDetail?: () => void;
+  queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
   startDayPrefill?: StartDayPrefill;
@@ -1089,9 +1142,11 @@ export function DayTaskWorkspace({
   now = nowIso,
   onDayStateChange,
   onExternalAction,
+  onOpenQueueId,
   onOpenTaskDetail,
   propertyRoster,
   releases,
+  queueCounts,
   startDayPrefill,
   startedBy,
 }: DayTaskWorkspaceProps) {
@@ -1141,17 +1196,19 @@ export function DayTaskWorkspace({
         now={now}
         onCancel={() => setView({ id: 'home' })}
         onImportWork={() => externalAction('import-work')}
-        onStarted={(nextSession, event) => {
-          setSession(nextSession);
-          setEvents((current) => [...current, event]);
-          onDayStateChange?.({
+        onStarted={async (nextSession, event) => {
+          const persisted = await onDayStateChange?.({
             event,
             reason: 'day-started',
             recordedAt: event.recordedAt,
             session: nextSession,
           });
+          if (persisted === false) return false;
+          setSession(nextSession);
+          setEvents((current) => [...current, event]);
           setReceipt('Day Session started and restored as Los’s personal active day.');
           setView({ id: 'home' });
+          return true;
         }}
         prefill={startDayPrefill}
         propertyId={propertyRoster.propertyId}
@@ -1218,7 +1275,13 @@ export function DayTaskWorkspace({
         currentDate={currentDate}
         onAction={externalAction}
         onEndDay={() => setView({ id: 'end-day' })}
-        onOpenQueue={(queue) => setView({ id: 'queue', queue })}
+        onOpenQueue={(queue) => {
+          if (onOpenQueueId) {
+            onOpenQueueId(queue.id);
+            return;
+          }
+          setView({ id: 'queue', queue });
+        }}
         onOpenTaskDetail={onOpenTaskDetail}
         onStartDay={() => setView({ id: 'start-day' })}
         propertyName={propertyRoster.propertyName}
@@ -1226,6 +1289,7 @@ export function DayTaskWorkspace({
         scopeErrors={isOpenDay(session) ? taskProjection.errors : []}
         session={session}
         task={isOpenDay(session) ? task : null}
+        queueCounts={queueCounts}
       />
       {receipt ? (
         <div className="w2a2b-toast" role="status">

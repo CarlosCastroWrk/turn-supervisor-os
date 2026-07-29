@@ -129,6 +129,28 @@ try {
     }
     await assertNoHorizontalOverflow(page, `${target.name} More`);
 
+    await page.getByRole('button', { name: /^Crews\b/u }).click();
+    assert.equal(
+      new URL(page.url()).hash,
+      '#/more',
+      'Opening the personal Crew manager changed the durable field-crew route.',
+    );
+    await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Add crew', exact: true }).click();
+    await page.getByRole('heading', { name: 'Add Crew', exact: true }).waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 0, 'Add Crew opened a legacy dialog.');
+    const crewNameInput = page.getByRole('textbox', { name: 'Name', exact: true });
+    await crewNameInput.waitFor();
+    assert.equal(
+      await crewNameInput.evaluate((element) => getComputedStyle(element).fontSize),
+      '16px',
+      'Add Crew retained an iPhone-zoom-prone text size.',
+    );
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Back from Crews', exact: true }).click();
+    await page.getByRole('heading', { name: 'More', exact: true }).waitFor();
+
     await page.goto(`${baseUrl}/#/issues`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Issues', exact: true }).waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0, 'Issues opened a dialog by default.');
@@ -142,17 +164,12 @@ try {
     await page.goto(`${baseUrl}/#/crews`, { waitUntil: 'networkidle' });
     await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
     assert.equal(await page.getByRole('dialog').count(), 0, 'Crews opened a dialog by default.');
-    await page.getByRole('button', { name: 'Add crew', exact: true }).click();
-    await page.getByRole('heading', { name: 'Add Crew', exact: true }).waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 0, 'Add Crew opened a legacy dialog.');
-    const crewNameInput = page.getByRole('textbox', { name: 'Name', exact: true });
-    await crewNameInput.waitFor();
-    assert.equal(
-      await crewNameInput.evaluate((element) => getComputedStyle(element).fontSize),
-      '16px',
-      'Add Crew retained an iPhone-zoom-prone text size.',
-    );
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Add crew', exact: true }).count(), 0);
+    const firstCrew = page.getByRole('button', { name: /^Open .* detail$/u }).first();
+    await firstCrew.waitFor();
+    await firstCrew.click();
+    assert.match(new URL(page.url()).hash, /^#\/crews\//u);
+    await page.getByRole('button', { name: 'Back to crew list', exact: true }).click();
     await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, `${target.name} Crew`);
 
@@ -171,7 +188,6 @@ try {
   }
 
   const hostRoutes = [
-    { button: 'Crews', hash: '#/crews', heading: 'Crews' },
     { button: 'Reports', hash: '#/reports', heading: 'Reports and Proof' },
     { button: 'Setup', hash: '#/setup', heading: 'Activate project' },
     { button: 'Backup', hash: '#/export', heading: 'Data and backup' },

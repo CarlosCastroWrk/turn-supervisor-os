@@ -42,6 +42,9 @@ import {
   PROJECT_SETUP_STEPS,
   clampProjectSetupStep,
 } from '../src/features/wave2a21-track-a/projectSetup.ts';
+import {
+  projectCanonicalFieldConsumers,
+} from '../src/features/launch-command-center/canonicalFieldConsumers.ts';
 
 const NOW = '2026-07-29T14:00:00.000Z';
 const PROJECT_ID = 'project-wave2a21-track-a';
@@ -583,6 +586,7 @@ test('one canonical projection provides shared queue counts, Units touched, crew
   });
 
   assert.deepEqual(projection.counts, {
+    activity: 4,
     callbacks: 1,
     ready: 1,
     unitsTouched: 2,
@@ -602,7 +606,7 @@ test('one canonical projection provides shared queue counts, Units touched, crew
   assert.deepEqual(projection.grains, {
     activity: 'events',
     crewCurrentWork: 'section-trades',
-    queues: 'sections',
+    queues: 'section-trades',
     todayTaskProgress: 'sections',
     unitsTouched: 'units',
   });
@@ -612,6 +616,69 @@ test('one canonical projection provides shared queue counts, Units touched, crew
     paperTurnBoardAuthoritative: true,
     payrollCalculated: false,
   });
+});
+
+test('canonical consumer lists, badges, queue counts, and exact section-trade records stay in parity', () => {
+  const projection = buildCanonicalFieldProjection({
+    accountId: 'los-personal',
+    activeDaySessionId: DAY_SESSION_ID,
+    fieldEvents: [
+      fieldEvent('event-work', 'work-started', 'unit-101'),
+      fieldEvent('event-callback', 'callback-opened', 'unit-103'),
+      fieldEvent('event-project', 'project-activated'),
+    ],
+    projectId: PROJECT_ID,
+    todayTask: createTodayTask(),
+    trackCState: createTrackCState(),
+  });
+  const consumers = projectCanonicalFieldConsumers(projection, new Set());
+
+  assert.equal(projection.counts.working, projection.queues.working.length);
+  assert.equal(projection.counts.waiting, projection.queues.waiting.length);
+  assert.equal(projection.counts.callbacks, projection.queues.callbacks.length);
+  assert.equal(projection.counts.ready, projection.queues['ready-to-walk'].length);
+  assert.equal(projection.counts.activity, projection.activity.length);
+  assert.equal(
+    consumers.homeRecords.length,
+    projection.counts.working
+      + projection.counts.waiting
+      + projection.counts.callbacks
+      + projection.counts.ready,
+  );
+  assert.equal(
+    consumers.notifications.filter((item) => item.category === 'callbacks').length,
+    projection.counts.callbacks,
+  );
+  assert.equal(
+    consumers.notifications.filter((item) => item.category === 'inspections').length,
+    projection.counts.ready,
+  );
+  assert.equal(
+    consumers.searchGroups.find((group) => group.id === 'activity')?.results.length,
+    projection.counts.activity,
+  );
+
+  for (const record of projection.queues.working) {
+    assert.equal(record.projection.release, 'released');
+    assert.ok(record.projection.responsibleCrewId);
+    assert.ok(['assigned', 'working'].includes(record.projection.execution));
+  }
+  for (const record of projection.queues.waiting) {
+    assert.ok(record.waitingReasons.length > 0);
+  }
+  for (const record of projection.queues.callbacks) {
+    assert.equal(record.projection.callbackOpen, true);
+  }
+  for (const record of projection.queues['ready-to-walk']) {
+    assert.equal(record.projection.inspection, 'los-passed');
+    assert.equal(record.projection.property, 'pending-property-walk');
+  }
+  assert.equal(
+    projection.workRecords.some((record) =>
+      record.projection.release === 'unreleased'
+      && record.projection.confirmedEventCount === 0),
+    false,
+  );
 });
 
 test('durable field-event Activity adapter is project scoped, exact, sorted, and deduplicated', () => {

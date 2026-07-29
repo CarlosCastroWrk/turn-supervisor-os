@@ -89,12 +89,14 @@ const startDayValues = resolveStartDayValues(configuration, contacts, {
 
 const projection: CanonicalFieldProjection = {
   activity: [],
+  assignmentConflicts: [],
   boundaries: {
     officialApprovalMutated: false,
     paperTurnBoardAuthoritative: true,
     payrollCalculated: false,
   },
   counts: {
+    activity: 0,
     callbacks: 1,
     ready: 1,
     unitsTouched: 3,
@@ -106,11 +108,18 @@ const projection: CanonicalFieldProjection = {
   grains: {
     activity: 'events',
     crewCurrentWork: 'section-trades',
-    queues: 'sections',
+    queues: 'section-trades',
     todayTaskProgress: 'sections',
     unitsTouched: 'units',
   },
   projectId: PROJECT_ID,
+  queues: {
+    callbacks: [],
+    'ready-to-walk': [],
+    waiting: [],
+    working: [],
+  },
+  releasedWork: [],
   todayTask: {
     progress: {
       actual: 2,
@@ -130,6 +139,22 @@ const projection: CanonicalFieldProjection = {
     },
     task: null,
   },
+  trackCState: {
+    completedWalks: [],
+    crews: [],
+    events: [],
+    propertyId: PROJECT_ID,
+    propertyName: 'Synthetic Moon Tower',
+    terminology: {
+      boardName: 'TurnBoard',
+      paperReminder: 'Paper remains authoritative.',
+      personalMirrorLabel: 'PDS Approved',
+      propertyAcceptanceLabel: 'Property accepted',
+    },
+    units: [],
+  },
+  walkCandidates: [],
+  workRecords: [],
 };
 
 const detailRows = Array.from(

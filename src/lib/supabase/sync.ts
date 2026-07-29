@@ -1044,6 +1044,51 @@ const appendRequiredLocalRows = <T extends { id: string }>(
   ];
 };
 
+const appendRequiredProjectRows = <T extends { id: string; projectId: string }>(
+  remoteRows: T[],
+  localRows: T[],
+  requiredProjectIds: Set<string>,
+) => {
+  const remoteIds = new Set(remoteRows.map((row) => row.id));
+  return [
+    ...remoteRows,
+    ...localRows.filter(
+      (row) => requiredProjectIds.has(row.projectId) && !remoteIds.has(row.id),
+    ),
+  ];
+};
+
+const projectIdentity = (project: Project) => [
+  project.propertyName,
+  project.location,
+]
+  .map((value) => value.trim().toLocaleLowerCase())
+  .join('|');
+
+const assertUnambiguousRetainedProjectIdentity = (
+  localProjects: readonly Project[],
+  remoteProjects: readonly Project[],
+  retainedProjectIds: ReadonlySet<string>,
+) => {
+  const retainedProjects = localProjects.filter((project) =>
+    retainedProjectIds.has(project.id));
+
+  retainedProjects.forEach((localProject) => {
+    const identity = projectIdentity(localProject);
+    const remoteMatches = remoteProjects.filter(
+      (remoteProject) => projectIdentity(remoteProject) === identity,
+    );
+    if (
+      remoteMatches.length > 1
+      || remoteMatches.some((remoteProject) => remoteProject.id !== localProject.id)
+    ) {
+      throw new Error(
+        `Remote project identity conflicts with retained local project ${localProject.id}. Sync stopped without replacing local data.`,
+      );
+    }
+  });
+};
+
 const localFieldParentScope = (local: AppData) => {
   const projectIds = new Set<string>();
   const unitIds = new Set<string>();
@@ -1051,6 +1096,11 @@ const localFieldParentScope = (local: AppData) => {
   const buildingIds = new Set<string>();
   const floorIds = new Set<string>();
 
+  local.projects.forEach((project) => {
+    if (project.id === local.activeProjectId || project.fieldConfiguration) {
+      projectIds.add(project.id);
+    }
+  });
   (local.daySessions ?? []).forEach((session) => {
     projectIds.add(session.projectId);
     session.activePaintCrewIds.forEach((crewId) => crewIds.add(crewId));
@@ -1071,6 +1121,18 @@ const localFieldParentScope = (local: AppData) => {
   });
   (local.walkSessions ?? []).forEach((session) => projectIds.add(session.projectId));
 
+  local.units.forEach((unit) => {
+    if (projectIds.has(unit.projectId)) unitIds.add(unit.id);
+  });
+  local.crewMembers.forEach((crew) => {
+    if (crew.projectId && projectIds.has(crew.projectId)) crewIds.add(crew.id);
+  });
+  local.buildings.forEach((building) => {
+    if (projectIds.has(building.projectId)) buildingIds.add(building.id);
+  });
+  local.floors.forEach((floor) => {
+    if (buildingIds.has(floor.buildingId)) floorIds.add(floor.id);
+  });
   local.units.forEach((unit) => {
     if (!unitIds.has(unit.id)) return;
     projectIds.add(unit.projectId);
@@ -1094,10 +1156,16 @@ const localFieldParentScope = (local: AppData) => {
 export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
   const remoteWithLocalDemo = withLocalDemoRows(local, remote);
   const required = localFieldParentScope(local);
+  const remoteProjects = (remoteWithLocalDemo.projects ?? local.projects) as Project[];
+  assertUnambiguousRetainedProjectIdentity(
+    local.projects,
+    remoteProjects,
+    required.projectIds,
+  );
   const projects = preserveLocalProjectConfiguration(
     local.projects,
     appendRequiredLocalRows(
-      (remoteWithLocalDemo.projects ?? local.projects) as Project[],
+      remoteProjects,
       local.projects,
       required.projectIds,
     ),
@@ -1130,18 +1198,46 @@ export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppDa
     floors,
     units,
     crewMembers,
-    assignments: (remoteWithLocalDemo.assignments ?? local.assignments) as Assignment[],
-    issues: (remoteWithLocalDemo.issues ?? local.issues) as Issue[],
-    photoNotes: (remoteWithLocalDemo.photoNotes ?? local.photoNotes) as PhotoNote[],
-    dailyLogs: reconcileDailyLogs([], (remoteWithLocalDemo.dailyLogs ?? local.dailyLogs) as DailyLog[]),
-    reportDrafts: (remoteWithLocalDemo.reportDrafts ?? local.reportDrafts) as ReportDocumentDraft[],
+    assignments: appendRequiredProjectRows(
+      (remoteWithLocalDemo.assignments ?? local.assignments) as Assignment[],
+      local.assignments,
+      required.projectIds,
+    ),
+    issues: appendRequiredProjectRows(
+      (remoteWithLocalDemo.issues ?? local.issues) as Issue[],
+      local.issues,
+      required.projectIds,
+    ),
+    photoNotes: appendRequiredProjectRows(
+      (remoteWithLocalDemo.photoNotes ?? local.photoNotes) as PhotoNote[],
+      local.photoNotes,
+      required.projectIds,
+    ),
+    dailyLogs: reconcileDailyLogs([], appendRequiredProjectRows(
+      (remoteWithLocalDemo.dailyLogs ?? local.dailyLogs) as DailyLog[],
+      local.dailyLogs,
+      required.projectIds,
+    )),
+    reportDrafts: appendRequiredProjectRows(
+      (remoteWithLocalDemo.reportDrafts ?? local.reportDrafts) as ReportDocumentDraft[],
+      local.reportDrafts,
+      required.projectIds,
+    ),
     trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
-    activityLogs: (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
+    activityLogs: appendRequiredProjectRows(
+      (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
+      local.activityLogs,
+      required.projectIds,
+    ),
     draftActions: (remoteWithLocalDemo.draftActions ?? local.draftActions) as DraftAction[],
     memories: (remoteWithLocalDemo.memories ?? local.memories) as Memory[],
     memoryCandidates: (remoteWithLocalDemo.memoryCandidates ?? local.memoryCandidates) as MemoryCandidate[],
     followUpTasks: (remoteWithLocalDemo.followUpTasks ?? local.followUpTasks) as FollowUpTask[],
-    aiUsageEvents: (remoteWithLocalDemo.aiUsageEvents ?? local.aiUsageEvents) as AiUsageEvent[],
+    aiUsageEvents: appendRequiredProjectRows(
+      (remoteWithLocalDemo.aiUsageEvents ?? local.aiUsageEvents) as AiUsageEvent[],
+      local.aiUsageEvents,
+      required.projectIds,
+    ),
   });
 };
 

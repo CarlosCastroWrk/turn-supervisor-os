@@ -17,6 +17,7 @@ import {
 } from './model';
 import { trackCWorkKey } from './model';
 import {
+  projectTrackCAssignmentEligibility,
   projectTrackCWalkCandidates,
   projectTrackCWork,
 } from './projections';
@@ -417,6 +418,17 @@ export const createTrackCBulkAssignmentProposal = (
         ? candidateProjections.filter((item) => item.release === 'released')
         : candidateProjections;
 
+    if (
+      input.sectionMode === 'all-released'
+      && candidateProjections.some((item) => item.release !== 'released')
+    ) {
+      proposalWarnings.push({
+        code: 'unreleased',
+        severity: 'caution',
+        message: `Unit ${unit.unitNumber} includes unreleased ${input.trade} sections. They were excluded from this proposal.`,
+      });
+    }
+
     if (selectedProjections.length === 0) {
       proposalWarnings.push({
         code: 'no-applicable-released-sections',
@@ -514,6 +526,15 @@ export const confirmTrackCBulkAssignmentProposal = (
   const crew = state.crews.find((candidate) => candidate.id === proposal.crewId);
   if (!crew || crew.trade !== proposal.trade) {
     return error('invalid-proposal', 'The selected crew is not compatible.');
+  }
+  for (const item of eligibleItems) {
+    const eligibility = projectTrackCAssignmentEligibility(state, item.target);
+    if (!eligibility.eligible) {
+      return error(
+        'invalid-proposal',
+        `Assignment is no longer eligible: ${eligibility.reasons.join(' ')}`,
+      );
+    }
   }
 
   const events = eligibleItems.map((item, index) =>

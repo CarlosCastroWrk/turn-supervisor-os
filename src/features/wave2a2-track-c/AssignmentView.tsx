@@ -19,6 +19,9 @@ import {
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
 } from './operations';
+import {
+  projectTrackCAssignmentEligibleUnits,
+} from './projections';
 
 interface AssignmentViewProps {
   readonly state: TrackCState;
@@ -37,6 +40,10 @@ export const AssignmentView = ({
   const compatibleCrews = useMemo(
     () => state.crews.filter((crew) => crew.trade === trade),
     [state.crews, trade],
+  );
+  const eligibleUnits = useMemo(
+    () => projectTrackCAssignmentEligibleUnits(state, trade),
+    [state, trade],
   );
   const [crewId, setCrewId] = useState('');
   const [unitIds, setUnitIds] = useState<readonly string[]>([]);
@@ -157,7 +164,7 @@ export const AssignmentView = ({
         </label>
         <fieldset className="track-c-choice-list">
           <legend>Select Units</legend>
-          {state.units.map((unit) => (
+          {eligibleUnits.map((unit) => (
             <label key={unit.id}>
               <input
                 checked={unitIds.includes(unit.id)}
@@ -170,6 +177,9 @@ export const AssignmentView = ({
               </span>
             </label>
           ))}
+          {eligibleUnits.length === 0 ? (
+            <p>No confirmed released {trade} work is eligible for assignment.</p>
+          ) : null}
         </fieldset>
         <fieldset className="track-c-section-mode">
           <legend>Section scope</legend>

@@ -136,6 +136,77 @@ test('launch shell routes remain directly addressable', () => {
   });
 });
 
+test('Field Operations nested routes survive build, parse, refresh, and encoded identifiers', () => {
+  const cases = [
+    {
+      hash: '#/units/unit%20707%2FA',
+      route: {
+        unitId: 'unit 707/A',
+        unitStatusFilter: 'All' as const,
+        unitSurface: 'board' as const,
+        view: 'unitDetail' as const,
+      },
+    },
+    {
+      hash: '#/crews/crew%20bluebird%2Fpaint',
+      route: {
+        crewId: 'crew bluebird/paint',
+        unitStatusFilter: 'All' as const,
+        view: 'crews' as const,
+      },
+    },
+    {
+      hash: '#/assignments',
+      route: {
+        unitStatusFilter: 'All' as const,
+        view: 'assignments' as const,
+      },
+    },
+    {
+      hash: '#/walk',
+      route: {
+        fieldWorkflow: 'walk' as const,
+        unitStatusFilter: 'All' as const,
+        view: 'units' as const,
+      },
+    },
+    {
+      hash: '#/walk/walk%202026%2F07%2F29',
+      route: {
+        fieldWorkflow: 'walk' as const,
+        unitStatusFilter: 'All' as const,
+        view: 'units' as const,
+        walkSessionId: 'walk 2026/07/29',
+      },
+    },
+  ];
+
+  for (const { hash, route } of cases) {
+    assert.equal(buildAppHash(route), hash);
+    assert.deepEqual(parseAppHash(hash), route);
+    assert.deepEqual(parseAppHash(buildAppHash(parseAppHash(hash))), route);
+  }
+});
+
+test('routeForNavigation creates explicit crew, assignment, and Walk destinations', () => {
+  assert.equal(
+    buildAppHash(routeForNavigation('crews', undefined, { crewId: 'crew-paint' })),
+    '#/crews/crew-paint',
+  );
+  assert.equal(buildAppHash(routeForNavigation('assignments')), '#/assignments');
+  assert.equal(
+    buildAppHash(routeForNavigation('units', undefined, { fieldWorkflow: 'walk' })),
+    '#/walk',
+  );
+  assert.equal(
+    buildAppHash(routeForNavigation('units', undefined, {
+      fieldWorkflow: 'walk',
+      walkSessionId: 'walk-active',
+    })),
+    '#/walk/walk-active',
+  );
+});
+
 test('routeForNavigation avoids a dead unit detail route when no unit id is present', () => {
   assert.deepEqual(routeForNavigation('unitDetail'), {
     view: 'units',

@@ -29,6 +29,7 @@ import {
 } from './LaunchCommandCenter';
 import { projectLaunchAppData } from './appDataProjection';
 import { createLaunchBoardRepository } from './boardRepository';
+import { projectCanonicalFieldConsumers } from './canonicalFieldConsumers';
 import type {
   LaunchPrimaryDestination,
   LaunchQuickActionId,
@@ -79,7 +80,7 @@ import {
 } from '../wave2a2-track-b';
 import {
   TrackCFieldOps,
-  type TrackCView,
+  type TrackCRouteState,
 } from '../wave2a2-track-c';
 import {
   ManualReleaseReview,
@@ -169,7 +170,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'forms' | 'profile' | 'privacy' | 'storage' | null;
+type MoreDetailPage = 'crews' | 'forms' | 'profile' | 'privacy' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const TRACK_C_TAB_ROOTS = {
@@ -181,11 +182,15 @@ const TRACK_C_TAB_ROOTS = {
 
 const trackCTabForRoute = (view: AppView): TrackCPrimaryTab => {
   if (view === 'activity') return 'activity';
-  if (view === 'units' || view === 'unitDetail') return 'turnboard';
+  if (
+    view === 'units'
+    || view === 'unitDetail'
+    || view === 'crews'
+    || view === 'assignments'
+  ) return 'turnboard';
   if (
     view === 'more'
     || view === 'setup'
-    || view === 'crews'
     || view === 'reports'
     || view === 'sync'
     || view === 'export'
@@ -228,7 +233,12 @@ const boardViewForRoute = (view: AppView): BoardFirstView => {
 
 const primaryDestinationForRoute = (view: AppView): LaunchPrimaryDestination => {
   if (view === 'dashboard') return 'home';
-  if (view === 'units' || view === 'unitDetail') return 'turnboard';
+  if (
+    view === 'units'
+    || view === 'unitDetail'
+    || view === 'crews'
+    || view === 'assignments'
+  ) return 'turnboard';
   if (view === 'activity') return 'activity';
   return 'more';
 };
@@ -268,7 +278,14 @@ const boardActivityKind = (
 };
 
 export function LaunchIntegratedApp() {
-  const { data, setData, hasStoredData, retrySave, saveStatus } = usePersistentAppData();
+  const {
+    commitDataNow,
+    data,
+    setData,
+    hasStoredData,
+    retrySave,
+    saveStatus,
+  } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [route, setRoute] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
@@ -281,7 +298,6 @@ export function LaunchIntegratedApp() {
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
   const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
   const [homeMode, setHomeMode] = useState<HomeMode>('day');
-  const [trackCView, setTrackCView] = useState<TrackCView>('board');
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -356,13 +372,18 @@ export function LaunchIntegratedApp() {
   );
   const boardRepositoryState = useMemo(() => createLaunchBoardRepository(data), [data]);
   const boardRepository = boardRepositoryState.repository;
-  const fieldOpsRouteActive = route.view === 'units' && route.unitStatusFilter === 'All';
-  const boardRouteActive = route.view === 'activity'
+  const fieldOpsRouteActive = (
+    (route.view === 'units' && route.unitStatusFilter === 'All')
     || (
       route.view === 'unitDetail'
       && route.unitSurface !== 'personal'
-      && Boolean(route.unitId && boardRepository.getUnit(route.unitId))
-    );
+    )
+    || route.view === 'crews'
+    || route.view === 'assignments'
+    || route.fieldWorkflow === 'walk'
+  );
+  const boardRouteActive = route.view === 'activity'
+    ;
 
   const operationalRepositories = useMemo(
     () => createInMemoryOperationalMemoryRepositories(),
@@ -460,6 +481,96 @@ export function LaunchIntegratedApp() {
       };
     }
   }, [data, operationalScope.accountId]);
+  const canonicalConsumers = useMemo(
+    () => canonicalProjectionResult.projection
+      ? projectCanonicalFieldConsumers(
+        canonicalProjectionResult.projection,
+        readNotificationIds,
+      )
+      : undefined,
+    [canonicalProjectionResult.projection, readNotificationIds],
+  );
+  const requiresCanonicalPersonalProjection = Boolean(activeProject?.fieldConfiguration);
+  const activeFieldState = canonicalProjectionResult.projection?.trackCState
+    ?? (requiresCanonicalPersonalProjection ? undefined : trackCState);
+  const trackCRouteState = useMemo<TrackCRouteState>(() => {
+    if (route.fieldWorkflow === 'walk') {
+      return {
+        view: 'walk',
+        walkSessionId: route.walkSessionId,
+      };
+    }
+    if (route.view === 'assignments') return { view: 'assign' };
+    if (route.view === 'crews') {
+      return { crewId: route.crewId, view: 'crews' };
+    }
+    return {
+      unitId: route.view === 'unitDetail' ? route.unitId : undefined,
+      view: 'board',
+    };
+  }, [
+    route.crewId,
+    route.fieldWorkflow,
+    route.unitId,
+    route.view,
+    route.walkSessionId,
+  ]);
+  const invalidFieldRouteMessage = useMemo(() => {
+    if (!fieldOpsRouteActive) return undefined;
+    if (!activeFieldState) {
+      return canonicalProjectionResult.error
+        ?? 'The active personal-project field state is unavailable.';
+    }
+    if (
+      route.view === 'unitDetail'
+      && (!route.unitId || !activeFieldState.units.some((unit) => unit.id === route.unitId))
+    ) {
+      return 'This Unit is not present in the active personal project.';
+    }
+    if (
+      route.view === 'crews'
+      && route.crewId
+      && !activeFieldState.crews.some((crew) => crew.id === route.crewId)
+    ) {
+      return 'This crew record is no longer present in the active personal project.';
+    }
+    if (
+      route.fieldWorkflow === 'walk'
+      && route.walkSessionId
+      && activeFieldState.activeWalk?.id !== route.walkSessionId
+    ) {
+      return 'This active Walk Session is no longer available.';
+    }
+    return undefined;
+  }, [
+    activeFieldState,
+    canonicalProjectionResult.error,
+    fieldOpsRouteActive,
+    route.crewId,
+    route.fieldWorkflow,
+    route.unitId,
+    route.view,
+    route.walkSessionId,
+  ]);
+
+  useEffect(() => {
+    if (
+      route.fieldWorkflow !== 'walk'
+      || route.walkSessionId
+      || !activeFieldState?.activeWalk
+    ) return;
+
+    const nextRoute = routeForNavigation('units', undefined, {
+      fieldWorkflow: 'walk',
+      walkSessionId: activeFieldState.activeWalk.id,
+    });
+    window.history.replaceState(null, '', buildAppHash(nextRoute));
+    setRoute(nextRoute);
+  }, [
+    activeFieldState?.activeWalk,
+    route.fieldWorkflow,
+    route.walkSessionId,
+  ]);
   const operationalSource = useMemo(
     () => createAppDataOperationalReadSource(operationalScope, data),
     [data, operationalScope],
@@ -498,16 +609,22 @@ export function LaunchIntegratedApp() {
       unitId: activity.unitId,
       unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,
     }));
+    const selectedItems = canonicalProjectionResult.projection
+      ? canonicalItems
+      : requiresCanonicalPersonalProjection
+        ? []
+        : legacyItems;
     return [...new Map(
-      [...canonicalItems, ...legacyItems].map((item) => [item.id, item]),
+      selectedItems.map((item) => [item.id, item]),
     ).values()].sort((left, right) => right.recordedAt.localeCompare(left.recordedAt));
   }, [
-    canonicalProjectionResult.projection?.activity,
+    canonicalProjectionResult.projection,
     launchProjection.activityItems,
     launchProjection.project?.mode,
     operationalRepositories,
     operationalScope,
     operationalSource,
+    requiresCanonicalPersonalProjection,
     unitNumberById,
   ]);
   const boardActivity = useMemo(
@@ -515,6 +632,11 @@ export function LaunchIntegratedApp() {
     [boardSessionActivity, persistedActivity],
   );
   const nativeSearchGroups = useMemo<NativeSearchGroup[]>(() => {
+    if (canonicalConsumers) return canonicalConsumers.searchGroups.map((group) => ({
+      ...group,
+      results: group.results.map((result) => ({ ...result })),
+    }));
+    if (requiresCanonicalPersonalProjection) return [];
     const groupIds = {
       crews: 'crews',
       'notes-activity': 'activity',
@@ -528,20 +650,32 @@ export function LaunchIntegratedApp() {
         results: group.results.map((result) => ({ ...result })),
       }];
     });
-  }, [launchProjection.searchGroups]);
+  }, [
+    canonicalConsumers,
+    launchProjection.searchGroups,
+    requiresCanonicalPersonalProjection,
+  ]);
   const nativeNotifications = useMemo<NativeNotificationItem[]>(
-    () => launchProjection.notifications.map((item) => ({
-      category: item.category,
-      destinationId: item.destinationId,
-      destinationLabel: item.destinationLabel,
-      group: item.group,
-      id: item.id,
-      read: item.read,
-      reason: item.reason,
-      timeLabel: item.timeLabel,
-      title: item.unitLabel,
-    })),
-    [launchProjection.notifications],
+    () => canonicalConsumers
+      ? canonicalConsumers.notifications.map((item) => ({ ...item }))
+      : requiresCanonicalPersonalProjection
+        ? []
+        : launchProjection.notifications.map((item) => ({
+          category: item.category,
+          destinationId: item.destinationId,
+          destinationLabel: item.destinationLabel,
+          group: item.group,
+          id: item.id,
+          read: item.read,
+          reason: item.reason,
+          timeLabel: item.timeLabel,
+          title: item.unitLabel,
+        })),
+    [
+      canonicalConsumers,
+      launchProjection.notifications,
+      requiresCanonicalPersonalProjection,
+    ],
   );
   const crewRecords = useMemo<TrackBCrewRecord[]>(
     () => data.crewMembers
@@ -594,7 +728,7 @@ export function LaunchIntegratedApp() {
     const canonical = canonicalProjectionResult.projection;
     if (canonical) {
       return {
-        activityCount: boardActivity.length,
+        activityCount: canonical.counts.activity,
         callbacksFound: canonical.counts.callbacks,
         callbacksResolved: 0,
         readyToWalk: canonical.counts.ready,
@@ -889,6 +1023,12 @@ export function LaunchIntegratedApp() {
       navigate('crews');
       return;
     }
+    if (destinationId.startsWith('crew:')) {
+      navigate('crews', undefined, {
+        crewId: destinationId.slice('crew:'.length),
+      });
+      return;
+    }
     if (destinationId === 'activity') {
       navigate('activity');
       return;
@@ -929,8 +1069,6 @@ export function LaunchIntegratedApp() {
     setCrewEditor(null);
     setMoreDetailPage(null);
     setHomeMode('day');
-    if (destination === 'turnboard') setTrackCView('board');
-
     tabRouteMemoryRef.current = decision.state;
     if (decision.historyMode === 'replace') {
       window.history.replaceState(null, '', nextHash);
@@ -948,13 +1086,11 @@ export function LaunchIntegratedApp() {
       return;
     }
     if (action === 'assign-crews') {
-      setTrackCView('assign');
-      navigate('units');
+      navigate('assignments');
       return;
     }
     if (action === 'start-walk') {
-      setTrackCView('walk');
-      navigate('units');
+      navigate('units', undefined, { fieldWorkflow: 'walk' });
       return;
     }
     navigate('reports');
@@ -1040,7 +1176,8 @@ export function LaunchIntegratedApp() {
       return;
     }
     if (destination === 'crews') {
-      navigate('crews');
+      setCrewEditor(null);
+      setMoreDetailPage('crews');
       return;
     }
     if (destination === 'reports-and-proof') {
@@ -1391,22 +1528,69 @@ export function LaunchIntegratedApp() {
   const shellContent = fieldOpsRouteActive ? (
     <div className="lcc-host-stack lcc-host-stack--field-ops">
       {hostAlerts}
-      <TrackCFieldOps
-        embedded
-        initialState={trackCState}
-        initialView={trackCView}
-        onCrewContactRequested={() => {
-          setMoreStatus('No message was sent. Crew contact remains a manual external action.');
-        }}
-        onCrewEditRequested={(crewId) => {
-          setCrewEditor({ crewId, mode: 'edit' });
-          navigate('crews');
-        }}
-        onDialogOpenChange={setTrackCDialogOpen}
-        onStateChange={(nextState) => {
-          setData((current) => applyTrackCStateChange(current, nextState));
-        }}
-      />
+      {crewEditor ? (
+        <TrackBCrewFormPage
+          key={crewEditor.mode === 'edit' ? crewEditor.crewId : 'new-crew'}
+          initialCrew={editingCrew}
+          mode={crewEditor.mode}
+          onBack={() => setCrewEditor(null)}
+          onCancel={() => setCrewEditor(null)}
+          onSave={saveCrew}
+          statusLabel="Personal project contact"
+        />
+      ) : invalidFieldRouteMessage || !activeFieldState ? (
+        <NativeDetailShell
+          description={invalidFieldRouteMessage ?? 'Field Operations could not be restored safely.'}
+          onBack={() => navigate('units')}
+          statusLabel="Nothing was changed"
+          title="Field workflow unavailable"
+        >
+          <div className="lcc-host-alert lcc-host-alert--error" role="alert">
+            <AlertTriangle aria-hidden="true" size={18} />
+            <span>{invalidFieldRouteMessage ?? canonicalProjectionResult.error}</span>
+          </div>
+        </NativeDetailShell>
+      ) : (
+        <TrackCFieldOps
+          embedded
+          initialState={activeFieldState}
+          initialView={trackCRouteState.view}
+          onCrewContactRequested={() => {
+            setMoreStatus('No message was sent. Crew contact remains a manual external action.');
+          }}
+          onCrewEditRequested={(crewId) => {
+            setCrewEditor({ crewId, mode: 'edit' });
+            navigate('crews', undefined, { crewId });
+          }}
+          onDialogOpenChange={setTrackCDialogOpen}
+          onNavigate={(nextRoute) => {
+            if (nextRoute.view === 'assign') {
+              navigate('assignments');
+              return;
+            }
+            if (nextRoute.view === 'crews') {
+              navigate('crews', undefined, { crewId: nextRoute.crewId });
+              return;
+            }
+            if (nextRoute.view === 'walk') {
+              navigate('units', undefined, {
+                fieldWorkflow: 'walk',
+                walkSessionId: nextRoute.walkSessionId,
+              });
+              return;
+            }
+            if (nextRoute.unitId) {
+              navigate('unitDetail', nextRoute.unitId, { unitSurface: 'board' });
+              return;
+            }
+            navigate('units');
+          }}
+          onStateChange={(nextState) => {
+            setData((current) => applyTrackCStateChange(current, nextState));
+          }}
+          routeState={trackCRouteState}
+        />
+      )}
     </div>
   ) : boardRouteActive ? (
     <BoardFirstShell
@@ -1487,7 +1671,8 @@ export function LaunchIntegratedApp() {
       ) : route.homeSummary ? (
         <NativeHomeSummaryPage
           destination={selectNativeHomeSummary(
-            launchProjection.homeRecords,
+            canonicalConsumers?.homeRecords
+              ?? (requiresCanonicalPersonalProjection ? [] : launchProjection.homeRecords),
             route.homeSummary,
           )}
           onBack={() => navigate('dashboard')}
@@ -1515,9 +1700,19 @@ export function LaunchIntegratedApp() {
           initialSession={activeDaySession}
           initialTask={todayTask}
           onDayStateChange={(change) => {
+            if (change.reason === 'day-started') {
+              return commitDataNow((current) =>
+                applyDayTaskStateChange(current, change));
+            }
             setData((current) => applyDayTaskStateChange(current, change));
+            return true;
           }}
           onExternalAction={handleQuickAction}
+          onOpenQueueId={(queueId) => navigate(
+            'dashboard',
+            undefined,
+            { homeSummary: queueId },
+          )}
           onOpenTaskDetail={() => navigate(
             'dashboard',
             undefined,
@@ -1525,6 +1720,7 @@ export function LaunchIntegratedApp() {
           )}
           propertyRoster={propertyRoster}
           releases={dailyReleases}
+          queueCounts={canonicalProjectionResult.projection?.todayTask.queueCounts}
           startDayPrefill={startDayPrefill}
           startedBy="Los"
         />
@@ -1533,7 +1729,28 @@ export function LaunchIntegratedApp() {
   ) : route.view === 'more' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
-      {moreDetailPage === 'forms' ? (
+      {moreDetailPage === 'crews' ? (
+        crewEditor ? (
+          <TrackBCrewFormPage
+            key={crewEditor.mode === 'edit' ? crewEditor.crewId : 'new-crew'}
+            initialCrew={editingCrew}
+            mode={crewEditor.mode}
+            onBack={() => setCrewEditor(null)}
+            onCancel={() => setCrewEditor(null)}
+            onSave={saveCrew}
+            statusLabel="Personal project contact"
+          />
+        ) : (
+          <TrackBCrewListPage
+            backLabel="Back from Crews"
+            crews={crewRecords}
+            onAdd={() => setCrewEditor({ mode: 'add' })}
+            onBack={() => setMoreDetailPage(null)}
+            onEdit={(crew) => setCrewEditor({ crewId: crew.id, mode: 'edit' })}
+            statusLabel="Paint and Clean only"
+          />
+        )
+      ) : moreDetailPage === 'forms' ? (
         <OfficialPdsFormsPage onBack={() => setMoreDetailPage(null)} />
       ) : moreDetailPage === 'profile' ? (
         <ProfilePrivacyScrollRegion kind="profile">
@@ -1767,7 +1984,7 @@ export function LaunchIntegratedApp() {
         }}
         dateLabel={launchProjection.dateLabel}
         detailMode={shellDetailMode}
-        notificationCount={launchProjection.notifications.filter((item) => !item.read).length}
+        notificationCount={nativeNotifications.filter((item) => !item.read).length}
         onNavigate={handlePrimaryNavigation}
         onOpenHome={() => handlePrimaryNavigation('home')}
         onOpenIntelligence={() => undefined}

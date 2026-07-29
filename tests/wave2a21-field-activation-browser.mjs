@@ -139,6 +139,100 @@ try {
   await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
   await page.getByText('Moon Tower', { exact: true }).first().waitFor();
 
+  const routeFixture = await page.evaluate((key) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    const unit = data?.units?.find((candidate) =>
+      candidate.projectId === data.activeProjectId);
+    const crew = data?.crewMembers?.find((candidate) =>
+      (!candidate.projectId || candidate.projectId === data.activeProjectId)
+      && (candidate.trade === 'Painter' || candidate.trade === 'Cleaner'));
+    return unit && crew
+      ? {
+          crewId: crew.id,
+          crewName: crew.name,
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+        }
+      : null;
+  }, storageKey);
+  assert.ok(routeFixture, 'synthetic route fixtures were not available');
+
+  await page.getByRole('button', { name: /^Import today’s released work/u })
+    .first()
+    .click();
+  const manualRelease = page.getByTestId('manual-release-review');
+  await manualRelease.waitFor();
+  const manualInputs = manualRelease.locator('input');
+  await manualInputs.nth(0).fill('Synthetic Property Contact');
+  await manualInputs.nth(1).fill(routeFixture.unitNumber);
+  await manualRelease.locator('.w2a2-core-release__sections input').first().check();
+  await manualRelease.locator('.w2a2-core-confirm input').check();
+  await manualRelease.getByRole('button', { name: 'Confirm personal release', exact: true }).click();
+  await page.getByTestId('track-b-home').waitFor();
+  await page.waitForTimeout(750);
+  const releaseFixture = await page.evaluate((key) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    const release = [...data.dailyReleaseBatches]
+      .filter((batch) => batch.projectId === data.activeProjectId && batch.status === 'confirmed')
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+    return release ? { date: release.date, releaseId: release.id } : null;
+  }, storageKey);
+  assert.ok(releaseFixture, 'manual release did not produce a durable confirmed batch');
+
+  const unitRoute = `${baseUrl}/#/units/${encodeURIComponent(routeFixture.unitId)}`;
+  const crewRoute = `${baseUrl}/#/crews/${encodeURIComponent(routeFixture.crewId)}`;
+  await page.goto(unitRoute, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', {
+    name: `Unit ${routeFixture.unitNumber}`,
+    exact: true,
+  }).waitFor();
+  assert.equal(new URL(page.url()).hash, `#/units/${encodeURIComponent(routeFixture.unitId)}`);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', {
+    name: `Unit ${routeFixture.unitNumber}`,
+    exact: true,
+  }).waitFor();
+
+  await page.goto(crewRoute, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: routeFixture.crewName, exact: true }).waitFor();
+  await page.goBack({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', {
+    name: `Unit ${routeFixture.unitNumber}`,
+    exact: true,
+  }).waitFor();
+  await page.goForward({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: routeFixture.crewName, exact: true }).waitFor();
+
+  await page.goto(`${baseUrl}/#/assignments`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Bulk assign', exact: true }).waitFor();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Bulk assign', exact: true }).waitFor();
+
+  await page.goto(`${baseUrl}/#/walk`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Start Walk', exact: true }).waitFor();
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Start Walk', exact: true }).waitFor();
+
+  await page.goto(`${baseUrl}/#/dashboard?summary=working`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Working', exact: true }).waitFor();
+  assert.equal(new URL(page.url()).hash, '#/dashboard?summary=working');
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Working', exact: true }).waitFor();
+
+  await page.goto(`${baseUrl}/#/units/stale-unit-id`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', {
+    name: 'Field workflow unavailable',
+    exact: true,
+  }).waitFor();
+  await page.getByRole('alert').getByText(
+    'This Unit is not present in the active personal project.',
+    { exact: true },
+  ).waitFor();
+  assert.equal(new URL(page.url()).hash, '#/units/stale-unit-id');
+
+  await page.goto(`${baseUrl}/#/dashboard`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+
   await primaryNavigation(page)
     .getByRole('button', { name: 'Activity', exact: true })
     .click();
@@ -149,19 +243,117 @@ try {
   await primaryNavigation(page)
     .getByRole('button', { name: 'Home', exact: true })
     .click();
+  const beforeStartDay = await page.evaluate(({ key, releaseId }) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    return {
+      activeProjectId: data.activeProjectId,
+      release: data.dailyReleaseBatches.find((batch) => batch.id === releaseId),
+    };
+  }, { key: storageKey, releaseId: releaseFixture.releaseId });
+  assert.equal(beforeStartDay.release?.projectId, beforeStartDay.activeProjectId);
+  assert.equal(beforeStartDay.release?.date, releaseFixture.date);
+  assert.equal(beforeStartDay.release?.status, 'confirmed');
   await page.getByRole('button', { name: 'Start Day', exact: true }).first().click();
   await page.getByTestId('track-b-start-day').waitFor();
-  await page.getByText('Step 1 of 8', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByText('Step 2 of 8', { exact: true }).waitFor();
-  assert.equal(
-    await page.getByTestId('track-b-start-day').getByRole('textbox').first().inputValue(),
-    'Synthetic Property Contact',
-  );
-  await page.getByRole('button', { name: 'Back from Start Day' }).click();
-  await page.getByRole('button', { name: 'Back from Start Day' }).click();
+  for (let step = 1; step <= 7; step += 1) {
+    await page.getByText(`Step ${step} of 8`, { exact: true }).waitFor();
+    if (step === 2) {
+      assert.equal(
+        await page.getByTestId('track-b-start-day').getByRole('textbox').first().inputValue(),
+        'Synthetic Property Contact',
+      );
+    }
+    if (step === 4) {
+      const evidenceField = page.getByTestId('track-b-start-day').locator('textarea');
+      assert.equal(
+        await evidenceField.count(),
+        1,
+        `confirmed synthetic release was not rendered: ${await page.getByTestId('track-b-start-day').innerText()}`,
+      );
+      await evidenceField.first().fill(
+        'Synthetic evidence reviewed for the atomic Start Day browser check.',
+      );
+    }
+    if (step === 6) {
+      const wordingFields = page.getByTestId('track-b-start-day').locator('textarea');
+      await wordingFields.nth(0).fill(
+        'Synthetic occupied-area window: 10 AM–5 PM.',
+      );
+      await wordingFields.nth(1).fill(
+        'Synthetic daily walkthrough at noon.',
+      );
+    }
+    if (step === 7) {
+      await page.getByTestId('track-b-start-day').locator('textarea').first().fill(
+        'Preserve this review through one failed save.',
+      );
+    }
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  }
+  await page.getByText('Step 8 of 8', { exact: true }).waitFor();
+  await page.getByText('I reviewed the Start Day details.', { exact: true }).click();
+
+  await page.evaluate((key) => {
+    window.__turnOsOriginalStorageSetItem = Storage.prototype.setItem;
+    window.__turnOsFailNextAppDataSave = true;
+    Storage.prototype.setItem = function setItemWithOneSyntheticFailure(name, value) {
+      if (name === key && window.__turnOsFailNextAppDataSave) {
+        window.__turnOsFailNextAppDataSave = false;
+        throw new DOMException('Synthetic local persistence failure.', 'QuotaExceededError');
+      }
+      return window.__turnOsOriginalStorageSetItem.call(this, name, value);
+    };
+  }, storageKey);
+
+  await page.getByRole('button', { name: 'Start Day', exact: true }).click();
+  await page.getByRole('alert').getByText(
+    'Start Day was not saved. Nothing was started or added to Activity. Retry, edit the review, or cancel.',
+    { exact: true },
+  ).waitFor();
+  await page.getByRole('button', { name: 'Retry Start Day', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Edit review', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
+  const afterFailedStart = await page.evaluate(({ date, key, releaseId }) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    return {
+      releaseStillPresent: data.dailyReleaseBatches.some((batch) => batch.id === releaseId),
+      sessionCount: data.daySessions.filter((session) =>
+        session.projectId === data.activeProjectId && session.date === date).length,
+      startEventCount: data.fieldEvents.filter((event) =>
+        event.projectId === data.activeProjectId && event.eventType === 'day-session-started').length,
+    };
+  }, { date: releaseFixture.date, key: storageKey, releaseId: releaseFixture.releaseId });
+  assert.deepEqual(afterFailedStart, {
+    releaseStillPresent: true,
+    sessionCount: 0,
+    startEventCount: 0,
+  });
+  await page.getByText('Preserve this review through one failed save.', { exact: true }).waitFor();
+
+  await page.getByRole('button', { name: 'Retry Start Day', exact: true }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
   await page.getByTestId('track-b-home').waitFor();
   await primaryNavigation(page).waitFor();
+  const afterSuccessfulRetry = await page.evaluate(({ date, key }) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    return {
+      sessionCount: data.daySessions.filter((session) =>
+        session.projectId === data.activeProjectId && session.date === date).length,
+      startEventCount: data.fieldEvents.filter((event) =>
+        event.projectId === data.activeProjectId && event.eventType === 'day-session-started').length,
+    };
+  }, { date: releaseFixture.date, key: storageKey });
+  assert.deepEqual(afterSuccessfulRetry, { sessionCount: 1, startEventCount: 1 });
+  await page.evaluate(() => {
+    Storage.prototype.setItem = window.__turnOsOriginalStorageSetItem;
+    delete window.__turnOsOriginalStorageSetItem;
+    delete window.__turnOsFailNextAppDataSave;
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByTestId('track-b-home').waitFor();
+  await page.getByText('Active', { exact: true }).waitFor();
 
   await page.getByRole('button', { name: 'Open central Plus menu' }).click();
   const plus = page.getByRole('dialog', { name: 'Add to Turn OS' });

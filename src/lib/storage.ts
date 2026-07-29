@@ -148,6 +148,32 @@ export const persistAppDataNow = (data: AppData) => {
   return false;
 };
 
+export const prepareAppDataUpdate = (
+  current: AppData,
+  update: SetStateAction<AppData>,
+) => applyActivityLogRetention(
+  typeof update === 'function' ? update(current) : update,
+);
+
+export type AppDataImmediateCommitResult =
+  | { readonly ok: true; readonly data: AppData }
+  | { readonly ok: false; readonly data: AppData };
+
+export const commitAppDataUpdateNow = (
+  current: AppData,
+  update: SetStateAction<AppData>,
+  persist: (data: AppData) => boolean = persistAppDataNow,
+): AppDataImmediateCommitResult => {
+  const next = prepareAppDataUpdate(current, update);
+  try {
+    return persist(next)
+      ? { data: next, ok: true }
+      : { data: current, ok: false };
+  } catch {
+    return { data: current, ok: false };
+  }
+};
+
 export const clearInFlightFieldDrafts = () => {
   try {
     return createFieldDraftStore(window.sessionStorage).clearAll();
@@ -186,13 +212,28 @@ export const clearAppData = async () => {
 export const usePersistentAppData = () => {
   const [hasStoredData, setHasStoredData] = useState(() => hasStoredAppData());
   const [data, setStoredData] = useState<AppData>(() => loadAppData());
+  const dataRef = useRef(data);
+  const immediatelyPersistedDataRef = useRef<AppData | null>(null);
   const migrationInFlight = useRef(false);
   const attemptedLegacyPhotoIds = useRef(new Set<string>());
   const setData = useCallback<Dispatch<SetStateAction<AppData>>>((update) => {
     setStoredData((current) => {
-      const next = typeof update === 'function' ? update(current) : update;
-      return applyActivityLogRetention(next);
+      const next = prepareAppDataUpdate(current, update);
+      dataRef.current = next;
+      return next;
     });
+  }, []);
+  const commitDataNow = useCallback((
+    update: SetStateAction<AppData>,
+  ) => {
+    const result = commitAppDataUpdateNow(dataRef.current, update);
+    if (!result.ok) return false;
+
+    dataRef.current = result.data;
+    immediatelyPersistedDataRef.current = result.data;
+    setStoredData(result.data);
+    setHasStoredData(true);
+    return true;
   }, []);
 
   useEffect(() => {
@@ -230,6 +271,13 @@ export const usePersistentAppData = () => {
   }, [data.photoNotes, setData]);
 
   useEffect(() => {
+    dataRef.current = data;
+    if (immediatelyPersistedDataRef.current === data) {
+      immediatelyPersistedDataRef.current = null;
+      setHasStoredData(true);
+      return;
+    }
+    immediatelyPersistedDataRef.current = null;
     appDataWriter.schedule(data);
     setHasStoredData(true);
   }, [data]);
@@ -258,7 +306,14 @@ export const usePersistentAppData = () => {
   const retrySave = useCallback(() => retryPendingAppDataSave(), []);
 
   return useMemo(
-    () => ({ data, setData, hasStoredData, retrySave, saveStatus }),
-    [data, hasStoredData, retrySave, saveStatus, setData],
+    () => ({
+      commitDataNow,
+      data,
+      setData,
+      hasStoredData,
+      retrySave,
+      saveStatus,
+    }),
+    [commitDataNow, data, hasStoredData, retrySave, saveStatus, setData],
   );
 };

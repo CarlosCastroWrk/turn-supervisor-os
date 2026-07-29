@@ -5,6 +5,9 @@ export interface AppRoute {
   unitId?: string;
   unitSurface?: 'board' | 'personal';
   issueId?: string;
+  crewId?: string;
+  fieldWorkflow?: 'walk';
+  walkSessionId?: string;
   homeSummary?: HomeSummaryFilter;
   unitStatusFilter: UnitStatusFilter;
 }
@@ -20,6 +23,9 @@ export interface NavigateOptions {
   unitStatusFilter?: UnitStatusFilter;
   unitSurface?: 'board' | 'personal';
   issueId?: string;
+  crewId?: string;
+  fieldWorkflow?: 'walk';
+  walkSessionId?: string;
   homeSummary?: HomeSummaryFilter;
 }
 
@@ -116,6 +122,23 @@ export const parseAppHash = (hash: string): AppRoute => {
     };
   }
 
+  if (viewOrResource === 'crews' && recordId) {
+    return {
+      crewId: recordId,
+      view: 'crews',
+      unitStatusFilter: 'All',
+    };
+  }
+
+  if (viewOrResource === 'walk') {
+    return {
+      fieldWorkflow: 'walk',
+      ...(recordId ? { walkSessionId: recordId } : {}),
+      view: 'units',
+      unitStatusFilter: 'All',
+    };
+  }
+
   if (viewOrResource === 'unitDetail' && recordId) {
     return {
       view: 'unitDetail',
@@ -156,6 +179,12 @@ export const resolveAppHash = (hash: string): ResolvedAppHash => {
 };
 
 export const buildAppHash = (route: AppRoute) => {
+  if (route.fieldWorkflow === 'walk') {
+    return route.walkSessionId
+      ? `#/walk/${encodePathPart(route.walkSessionId)}`
+      : '#/walk';
+  }
+
   if (route.view === 'unitDetail' && route.unitId) {
     const resource = route.unitSurface === 'personal' ? 'unit' : 'units';
     return `#/${resource}/${encodePathPart(route.unitId)}`;
@@ -163,6 +192,10 @@ export const buildAppHash = (route: AppRoute) => {
 
   if (route.view === 'issues' && route.issueId) {
     return `#/issues/${encodePathPart(route.issueId)}`;
+  }
+
+  if (route.view === 'crews' && route.crewId) {
+    return `#/crews/${encodePathPart(route.crewId)}`;
   }
 
   if (route.view === 'units' && route.unitStatusFilter !== 'All') {
@@ -203,6 +236,23 @@ export const routeForNavigation = (
     return {
       view,
       issueId: options.issueId,
+      unitStatusFilter: 'All',
+    };
+  }
+
+  if (view === 'crews' && options?.crewId) {
+    return {
+      crewId: options.crewId,
+      view,
+      unitStatusFilter: 'All',
+    };
+  }
+
+  if (options?.fieldWorkflow === 'walk') {
+    return {
+      fieldWorkflow: 'walk',
+      ...(options.walkSessionId ? { walkSessionId: options.walkSessionId } : {}),
+      view: 'units',
       unitStatusFilter: 'All',
     };
   }

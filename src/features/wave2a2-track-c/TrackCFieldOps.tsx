@@ -30,6 +30,13 @@ import './trackCFieldOps.css';
 
 export type TrackCView = 'board' | 'crews' | 'assign' | 'walk';
 
+export interface TrackCRouteState {
+  readonly view: TrackCView;
+  readonly unitId?: string;
+  readonly crewId?: string;
+  readonly walkSessionId?: string;
+}
+
 export interface TrackCFieldOpsProps {
   readonly embedded?: boolean;
   readonly idFactory?: (prefix: string) => string;
@@ -39,7 +46,9 @@ export interface TrackCFieldOpsProps {
   readonly onStateChange?: (state: TrackCState, reason: string) => void;
   readonly onCrewEditRequested?: (crewId: string) => void;
   readonly onCrewContactRequested?: (crewId: string) => void;
+  readonly onNavigate?: (route: TrackCRouteState) => void;
   readonly now?: () => string;
+  readonly routeState?: TrackCRouteState;
 }
 
 export const TrackCFieldOps = ({
@@ -51,12 +60,14 @@ export const TrackCFieldOps = ({
   onStateChange,
   onCrewEditRequested,
   onCrewContactRequested,
+  onNavigate,
   now = () => new Date().toISOString(),
+  routeState,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
-  const [view, setView] = useState<TrackCView>(initialView);
-  const [selectedUnitId, setSelectedUnitId] = useState<string>();
-  const [selectedCrewId, setSelectedCrewId] = useState<string>();
+  const [localView, setLocalView] = useState<TrackCView>(initialView);
+  const [localSelectedUnitId, setLocalSelectedUnitId] = useState<string>();
+  const [localSelectedCrewId, setLocalSelectedCrewId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
   const [walkOutcomes, setWalkOutcomes] = useState<
@@ -66,6 +77,9 @@ export const TrackCFieldOps = ({
   const mirrorDialogRef = useRef<HTMLElement>(null);
   const mirrorCancelRef = useRef<HTMLButtonElement>(null);
   const mirrorTriggerRef = useRef<HTMLElement | null>(null);
+  const view = routeState?.view ?? localView;
+  const selectedUnitId = routeState ? routeState.unitId : localSelectedUnitId;
+  const selectedCrewId = routeState ? routeState.crewId : localSelectedCrewId;
 
   const createId = useCallback((prefix: string) => {
     return idFactory(prefix);
@@ -75,14 +89,24 @@ export const TrackCFieldOps = ({
     (nextState: TrackCState, reason: string) => {
       setState(nextState);
       onStateChange?.(nextState, reason);
+      if (reason === 'walk-started' && nextState.activeWalk) {
+        onNavigate?.({
+          view: 'walk',
+          walkSessionId: nextState.activeWalk.id,
+        });
+      }
+      if (reason === 'walk-ended') {
+        onNavigate?.({ view: 'walk' });
+      }
     },
-    [onStateChange],
+    [onNavigate, onStateChange],
   );
 
   const navigate = (nextView: TrackCView) => {
-    setView(nextView);
-    setSelectedUnitId(undefined);
-    setSelectedCrewId(undefined);
+    onNavigate?.({ view: nextView });
+    setLocalView(nextView);
+    setLocalSelectedUnitId(undefined);
+    setLocalSelectedCrewId(undefined);
     setNotice(undefined);
     setMirrorTarget(undefined);
   };
@@ -133,7 +157,7 @@ export const TrackCFieldOps = ({
   }, [mirrorTarget, onDialogOpenChange]);
 
   useEffect(() => {
-    setView(initialView);
+    setLocalView(initialView);
   }, [initialView]);
 
   useEffect(() => {
@@ -225,8 +249,14 @@ export const TrackCFieldOps = ({
       >
         {view === 'board' ? (
           <BoardView
-            onCloseUnit={() => setSelectedUnitId(undefined)}
-            onOpenUnit={setSelectedUnitId}
+            onCloseUnit={() => {
+              onNavigate?.({ view: 'board' });
+              setLocalSelectedUnitId(undefined);
+            }}
+            onOpenUnit={(unitId) => {
+              onNavigate?.({ unitId, view: 'board' });
+              setLocalSelectedUnitId(unitId);
+            }}
             onRequestMirror={requestMirror}
             onSectionAction={runSectionAction}
             selectedUnitId={selectedUnitId}
@@ -235,10 +265,16 @@ export const TrackCFieldOps = ({
         ) : null}
         {view === 'crews' ? (
           <CrewView
-            onCloseCrew={() => setSelectedCrewId(undefined)}
+            onCloseCrew={() => {
+              onNavigate?.({ view: 'crews' });
+              setLocalSelectedCrewId(undefined);
+            }}
             onContactCrew={onCrewContactRequested}
             onEditCrew={onCrewEditRequested}
-            onOpenCrew={setSelectedCrewId}
+            onOpenCrew={(crewId) => {
+              onNavigate?.({ crewId, view: 'crews' });
+              setLocalSelectedCrewId(crewId);
+            }}
             selectedCrewId={selectedCrewId}
             state={state}
           />

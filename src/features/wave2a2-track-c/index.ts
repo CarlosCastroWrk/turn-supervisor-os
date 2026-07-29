@@ -1,5 +1,9 @@
 export { TrackCFieldOps } from './TrackCFieldOps';
-export type { TrackCFieldOpsProps, TrackCView } from './TrackCFieldOps';
+export type {
+  TrackCFieldOpsProps,
+  TrackCRouteState,
+  TrackCView,
+} from './TrackCFieldOps';
 export {
   DEFAULT_TRACK_C_TERMINOLOGY,
   TRACK_C_SECTIONS,

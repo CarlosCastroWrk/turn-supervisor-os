@@ -16,6 +16,8 @@ import {
 } from '../src/features/wave2a2-track-c/operations.ts';
 import {
   TRACK_C_PROJECTION_INVARIANTS,
+  projectTrackCAssignmentEligibility,
+  projectTrackCAssignmentEligibleUnits,
   projectTrackCCrewDetail,
   projectTrackCUnitWork,
   projectTrackCWalkCandidates,
@@ -165,6 +167,95 @@ test('bulk assignment reviews released scope and warns on duplicate, access, occ
     source.items[0]?.warnings.some(
       (warning) => warning.code === 'source-uncertain',
     ),
+  );
+});
+
+test('assignment eligibility exposes only released exact section-trades and excludes unresolved work', () => {
+  const state = createSyntheticTrackCState();
+
+  assert.deepEqual(
+    projectTrackCAssignmentEligibility(state, target('707', 'paint', 'A')),
+    {
+      eligible: true,
+      projection: projectTrackCWork(state, target('707', 'paint', 'A')),
+      reasons: [],
+    },
+  );
+  assert.equal(
+    projectTrackCAssignmentEligibility(state, target('304', 'clean', 'A')).eligible,
+    false,
+  );
+  assert.match(
+    projectTrackCAssignmentEligibility(state, target('304', 'clean', 'A')).reasons.join(' '),
+    /not confirmed released/iu,
+  );
+  assert.equal(
+    projectTrackCAssignmentEligibility(state, target('501', 'paint', 'common')).eligible,
+    false,
+  );
+  assert.equal(
+    projectTrackCAssignmentEligibility(state, target('501', 'paint', 'C')).eligible,
+    false,
+  );
+  assert.equal(
+    projectTrackCAssignmentEligibility(state, target('707', 'clean', 'E')).eligible,
+    false,
+  );
+
+  const eligibleCleanUnits = projectTrackCAssignmentEligibleUnits(state, 'clean')
+    .map((unit) => unit.id);
+  assert.equal(eligibleCleanUnits.includes('unit-304'), false);
+
+  const allReleased = createTrackCBulkAssignmentProposal(state, {
+    ...proposalInput(),
+    crewId: 'crew-cedar-clean',
+    proposalId: 'proposal-unreleased-exclusion',
+    sectionMode: 'all-released',
+    sections: undefined,
+    trade: 'clean',
+    unitIds: ['unit-304'],
+  });
+  assert.deepEqual(allReleased.items, []);
+  assert.ok(allReleased.warnings.some(
+    (warning) => warning.code === 'unreleased' && warning.severity === 'caution',
+  ));
+  assert.ok(allReleased.warnings.some(
+    (warning) => warning.code === 'no-applicable-released-sections',
+  ));
+});
+
+test('assignment confirmation rechecks current eligibility and duplicate confirmation appends nothing', () => {
+  const state = createSyntheticTrackCState();
+  const proposal = createTrackCBulkAssignmentProposal(state, {
+    ...proposalInput(),
+    proposalId: 'proposal-final-eligibility',
+  });
+  assert.equal(proposal.items.length, 1);
+  assert.equal(proposal.items[0]?.eligible, true);
+
+  const first = confirmTrackCBulkAssignmentProposal(
+    state,
+    proposal,
+    confirmInput('final-eligibility-event'),
+  );
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  assert.equal(
+    first.value.state.events.filter((event) =>
+      event.id.startsWith('final-eligibility-event')).length,
+    1,
+  );
+
+  const duplicate = confirmTrackCBulkAssignmentProposal(
+    first.value.state,
+    proposal,
+    confirmInput('duplicate-final-eligibility-event'),
+  );
+  assert.equal(duplicate.ok, false);
+  assert.equal(
+    first.value.state.events.some((event) =>
+      event.id.startsWith('duplicate-final-eligibility-event')),
+    false,
   );
 });
 

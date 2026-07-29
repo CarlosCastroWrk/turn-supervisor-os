@@ -113,6 +113,21 @@ export type SmartSuggestionStatus = 'active' | 'dismissed' | 'completed';
 export type SuggestionPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type CopilotRole = 'user' | 'assistant';
 export type BriefingType = 'morning' | 'midday' | 'end_of_day';
+export type FieldTrade = 'paint' | 'clean';
+export type FieldSection = 'common' | 'A' | 'B' | 'C' | 'D' | 'E';
+export type DaySessionKeyStatus = 'yes' | 'no' | 'partial-issue';
+export type DaySessionStatus = 'not-started' | 'active' | 'ending' | 'closed' | 'reopened';
+export type DailyReleaseSourceType = 'camera' | 'photos' | 'file' | 'paste' | 'manual';
+export type DailyReleaseStatus = 'draft' | 'confirmed' | 'superseded';
+export type TodayTaskSlot = 'current' | 'next' | 'backup' | 'queue';
+export type TodayTaskStatus = 'planned' | 'in-progress' | 'completed' | 'deferred';
+export type FieldEventBoundary =
+  | 'personal-record'
+  | 'property-reported'
+  | 'paper-mirror'
+  | 'official-external-reference';
+export type WalkOutcome = 'accepted' | 'correction-requested' | 'not-walked' | 'deferred';
+export type WalkSessionStatus = 'active' | 'closed';
 
 export interface Project {
   id: EntityId;
@@ -258,6 +273,112 @@ export interface DailyLog {
   blockers: string;
   lessons: string;
   tomorrowPriorities: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DaySession {
+  id: EntityId;
+  projectId: EntityId;
+  date: string;
+  startedAt: string;
+  startedBy: string;
+  propertyContact: string;
+  keyStatus: DaySessionKeyStatus;
+  releaseBatchIds: EntityId[];
+  activePaintCrewIds: EntityId[];
+  activeCleanCrewIds: EntityId[];
+  morningNote: string;
+  status: DaySessionStatus;
+  endedAt?: string;
+  endKeyStatus?: DaySessionKeyStatus;
+  paperReviewConfirmedAt?: string;
+  propertyCheckInNote?: string;
+  endNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DailyReleaseItem {
+  id: EntityId;
+  unitId: EntityId;
+  trade: FieldTrade;
+  section: FieldSection;
+  restriction?: string;
+  sourceExcerpt: string;
+}
+
+export interface DailyReleaseBatch {
+  id: EntityId;
+  projectId: EntityId;
+  date: string;
+  propertyContact: string;
+  sourceType: DailyReleaseSourceType;
+  sourceLabel: string;
+  localSourceReference?: string;
+  status: DailyReleaseStatus;
+  items: DailyReleaseItem[];
+  uncertainties: string[];
+  confirmedBy?: string;
+  confirmedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TodayTask {
+  id: EntityId;
+  projectId: EntityId;
+  daySessionId: EntityId;
+  date: string;
+  unitId?: EntityId;
+  trade?: FieldTrade;
+  section?: FieldSection;
+  kind: string;
+  title: string;
+  slot: TodayTaskSlot;
+  status: TodayTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FieldEvent {
+  id: EntityId;
+  projectId: EntityId;
+  daySessionId?: EntityId;
+  unitId?: EntityId;
+  section?: FieldSection;
+  trade?: FieldTrade;
+  actorType: string;
+  actorId: string;
+  reportedBy?: string;
+  occurredAt?: string;
+  recordedAt: string;
+  recordedBy: string;
+  sourceType: string;
+  sourceId?: EntityId;
+  eventType: string;
+  summary: string;
+  boundary: FieldEventBoundary;
+  reversesEventId?: EntityId;
+}
+
+export interface WalkSessionOutcome {
+  selectedItemId: EntityId;
+  outcome: WalkOutcome;
+}
+
+export interface WalkSession {
+  id: EntityId;
+  projectId: EntityId;
+  daySessionId: EntityId;
+  propertyContact: string;
+  startedAt: string;
+  startedBy: string;
+  selectedItemIds: EntityId[];
+  outcomes: WalkSessionOutcome[];
+  status: WalkSessionStatus;
+  endedAt?: string;
+  note?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -435,6 +556,11 @@ export interface AppData {
   issues: Issue[];
   photoNotes: PhotoNote[];
   dailyLogs: DailyLog[];
+  daySessions: DaySession[];
+  dailyReleaseBatches: DailyReleaseBatch[];
+  todayTasks: TodayTask[];
+  fieldEvents: FieldEvent[];
+  walkSessions: WalkSession[];
   reportDrafts: ReportDocumentDraft[];
   trainingQuestions: TrainingQuestion[];
   activityLogs: ActivityLog[];

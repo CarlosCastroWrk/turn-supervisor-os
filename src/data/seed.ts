@@ -295,6 +295,11 @@ export const seedData: AppData = {
   issues,
   photoNotes: [],
   dailyLogs,
+  daySessions: [],
+  dailyReleaseBatches: [],
+  todayTasks: [],
+  fieldEvents: [],
+  walkSessions: [],
   reportDrafts: [],
   trainingQuestions: createTrainingQuestions(now),
   activityLogs: [

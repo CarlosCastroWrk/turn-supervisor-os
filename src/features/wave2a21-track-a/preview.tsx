@@ -5,8 +5,10 @@ import type {
   CanonicalFieldProjection,
   ProjectActivationDraft,
   ProjectConfiguration,
+  ProjectRosterUnitOption,
   PropertyContact,
 } from './contracts';
+import { FastStartDayFlow } from './FastStartDayFlow';
 import { ProfilePrivacyScrollRegion } from './ProfilePrivacyScrollRegion';
 import {
   ProjectSetupFlow,
@@ -17,7 +19,7 @@ import { resolveStartDayValues } from './startDayDefaults';
 import '../../styles.css';
 import './preview.css';
 
-type PreviewScreen = 'setup' | 'today' | 'profile-privacy';
+type PreviewScreen = 'setup' | 'start-day' | 'today' | 'profile-privacy';
 
 const PROJECT_ID = 'qa-wave2a21-track-a';
 const ACTIVATED_AT = '2026-07-29T09:00:00.000-05:00';
@@ -27,8 +29,10 @@ const contacts: readonly PropertyContact[] = [{
   id: 'qa-contact-primary',
   isPrimary: true,
   name: 'Synthetic Property Contact',
+  activeForProject: true,
+  role: 'Property Manager',
   projectId: PROJECT_ID,
-  title: 'Property contact',
+  title: 'Property Manager',
   updatedAt: ACTIVATED_AT,
 }];
 
@@ -40,8 +44,8 @@ const configuration: ProjectConfiguration = {
     paint: ['qa-paint-default'],
   },
   defaultPropertyContactId: 'qa-contact-primary',
-  defaultWalkthroughScheduleWording: 'Saved walkthrough at noon.',
-  defaultWorkingHoursWording: 'Saved working hours: 10 AM–5 PM.',
+  defaultWalkthroughScheduleWording: '12:00',
+  defaultWorkingHoursWording: '08:00–18:00',
   enabledTrades: { clean: true, paint: true },
   permissions: {
     officialApprovals: false,
@@ -80,6 +84,25 @@ const crewOptions: readonly ProjectSetupCrewOption[] = [
   { id: 'qa-paint-default', name: 'Paint Crew Alpha', trade: 'paint' },
   { id: 'qa-paint-today', name: 'Paint Crew Today', trade: 'paint' },
   { id: 'qa-clean-default', name: 'Clean Crew Beta', trade: 'clean' },
+];
+
+const rosterUnits: readonly ProjectRosterUnitOption[] = [
+  {
+    applicableSections: ['common', 'A', 'B', 'C', 'D'],
+    building: 'Tower',
+    floor: '1',
+    id: 'qa-unit-101',
+    unitNumber: '101',
+    unitType: '4 bedroom',
+  },
+  {
+    applicableSections: ['common', 'A', 'B'],
+    building: 'Tower',
+    floor: '2',
+    id: 'qa-unit-202',
+    unitNumber: '202',
+    unitType: '2 bedroom',
+  },
 ];
 
 const startDayValues = resolveStartDayValues(configuration, contacts, {
@@ -167,18 +190,35 @@ const initialStepFromUrl = () => {
   return value === null ? 0 : Number(value);
 };
 
+const initialStartDayStepFromUrl = () => {
+  const value = new URLSearchParams(window.location.search).get('startDayStep');
+  return value === null ? 0 : Number(value);
+};
+
+const initialScreenFromUrl = (): PreviewScreen => {
+  const value = new URLSearchParams(window.location.search).get('screen');
+  return value === 'start-day' || value === 'today' || value === 'profile-privacy'
+    ? value
+    : 'setup';
+};
+
 export function TrackABehaviorHarness() {
-  const [screen, setScreen] = useState<PreviewScreen>('setup');
+  const [screen, setScreen] = useState<PreviewScreen>(initialScreenFromUrl);
   const [currentStep, setCurrentStep] = useState(initialStepFromUrl);
+  const [startDayStep, setStartDayStep] = useState(initialStartDayStepFromUrl);
   const [draft, setDraft] = useState<ProjectActivationDraft>(initialDraft);
   const [status, setStatus] = useState(
     'Synthetic package harness. No AppData is persisted here.',
   );
+  const [startFailureConsumed, setStartFailureConsumed] = useState(false);
+  const failStartOnce = new URLSearchParams(window.location.search)
+    .get('failStartOnce') === '1';
 
   return (
     <div className="w2a21a-preview" data-track-a-behavior-harness="true">
       <nav aria-label="Track A test surfaces" className="w2a21a-preview__nav">
         <button onClick={() => setScreen('setup')} type="button">Setup</button>
+        <button onClick={() => setScreen('start-day')} type="button">Start Day</button>
         <button onClick={() => setScreen('today')} type="button">Today task</button>
         <button onClick={() => setScreen('profile-privacy')} type="button">
           Profile / Privacy
@@ -195,19 +235,72 @@ export function TrackABehaviorHarness() {
       >
         {screen === 'setup' ? (
           <ProjectSetupFlow
+            cameraPermissionState="prompt"
             crewOptions={crewOptions}
             currentStep={currentStep}
             draft={draft}
             onActivate={() => setStatus(
               'Activation requested. A host persistence acknowledgement is still required.',
             )}
-            onAddContact={() => setStatus('Add contact requested.')}
+            onAddContact={() => setDraft((current) => {
+              const contactNumber = current.contacts.length + 1;
+              return {
+                ...current,
+                contacts: [
+                  ...current.contacts,
+                  {
+                    activeForProject: true,
+                    createdAt: ACTIVATED_AT,
+                    id: `qa-contact-${contactNumber}`,
+                    isPrimary: false,
+                    name: `Synthetic Contact ${contactNumber}`,
+                    projectId: PROJECT_ID,
+                    role: 'Other',
+                    title: 'Other',
+                    updatedAt: ACTIVATED_AT,
+                  },
+                ],
+              };
+            })}
             onDraftChange={setDraft}
             onRemoveContact={(contactId) => setDraft((current) => ({
               ...current,
               contacts: current.contacts.filter((contact) => contact.id !== contactId),
             }))}
             onStepChange={setCurrentStep}
+            rosterUnits={rosterUnits}
+          />
+        ) : null}
+        {screen === 'start-day' ? (
+          <FastStartDayFlow
+            configuration={draft.configuration}
+            contacts={draft.contacts}
+            crewOptions={crewOptions}
+            currentDate="2026-08-01"
+            currentStep={startDayStep}
+            onCancel={() => setStatus('Start Day cancelled.')}
+            onStepChange={(nextStep) => {
+              setStartDayStep(nextStep);
+              const nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('startDayStep', String(nextStep));
+              window.history.replaceState(null, '', nextUrl);
+            }}
+            onStartDay={(submission) => {
+              if (failStartOnce && !startFailureConsumed) {
+                setStartFailureConsumed(true);
+                setStatus(
+                  `Synthetic host rejected ${submission.release.items.length} release items.`,
+                );
+                return false;
+              }
+              setStatus(
+                `Synthetic host atomically accepted ${submission.release.items.length} release items.`,
+              );
+              return true;
+            }}
+            projectId={PROJECT_ID}
+            propertyName={draft.project.propertyName}
+            rosterUnits={rosterUnits}
           />
         ) : null}
         {screen === 'today' ? (

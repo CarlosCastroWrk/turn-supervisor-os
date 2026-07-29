@@ -1,6 +1,7 @@
 import type {
   AppData,
   FieldEvent,
+  FieldSection,
   Project,
 } from '../../types';
 import type {
@@ -19,6 +20,15 @@ import type { ActivityItem } from '../operational-memory/contracts';
 export const TRACK_A_PROJECT_ROLES = ['turn-supervisor'] as const;
 export type TrackAProjectRole = (typeof TRACK_A_PROJECT_ROLES)[number];
 
+export const PROPERTY_CONTACT_ROLES = [
+  'Property Manager',
+  'Maintenance',
+  'Field Lead / Market Partner',
+  'Runner',
+  'Other',
+] as const;
+export type PropertyContactRole = (typeof PROPERTY_CONTACT_ROLES)[number];
+
 export interface PropertyContact {
   readonly id: string;
   readonly projectId: string;
@@ -26,8 +36,17 @@ export interface PropertyContact {
   readonly title: string;
   readonly phone?: string;
   readonly isPrimary: boolean;
+  readonly activeForProject?: boolean;
+  readonly note?: string;
+  readonly role?: PropertyContactRole;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export interface ProjectDefaultSchedule {
+  readonly workStartTime: string;
+  readonly workEndTime: string;
+  readonly walkthroughTime?: string;
 }
 
 export interface ProjectConfiguration {
@@ -55,6 +74,29 @@ export interface ProjectConfiguration {
     readonly payrollCalculations: false;
     readonly officialApprovals: false;
   };
+}
+
+export type BrowserPermissionState =
+  | 'granted'
+  | 'denied'
+  | 'prompt'
+  | 'unsupported'
+  | 'unknown';
+
+export interface ProjectRosterUnitOption {
+  readonly applicableSections: readonly FieldSection[];
+  readonly building?: string;
+  readonly floor?: string;
+  readonly id: string;
+  readonly unitNumber: string;
+  readonly unitType: string;
+}
+
+export interface TrackACrewOption {
+  readonly active?: boolean;
+  readonly id: string;
+  readonly name: string;
+  readonly trade: 'paint' | 'clean';
 }
 
 /** @deprecated Use ProjectConfiguration. Kept as a feature-local compatibility alias. */

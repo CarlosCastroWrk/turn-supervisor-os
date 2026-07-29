@@ -594,7 +594,7 @@ test('feature source preserves integration and operational boundaries', async ()
 
   assert.match(source, /Paper remains authoritative/u);
   assert.match(source, /personal-record-only/u);
-  assert.match(source, /Integration owns the source-first import route/u);
+  assert.match(source, /Import upgrade is not included in this candidate/u);
   assert.equal(/\bunlock(?:ed|ing)?\b/iu.test(source), false);
   assert.equal(/\bpayroll\b/iu.test(source), true, 'the boundary copy should explicitly deny payroll mutation');
   assert.equal(/\bAI\b|\bOCR\b|Whisper|Kimi/iu.test(source), false);

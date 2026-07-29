@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createId as createAppId } from '../../lib/constants';
 import { AssignmentView } from './AssignmentView';
 import { BoardView } from './BoardView';
 import { CrewView } from './CrewView';
@@ -30,8 +31,11 @@ import './trackCFieldOps.css';
 export type TrackCView = 'board' | 'crews' | 'assign' | 'walk';
 
 export interface TrackCFieldOpsProps {
+  readonly embedded?: boolean;
+  readonly idFactory?: (prefix: string) => string;
   readonly initialState: TrackCState;
   readonly initialView?: TrackCView;
+  readonly onDialogOpenChange?: (open: boolean) => void;
   readonly onStateChange?: (state: TrackCState, reason: string) => void;
   readonly onCrewEditRequested?: (crewId: string) => void;
   readonly onCrewContactRequested?: (crewId: string) => void;
@@ -39,8 +43,11 @@ export interface TrackCFieldOpsProps {
 }
 
 export const TrackCFieldOps = ({
+  embedded = false,
+  idFactory = createAppId,
   initialState,
   initialView = 'board',
+  onDialogOpenChange,
   onStateChange,
   onCrewEditRequested,
   onCrewContactRequested,
@@ -55,16 +62,14 @@ export const TrackCFieldOps = ({
   const [walkOutcomes, setWalkOutcomes] = useState<
     Readonly<Record<string, TrackCWalkOutcome>>
   >({});
-  const sequenceRef = useRef(0);
   const shellRef = useRef<HTMLDivElement>(null);
   const mirrorDialogRef = useRef<HTMLElement>(null);
   const mirrorCancelRef = useRef<HTMLButtonElement>(null);
   const mirrorTriggerRef = useRef<HTMLElement | null>(null);
 
   const createId = useCallback((prefix: string) => {
-    sequenceRef.current += 1;
-    return `${prefix}-${sequenceRef.current}`;
-  }, []);
+    return idFactory(prefix);
+  }, [idFactory]);
 
   const commitState = useCallback(
     (nextState: TrackCState, reason: string) => {
@@ -123,7 +128,17 @@ export const TrackCFieldOps = ({
 
   useEffect(() => {
     if (mirrorTarget) mirrorCancelRef.current?.focus();
-  }, [mirrorTarget]);
+    onDialogOpenChange?.(Boolean(mirrorTarget));
+    return () => onDialogOpenChange?.(false);
+  }, [mirrorTarget, onDialogOpenChange]);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
+  useEffect(() => {
+    setState(initialState);
+  }, [initialState]);
 
   const handleMirrorKeyDown = (
     event: ReactKeyboardEvent<HTMLDivElement>,
@@ -180,10 +195,11 @@ export const TrackCFieldOps = ({
     dismissMirror();
     commitState(result.value, 'personal-pds-mirror-recorded');
   };
+  const ContentElement = embedded ? 'section' : 'main';
 
   return (
     <div
-      className="track-c-shell"
+      className={`track-c-shell ${embedded ? 'is-embedded' : ''}`}
       data-testid="track-c-field-ops"
       ref={shellRef}
       tabIndex={-1}
@@ -191,6 +207,7 @@ export const TrackCFieldOps = ({
       <header
         aria-hidden={mirrorTarget ? true : undefined}
         className="track-c-shell__header"
+        hidden={embedded}
         inert={mirrorTarget ? true : undefined}
       >
         <div>
@@ -199,7 +216,8 @@ export const TrackCFieldOps = ({
         </div>
         <span>{state.propertyName}</span>
       </header>
-      <main
+      <ContentElement
+        aria-label={embedded ? 'Field operations' : undefined}
         aria-hidden={mirrorTarget ? true : undefined}
         className="track-c-shell__main"
         inert={mirrorTarget ? true : undefined}
@@ -243,7 +261,7 @@ export const TrackCFieldOps = ({
             state={state}
           />
         ) : null}
-      </main>
+      </ContentElement>
       {notice ? (
         <div
           aria-hidden={mirrorTarget ? true : undefined}

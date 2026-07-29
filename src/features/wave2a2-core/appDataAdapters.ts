@@ -1,0 +1,910 @@
+import type {
+  AppData,
+  DailyReleaseBatch as AppDailyReleaseBatch,
+  DailyReleaseItem,
+  FieldEvent,
+  FieldSection,
+  FieldTrade,
+  WalkSession as AppWalkSession,
+} from '../../types';
+import {
+  createTodayTask,
+  createTodayTaskGoal,
+  projectTodayTaskForSession,
+} from '../wave2a2-track-b/model';
+import type {
+  DailyReleaseBatch,
+  DaySession,
+  DaySessionEvent,
+  PropertyRoster,
+  TodayTask,
+} from '../wave2a2-track-b/types';
+import {
+  DEFAULT_TRACK_C_TERMINOLOGY,
+  TRACK_C_SECTIONS,
+  TRACK_C_TRADES,
+  trackCWorkKey,
+  type TrackCConfirmedEvent,
+  type TrackCSection,
+  type TrackCState,
+  type TrackCWalkOutcomeRecord,
+  type TrackCWalkSession,
+  type TrackCWorkTarget,
+  type TrackCEventType,
+  type TrackCWalkSelectionReview,
+} from '../wave2a2-track-c/model';
+import { projectTrackCWork } from '../wave2a2-track-c/projections';
+
+const CONTEXT_EVENT_TYPES = {
+  assignmentEvidence: 'day-assignment-evidence-reviewed',
+  walkthroughSchedule: 'day-walkthrough-schedule-recorded',
+  workingHours: 'day-working-hours-recorded',
+} as const;
+
+const TRACK_C_EVENT_TYPES = new Set<TrackCEventType>([
+  'assignment-confirmed',
+  'assignment-cleared',
+  'work-started',
+  'crew-reported-complete',
+  'los-passed',
+  'callback-opened',
+  'callback-correction-reported',
+  'callback-resolved',
+  'property-accepted',
+  'property-correction-requested',
+  'walk-not-walked',
+  'walk-deferred',
+  'personal-pds-mirror-recorded',
+  'paper-reviewed',
+]);
+
+const WALK_REVIEW_NOTE_PREFIX = 'turn-os-track-c-review-v1:';
+const hardRestrictionPattern =
+  /\b(do not enter|occupied|renewal|access|key|blocked|maintenance|repair)\b/iu;
+const occupiedRestrictionPattern = /\b(do not enter|occupied|renewal)\b/iu;
+const maintenanceRestrictionPattern = /\b(maintenance|repair)\b/iu;
+
+const unique = <T,>(values: readonly T[]) => [...new Set(values)];
+const byRecordedAt = <T extends { recordedAt: string }>(left: T, right: T) =>
+  left.recordedAt.localeCompare(right.recordedAt);
+
+const sectionLabel = (section: FieldSection) =>
+  section === 'common' ? 'Common' : section;
+
+const rosterSections = (bedCount: number, hasCommonArea: boolean) => {
+  const bedroomCount = Math.max(0, Math.min(5, Math.trunc(bedCount)));
+  const bedroomSections = TRACK_C_SECTIONS.slice(1, bedroomCount + 1);
+  return [
+    ...(hasCommonArea ? ['common' as const] : []),
+    ...bedroomSections,
+  ];
+};
+
+const projectForData = (data: AppData) =>
+  data.projects.find((project) => project.id === data.activeProjectId);
+
+export const currentLocalDate = (date: Date) => {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+};
+
+export function projectPropertyRoster(data: AppData): PropertyRoster {
+  const project = projectForData(data);
+  const buildingById = new Map(data.buildings.map((building) => [building.id, building.name]));
+  const floorById = new Map(data.floors.map((floor) => [floor.id, floor.name]));
+  return {
+    propertyId: data.activeProjectId,
+    propertyName: project?.propertyName || project?.name || 'Current property',
+    sourceReference: 'Existing personal Turn OS roster',
+    units: data.units
+      .filter((unit) => unit.projectId === data.activeProjectId)
+      .sort((left, right) =>
+        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
+      .map((unit) => ({
+        applicableSections: rosterSections(unit.bedCount, unit.hasCommonArea).map((section) => ({
+          id: section,
+          label: sectionLabel(section),
+          trades: ['Paint', 'Clean'] as const,
+        })),
+        building: buildingById.get(unit.buildingId),
+        floor: floorById.get(unit.floorId),
+        id: unit.id,
+        propertyId: unit.projectId,
+        unitNumber: unit.unitNumber,
+        unitType: `${unit.bedCount}BR`,
+      })),
+  };
+}
+
+export function projectDailyReleases(data: AppData): readonly DailyReleaseBatch[] {
+  return data.dailyReleaseBatches
+    .filter((batch) => batch.projectId === data.activeProjectId)
+    .map((batch) => {
+      const entries = new Map<string, {
+        restrictions: string[];
+        sectionId: string;
+        trades: Array<'Paint' | 'Clean'>;
+        uncertainties: string[];
+        unitId: string;
+      }>();
+      batch.items.forEach((item) => {
+        const key = `${item.unitId}:${item.section}`;
+        const current = entries.get(key) ?? {
+          restrictions: [],
+          sectionId: item.section,
+          trades: [],
+          uncertainties: [],
+          unitId: item.unitId,
+        };
+        current.trades.push(item.trade === 'paint' ? 'Paint' : 'Clean');
+        if (item.restriction?.trim()) current.restrictions.push(item.restriction.trim());
+        entries.set(key, current);
+      });
+      const uncertainties = [...batch.uncertainties];
+      return {
+        confirmedAt: batch.confirmedAt,
+        confirmedBy: batch.confirmedBy,
+        confirmationStatus: batch.status === 'confirmed'
+          ? 'confirmed'
+          : batch.status === 'draft'
+            ? 'draft'
+            : 'rejected',
+        date: batch.date,
+        entries: [...entries.values()].map((entry) => ({
+          ...entry,
+          restrictions: unique(entry.restrictions),
+          trades: unique(entry.trades),
+          uncertainties,
+        })),
+        id: batch.id,
+        originalSourceReference: batch.localSourceReference ?? batch.sourceLabel,
+        propertyContact: batch.propertyContact,
+        propertyId: batch.projectId,
+      };
+    });
+}
+
+const contextWording = (
+  data: AppData,
+  daySessionId: string,
+  eventType: string,
+  fallback: string,
+) => data.fieldEvents
+  .filter((event) =>
+    event.daySessionId === daySessionId && event.eventType === eventType)
+  .sort(byRecordedAt)
+  .at(-1)?.summary ?? fallback;
+
+export function projectDaySessions(
+  data: AppData,
+  accountId: string,
+): readonly DaySession[] {
+  const roster = projectPropertyRoster(data);
+  const releases = projectDailyReleases(data);
+  return data.daySessions
+    .filter((session) => session.projectId === data.activeProjectId)
+    .map((session): DaySession => {
+      const selectedReleases = releases.filter((release) =>
+        session.releaseBatchIds.includes(release.id));
+      let task: TodayTask | null = null;
+      try {
+        task = createTodayTask(roster, selectedReleases, session.date, session.id);
+      } catch {
+        task = null;
+      }
+      return {
+        accountId,
+        activeCrewIds: unique([
+          ...session.activePaintCrewIds,
+          ...session.activeCleanCrewIds,
+        ]),
+        activeCrewIdsByTrade: {
+          Clean: [...session.activeCleanCrewIds],
+          Paint: [...session.activePaintCrewIds],
+        },
+        assignmentEvidenceReviewNote: contextWording(
+          data,
+          session.id,
+          CONTEXT_EVENT_TYPES.assignmentEvidence,
+          'Not recorded in this personal app.',
+        ),
+        closedAt: session.endedAt,
+        date: session.date,
+        daySessionId: session.id,
+        endKeyStatus: session.endKeyStatus,
+        endNote: session.endNote,
+        goal: task
+          ? createTodayTaskGoal(task)
+          : {
+              metric: 'sections',
+              milestone: 'los-inspected',
+              scope: 'today-confirmed-release',
+              target: 0,
+            },
+        keyStatus: session.keyStatus,
+        morningNote: session.morningNote || undefined,
+        propertyCheckIn: session.propertyCheckInNote,
+        propertyContact: session.propertyContact,
+        propertyId: session.projectId,
+        propertyReviewStatus: session.paperReviewConfirmedAt ? 'reviewed' : 'not-reviewed',
+        releaseBatchIds: [...session.releaseBatchIds],
+        reopenedAt: session.status === 'reopened' ? session.updatedAt : undefined,
+        startedAt: session.startedAt,
+        startedBy: session.startedBy,
+        status: session.status,
+        walkthroughScheduleWording: contextWording(
+          data,
+          session.id,
+          CONTEXT_EVENT_TYPES.walkthroughSchedule,
+          'Not recorded in this personal app.',
+        ),
+        workingHoursWording: contextWording(
+          data,
+          session.id,
+          CONTEXT_EVENT_TYPES.workingHours,
+          'Not recorded in this personal app.',
+        ),
+      };
+    });
+}
+
+const daySourceType = (event: FieldEvent): DaySessionEvent['sourceType'] => {
+  if (event.eventType.startsWith('day-session')) return 'day-session';
+  if (event.eventType === 'crew-reported-complete') return 'crew-report';
+  if (event.boundary === 'property-reported') return 'property-walk';
+  return 'personal-entry';
+};
+
+export function projectDayEvents(data: AppData): readonly DaySessionEvent[] {
+  return data.fieldEvents
+    .filter((event) =>
+      event.projectId === data.activeProjectId && Boolean(event.daySessionId))
+    .map((event) => ({
+      actorId: event.actorId,
+      actorType: event.actorType === 'crew'
+        ? 'crew'
+        : event.actorType === 'property'
+          ? 'property'
+          : event.actorType === 'system'
+            ? 'system'
+            : 'los',
+      daySessionId: event.daySessionId as string,
+      eventId: event.id,
+      eventType: event.eventType,
+      occurredAt: event.occurredAt,
+      personalOfficialBoundary: 'personal-record-only',
+      propertyId: event.projectId,
+      recordedAt: event.recordedAt,
+      recordedBy: event.recordedBy,
+      reportedBy: event.reportedBy,
+      reversesEventId: event.reversesEventId,
+      sectionId: event.section,
+      sourceId: event.sourceId,
+      sourceType: daySourceType(event),
+      summary: event.summary,
+      trade: event.trade === 'paint'
+        ? 'Paint'
+        : event.trade === 'clean'
+          ? 'Clean'
+          : undefined,
+      unitId: event.unitId,
+    }));
+}
+
+const taskExecutionState = (
+  task: TodayTask,
+  events: readonly FieldEvent[],
+  keyStatus: DaySession['keyStatus'],
+): TodayTask => ({
+  ...task,
+  sections: task.sections.map((section) => {
+    const relevantEvents = events
+      .filter((event) =>
+        event.unitId === section.unitId
+        && event.section === section.sectionId)
+      .sort(byRecordedAt);
+    const waitingReasons = [
+      ...section.uncertainties,
+      ...section.restrictions.filter((restriction) => hardRestrictionPattern.test(restriction)),
+      ...(keyStatus === 'yes'
+        ? []
+        : [keyStatus === 'no'
+            ? 'No keys or access recorded.'
+            : 'Key or access issue recorded.']),
+    ];
+    return {
+      ...section,
+      tradeStates: section.tradeStates.map((initialState) => {
+        const trade = initialState.trade === 'Paint' ? 'paint' : 'clean';
+        return relevantEvents
+          .filter((event) => event.trade === trade)
+          .reduce((state, event) => {
+            if (event.eventType === 'assignment-confirmed') {
+              return { ...state, assignedCrewId: event.reportedBy ?? event.actorId, execution: 'assigned' };
+            }
+            if (event.eventType === 'assignment-cleared') {
+              return { ...state, assignedCrewId: undefined, execution: 'unassigned' };
+            }
+            if (event.eventType === 'work-started') return { ...state, execution: 'working' };
+            if (event.eventType === 'crew-reported-complete') {
+              return { ...state, execution: 'crew-reported-complete' };
+            }
+            if (event.eventType === 'los-passed') {
+              return { ...state, inspection: 'passed', propertyWalk: 'pending' };
+            }
+            if (event.eventType === 'callback-opened') {
+              return { ...state, inspection: 'callback-required', propertyWalk: 'not-ready' };
+            }
+            if (event.eventType === 'callback-correction-reported') {
+              return { ...state, inspection: 'reinspection-pending', propertyWalk: 'not-ready' };
+            }
+            if (event.eventType === 'callback-resolved') {
+              return { ...state, inspection: 'passed-after-callback', propertyWalk: 'pending' };
+            }
+            if (event.eventType === 'property-accepted') {
+              return { ...state, propertyWalk: 'accepted' };
+            }
+            if (event.eventType === 'property-correction-requested') {
+              return { ...state, inspection: 'callback-required', propertyWalk: 'not-ready' };
+            }
+            return state;
+          }, { ...initialState });
+      }),
+      waitingReasons: unique(waitingReasons),
+    };
+  }),
+});
+
+export function projectTodayTask(
+  data: AppData,
+  session: DaySession | undefined,
+): TodayTask | null {
+  if (!session) return null;
+  const result = projectTodayTaskForSession(
+    projectPropertyRoster(data),
+    projectDailyReleases(data),
+    session,
+  );
+  if (!result.task || result.errors.length > 0) return null;
+  return taskExecutionState(
+    result.task,
+    data.fieldEvents.filter((event) => event.daySessionId === session.daySessionId),
+    session.keyStatus,
+  );
+}
+
+const toFoundationDayEvent = (
+  projectId: string,
+  event: DaySessionEvent,
+): FieldEvent => ({
+  actorId: event.actorId,
+  actorType: event.actorType,
+  boundary: event.sourceType === 'property-walk'
+    ? 'property-reported'
+    : 'personal-record',
+  daySessionId: event.daySessionId,
+  eventType: event.eventType,
+  id: event.eventId,
+  occurredAt: event.occurredAt,
+  projectId,
+  recordedAt: event.recordedAt,
+  recordedBy: event.recordedBy,
+  reportedBy: event.reportedBy,
+  reversesEventId: event.reversesEventId,
+  section: event.sectionId as FieldSection | undefined,
+  sourceId: event.sourceId,
+  sourceType: event.sourceType,
+  summary: event.summary,
+  trade: event.trade === 'Paint'
+    ? 'paint'
+    : event.trade === 'Clean'
+      ? 'clean'
+      : undefined,
+  unitId: event.unitId,
+});
+
+const upsertById = <T extends { id: string }>(records: readonly T[], record: T) => {
+  const index = records.findIndex((candidate) => candidate.id === record.id);
+  if (index < 0) return [...records, record];
+  return records.map((candidate) => candidate.id === record.id ? record : candidate);
+};
+
+const contextEvent = (
+  projectId: string,
+  session: DaySession,
+  eventType: string,
+  summary: string,
+  recordedAt: string,
+): FieldEvent => ({
+  actorId: session.startedBy,
+  actorType: 'los',
+  boundary: 'personal-record',
+  daySessionId: session.daySessionId,
+  eventType,
+  id: `${session.daySessionId}:${eventType}`,
+  projectId,
+  recordedAt,
+  recordedBy: session.startedBy,
+  sourceId: session.daySessionId,
+  sourceType: 'day-session',
+  summary,
+});
+
+export interface DayTaskStateChange {
+  event?: DaySessionEvent;
+  reason:
+    | 'day-started'
+    | 'day-closed'
+    | 'recovery-resumed'
+    | 'recovery-review'
+    | 'recovery-reopened';
+  recordedAt: string;
+  session: DaySession;
+}
+
+export function applyDayTaskStateChange(
+  data: AppData,
+  change: DayTaskStateChange,
+): AppData {
+  const session = change.session;
+  const existing = data.daySessions.find((candidate) => candidate.id === session.daySessionId);
+  const persistedSession: AppData['daySessions'][number] = {
+    activeCleanCrewIds: [...session.activeCrewIdsByTrade.Clean],
+    activePaintCrewIds: [...session.activeCrewIdsByTrade.Paint],
+    createdAt: existing?.createdAt ?? session.startedAt ?? change.recordedAt,
+    date: session.date,
+    endedAt: session.closedAt,
+    endKeyStatus: session.endKeyStatus,
+    endNote: session.endNote ?? '',
+    id: session.daySessionId,
+    keyStatus: session.keyStatus,
+    morningNote: session.morningNote ?? '',
+    paperReviewConfirmedAt:
+      session.status === 'closed' && session.propertyReviewStatus === 'reviewed'
+        ? change.recordedAt
+        : existing?.paperReviewConfirmedAt,
+    projectId: data.activeProjectId,
+    propertyCheckInNote: session.propertyCheckIn,
+    propertyContact: session.propertyContact,
+    releaseBatchIds: [...session.releaseBatchIds],
+    startedAt: session.startedAt ?? existing?.startedAt ?? change.recordedAt,
+    startedBy: session.startedBy,
+    status: session.status,
+    updatedAt: change.recordedAt,
+  };
+  let fieldEvents = change.event
+    ? upsertById(data.fieldEvents, toFoundationDayEvent(data.activeProjectId, change.event))
+    : [...data.fieldEvents];
+  if (change.reason === 'day-started') {
+    [
+      contextEvent(
+        data.activeProjectId,
+        session,
+        CONTEXT_EVENT_TYPES.workingHours,
+        session.workingHoursWording,
+        change.recordedAt,
+      ),
+      contextEvent(
+        data.activeProjectId,
+        session,
+        CONTEXT_EVENT_TYPES.walkthroughSchedule,
+        session.walkthroughScheduleWording,
+        change.recordedAt,
+      ),
+      contextEvent(
+        data.activeProjectId,
+        session,
+        CONTEXT_EVENT_TYPES.assignmentEvidence,
+        session.assignmentEvidenceReviewNote,
+        change.recordedAt,
+      ),
+    ].forEach((event) => {
+      fieldEvents = upsertById(fieldEvents, event);
+    });
+  }
+  if (change.reason.startsWith('recovery-')) {
+    fieldEvents = upsertById(fieldEvents, contextEvent(
+      data.activeProjectId,
+      session,
+      `day-${change.reason}`,
+      `Los explicitly chose ${change.reason.replace('recovery-', '').replaceAll('-', ' ')} for the personal Day Session.`,
+      change.recordedAt,
+    ));
+  }
+  return {
+    ...data,
+    daySessions: upsertById(data.daySessions, persistedSession),
+    fieldEvents,
+  };
+}
+
+export interface ManualReleaseSelection {
+  section: FieldSection;
+  trade: FieldTrade;
+  unitId: string;
+}
+
+export function createManualReleaseBatch(input: {
+  actor: string;
+  date: string;
+  id: string;
+  propertyContact: string;
+  recordedAt: string;
+  roster: PropertyRoster;
+  selections: readonly ManualReleaseSelection[];
+}): AppDailyReleaseBatch {
+  const propertyContact = input.propertyContact.trim();
+  if (!propertyContact) {
+    throw new Error('Record the property contact who supplied or confirmed this release.');
+  }
+  const rosterUnits = new Map(input.roster.units.map((unit) => [unit.id, unit]));
+  const uniqueSelections = new Map<string, ManualReleaseSelection>();
+  input.selections.forEach((selection) => {
+    const unit = rosterUnits.get(selection.unitId);
+    const section = unit?.applicableSections.find((candidate) =>
+      candidate.id === selection.section);
+    const trackBTrade = selection.trade === 'paint' ? 'Paint' : 'Clean';
+    if (!unit || !section?.trades.includes(trackBTrade)) {
+      throw new Error('Manual release selection is not present in the existing roster.');
+    }
+    uniqueSelections.set(
+      `${selection.unitId}:${selection.section}:${selection.trade}`,
+      selection,
+    );
+  });
+  if (uniqueSelections.size === 0) {
+    throw new Error('Select at least one existing Unit, section, and trade.');
+  }
+  const items: DailyReleaseItem[] = [...uniqueSelections.values()]
+    .sort((left, right) =>
+      `${left.unitId}:${left.section}:${left.trade}`
+        .localeCompare(`${right.unitId}:${right.section}:${right.trade}`))
+    .map((selection, index) => ({
+      id: `${input.id}:item:${index + 1}`,
+      section: selection.section,
+      sourceExcerpt: 'Explicit manual selection from the existing personal roster.',
+      trade: selection.trade,
+      unitId: selection.unitId,
+    }));
+  return {
+    confirmedAt: input.recordedAt,
+    confirmedBy: input.actor,
+    createdAt: input.recordedAt,
+    date: input.date,
+    id: input.id,
+    items,
+    projectId: input.roster.propertyId,
+    propertyContact,
+    sourceLabel: 'Manual review of existing personal roster',
+    sourceType: 'manual',
+    status: 'confirmed',
+    uncertainties: [],
+    updatedAt: input.recordedAt,
+  };
+}
+
+export function appendManualReleaseBatchOnce(
+  data: AppData,
+  batch: AppDailyReleaseBatch,
+): AppData {
+  if (data.dailyReleaseBatches.some((candidate) => candidate.id === batch.id)) {
+    return data;
+  }
+  return {
+    ...data,
+    dailyReleaseBatches: [...data.dailyReleaseBatches, batch],
+  };
+}
+
+const selectedReleaseBatches = (data: AppData) => {
+  const activeSession = data.daySessions.find((session) =>
+    session.projectId === data.activeProjectId
+    && ['active', 'ending', 'reopened'].includes(session.status));
+  const selectedIds = new Set(activeSession?.releaseBatchIds ?? []);
+  return {
+    activeSession,
+    batches: data.dailyReleaseBatches.filter((batch) =>
+      selectedIds.has(batch.id) && batch.status === 'confirmed'),
+  };
+};
+
+const accessFromRestriction = (
+  restriction: string | undefined,
+  keyStatus: AppData['daySessions'][number]['keyStatus'] | undefined,
+) => {
+  if (restriction && occupiedRestrictionPattern.test(restriction)) {
+    return 'occupied-restricted' as const;
+  }
+  if (restriction && maintenanceRestrictionPattern.test(restriction)) {
+    return 'maintenance-blocked' as const;
+  }
+  if (
+    (restriction && hardRestrictionPattern.test(restriction))
+    || (keyStatus && keyStatus !== 'yes')
+  ) {
+    return 'access-blocked' as const;
+  }
+  return 'clear' as const;
+};
+
+const toTrackCEvent = (event: FieldEvent): TrackCConfirmedEvent | undefined => {
+  if (
+    !event.unitId
+    || !event.trade
+    || !event.section
+    || !TRACK_C_EVENT_TYPES.has(event.eventType as TrackCEventType)
+  ) {
+    return undefined;
+  }
+  return {
+    confirmation: 'confirmed',
+    crewId: event.reportedBy ?? (event.actorType === 'crew' ? event.actorId : undefined),
+    eventType: event.eventType as TrackCEventType,
+    id: event.id,
+    officialPaperChanged: false,
+    payrollChanged: false,
+    personalRecordOnly: true,
+    recordedAt: event.recordedAt,
+    recordedBy: event.recordedBy,
+    sourceLabel: event.sourceType,
+    sourceType: event.boundary === 'property-reported'
+      ? 'property-walk-observation'
+      : event.eventType === 'crew-reported-complete'
+        ? 'crew-report'
+        : 'personal-confirmation',
+    summary: event.summary,
+    target: {
+      section: event.section,
+      trade: event.trade,
+      unitId: event.unitId,
+    },
+    walkSessionId: event.sourceId,
+  };
+};
+
+const parseReviewedSelections = (
+  note: string | undefined,
+): readonly TrackCWalkSelectionReview[] | undefined => {
+  if (!note?.startsWith(WALK_REVIEW_NOTE_PREFIX)) return undefined;
+  try {
+    const value = JSON.parse(note.slice(WALK_REVIEW_NOTE_PREFIX.length)) as unknown;
+    return Array.isArray(value) ? value as readonly TrackCWalkSelectionReview[] : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const releaseItemMaps = (batches: readonly AppDailyReleaseBatch[]) => {
+  const byId = new Map<string, DailyReleaseItem>();
+  const byTarget = new Map<string, DailyReleaseItem>();
+  batches.forEach((batch) => batch.items.forEach((item) => {
+    byId.set(item.id, item);
+    byTarget.set(`${item.unitId}:${item.trade}:${item.section}`, item);
+  }));
+  return { byId, byTarget };
+};
+
+const reviewedSelectionFromState = (
+  state: TrackCState,
+  target: TrackCWorkTarget,
+): TrackCWalkSelectionReview | undefined => {
+  const projection = projectTrackCWork(state, target);
+  if (!projection?.responsibleCrewId) return undefined;
+  return {
+    access: projection.access,
+    assignmentConflict: projection.assignmentConflict,
+    callbackOpen: projection.callbackOpen,
+    confirmedEventCount: projection.confirmedEventCount,
+    inspection: projection.inspection,
+    property: projection.property,
+    release: projection.release,
+    responsibleCrewId: projection.responsibleCrewId,
+    sourceConfidence: projection.sourceConfidence,
+    target,
+  };
+};
+
+export function projectTrackCState(data: AppData): TrackCState {
+  const project = projectForData(data);
+  const roster = projectPropertyRoster(data);
+  const { activeSession, batches } = selectedReleaseBatches(data);
+  const releaseItems = releaseItemMaps(batches);
+  const events = data.fieldEvents
+    .filter((event) =>
+      event.projectId === data.activeProjectId
+      && event.daySessionId === activeSession?.id)
+    .map(toTrackCEvent)
+    .filter((event): event is TrackCConfirmedEvent => Boolean(event));
+  const stateWithoutWalks: TrackCState = {
+    completedWalks: [],
+    crews: data.crewMembers
+      .filter((crew) =>
+        (!crew.projectId || crew.projectId === data.activeProjectId)
+        && (crew.trade === 'Painter' || crew.trade === 'Cleaner'))
+      .map((crew) => ({
+        activeToday: crew.active,
+        id: crew.id,
+        name: crew.name,
+        phone: crew.phone || undefined,
+        trade: crew.trade === 'Painter' ? 'paint' : 'clean',
+      })),
+    events,
+    propertyId: data.activeProjectId,
+    propertyName: project?.propertyName || project?.name || 'Current property',
+    terminology: DEFAULT_TRACK_C_TERMINOLOGY,
+    units: roster.units.map((unit) => ({
+      applicableSections: unit.applicableSections.map((section) =>
+        section.id as TrackCSection),
+      id: unit.id,
+      locationLabel: [unit.building, unit.floor].filter(Boolean).join(' · ') || 'Roster Unit',
+      unitNumber: unit.unitNumber,
+      unitType: unit.unitType,
+      workFacts: TRACK_C_TRADES.flatMap((trade) =>
+        unit.applicableSections.map((section) => {
+          const key = `${unit.id}:${trade}:${section.id}`;
+          const item = releaseItems.byTarget.get(key);
+          const batch = item
+            ? batches.find((candidate) => candidate.items.some((entry) => entry.id === item.id))
+            : undefined;
+          const uncertain = Boolean(batch?.uncertainties.length);
+          return {
+            access: accessFromRestriction(item?.restriction, activeSession?.keyStatus),
+            id: key,
+            release: item ? uncertain ? 'source-uncertain' : 'released' : 'unreleased',
+            restrictionLabel: item?.restriction,
+            section: section.id as TrackCSection,
+            sourceConfidence: item ? uncertain ? 'uncertain' : 'confirmed' : 'confirmed',
+            sourceLabel: item
+              ? `${batch?.sourceLabel ?? 'Confirmed release'} · personal copy`
+              : 'Not included in the active confirmed release',
+            trade,
+            unitId: unit.id,
+          };
+        })),
+    })),
+  };
+  const walks = data.walkSessions
+    .filter((walk) =>
+      walk.projectId === data.activeProjectId && walk.daySessionId === activeSession?.id)
+    .map((walk): TrackCWalkSession | undefined => {
+      const selectedTargets = walk.selectedItemIds
+        .map((itemId) => releaseItems.byId.get(itemId))
+        .filter((item): item is DailyReleaseItem => Boolean(item))
+        .map((item) => ({
+          section: item.section,
+          trade: item.trade,
+          unitId: item.unitId,
+        }));
+      if (selectedTargets.length !== walk.selectedItemIds.length) return undefined;
+      const reviewedSelections = parseReviewedSelections(walk.note)
+        ?? selectedTargets
+          .map((target) => reviewedSelectionFromState(stateWithoutWalks, target))
+          .filter((review): review is TrackCWalkSelectionReview => Boolean(review));
+      if (reviewedSelections.length !== selectedTargets.length) return undefined;
+      return {
+        endedAt: walk.endedAt,
+        id: walk.id,
+        outcomes: walk.outcomes.map((outcome) => {
+          const item = releaseItems.byId.get(outcome.selectedItemId);
+          return item
+            ? {
+                outcome: outcome.outcome,
+                target: {
+                  section: item.section,
+                  trade: item.trade,
+                  unitId: item.unitId,
+                },
+              }
+            : undefined;
+        }).filter((outcome): outcome is TrackCWalkOutcomeRecord => Boolean(outcome)),
+        propertyContact: walk.propertyContact,
+        reviewedSelections,
+        selectedTargets,
+        startedAt: walk.startedAt,
+        startedBy: walk.startedBy,
+        status: walk.status === 'closed' ? 'completed' : 'active',
+      };
+    })
+    .filter((walk): walk is TrackCWalkSession => Boolean(walk));
+  return {
+    ...stateWithoutWalks,
+    activeWalk: walks.find((walk) => walk.status === 'active'),
+    completedWalks: walks.filter((walk) => walk.status === 'completed'),
+  };
+}
+
+const toFoundationTrackCEvent = (
+  projectId: string,
+  daySessionId: string,
+  event: TrackCConfirmedEvent,
+): FieldEvent => ({
+  actorId: event.eventType === 'crew-reported-complete'
+    ? event.crewId ?? event.recordedBy
+    : event.recordedBy,
+  actorType: event.eventType === 'crew-reported-complete' ? 'crew' : 'los',
+  boundary: event.eventType.startsWith('property-')
+    || event.eventType === 'walk-not-walked'
+    || event.eventType === 'walk-deferred'
+      ? 'property-reported'
+      : event.eventType === 'personal-pds-mirror-recorded'
+        ? 'paper-mirror'
+        : 'personal-record',
+  daySessionId,
+  eventType: event.eventType,
+  id: event.id,
+  projectId,
+  recordedAt: event.recordedAt,
+  recordedBy: event.recordedBy,
+  reportedBy: event.crewId,
+  section: event.target.section,
+  sourceId: event.walkSessionId,
+  sourceType: event.sourceType,
+  summary: event.summary,
+  trade: event.target.trade,
+  unitId: event.target.unitId,
+});
+
+const persistWalk = (
+  data: AppData,
+  walk: TrackCWalkSession,
+  activeSessionId: string,
+  releases: readonly AppDailyReleaseBatch[],
+): AppWalkSession => {
+  const releaseItems = releaseItemMaps(releases);
+  const selectedItemIds = walk.selectedTargets.map((target) => {
+    const item = releaseItems.byTarget.get(trackCWorkKey(target));
+    if (!item) throw new Error('Walk target is not in the active confirmed release.');
+    return item.id;
+  });
+  const outcomes = (walk.outcomes ?? []).map((outcome) => {
+    const item = releaseItems.byTarget.get(trackCWorkKey(outcome.target));
+    if (!item) throw new Error('Walk outcome is not in the active confirmed release.');
+    return { outcome: outcome.outcome, selectedItemId: item.id };
+  });
+  const existing = data.walkSessions.find((candidate) => candidate.id === walk.id);
+  return {
+    createdAt: existing?.createdAt ?? walk.startedAt,
+    daySessionId: activeSessionId,
+    endedAt: walk.endedAt,
+    id: walk.id,
+    note: `${WALK_REVIEW_NOTE_PREFIX}${JSON.stringify(walk.reviewedSelections)}`,
+    outcomes,
+    projectId: data.activeProjectId,
+    propertyContact: walk.propertyContact,
+    selectedItemIds,
+    startedAt: walk.startedAt,
+    startedBy: walk.startedBy,
+    status: walk.status === 'completed' ? 'closed' : 'active',
+    updatedAt: walk.endedAt ?? walk.startedAt,
+  };
+};
+
+export function applyTrackCStateChange(
+  data: AppData,
+  nextState: TrackCState,
+): AppData {
+  const { activeSession, batches } = selectedReleaseBatches(data);
+  if (!activeSession) {
+    throw new Error('Field Operations requires one active personal Day Session.');
+  }
+  const currentEventIds = new Set(data.fieldEvents.map((event) => event.id));
+  const newEvents = nextState.events
+    .filter((event) => event.confirmation === 'confirmed' && !currentEventIds.has(event.id))
+    .map((event) =>
+      toFoundationTrackCEvent(data.activeProjectId, activeSession.id, event));
+  const nextWalks = [
+    ...nextState.completedWalks,
+    ...(nextState.activeWalk ? [nextState.activeWalk] : []),
+  ].reduce(
+    (records, walk) => upsertById(
+      records,
+      persistWalk(data, walk, activeSession.id, batches),
+    ),
+    [...data.walkSessions] as AppWalkSession[],
+  );
+  return {
+    ...data,
+    fieldEvents: [...data.fieldEvents, ...newEvents],
+    walkSessions: nextWalks,
+  };
+}

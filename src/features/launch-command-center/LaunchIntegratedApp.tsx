@@ -25,7 +25,6 @@ import {
   type ActivityItem,
 } from '../operational-memory';
 import {
-  LaunchCommandCenterShell,
   LaunchLoginSurface,
 } from './LaunchCommandCenter';
 import { projectLaunchAppData } from './appDataProjection';
@@ -36,11 +35,9 @@ import type {
 } from './types';
 import {
   NativeHomeSummaryPage,
-  NativeHomeSurface,
   NativeNotificationsPage,
   NativeSearchPage,
   selectNativeHomeSummary,
-  type NativeDailyGoal,
   type NativeHomeRecord,
   type NativeNotificationItem,
   type NativeNotificationTab,
@@ -54,7 +51,6 @@ import {
   TRACK_B_SETUP_QUESTIONS,
   TrackBCrewFormPage,
   TrackBCrewListPage,
-  TrackBMorePage,
   TrackBProfilePage,
   TrackBReportsAndProofPage,
   TrackBSetupQuestionnaire,
@@ -72,6 +68,39 @@ import {
   type TrackCNativeFileSelection,
   type TrackCPlusAction,
 } from '../wave2a1-native/track-c';
+import {
+  ThemeAwareMorePage,
+  Wave2A2OverlayBoundary,
+  Wave2A2StandaloneRoute,
+  Wave2A2UnifiedShell,
+  useTurnTheme,
+} from '../wave2a2-track-a';
+import {
+  DayTaskWorkspace,
+  type TrackBCrewOption,
+} from '../wave2a2-track-b';
+import {
+  TrackCFieldOps,
+  type TrackCView,
+} from '../wave2a2-track-c';
+import {
+  ManualReleaseReview,
+} from '../wave2a2-core/ManualReleaseReview';
+import {
+  OfficialPdsFormsPage,
+} from '../wave2a2-core/OfficialPdsFormsPage';
+import {
+  applyDayTaskStateChange,
+  applyTrackCStateChange,
+  appendManualReleaseBatchOnce,
+  currentLocalDate,
+  projectDailyReleases,
+  projectDayEvents,
+  projectDaySessions,
+  projectPropertyRoster,
+  projectTodayTask,
+  projectTrackCState,
+} from '../wave2a2-core/appDataAdapters';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
 import { addCrewMember, updateCrewMember } from '../../lib/actions';
@@ -111,7 +140,8 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'profile' | 'privacy' | 'storage' | null;
+type MoreDetailPage = 'forms' | 'profile' | 'privacy' | 'storage' | null;
+type HomeMode = 'day' | 'manual-release';
 
 const readHistoryState = (): Record<string, unknown> => {
   if (typeof window === 'undefined') return {};
@@ -199,14 +229,15 @@ export function LaunchIntegratedApp() {
   );
   const [plusOpen, setPlusOpen] = useState(false);
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
-  const [homeDialogOpen, setHomeDialogOpen] = useState(false);
+  const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
+  const [homeMode, setHomeMode] = useState<HomeMode>('day');
+  const [trackCView, setTrackCView] = useState<TrackCView>('board');
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [notificationTab, setNotificationTab] = useState<NativeNotificationTab>('all');
   const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
-  const [dailyGoal, setDailyGoal] = useState<NativeDailyGoal | null>(null);
   const [crewEditor, setCrewEditor] = useState<CrewEditorState>(null);
   const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
   const [moreStatus, setMoreStatus] = useState(
@@ -258,8 +289,8 @@ export function LaunchIntegratedApp() {
   );
   const boardRepositoryState = useMemo(() => createLaunchBoardRepository(data), [data]);
   const boardRepository = boardRepositoryState.repository;
-  const boardRouteActive = (route.view === 'units' && route.unitStatusFilter === 'All')
-    || route.view === 'activity'
+  const fieldOpsRouteActive = route.view === 'units' && route.unitStatusFilter === 'All';
+  const boardRouteActive = route.view === 'activity'
     || (
       route.view === 'unitDetail'
       && route.unitSurface !== 'personal'
@@ -277,6 +308,27 @@ export function LaunchIntegratedApp() {
       ?? 'local-unconfigured-device',
     projectId: data.activeProjectId,
   }), [data.activeProjectId, sync.lastAuthenticatedUserId, sync.userId]);
+  const theme = useTurnTheme(operationalScope.accountId);
+  const currentDate = useMemo(() => currentLocalDate(now), [now]);
+  const propertyRoster = useMemo(() => projectPropertyRoster(data), [data]);
+  const dailyReleases = useMemo(() => projectDailyReleases(data), [data]);
+  const daySessions = useMemo(
+    () => projectDaySessions(data, operationalScope.accountId),
+    [data, operationalScope.accountId],
+  );
+  const dayEvents = useMemo(() => projectDayEvents(data), [data]);
+  const activeDaySession = useMemo(
+    () => [...daySessions]
+      .filter((session) => ['active', 'ending', 'reopened'].includes(session.status))
+      .sort((left, right) => (right.startedAt ?? '').localeCompare(left.startedAt ?? ''))
+      .at(0),
+    [daySessions],
+  );
+  const todayTask = useMemo(
+    () => projectTodayTask(data, activeDaySession),
+    [activeDaySession, data],
+  );
+  const trackCState = useMemo(() => projectTrackCState(data), [data]);
   const operationalSource = useMemo(
     () => createAppDataOperationalReadSource(operationalScope, data),
     [data, operationalScope],
@@ -359,23 +411,15 @@ export function LaunchIntegratedApp() {
       .sort((left, right) => left.name.localeCompare(right.name)),
     [data.activeProjectId, data.crewMembers],
   );
-  const goalActual = useMemo(() => {
-    if (!dailyGoal || dailyGoal.milestone === 'property-accepted') return 0;
-    if (dailyGoal.metric === 'units' && dailyGoal.milestone === 'ready-to-walk') {
-      return launchProjection.counts.readyToWalk;
-    }
-
-    const matching = boardActivity.filter((item) => {
-      if (dailyGoal.milestone === 'crew-reported-complete') return item.kind === 'crew-report';
-      if (dailyGoal.milestone === 'los-inspected') return item.kind === 'los-inspection';
-      return false;
-    });
-    if (dailyGoal.metric === 'sections') {
-      return matching.filter((item) => Boolean(item.section)).length;
-    }
-    if (dailyGoal.metric === 'inspections') return matching.length;
-    return new Set(matching.flatMap((item) => item.unitId ? [item.unitId] : [])).size;
-  }, [boardActivity, dailyGoal, launchProjection.counts.readyToWalk]);
+  const dayCrewOptions = useMemo<TrackBCrewOption[]>(
+    () => crewRecords.map((crew) => ({
+      activeToday: crew.activeToday,
+      id: crew.id,
+      name: crew.name,
+      trade: crew.trade,
+    })),
+    [crewRecords],
+  );
   const selectedActivityView = useMemo<PersonalActivityViewModel | null>(() => {
     if (!selectedActivity) return null;
     const entityType: ActivityLog['entityType'] = selectedActivity.unitId ? 'Unit' : 'Project';
@@ -508,6 +552,7 @@ export function LaunchIntegratedApp() {
     setCaptureOpen(false);
     if (view !== 'crews') setCrewEditor(null);
     if (view !== 'more') setMoreDetailPage(null);
+    if (view !== 'dashboard') setHomeMode('day');
 
     const nextRoute = routeForNavigation(view, unitId, options);
     const nextHash = buildAppHash(nextRoute);
@@ -672,19 +717,23 @@ export function LaunchIntegratedApp() {
       more: 'more',
       turnboard: 'units',
     };
+    if (destination === 'turnboard') setTrackCView('board');
     navigate(view[destination]);
   }, [navigate]);
 
   const handleQuickAction = useCallback((action: LaunchQuickActionId) => {
     if (action === 'import-work') {
-      navigate('assignments');
+      navigate('dashboard');
+      setHomeMode('manual-release');
       return;
     }
     if (action === 'assign-crews') {
-      navigate('crews');
+      setTrackCView('assign');
+      navigate('units');
       return;
     }
     if (action === 'start-walk') {
+      setTrackCView('walk');
       navigate('units');
       return;
     }
@@ -763,9 +812,7 @@ export function LaunchIntegratedApp() {
   const handleMoreNavigation = useCallback((destination: TrackBToolDestination) => {
     setMoreStatus('Personal workspace · paper remains authoritative');
     if (destination === 'official-pds-forms') {
-      setMoreStatus(
-        'Official PDS Forms stay unavailable until reviewed destinations and privacy treatment are approved.',
-      );
+      setMoreDetailPage('forms');
       return;
     }
     if (destination === 'profile' || destination === 'privacy' || destination === 'storage') {
@@ -999,74 +1046,50 @@ export function LaunchIntegratedApp() {
     );
   if (!appAvailable) {
     return (
-      <LaunchLoginSurface
-        busy={authBusy || !sync.authReady}
-        email={loginEmail}
-        online={online}
-        onEmailChange={setLoginEmail}
-        onForgotPassword={() => {
-          if (!online) {
-            setAuthFeedback('Reconnect before requesting a password reset. Saved field data is not deleted.');
-            return;
-          }
-          if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim())) {
-            setAuthFeedback('Enter a valid email before requesting a password reset.');
-            return;
-          }
-          setAuthBusy(true);
-          setAuthFeedback(undefined);
-          void authAdapter.requestPasswordReset(loginEmail.trim()).then((result) => {
-            setAuthFeedback(
-              result.ok
-                ? 'Password-reset request sent. Check the email address you entered.'
-                : result.error,
-            );
-          }).finally(() => setAuthBusy(false));
-        }}
-        onPasswordChange={setLoginPassword}
-        onSubmit={() => {
-          if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim()) || !loginPassword) {
-            setAuthFeedback('Enter a valid email and password.');
-            return;
-          }
-          setAuthBusy(true);
-          setAuthFeedback(undefined);
-          void sync.signIn(loginEmail.trim(), loginPassword)
-            .then(() => setLoginPassword(''))
-            .finally(() => setAuthBusy(false));
-        }}
-        password={loginPassword}
-        recovery={sync.signedIn && sync.status === 'cache_transition_required'
-          ? <SyncPanel presentation="page" sync={sync} />
-          : undefined}
-        sessionMessage={authFeedback ?? sync.message}
-      />
-    );
-  }
-
-  if (route.view === 'search') {
-    return (
-      <NativeSearchPage
-        groups={nativeSearchGroups}
-        onBack={closeFullPage}
-        onOpenResult={handleSearchResult}
-        onQueryChange={setSearchQuery}
-        onSelectRecent={(query) => setSearchQuery(query)}
-        query={searchQuery}
-        recentSearches={recentSearches}
-      />
-    );
-  }
-
-  if (route.view === 'notifications') {
-    return (
-      <NativeNotificationsPage
-        activeTab={notificationTab}
-        items={nativeNotifications}
-        onBack={closeFullPage}
-        onOpenNotification={handleNotification}
-        onTabChange={setNotificationTab}
-      />
+      <Wave2A2StandaloneRoute routeName="login" theme={theme}>
+        <LaunchLoginSurface
+          busy={authBusy || !sync.authReady}
+          email={loginEmail}
+          online={online}
+          onEmailChange={setLoginEmail}
+          onForgotPassword={() => {
+            if (!online) {
+              setAuthFeedback('Reconnect before requesting a password reset. Saved field data is not deleted.');
+              return;
+            }
+            if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim())) {
+              setAuthFeedback('Enter a valid email before requesting a password reset.');
+              return;
+            }
+            setAuthBusy(true);
+            setAuthFeedback(undefined);
+            void authAdapter.requestPasswordReset(loginEmail.trim()).then((result) => {
+              setAuthFeedback(
+                result.ok
+                  ? 'Password-reset request sent. Check the email address you entered.'
+                  : result.error,
+              );
+            }).finally(() => setAuthBusy(false));
+          }}
+          onPasswordChange={setLoginPassword}
+          onSubmit={() => {
+            if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim()) || !loginPassword) {
+              setAuthFeedback('Enter a valid email and password.');
+              return;
+            }
+            setAuthBusy(true);
+            setAuthFeedback(undefined);
+            void sync.signIn(loginEmail.trim(), loginPassword)
+              .then(() => setLoginPassword(''))
+              .finally(() => setAuthBusy(false));
+          }}
+          password={loginPassword}
+          recovery={sync.signedIn && sync.status === 'cache_transition_required'
+            ? <SyncPanel presentation="page" sync={sync} />
+            : undefined}
+          sessionMessage={authFeedback ?? sync.message}
+        />
+      </Wave2A2StandaloneRoute>
     );
   }
 
@@ -1077,7 +1100,27 @@ export function LaunchIntegratedApp() {
     ? crewRecords.find((crew) => crew.id === crewEditor.crewId)
     : undefined;
 
-  const shellContent = boardRouteActive ? (
+  const shellContent = fieldOpsRouteActive ? (
+    <div className="lcc-host-stack lcc-host-stack--field-ops">
+      {hostAlerts}
+      <TrackCFieldOps
+        embedded
+        initialState={trackCState}
+        initialView={trackCView}
+        onCrewContactRequested={() => {
+          setMoreStatus('No message was sent. Crew contact remains a manual external action.');
+        }}
+        onCrewEditRequested={(crewId) => {
+          setCrewEditor({ crewId, mode: 'edit' });
+          navigate('crews');
+        }}
+        onDialogOpenChange={setTrackCDialogOpen}
+        onStateChange={(nextState) => {
+          setData((current) => applyTrackCStateChange(current, nextState));
+        }}
+      />
+    </div>
+  ) : boardRouteActive ? (
     <BoardFirstShell
       activeView={boardViewForRoute(route.view)}
       activityItems={boardActivity}
@@ -1099,6 +1142,24 @@ export function LaunchIntegratedApp() {
         navigate('unitDetail', unitId, { unitSurface: 'personal' })}
       onUnitNavigate={navigateBoardUnit}
     />
+  ) : route.view === 'search' ? (
+    <NativeSearchPage
+      groups={nativeSearchGroups}
+      onBack={closeFullPage}
+      onOpenResult={handleSearchResult}
+      onQueryChange={setSearchQuery}
+      onSelectRecent={(query) => setSearchQuery(query)}
+      query={searchQuery}
+      recentSearches={recentSearches}
+    />
+  ) : route.view === 'notifications' ? (
+    <NativeNotificationsPage
+      activeTab={notificationTab}
+      items={nativeNotifications}
+      onBack={closeFullPage}
+      onOpenNotification={handleNotification}
+      onTabChange={setNotificationTab}
+    />
   ) : route.view === 'dashboard' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
@@ -1111,25 +1172,42 @@ export function LaunchIntegratedApp() {
           onBack={() => navigate('dashboard')}
           onOpenRecord={(record: NativeHomeRecord) => openDestination(record.destinationId)}
         />
+      ) : homeMode === 'manual-release' ? (
+        <ManualReleaseReview
+          actor="Los"
+          currentDate={currentDate}
+          onBack={() => setHomeMode('day')}
+          onConfirm={(batch) => {
+            setData((current) => appendManualReleaseBatchOnce(current, batch));
+            setHomeMode('day');
+          }}
+          roster={propertyRoster}
+        />
       ) : (
-        <NativeHomeSurface
-          dateLabel={launchProjection.dateLabel}
-          goal={dailyGoal}
-          goalActual={goalActual}
-          onDialogOpenChange={setHomeDialogOpen}
-          onOpenSummary={(destination) =>
-            navigate('dashboard', undefined, { homeSummary: destination.id })}
-          onQuickAction={handleQuickAction}
-          onSaveGoal={setDailyGoal}
-          propertyName={launchProjection.propertyName}
-          records={launchProjection.homeRecords}
+        <DayTaskWorkspace
+          accountId={operationalScope.accountId}
+          crews={dayCrewOptions}
+          currentDate={currentDate}
+          events={dayEvents}
+          existingSessions={daySessions}
+          initialSession={activeDaySession}
+          initialTask={todayTask}
+          onDayStateChange={(change) => {
+            setData((current) => applyDayTaskStateChange(current, change));
+          }}
+          onExternalAction={handleQuickAction}
+          propertyRoster={propertyRoster}
+          releases={dailyReleases}
+          startedBy="Los"
         />
       )}
     </div>
   ) : route.view === 'more' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
-      {moreDetailPage === 'profile' ? (
+      {moreDetailPage === 'forms' ? (
+        <OfficialPdsFormsPage onBack={() => setMoreDetailPage(null)} />
+      ) : moreDetailPage === 'profile' ? (
         <TrackBProfilePage
           appVersion="0.1.0"
           currentProperty={launchProjection.propertyName}
@@ -1206,14 +1284,18 @@ export function LaunchIntegratedApp() {
           </GroupedInsetSection>
         </NativeDetailShell>
       ) : (
-        <TrackBMorePage
+        <ThemeAwareMorePage
           onNavigate={handleMoreNavigation}
+          onPreferenceChange={theme.setPreference}
           onRequestSignOut={requestSignOut}
+          preference={theme.preference}
           profile={{
             currentProperty: launchProjection.propertyName,
             name: launchProjection.project?.supervisorName || 'Los',
             role: 'Turn Supervisor',
           }}
+          reducedMotion={theme.reducedMotion}
+          resolvedTheme={theme.resolvedTheme}
           statusLabel={moreStatus}
         />
       )}
@@ -1307,16 +1389,24 @@ export function LaunchIntegratedApp() {
     </div>
   );
 
+  const shellDetailMode = route.view === 'search'
+    || route.view === 'notifications'
+    || Boolean(moreDetailPage)
+    || Boolean(crewEditor);
+
   return (
     <>
-      <LaunchCommandCenterShell
+      <Wave2A2UnifiedShell
         activeDestination={primaryDestinationForRoute(route.view)}
-        backgroundInert={captureOpen || plusOpen || Boolean(selectedActivity)}
+        backgroundInert={
+          captureOpen || plusOpen || Boolean(selectedActivity) || trackCDialogOpen
+        }
         contentFocusKey={buildAppHash(route)}
-        contentContained={boardRouteActive}
-        contentDialogOpen={boardDialogOpen || homeDialogOpen}
+        contentContained={boardRouteActive || fieldOpsRouteActive}
+        contentDialogOpen={boardDialogOpen || trackCDialogOpen}
         contentTitle={contentTitle}
         dateLabel={launchProjection.dateLabel}
+        detailMode={shellDetailMode}
         notificationCount={launchProjection.notifications.filter((item) => !item.read).length}
         onNavigate={handlePrimaryNavigation}
         onOpenIntelligence={() => undefined}
@@ -1324,50 +1414,53 @@ export function LaunchIntegratedApp() {
         onOpenPlus={openNativePlus}
         onOpenSearch={() => openFullPage('search')}
         propertyName={launchProjection.propertyName}
+        theme={theme}
       >
         {shellContent}
-      </LaunchCommandCenterShell>
-      <CopilotView
-        ref={copilotRef}
-        commandSourceRequest={commandSourceRequest}
-        data={data}
-        isOpen={captureOpen}
-        onCaptureCompleted={mirrorCompletedBoardCapture}
-        onClose={closeCapture}
-        onOpenBackup={() => navigate('export')}
-        onNavigate={navigate}
-        onRetrySave={retrySave}
-        presentation="overlay"
-        saveStatus={saveStatus}
-        setData={setData}
-      />
-      <TrackCNativeFlow
-        data={data}
-        initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
-        onDismiss={() => setPlusOpen(false)}
-        onExternalAction={handleNativePlusAction}
-        onNativeFiles={handNativeFilesToCapture}
-        onSave={(nextData) => setData(nextData)}
-        open={plusOpen}
-      />
-      <PersonalActivityDetailSheet
-        item={selectedActivityView}
-        onDismiss={() => {
-          const returnFocus = activityReturnFocusRef.current;
-          setSelectedActivity(null);
-          activityReturnFocusRef.current = null;
-          window.requestAnimationFrame(() => {
-            if (returnFocus?.isConnected && returnFocus.getClientRects().length > 0) {
-              returnFocus.focus({ preventScroll: true });
-            }
-          });
-        }}
-        onOpenUnit={(unitId) => {
-          setSelectedActivity(null);
-          activityReturnFocusRef.current = null;
-          navigate('unitDetail', unitId);
-        }}
-      />
+      </Wave2A2UnifiedShell>
+      <Wave2A2OverlayBoundary theme={theme}>
+        <CopilotView
+          ref={copilotRef}
+          commandSourceRequest={commandSourceRequest}
+          data={data}
+          isOpen={captureOpen}
+          onCaptureCompleted={mirrorCompletedBoardCapture}
+          onClose={closeCapture}
+          onOpenBackup={() => navigate('export')}
+          onNavigate={navigate}
+          onRetrySave={retrySave}
+          presentation="overlay"
+          saveStatus={saveStatus}
+          setData={setData}
+        />
+        <TrackCNativeFlow
+          data={data}
+          initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
+          onDismiss={() => setPlusOpen(false)}
+          onExternalAction={handleNativePlusAction}
+          onNativeFiles={handNativeFilesToCapture}
+          onSave={(nextData) => setData(nextData)}
+          open={plusOpen}
+        />
+        <PersonalActivityDetailSheet
+          item={selectedActivityView}
+          onDismiss={() => {
+            const returnFocus = activityReturnFocusRef.current;
+            setSelectedActivity(null);
+            activityReturnFocusRef.current = null;
+            window.requestAnimationFrame(() => {
+              if (returnFocus?.isConnected && returnFocus.getClientRects().length > 0) {
+                returnFocus.focus({ preventScroll: true });
+              }
+            });
+          }}
+          onOpenUnit={(unitId) => {
+            setSelectedActivity(null);
+            activityReturnFocusRef.current = null;
+            navigate('unitDetail', unitId);
+          }}
+        />
+      </Wave2A2OverlayBoundary>
     </>
   );
 }

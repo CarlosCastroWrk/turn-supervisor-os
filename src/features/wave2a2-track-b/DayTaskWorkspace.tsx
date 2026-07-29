@@ -37,6 +37,7 @@ import {
 import type {
   DailyReleaseBatch,
   DayKeyStatus,
+  DayRolloverChoice,
   DaySession,
   DaySessionEvent,
   EndDayReview,
@@ -962,14 +963,20 @@ function QueuePage({ onBack, queue }: QueuePageProps) {
 interface RecoveryPageProps {
   currentDate: string;
   now: () => string;
-  onChoice: (session: DaySession, routeToEnd: boolean) => void;
+  onChoice: (
+    session: DaySession,
+    choice: DayRolloverChoice,
+    recordedAt: string,
+    routeToEnd: boolean,
+  ) => void;
   session: DaySession;
 }
 
 function RecoveryPage({ currentDate, now, onChoice, session }: RecoveryPageProps) {
-  const choose = (choice: 'resume' | 'review-and-close' | 'reopen-as-correction') => {
-    const next = applyDayRolloverChoice(session, choice, now());
-    onChoice(next, choice === 'review-and-close');
+  const choose = (choice: DayRolloverChoice) => {
+    const recordedAt = now();
+    const next = applyDayRolloverChoice(session, choice, recordedAt);
+    onChoice(next, choice, recordedAt, choice === 'review-and-close');
   };
   return (
     <section className="w2a2b-flow-page" data-testid="track-b-rollover">
@@ -1023,10 +1030,23 @@ export interface DayTaskWorkspaceProps {
   initialSession?: DaySession;
   initialTask?: TodayTask | null;
   now?: () => string;
+  onDayStateChange?: (change: DayTaskStateChange) => void;
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
   propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
   startedBy: string;
+}
+
+export interface DayTaskStateChange {
+  event?: DaySessionEvent;
+  reason:
+    | 'day-started'
+    | 'day-closed'
+    | 'recovery-resumed'
+    | 'recovery-review'
+    | 'recovery-reopened';
+  recordedAt: string;
+  session: DaySession;
 }
 
 export function DayTaskWorkspace({
@@ -1039,6 +1059,7 @@ export function DayTaskWorkspace({
   initialSession,
   initialTask,
   now = nowIso,
+  onDayStateChange,
   onExternalAction,
   propertyRoster,
   releases,
@@ -1070,7 +1091,7 @@ export function DayTaskWorkspace({
     onExternalAction?.(action);
     setReceipt(
       action === 'import-work'
-        ? 'Import handoff requested. Integration owns the source-first import route.'
+        ? 'Manual release review opened. Import upgrade is not included in this candidate.'
         : action === 'assign-crews'
           ? 'Crew assignment handoff requested. Integration owns the assignment route.'
           : 'Walk handoff requested. Integration owns the deterministic walk route.',
@@ -1091,6 +1112,12 @@ export function DayTaskWorkspace({
         onStarted={(nextSession, event) => {
           setSession(nextSession);
           setEvents((current) => [...current, event]);
+          onDayStateChange?.({
+            event,
+            reason: 'day-started',
+            recordedAt: event.recordedAt,
+            session: nextSession,
+          });
           setReceipt('Day Session started and restored as Los’s personal active day.');
           setView({ id: 'home' });
         }}
@@ -1111,6 +1138,12 @@ export function DayTaskWorkspace({
         onClosed={(nextSession, event) => {
           setSession(nextSession);
           setEvents((current) => [...current, event]);
+          onDayStateChange?.({
+            event,
+            reason: 'day-closed',
+            recordedAt: event.recordedAt,
+            session: nextSession,
+          });
           setReceipt('Day Session closed. Unresolved work was not changed.');
           setView({ id: 'home' });
         }}
@@ -1128,8 +1161,17 @@ export function DayTaskWorkspace({
       <RecoveryPage
         currentDate={currentDate}
         now={now}
-        onChoice={(nextSession, routeToEnd) => {
+        onChoice={(nextSession, choice, recordedAt, routeToEnd) => {
           setSession(nextSession);
+          onDayStateChange?.({
+            reason: choice === 'resume'
+              ? 'recovery-resumed'
+              : choice === 'review-and-close'
+                ? 'recovery-review'
+                : 'recovery-reopened',
+            recordedAt,
+            session: nextSession,
+          });
           setView({ id: routeToEnd ? 'end-day' : 'home' });
         }}
         session={recovery.session}

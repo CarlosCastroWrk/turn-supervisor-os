@@ -31,6 +31,33 @@
   -webkit-font-smoothing: antialiased;
 }
 
+:root[data-turn-theme] .track-c-shell {
+  --track-c-bg: var(--turn-color-page);
+  --track-c-surface: var(--turn-color-elevated);
+  --track-c-surface-muted: var(--turn-color-grouped);
+  --track-c-text: var(--turn-color-primary);
+  --track-c-muted: var(--turn-color-secondary);
+  --track-c-border: var(--turn-color-divider);
+  --track-c-blue: var(--turn-color-brand);
+  --track-c-blue-soft: var(--turn-color-brand-soft);
+  --track-c-green: var(--turn-color-ready);
+  --track-c-green-soft: var(--turn-color-ready-soft);
+  --track-c-amber: var(--turn-color-waiting);
+  --track-c-amber-soft: var(--turn-color-waiting-soft);
+  --track-c-red: var(--turn-color-destructive);
+  --track-c-red-soft: var(--turn-color-destructive-soft);
+  color-scheme: inherit;
+}
+
+.track-c-shell.is-embedded {
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.track-c-shell.is-embedded .track-c-shell__header {
+  display: none;
+}
+
 .track-c-shell *,
 .track-c-shell *::before,
 .track-c-shell *::after {

@@ -209,9 +209,18 @@ try {
   await page.getByRole('heading', { name: 'Bulk assign', exact: true }).waitFor();
 
   await page.goto(`${baseUrl}/#/walk`, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Start Walk', exact: true }).waitFor();
+  await page.getByRole('heading', {
+    name: 'No work is ready to walk.',
+    exact: true,
+  }).waitFor();
+  await page.getByRole('button', { name: 'Return to TurnBoard', exact: true }).waitFor();
+  assert.equal(new URL(page.url()).hash, '#/walk');
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Start Walk', exact: true }).waitFor();
+  await page.getByRole('heading', {
+    name: 'No work is ready to walk.',
+    exact: true,
+  }).waitFor();
+  assert.equal(new URL(page.url()).hash, '#/walk');
 
   await page.goto(`${baseUrl}/#/dashboard?summary=working`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Working', exact: true }).waitFor();

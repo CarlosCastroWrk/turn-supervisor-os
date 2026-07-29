@@ -17,7 +17,6 @@ import { BoardView } from './BoardView';
 import { CrewView } from './CrewView';
 import type {
   TrackCState,
-  TrackCWalkOutcome,
   TrackCWorkTarget,
 } from './model';
 import {
@@ -25,7 +24,10 @@ import {
   recordTrackCPersonalPdsMirror,
   type TrackCSectionAction,
 } from './operations';
-import { WalkView } from './WalkView';
+import {
+  WalkView,
+  type TrackCWalkIntegration,
+} from './WalkView';
 import './trackCFieldOps.css';
 
 export type TrackCView = 'board' | 'crews' | 'assign' | 'walk';
@@ -49,6 +51,7 @@ export interface TrackCFieldOpsProps {
   readonly onNavigate?: (route: TrackCRouteState) => void;
   readonly now?: () => string;
   readonly routeState?: TrackCRouteState;
+  readonly walkIntegration?: TrackCWalkIntegration;
 }
 
 export const TrackCFieldOps = ({
@@ -63,6 +66,7 @@ export const TrackCFieldOps = ({
   onNavigate,
   now = () => new Date().toISOString(),
   routeState,
+  walkIntegration,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
   const [localView, setLocalView] = useState<TrackCView>(initialView);
@@ -70,9 +74,6 @@ export const TrackCFieldOps = ({
   const [localSelectedCrewId, setLocalSelectedCrewId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
-  const [walkOutcomes, setWalkOutcomes] = useState<
-    Readonly<Record<string, TrackCWalkOutcome>>
-  >({});
   const shellRef = useRef<HTMLDivElement>(null);
   const mirrorDialogRef = useRef<HTMLElement>(null);
   const mirrorCancelRef = useRef<HTMLButtonElement>(null);
@@ -103,7 +104,11 @@ export const TrackCFieldOps = ({
   );
 
   const navigate = (nextView: TrackCView) => {
-    onNavigate?.({ view: nextView });
+    onNavigate?.(
+      nextView === 'walk' && state.activeWalk
+        ? { view: 'walk', walkSessionId: state.activeWalk.id }
+        : { view: nextView },
+    );
     setLocalView(nextView);
     setLocalSelectedUnitId(undefined);
     setLocalSelectedCrewId(undefined);
@@ -290,11 +295,18 @@ export const TrackCFieldOps = ({
         {view === 'walk' ? (
           <WalkView
             createId={createId}
+            integration={{
+              ...walkIntegration,
+              onReturnToBoard:
+                walkIntegration?.onReturnToBoard ??
+                (() => navigate('board')),
+              onViewWorkNeedingInspection:
+                walkIntegration?.onViewWorkNeedingInspection ??
+                (() => navigate('board')),
+            }}
             now={now}
-            onOutcomesChange={setWalkOutcomes}
             onRequestMirror={requestMirror}
             onStateChange={commitState}
-            outcomes={walkOutcomes}
             state={state}
           />
         ) : null}

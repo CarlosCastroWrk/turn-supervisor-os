@@ -112,7 +112,7 @@ const assertCriticalTargets = async (page, label) => {
 
 const assertInputFontSize = async (page, label) => {
   const inputs = page.locator(
-    'input:not([type="checkbox"]):not([type="radio"]):visible, select:visible',
+    'input:not([type="checkbox"]):not([type="radio"]):visible, select:visible, textarea:visible',
   );
   const count = await inputs.count();
   for (let index = 0; index < count; index += 1) {
@@ -344,6 +344,49 @@ try {
   );
   await scaleContext.close();
 
+  const zeroContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'dark',
+  });
+  const zeroPage = await zeroContext.newPage();
+  const zeroFindings = attachRuntimeChecks(zeroPage);
+  await zeroPage.goto(`${baseUrl}${previewPath}?scenario=walk-zero#/walk`, {
+    waitUntil: 'networkidle',
+  });
+  await zeroPage
+    .getByRole('heading', { name: 'No work is ready to walk.' })
+    .waitFor();
+  assert.equal(
+    await zeroPage.getByText(
+      'Work appears here after Los passes the relevant Paint or Clean inspection.',
+      { exact: true },
+    ).count(),
+    1,
+  );
+  assert.equal(
+    await zeroPage.getByRole('button', { name: 'Return to TurnBoard' }).count(),
+    1,
+  );
+  assert.equal(
+    await zeroPage
+      .getByRole('button', { name: 'View work needing inspection' })
+      .count(),
+    1,
+  );
+  assert.equal(
+    await zeroPage.locator('.track-c-form-stack').count(),
+    0,
+    'The zero state must not render the long Start Walk form.',
+  );
+  await assertNoHorizontalOverflow(zeroPage, 'Walk zero state');
+  await assertCriticalTargets(zeroPage, 'Walk zero state');
+  assert.deepEqual(
+    zeroFindings,
+    [],
+    `Walk zero-state runtime findings:\n${zeroFindings.join('\n')}`,
+  );
+  await zeroContext.close();
+
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     colorScheme: 'dark',
@@ -435,22 +478,50 @@ try {
   await page.getByText(/3 personal assignment records saved/).waitFor();
 
   await navigation.getByRole('button', { name: 'Walk' }).click();
-  await page.getByPlaceholder('Property contact').fill('Joseph');
+  await page
+    .getByLabel('Property Contact')
+    .selectOption('contact-jordan-lee');
   const candidateRows = page.locator('.track-c-walk-candidates > label');
   assert.ok((await candidateRows.count()) >= 2);
-  await candidateRows.nth(0).locator('input').check();
-  await candidateRows.nth(1).locator('input').check();
+  const paintCandidate = candidateRows.filter({ hasText: 'Paint' }).first();
+  const cleanCandidate = candidateRows.filter({ hasText: 'Clean' }).first();
+  await paintCandidate.locator('input').check();
+  await cleanCandidate.locator('input').check();
   await page.locator('.track-c-confirm-row input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Review Walk' }).click();
+  await page.getByRole('heading', { name: 'Review Walk' }).waitFor();
+  assert.equal(
+    await page.getByText('Jordan Lee', { exact: true }).count(),
+    1,
+  );
   await page.getByRole('button', { name: 'Start Walk', exact: true }).click();
-  await page.getByRole('heading', { name: 'Walk in progress' }).waitFor();
+  await page.getByRole('heading', { name: 'Active Walk' }).waitFor();
+  assert.match(page.url(), /#\/walk\/track-c-walk[_-]/u);
+  assert.equal(
+    await page.evaluate(() =>
+      window.__trackCPreview?.walkLifecycleEvents[0]?.type),
+    'started',
+  );
   const walkItems = page.locator('.track-c-walk-items > section');
   assert.equal(await walkItems.count(), 2);
   await walkItems.nth(0).getByRole('button', { name: 'Accepted' }).click();
-  await walkItems.nth(1).getByRole('button', { name: 'Correction' }).click();
+  await walkItems
+    .nth(0)
+    .getByLabel('Optional note')
+    .fill('Accepted during the walkthrough.');
+  await walkItems
+    .nth(1)
+    .getByRole('button', { name: 'Correction requested' })
+    .click();
+  await walkItems
+    .nth(1)
+    .getByLabel('Optional note')
+    .fill('Touch-up requested behind the door.');
   await navigation.getByRole('button', { name: 'TurnBoard' }).click();
   await page.getByRole('heading', { name: 'TurnBoard companion' }).waitFor();
   await navigation.getByRole('button', { name: 'Walk' }).click();
-  await page.getByRole('heading', { name: 'Walk in progress' }).waitFor();
+  await page.getByRole('heading', { name: 'Active Walk' }).waitFor();
+  assert.match(page.url(), /#\/walk\/track-c-walk[_-]/u);
   assert.equal(
     await walkItems
       .nth(0)
@@ -461,18 +532,57 @@ try {
   assert.equal(
     await walkItems
       .nth(1)
-      .getByRole('button', { name: 'Correction' })
+      .getByRole('button', { name: 'Correction requested' })
+      .getAttribute('aria-pressed'),
+    'true',
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Active Walk' }).waitFor();
+  assert.match(page.url(), /#\/walk\/track-c-walk[_-]/u);
+  assert.equal(
+    await walkItems
+      .nth(0)
+      .getByRole('button', { name: 'Accepted' })
       .getAttribute('aria-pressed'),
     'true',
   );
   assert.equal(
+    await walkItems.nth(0).getByLabel('Optional note').inputValue(),
+    'Accepted during the walkthrough.',
+  );
+  assert.equal(
     await page
-      .getByRole('button', { name: 'End Walk and review' })
+      .getByRole('button', { name: 'Review End Walk' })
       .isEnabled(),
     true,
   );
-  await page.getByRole('button', { name: 'End Walk and review' }).click();
+  await page.getByRole('button', { name: 'Review End Walk' }).click();
+  await page.getByRole('heading', { name: 'Review End Walk' }).waitFor();
+  assert.equal(
+    await page.getByText('Open callbacks after End Walk').count(),
+    1,
+  );
+  assert.equal(
+    await page.getByText('Accepted during the walkthrough.').count(),
+    1,
+  );
+  await page
+    .getByRole('button', { name: 'Open official Turn Sign-Off' })
+    .click();
+  assert.equal(
+    await page.evaluate(() => window.__trackCPreview?.signOffRequests.length),
+    1,
+  );
+  await page.getByRole('button', { name: 'Continue Walk' }).click();
+  await page.getByRole('heading', { name: 'Active Walk' }).waitFor();
+  await page.getByRole('button', { name: 'Review End Walk' }).click();
+  await page.getByRole('button', { name: 'End Walk', exact: true }).click();
   await page.getByRole('heading', { name: 'Latest walk' }).waitFor();
+  assert.equal(
+    await page.evaluate(() =>
+      window.__trackCPreview?.walkLifecycleEvents.at(-1)?.type),
+    'ended',
+  );
   assert.equal(await page.getByText('Eligible personal paper mirrors').count(), 1);
   const mirrorButton = page.locator('.track-c-mirror-list button').first();
   await mirrorButton.click();

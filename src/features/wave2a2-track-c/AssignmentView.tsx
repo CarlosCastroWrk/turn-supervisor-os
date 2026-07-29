@@ -151,6 +151,7 @@ export const AssignmentView = ({
       recordedBy: 'Los',
       eventIdPrefix: trackBAssignmentConfirmationPrefix(proposal.id),
       confirmed: true,
+      currentActiveCrewIds: availableCrewIds,
     });
     if (!result.ok) {
       releaseTrackBOneShot(confirmGuardRef);

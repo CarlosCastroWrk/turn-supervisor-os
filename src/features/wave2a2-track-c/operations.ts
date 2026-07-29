@@ -525,7 +525,24 @@ export interface TrackCConfirmBulkInput {
   readonly recordedBy: string;
   readonly eventIdPrefix: string;
   readonly confirmed: boolean;
+  readonly currentActiveCrewIds?: readonly string[];
 }
+
+const assignmentEventsSemanticallyMatch = (
+  existing: TrackCConfirmedEvent,
+  expected: TrackCConfirmedEvent,
+) =>
+  existing.eventType === 'assignment-confirmed' &&
+  trackCWorkKey(existing.target) === trackCWorkKey(expected.target) &&
+  existing.crewId === expected.crewId &&
+  existing.confirmation === 'confirmed' &&
+  existing.sourceType === expected.sourceType &&
+  existing.sourceLabel === expected.sourceLabel &&
+  existing.summary === expected.summary &&
+  existing.personalRecordOnly === true &&
+  existing.officialPaperChanged === false &&
+  existing.payrollChanged === false &&
+  existing.walkSessionId === undefined;
 
 export const confirmTrackCBulkAssignmentProposal = (
   state: TrackCState,
@@ -542,6 +559,24 @@ export const confirmTrackCBulkAssignmentProposal = (
     return error(
       'invalid-proposal',
       'The reviewed proposal identity changed. Review the crew, trade, Units, and sections again.',
+    );
+  }
+
+  const currentActiveCrewIds = resolveTrackBActiveCrewIds(
+    state.crews,
+    input.currentActiveCrewIds,
+  );
+  const currentCrew = state.crews.find(
+    (candidate) => candidate.id === proposal.crewId,
+  );
+  if (
+    !currentCrew ||
+    currentCrew.trade !== proposal.trade ||
+    !currentActiveCrewIds.includes(proposal.crewId)
+  ) {
+    return error(
+      'invalid-proposal',
+      'The selected crew is no longer active for this trade. Review and choose a currently active compatible crew.',
     );
   }
 
@@ -582,30 +617,45 @@ export const confirmTrackCBulkAssignmentProposal = (
         'Personal crew assignment recorded. Authoritative paper and payroll remain unchanged.',
     })
   );
-  const existingById = new Map(
-    state.events
-      .filter((event) => events.some((candidate) => candidate.id === event.id))
-      .map((event) => [event.id, event]),
+  const expectedEventsById = new Map<string, TrackCConfirmedEvent[]>();
+  for (const event of events) {
+    const matching = expectedEventsById.get(event.id) ?? [];
+    expectedEventsById.set(event.id, [...matching, event]);
+  }
+  if (
+    expectedEventsById.size !== events.length ||
+    [...expectedEventsById.values()].some((matching) => matching.length !== 1)
+  ) {
+    return error(
+      'idempotency-conflict',
+      'Two assignment targets produced the same confirmation identity. Review the proposal and try again.',
+    );
+  }
+
+  const existingRowsById = new Map(
+    [...expectedEventsById.keys()].map((eventId) => [
+      eventId,
+      state.events.filter((event) => event.id === eventId),
+    ]),
   );
-  if (existingById.size > 0) {
-    const exactReplay =
-      existingById.size === events.length &&
-      events.every((event) => {
-        const existing = existingById.get(event.id);
-        return Boolean(
-          existing &&
-          existing.eventType === 'assignment-confirmed' &&
-          trackCWorkKey(existing.target) === trackCWorkKey(event.target) &&
-          existing.crewId === proposal.crewId &&
-          existing.confirmation === 'confirmed',
-        );
-      });
+  const allExpectedIdsAreNew = [...existingRowsById.values()].every(
+    (rows) => rows.length === 0,
+  );
+  if (!allExpectedIdsAreNew) {
+    const exactReplay = events.every((event) => {
+      const existingRows = existingRowsById.get(event.id) ?? [];
+      return (
+        existingRows.length === 1 &&
+        assignmentEventsSemanticallyMatch(existingRows[0], event)
+      );
+    });
     if (!exactReplay) {
       return error(
         'idempotency-conflict',
-        'This confirmation identity is already tied to different or incomplete assignment evidence.',
+        'A confirmation identity has duplicate, conflicting, or incomplete assignment evidence. Resolve it before retrying.',
       );
     }
+    const firstExistingEvent = existingRowsById.get(events[0].id)?.[0];
     return {
       ok: true,
       value: {
@@ -615,8 +665,7 @@ export const confirmTrackCBulkAssignmentProposal = (
           assignedTargets,
           skippedTargets,
           recordedAt:
-            existingById.values().next().value?.recordedAt ??
-            input.recordedAt,
+            firstExistingEvent?.recordedAt ?? input.recordedAt,
           idempotentReplay: true,
           officialPaperChanged: false,
           payrollChanged: false,
@@ -629,7 +678,7 @@ export const confirmTrackCBulkAssignmentProposal = (
     proposalId: proposal.id,
     trade: proposal.trade,
     crewId: proposal.crewId,
-    activeCrewIds: proposal.activeCrewIds,
+    activeCrewIds: currentActiveCrewIds,
     unitIds: proposal.unitIds,
     sectionMode: proposal.sectionMode,
     sections: proposal.requestedSections,
@@ -641,11 +690,6 @@ export const confirmTrackCBulkAssignmentProposal = (
       'invalid-proposal',
       'The reviewed proposal is stale because assignment, access, release, source, crew, Unit, trade, or section evidence changed. Review again.',
     );
-  }
-
-  const crew = state.crews.find((candidate) => candidate.id === proposal.crewId);
-  if (!crew || crew.trade !== proposal.trade) {
-    return error('invalid-proposal', 'The selected crew is not compatible.');
   }
 
   return {

@@ -22,7 +22,9 @@ import {
   updateTrackCActiveWalkOutcomes,
 } from '../src/features/wave2a2-track-c/operations.ts';
 import {
+  projectTrackCCrewDetail,
   projectTrackCReleasedUnitsForTrade,
+  projectTrackCUnitWork,
   projectTrackCWalkCandidates,
   projectTrackCWork,
 } from '../src/features/wave2a2-track-c/projections.ts';
@@ -108,6 +110,57 @@ test('assignment proposal requires a compatible crew active today', () => {
   assert.equal(allowed.items[0]?.eligible, true);
 });
 
+test('assignment confirmation revalidates the crew against the current active source', () => {
+  const initial = createSyntheticTrackCState();
+  const proposal = createTrackCBulkAssignmentProposal(
+    initial,
+    proposalInput(),
+  );
+  assert.equal(proposal.items[0]?.eligible, true);
+  const crewBecameInactive = {
+    ...initial,
+    crews: initial.crews.map((crew) =>
+      crew.id === proposal.crewId ? { ...crew, activeToday: false } : crew
+    ),
+  };
+
+  const result = confirmTrackCBulkAssignmentProposal(
+    crewBecameInactive,
+    proposal,
+    {
+      confirmed: true,
+      eventIdPrefix: trackBAssignmentConfirmationPrefix(proposal.id),
+      recordedAt: '2026-07-29T17:00:30.000Z',
+      recordedBy: 'Los',
+    },
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.error.code, 'invalid-proposal');
+  assert.match(result.error.message, /no longer active/i);
+  assert.match(result.error.message, /review and choose/i);
+  assert.equal(
+    crewBecameInactive.events.some((event) =>
+      event.id.startsWith(trackBAssignmentConfirmationPrefix(proposal.id))
+    ),
+    false,
+  );
+
+  const currentSourceResult = confirmTrackCBulkAssignmentProposal(
+    initial,
+    proposal,
+    {
+      confirmed: true,
+      currentActiveCrewIds: ['crew-atlas-paint'],
+      eventIdPrefix: trackBAssignmentConfirmationPrefix(proposal.id),
+      recordedAt: '2026-07-29T17:00:31.000Z',
+      recordedBy: 'Los',
+    },
+  );
+  assert.equal(currentSourceResult.ok, false);
+  assert.equal(currentSourceResult.error.code, 'invalid-proposal');
+  assert.match(currentSourceResult.error.message, /no longer active/i);
+});
+
 test('assignment confirmation is deterministic and exact replay adds no event', () => {
   const state = createSyntheticTrackCState();
   const proposal = createTrackCBulkAssignmentProposal(
@@ -117,6 +170,7 @@ test('assignment confirmation is deterministic and exact replay adds no event', 
   const eventIdPrefix = trackBAssignmentConfirmationPrefix(proposal.id);
   const first = confirmTrackCBulkAssignmentProposal(state, proposal, {
     confirmed: true,
+    currentActiveCrewIds: ['crew-bluebird-paint'],
     eventIdPrefix,
     recordedAt: '2026-07-29T17:01:00.000Z',
     recordedBy: 'Los',
@@ -129,6 +183,7 @@ test('assignment confirmation is deterministic and exact replay adds no event', 
     proposal,
     {
       confirmed: true,
+      currentActiveCrewIds: ['crew-bluebird-paint'],
       eventIdPrefix,
       recordedAt: '2026-07-29T17:02:00.000Z',
       recordedBy: 'Los',
@@ -141,6 +196,62 @@ test('assignment confirmation is deterministic and exact replay adds no event', 
     replay.value.receipt.recordedAt,
     first.value.receipt.recordedAt,
   );
+});
+
+test('assignment confirmation rejects duplicate deterministic rows and semantic ID collisions', () => {
+  const initial = createSyntheticTrackCState();
+  const proposal = createTrackCBulkAssignmentProposal(
+    initial,
+    proposalInput({ proposalId: 'track-b-id-cardinality' }),
+  );
+  const input = {
+    confirmed: true,
+    currentActiveCrewIds: ['crew-bluebird-paint'],
+    eventIdPrefix: trackBAssignmentConfirmationPrefix(proposal.id),
+    recordedAt: '2026-07-29T17:02:30.000Z',
+    recordedBy: 'Los',
+  };
+  const first = confirmTrackCBulkAssignmentProposal(initial, proposal, input);
+  assert.equal(first.ok, true);
+  const savedEvent = first.value.state.events.find(
+    (event) => event.sourceLabel === `Confirmed personal proposal ${proposal.id}`,
+  );
+  assert.ok(savedEvent);
+
+  const duplicateState = {
+    ...first.value.state,
+    events: [
+      ...first.value.state.events,
+      { ...savedEvent },
+    ],
+  };
+  const duplicateResult = confirmTrackCBulkAssignmentProposal(
+    duplicateState,
+    proposal,
+    { ...input, recordedAt: '2026-07-29T17:02:31.000Z' },
+  );
+  assert.equal(duplicateResult.ok, false);
+  assert.equal(duplicateResult.error.code, 'idempotency-conflict');
+  assert.match(duplicateResult.error.message, /duplicate|conflicting/i);
+
+  const collisionState = {
+    ...initial,
+    events: [
+      ...initial.events,
+      {
+        ...savedEvent,
+        sourceLabel: 'A different proposal using the same deterministic ID.',
+      },
+    ],
+  };
+  const collisionResult = confirmTrackCBulkAssignmentProposal(
+    collisionState,
+    proposal,
+    { ...input, recordedAt: '2026-07-29T17:02:32.000Z' },
+  );
+  assert.equal(collisionResult.ok, false);
+  assert.equal(collisionResult.error.code, 'idempotency-conflict');
+  assert.match(collisionResult.error.message, /conflicting/i);
 });
 
 test('duplicate Unit/trade/section responsibility fails closed', () => {
@@ -184,6 +295,100 @@ test('duplicate Unit/trade/section responsibility fails closed', () => {
       recordedBy: 'Los',
     }).ok,
     false,
+  );
+});
+
+test('duplicate target facts surface one conflict and cannot inflate crew work or stats', () => {
+  const initial = createSyntheticTrackCState();
+  const duplicateTarget = target('301', 'paint', 'B');
+  const unit = initial.units.find((candidate) => candidate.id === 'unit-301');
+  const fact = unit?.workFacts.find(
+    (candidate) =>
+      candidate.trade === duplicateTarget.trade &&
+      candidate.section === duplicateTarget.section,
+  );
+  assert.ok(fact);
+
+  const duplicateState = {
+    ...initial,
+    units: initial.units.map((candidate) =>
+      candidate.id !== 'unit-301'
+        ? candidate
+        : {
+            ...candidate,
+            workFacts: [
+              ...candidate.workFacts,
+              {
+                ...fact,
+                id: 'duplicate-unit-301-paint-B-z',
+                sourceLabel: 'Adversarial duplicate release fact.',
+              },
+            ],
+          }
+    ),
+  };
+  const withoutTarget = {
+    ...initial,
+    units: initial.units.map((candidate) =>
+      candidate.id !== 'unit-301'
+        ? candidate
+        : {
+            ...candidate,
+            workFacts: candidate.workFacts.filter(
+              (candidateFact) =>
+                candidateFact.trade !== duplicateTarget.trade ||
+                candidateFact.section !== duplicateTarget.section,
+            ),
+          }
+    ),
+  };
+
+  const surfaced = projectTrackCUnitWork(duplicateState, 'unit-301').filter(
+    (projection) =>
+      projection.trade === duplicateTarget.trade &&
+      projection.section === duplicateTarget.section,
+  );
+  assert.equal(surfaced.length, 1);
+  assert.equal(surfaced[0].assignmentConflict, true);
+  assert.equal(surfaced[0].release, 'assignment-conflict');
+  assert.equal(surfaced[0].sourceConfidence, 'conflicting');
+  assert.match(surfaced[0].sourceLabel, /duplicate responsibility facts/i);
+  const reorderedState = {
+    ...duplicateState,
+    units: duplicateState.units.map((candidate) =>
+      candidate.id !== 'unit-301'
+        ? candidate
+        : { ...candidate, workFacts: [...candidate.workFacts].reverse() }
+    ),
+  };
+  const reorderedSurface = projectTrackCUnitWork(
+    reorderedState,
+    'unit-301',
+  ).filter(
+    (projection) =>
+      projection.trade === duplicateTarget.trade &&
+      projection.section === duplicateTarget.section,
+  );
+  assert.deepEqual(reorderedSurface, surfaced);
+
+  const duplicateCrew = projectTrackCCrewDetail(
+    duplicateState,
+    'crew-bluebird-paint',
+  );
+  const expectedCrew = projectTrackCCrewDetail(
+    withoutTarget,
+    'crew-bluebird-paint',
+  );
+  assert.ok(duplicateCrew);
+  assert.ok(expectedCrew);
+  assert.deepEqual(duplicateCrew.stats, expectedCrew.stats);
+  assert.deepEqual(
+    duplicateCrew.currentWork.map(
+      (work) => `${work.unitId}:${work.trade}:${work.section}`,
+    ),
+    expectedCrew.currentWork.map(
+      (work) => `${work.unitId}:${work.trade}:${work.section}`,
+    ),
   );
 });
 

@@ -1,4 +1,5 @@
 import {
+  TRACK_C_SECTIONS,
   TRACK_C_TRADES,
   type TrackCCrew,
   type TrackCCrewDetail,
@@ -29,22 +30,71 @@ const confirmedTargetEvents = (
   );
 };
 
-const factForTarget = (
+const workFactSortKey = (fact: TrackCWorkFact) =>
+  JSON.stringify([
+    fact.id,
+    fact.release,
+    fact.access,
+    fact.sourceConfidence,
+    fact.sourceLabel,
+    fact.restrictionLabel ?? '',
+  ]);
+
+const compareWorkFacts = (left: TrackCWorkFact, right: TrackCWorkFact) => {
+  const leftKey = workFactSortKey(left);
+  const rightKey = workFactSortKey(right);
+  return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+};
+
+const factsForTarget = (
   state: TrackCState,
   target: TrackCWorkTarget,
-): TrackCWorkFact | undefined =>
+): readonly TrackCWorkFact[] =>
   state.units
-    .find((unit) => unit.id === target.unitId)
-    ?.workFacts.find(
-      (fact) => fact.trade === target.trade && fact.section === target.section,
-    );
+    .filter((unit) => unit.id === target.unitId)
+    .flatMap((unit) => unit.workFacts)
+    .filter(
+      (fact) =>
+        fact.unitId === target.unitId &&
+        fact.trade === target.trade &&
+        fact.section === target.section,
+    )
+    .sort(compareWorkFacts);
+
+const duplicateFactKeys = (state: TrackCState) => {
+  const counts = new Map<string, number>();
+  for (const unit of state.units) {
+    for (const fact of unit.workFacts) {
+      if (fact.unitId !== unit.id) continue;
+      const key = trackCWorkKey(fact);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return new Set(
+    [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([key]) => key),
+  );
+};
 
 export const projectTrackCWork = (
   state: TrackCState,
   target: TrackCWorkTarget,
 ): TrackCWorkProjection | undefined => {
-  const fact = factForTarget(state, target);
+  const matchingFacts = factsForTarget(state, target);
+  const fact = matchingFacts[0];
   if (!fact) return undefined;
+  const duplicateFactConflict = matchingFacts.length > 1;
+  const projectedFact: TrackCWorkFact = duplicateFactConflict
+    ? {
+        ...fact,
+        release: 'assignment-conflict',
+        sourceConfidence: 'conflicting',
+        sourceLabel: `Duplicate responsibility facts require review: ${matchingFacts
+          .map((candidate) => candidate.id)
+          .join(', ')}`,
+      }
+    : fact;
 
   const events = confirmedTargetEvents(state, target);
   let activeCrewIds: string[] = [];
@@ -124,12 +174,13 @@ export const projectTrackCWork = (
   }
 
   return {
-    ...fact,
+    ...projectedFact,
     activeCrewIds,
     responsibleCrewId: activeCrewIds.length === 1 ? activeCrewIds[0] : undefined,
     assignmentConflict:
-      fact.release === 'assignment-conflict' ||
-      fact.sourceConfidence === 'conflicting' ||
+      duplicateFactConflict ||
+      projectedFact.release === 'assignment-conflict' ||
+      projectedFact.sourceConfidence === 'conflicting' ||
       activeCrewIds.length > 1,
     execution,
     inspection,
@@ -147,10 +198,35 @@ export const projectTrackCUnitWork = (
   state: TrackCState,
   unitId: string,
 ): readonly TrackCWorkProjection[] => {
-  const unit = state.units.find((candidate) => candidate.id === unitId);
-  if (!unit) return [];
-  return unit.workFacts
-    .map((fact) => projectTrackCWork(state, fact))
+  const facts = state.units
+    .filter((candidate) => candidate.id === unitId)
+    .flatMap((unit) => unit.workFacts)
+    .filter((fact) => fact.unitId === unitId);
+  const targets = new Map<string, TrackCWorkTarget>();
+  for (const fact of facts) {
+    const target = {
+      unitId,
+      trade: fact.trade,
+      section: fact.section,
+    };
+    targets.set(trackCWorkKey(target), target);
+  }
+  const tradeOrder = new Map(
+    TRACK_C_TRADES.map((trade, index) => [trade, index]),
+  );
+  const sectionOrder = new Map(
+    TRACK_C_SECTIONS.map((section, index) => [section, index]),
+  );
+  return [...targets.values()]
+    .sort(
+      (left, right) =>
+        (tradeOrder.get(left.trade) ?? Number.MAX_SAFE_INTEGER) -
+          (tradeOrder.get(right.trade) ?? Number.MAX_SAFE_INTEGER) ||
+        (sectionOrder.get(left.section) ?? Number.MAX_SAFE_INTEGER) -
+          (sectionOrder.get(right.section) ?? Number.MAX_SAFE_INTEGER) ||
+        trackCWorkKey(left).localeCompare(trackCWorkKey(right)),
+    )
+    .map((target) => projectTrackCWork(state, target))
     .filter((projection): projection is TrackCWorkProjection => Boolean(projection));
 };
 
@@ -335,9 +411,14 @@ export const projectTrackCCrewDetail = (
   const crew = state.crews.find((candidate) => candidate.id === crewId);
   if (!crew) return undefined;
 
-  const work = state.units.flatMap((unit) => projectTrackCUnitWork(state, unit.id));
-  const crewWork = work.filter((projection) =>
-    projection.activeCrewIds.includes(crewId)
+  const work = [...new Set(state.units.map((unit) => unit.id))].flatMap(
+    (unitId) => projectTrackCUnitWork(state, unitId),
+  );
+  const duplicateKeys = duplicateFactKeys(state);
+  const crewWork = work.filter(
+    (projection) =>
+      !duplicateKeys.has(trackCWorkKey(projection)) &&
+      projection.activeCrewIds.includes(crewId),
   );
   const currentWork = crewWork.filter(
     (item) => item.property !== 'property-accepted',

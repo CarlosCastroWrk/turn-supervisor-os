@@ -13,11 +13,12 @@ import {
   type TrackCTrade,
   trackCSectionLabel,
 } from './model';
-import { confirmTrackCBulkAssignmentProposal } from './operations';
 import { AdditionalScopePanel } from './phase2-track-b/AdditionalScopePanel';
 import {
+  confirmPhase2TrackBAssignmentProposal,
   createPhase2TrackBAssignmentProposal,
   projectPhase2TrackBAssignmentUnits,
+  type Phase2AdditionalScopeCommit,
   type Phase2AdditionalScopeRecord,
 } from './phase2-track-b/contracts';
 import './phase2-track-b/phase2TrackB.css';
@@ -29,9 +30,7 @@ interface AssignmentViewProps {
   readonly onStateChange: (state: TrackCState, reason: string) => void;
   readonly initialCrewId?: string;
   readonly additionalScopes?: readonly Phase2AdditionalScopeRecord[];
-  readonly onAdditionalScopeCreate?: (
-    record: Phase2AdditionalScopeRecord,
-  ) => void;
+  readonly onAdditionalScopeCommit?: Phase2AdditionalScopeCommit;
   readonly onOpenChangeOrder?: (
     record: Phase2AdditionalScopeRecord,
   ) => void;
@@ -57,7 +56,7 @@ export const AssignmentView = ({
   onStateChange,
   initialCrewId,
   additionalScopes = [],
-  onAdditionalScopeCreate,
+  onAdditionalScopeCommit,
   onOpenChangeOrder,
 }: AssignmentViewProps) => {
   const initialCrew = state.crews.find((crew) => crew.id === initialCrewId);
@@ -145,7 +144,7 @@ export const AssignmentView = ({
     if (!proposal || confirmInFlightRef.current) return;
     confirmInFlightRef.current = true;
     setConfirming(true);
-    const result = confirmTrackCBulkAssignmentProposal(state, proposal, {
+    const result = confirmPhase2TrackBAssignmentProposal(state, proposal, {
       recordedAt: now(),
       recordedBy: 'Los',
       eventIdPrefix: `${proposal.id}-confirmed`,
@@ -375,23 +374,21 @@ export const AssignmentView = ({
       ) : null}
       {message ? <p role="status">{message}</p> : null}
 
-      {onAdditionalScopeCreate ? (
-        <details className="phase2-track-b-exceptions">
-          <summary>Exceptions</summary>
-          <p>
-            Record added scope separately. Normal crew assignment remains all
-            released sections.
-          </p>
-          <AdditionalScopePanel
-            createId={createId}
-            now={now}
-            onCreate={onAdditionalScopeCreate}
-            onOpenChangeOrder={onOpenChangeOrder}
-            records={additionalScopes}
-            state={state}
-          />
-        </details>
-      ) : null}
+      <details className="phase2-track-b-exceptions">
+        <summary>Exceptions</summary>
+        <p>
+          Record added scope separately. Normal crew assignment remains all
+          released sections.
+        </p>
+        <AdditionalScopePanel
+          createId={createId}
+          now={now}
+          onCommit={onAdditionalScopeCommit}
+          onOpenChangeOrder={onOpenChangeOrder}
+          records={additionalScopes}
+          state={state}
+        />
+      </details>
     </section>
   );
 };

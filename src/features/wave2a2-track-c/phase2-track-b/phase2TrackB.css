@@ -100,6 +100,38 @@
   padding: 0 10px 10px;
 }
 
+.phase2-track-b-additional-scope__unavailable {
+  align-items: flex-start;
+  background: var(--track-c-amber-soft);
+  border: 1px solid
+    color-mix(in srgb, var(--track-c-amber) 28%, var(--track-c-border));
+  border-radius: 13px;
+  color: var(--track-c-amber);
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.phase2-track-b-additional-scope__unavailable svg {
+  flex: 0 0 auto;
+}
+
+.phase2-track-b-additional-scope__unavailable span {
+  display: grid;
+  gap: 3px;
+}
+
+.phase2-track-b-additional-scope__unavailable strong {
+  font-size: 11px;
+}
+
+.phase2-track-b-additional-scope__unavailable small {
+  color: var(--track-c-text);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 .phase2-track-b-secondary-button,
 .phase2-track-b-link-button {
   align-items: center;
@@ -308,6 +340,7 @@
   .phase2-track-b-additional-scope__form > header,
   .phase2-track-b-additional-scope__form > .phase2-track-b-section-picker,
   .phase2-track-b-additional-scope__form > .phase2-track-b-safety-copy,
+  .phase2-track-b-additional-scope__form > [role='alert'],
   .phase2-track-b-additional-scope__form > [role='status'],
   .phase2-track-b-additional-scope__form > .track-c-primary-button {
     grid-column: 1 / -1;

@@ -4,10 +4,25 @@ import { AssignmentView } from '../AssignmentView';
 import { CrewView } from '../CrewView';
 import { createSyntheticTrackCState } from '../fixtures';
 import type { TrackCState } from '../model';
+import { TrackCFieldOps } from '../TrackCFieldOps';
 import '../preview.css';
 import '../trackCFieldOps.css';
 import './phase2TrackB.css';
 import type { Phase2AdditionalScopeRecord } from './contracts';
+
+const ADDITIONAL_SCOPE_STORAGE_KEY =
+  'turn-os:synthetic-phase2-track-b:additional-scopes';
+
+const readAdditionalScopes = (): Phase2AdditionalScopeRecord[] => {
+  try {
+    const value = window.localStorage.getItem(ADDITIONAL_SCOPE_STORAGE_KEY);
+    if (!value) return [];
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 declare global {
   interface Window {
@@ -19,6 +34,8 @@ declare global {
       crewEditRequests: string[];
       crewContactRequests: string[];
       changeOrderRequests: string[];
+      additionalScopeCommitAttempts: number;
+      failNextAdditionalScopeCommit: boolean;
     };
   }
 }
@@ -26,24 +43,29 @@ declare global {
 window.__phase2TrackBPreview = {
   reasons: [],
   latestEventCount: 0,
-  additionalScopeRecords: [],
+  additionalScopeRecords: readAdditionalScopes(),
   assignCrewRequests: [],
   crewEditRequests: [],
   crewContactRequests: [],
   changeOrderRequests: [],
+  additionalScopeCommitAttempts: 0,
+  failNextAdditionalScopeCommit: false,
 };
 
 export const Phase2TrackBPreview = () => {
   const [state, setState] = useState<TrackCState>(() =>
     createSyntheticTrackCState(),
   );
-  const [view, setView] = useState<'assign' | 'crews'>('assign');
+  const [view, setView] = useState<'assign' | 'crews' | 'field'>('assign');
   const [selectedCrewId, setSelectedCrewId] = useState<string>();
   const [initialAssignmentCrewId, setInitialAssignmentCrewId] =
     useState<string>();
   const [additionalScopes, setAdditionalScopes] = useState<
     readonly Phase2AdditionalScopeRecord[]
-  >([]);
+  >(() => readAdditionalScopes());
+  const additionalScopeCommitEnabled =
+    new URLSearchParams(window.location.search).get('scopeStorage') !==
+    'unavailable';
   const idSequence = useRef(0);
   const createId = (prefix: string) => {
     idSequence.current += 1;
@@ -72,6 +94,14 @@ export const Phase2TrackBPreview = () => {
         >
           Crews
         </button>
+        <button
+          aria-current={view === 'field' ? 'page' : undefined}
+          data-track-c-critical-target="true"
+          onClick={() => setView('field')}
+          type="button"
+        >
+          Field
+        </button>
       </nav>
       <main className="track-c-shell__main">
         {view === 'assign' ? (
@@ -80,10 +110,49 @@ export const Phase2TrackBPreview = () => {
             createId={createId}
             initialCrewId={initialAssignmentCrewId}
             now={() => '2026-07-29T16:00:00.000Z'}
-            onAdditionalScopeCreate={(record) => {
-              setAdditionalScopes((current) => [...current, record]);
-              window.__phase2TrackBPreview?.additionalScopeRecords.push(record);
-            }}
+            onAdditionalScopeCommit={additionalScopeCommitEnabled
+              ? async (record) => {
+                  const preview = window.__phase2TrackBPreview;
+                  if (preview) {
+                    preview.additionalScopeCommitAttempts += 1;
+                    if (preview.failNextAdditionalScopeCommit) {
+                      preview.failNextAdditionalScopeCommit = false;
+                      return {
+                        ok: false,
+                        error: 'Synthetic durable commit failed.',
+                      };
+                    }
+                  }
+
+                  try {
+                    const next = [
+                      ...readAdditionalScopes().filter(
+                        (candidate) => candidate.id !== record.id,
+                      ),
+                      record,
+                    ];
+                    window.localStorage.setItem(
+                      ADDITIONAL_SCOPE_STORAGE_KEY,
+                      JSON.stringify(next),
+                    );
+                    setAdditionalScopes(next);
+                    if (preview) preview.additionalScopeRecords = [...next];
+                    return {
+                      ok: true,
+                      receipt: {
+                        committedAt: '2026-07-29T16:00:00.000Z',
+                        durable: true,
+                        recordId: record.id,
+                      },
+                    };
+                  } catch {
+                    return {
+                      ok: false,
+                      error: 'Synthetic local storage was unavailable.',
+                    };
+                  }
+                }
+              : undefined}
             onOpenChangeOrder={(record) =>
               window.__phase2TrackBPreview?.changeOrderRequests.push(record.id)}
             onStateChange={(nextState, reason) => {
@@ -95,7 +164,7 @@ export const Phase2TrackBPreview = () => {
             }}
             state={state}
           />
-        ) : (
+        ) : view === 'crews' ? (
           <CrewView
             onAssignCrew={(crewId) => {
               window.__phase2TrackBPreview?.assignCrewRequests.push(crewId);
@@ -111,6 +180,21 @@ export const Phase2TrackBPreview = () => {
             onOpenCrew={setSelectedCrewId}
             selectedCrewId={selectedCrewId}
             state={state}
+          />
+        ) : (
+          <TrackCFieldOps
+            additionalScopes={additionalScopes}
+            embedded
+            idFactory={createId}
+            initialState={state}
+            now={() => '2026-07-29T16:00:00.000Z'}
+            onStateChange={(nextState, reason) => {
+              setState(nextState);
+              if (!window.__phase2TrackBPreview) return;
+              window.__phase2TrackBPreview.reasons.push(reason);
+              window.__phase2TrackBPreview.latestEventCount =
+                nextState.events.length;
+            }}
           />
         )}
       </main>

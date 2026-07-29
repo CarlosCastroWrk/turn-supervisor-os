@@ -6,11 +6,13 @@ import type {
   TrackCState,
   TrackCWorkTarget,
 } from '../src/features/wave2a2-track-c/model.ts';
-import { confirmTrackCBulkAssignmentProposal } from '../src/features/wave2a2-track-c/operations.ts';
 import {
+  confirmPhase2TrackBAssignmentProposal,
   createPhase2AdditionalScopeRecord,
   createPhase2TrackBAssignmentProposal,
   phase2AdditionalScopeBlocksBaseCompletion,
+  projectPhase2AdditionalScopeActionBlockers,
+  projectPhase2AdditionalScopeCompletion,
   projectPhase2TrackBAssignmentUnits,
   projectPhase2TrackBCrewDetail,
 } from '../src/features/wave2a2-track-c/phase2-track-b/contracts.ts';
@@ -22,6 +24,26 @@ const confirmation = {
   confirmed: true,
 } as const;
 
+const assignmentEvent = (
+  id: string,
+  target: TrackCWorkTarget,
+  crewId: string,
+): TrackCConfirmedEvent => ({
+  id,
+  eventType: 'assignment-confirmed',
+  confirmation: 'confirmed',
+  target,
+  crewId,
+  recordedAt: '2026-07-29T16:04:00.000Z',
+  recordedBy: 'Synthetic test',
+  sourceType: 'personal-confirmation',
+  sourceLabel: 'Synthetic adversarial responsibility',
+  summary: 'Synthetic confirmed responsibility.',
+  personalRecordOnly: true,
+  officialPaperChanged: false,
+  payrollChanged: false,
+});
+
 test('normal assignment exposes only fully eligible released Units and keeps all released sections implicit', () => {
   const state = createSyntheticTrackCState();
   const paint = projectPhase2TrackBAssignmentUnits(state, 'paint');
@@ -29,13 +51,24 @@ test('normal assignment exposes only fully eligible released Units and keeps all
 
   assert.deepEqual(
     eligiblePaint.map((option) => option.unit.unitNumber),
-    ['401', '707'],
+    ['707'],
   );
   assert.deepEqual(
     eligiblePaint
       .find((option) => option.unit.unitNumber === '707')
       ?.releasedTargets.map((target) => target.section),
     ['common', 'A', 'B'],
+  );
+  assert.equal(
+    paint.find((option) => option.unit.unitNumber === '401')?.eligible,
+    false,
+    'A conflict on any applicable section must reject the entire Unit and trade.',
+  );
+  assert.match(
+    paint
+      .find((option) => option.unit.unitNumber === '401')
+      ?.reasons.join(' ') ?? '',
+    /conflicting paint responsibility/iu,
   );
   assert.equal(
     paint.find((option) => option.unit.unitNumber === '501')?.eligible,
@@ -59,6 +92,55 @@ test('normal assignment exposes only fully eligible released Units and keeps all
     ['common', 'A', 'B'],
   );
   assert.equal(proposal.value.items.every((item) => item.eligible), true);
+});
+
+test('Unit-level responsibility rejects the whole Paint or Clean Unit even when other released sections remain eligible', () => {
+  const state = createSyntheticTrackCState();
+  const paintConflictState: TrackCState = {
+    ...state,
+    events: [
+      ...state.events,
+      assignmentEvent(
+        'phase2-paint-existing-responsibility',
+        { unitId: 'unit-707', trade: 'paint', section: 'A' },
+        'crew-bluebird-paint',
+      ),
+    ],
+  };
+  const cleanConflictState: TrackCState = {
+    ...state,
+    events: [
+      ...state.events,
+      assignmentEvent(
+        'phase2-clean-existing-responsibility',
+        { unitId: 'unit-707', trade: 'clean', section: 'common' },
+        'crew-cedar-clean',
+      ),
+    ],
+  };
+
+  for (const [trade, conflictState, crewId] of [
+    ['paint', paintConflictState, 'crew-atlas-paint'],
+    ['clean', cleanConflictState, 'crew-bright-clean'],
+  ] as const) {
+    const option = projectPhase2TrackBAssignmentUnits(
+      conflictState,
+      trade,
+    ).find((candidate) => candidate.unit.id === 'unit-707');
+    assert.equal(option?.eligible, false, `${trade} Unit must fail closed.`);
+    assert.match(option?.reasons.join(' ') ?? '', /already has confirmed/iu);
+
+    const proposal = createPhase2TrackBAssignmentProposal(conflictState, {
+      proposalId: `phase2-${trade}-whole-unit-conflict`,
+      trade,
+      crewId,
+      unitIds: ['unit-707'],
+      createdAt: '2026-07-29T16:05:00.000Z',
+      createdBy: 'Los',
+    });
+    assert.equal(proposal.ok, false);
+    assert.match(proposal.error, /already has confirmed/iu);
+  }
 });
 
 test('normal assignment fails closed for trade mismatch, stale eligibility, and duplicate responsibility', () => {
@@ -104,7 +186,7 @@ test('normal assignment fails closed for trade mismatch, stale eligibility, and 
           },
     ),
   };
-  const stale = confirmTrackCBulkAssignmentProposal(
+  const stale = confirmPhase2TrackBAssignmentProposal(
     staleState,
     reviewed.value,
     confirmation,
@@ -112,7 +194,7 @@ test('normal assignment fails closed for trade mismatch, stale eligibility, and 
   assert.equal(stale.ok, false);
   assert.match(stale.error.message, /stale/iu);
 
-  const first = confirmTrackCBulkAssignmentProposal(
+  const first = confirmPhase2TrackBAssignmentProposal(
     state,
     reviewed.value,
     confirmation,
@@ -129,6 +211,58 @@ test('normal assignment fails closed for trade mismatch, stale eligibility, and 
   });
   assert.equal(duplicate.ok, false);
   assert.match(duplicate.error, /already responsible|eligible/iu);
+});
+
+test('final confirmation revalidates Unit-level responsibility outside the reviewed released sections', () => {
+  const initial = createSyntheticTrackCState();
+  const reviewState: TrackCState = {
+    ...initial,
+    units: initial.units.map((unit) =>
+      unit.id !== 'unit-707'
+        ? unit
+        : {
+            ...unit,
+            workFacts: unit.workFacts.map((fact) =>
+              fact.trade === 'paint' && fact.section === 'B'
+                ? { ...fact, release: 'unreleased' }
+                : fact,
+            ),
+          },
+    ),
+  };
+  const reviewed = createPhase2TrackBAssignmentProposal(reviewState, {
+    proposalId: 'phase2-hidden-section-final-revalidation',
+    trade: 'paint',
+    crewId: 'crew-bluebird-paint',
+    unitIds: ['unit-707'],
+    createdAt: '2026-07-29T16:00:00.000Z',
+    createdBy: 'Los',
+  });
+  assert.equal(reviewed.ok, true);
+  if (!reviewed.ok) return;
+  assert.deepEqual(
+    reviewed.value.items.map((item) => item.target.section),
+    ['common', 'A'],
+  );
+
+  const changedState: TrackCState = {
+    ...reviewState,
+    events: [
+      ...reviewState.events,
+      assignmentEvent(
+        'phase2-hidden-section-responsibility',
+        { unitId: 'unit-707', trade: 'paint', section: 'B' },
+        'crew-atlas-paint',
+      ),
+    ],
+  };
+  const confirmed = confirmPhase2TrackBAssignmentProposal(
+    changedState,
+    reviewed.value,
+    confirmation,
+  );
+  assert.equal(confirmed.ok, false);
+  assert.match(confirmed.error.message, /Unit-level responsibility changed/iu);
 });
 
 test('additional scope preserves source and uncertainty without pricing, approval, form submission, or section F', () => {
@@ -183,6 +317,132 @@ test('additional scope preserves source and uncertainty without pricing, approva
       status: 'reported-complete',
     }),
     false,
+  );
+
+  const completion = projectPhase2AdditionalScopeCompletion([
+    result.value,
+    required,
+    { ...required, id: 'scope-required-complete', status: 'reported-complete' },
+  ]);
+  assert.deepEqual(completion, {
+    blocked: true,
+    optionalCount: 1,
+    requiredCompleteCount: 1,
+    requiredUnresolvedCount: 1,
+  });
+  assert.equal(
+    projectPhase2AdditionalScopeCompletion([result.value]).blocked,
+    false,
+    'Optional scope must not block base completion.',
+  );
+  assert.equal(
+    projectPhase2AdditionalScopeCompletion([
+      { ...required, status: 'reported-complete' },
+    ]).blocked,
+    false,
+    'A durably represented required scope reported complete can stop blocking.',
+  );
+});
+
+test('required unfinished Additional Scope blocks only matching Los completion actions', () => {
+  const state = createSyntheticTrackCState();
+  const required = createPhase2AdditionalScopeRecord(state, {
+    id: 'scope-required-unit-301-paint',
+    unitId: 'unit-301',
+    category: 'full-paint',
+    description: 'Synthetic required full paint.',
+    trade: 'paint',
+    sections: ['B', 'C'],
+    sourceContact: 'Synthetic property contact',
+    sourceConfidence: 'confirmed',
+    occurredAt: '2026-07-29T15:30:00.000Z',
+    recordedAt: '2026-07-29T15:31:00.000Z',
+    requiredForBaseCompletion: true,
+    changeOrderCandidate: 'yes',
+    status: 'in-progress',
+  });
+  assert.equal(required.ok, true);
+  if (!required.ok) return;
+
+  const optional = {
+    ...required.value,
+    id: 'scope-optional-unit-301-paint',
+    requiredForBaseCompletion: false,
+  };
+  const complete = {
+    ...required.value,
+    id: 'scope-complete-unit-301-paint',
+    status: 'reported-complete' as const,
+  };
+  const scopes = [required.value, optional, complete];
+  const matchingTarget = {
+    unitId: 'unit-301',
+    trade: 'paint',
+    section: 'B',
+  } as const;
+
+  for (const action of [
+    'record-los-pass',
+    'record-reinspection-pass',
+  ] as const) {
+    assert.deepEqual(
+      projectPhase2AdditionalScopeActionBlockers(
+        scopes,
+        matchingTarget,
+        action,
+      ).map((scope) => scope.id),
+      ['scope-required-unit-301-paint'],
+    );
+  }
+
+  assert.deepEqual(
+    projectPhase2AdditionalScopeActionBlockers(
+      scopes,
+      matchingTarget,
+      'record-crew-complete',
+    ),
+    [],
+    'Crew-reported completion remains separate evidence.',
+  );
+  assert.deepEqual(
+    projectPhase2AdditionalScopeActionBlockers(
+      scopes,
+      { ...matchingTarget, trade: 'clean' },
+      'record-los-pass',
+    ),
+    [],
+  );
+  assert.deepEqual(
+    projectPhase2AdditionalScopeActionBlockers(
+      scopes,
+      { ...matchingTarget, section: 'A' },
+      'record-los-pass',
+    ),
+    [],
+  );
+  assert.deepEqual(
+    projectPhase2AdditionalScopeActionBlockers(
+      scopes,
+      { ...matchingTarget, unitId: 'unit-606' },
+      'record-los-pass',
+    ),
+    [],
+  );
+
+  const unresolvedUnitWide = {
+    ...required.value,
+    id: 'scope-required-unit-wide',
+    sections: [],
+    trade: undefined,
+  };
+  assert.deepEqual(
+    projectPhase2AdditionalScopeActionBlockers(
+      [unresolvedUnitWide],
+      { ...matchingTarget, trade: 'clean', section: 'common' },
+      'record-los-pass',
+    ).map((scope) => scope.id),
+    ['scope-required-unit-wide'],
+    'A required scope with unresolved trade/section applies conservatively across the Unit.',
   );
 });
 

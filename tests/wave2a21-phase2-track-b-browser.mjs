@@ -154,6 +154,14 @@ try {
     assert.equal(
       await page
         .locator('.phase2-track-b-unit-list label')
+        .filter({ hasText: 'Unit 401' })
+        .count(),
+      0,
+      'A Unit with conflict on any applicable section must not enter the normal assignment list.',
+    );
+    assert.equal(
+      await page
+        .locator('.phase2-track-b-unit-list label')
         .filter({ hasText: 'Unit 501' })
         .count(),
       0,
@@ -242,23 +250,103 @@ try {
     'Additional scope must not create section F.',
   );
   await scopeForm
+    .getByLabel('Unit')
+    .selectOption('unit-301');
+  await scopeForm
     .getByPlaceholder('What changed or was added?')
     .fill('Full paint requested after release.');
   await scopeForm
     .getByPlaceholder('Who or what supplied this scope?')
     .fill('Synthetic property contact');
-  await scopeForm.getByRole('checkbox', { name: 'A' }).check();
+  await scopeForm.getByLabel('Source certainty').selectOption('confirmed');
+  await scopeForm.getByRole('checkbox', { name: 'B' }).check();
+  await scopeForm
+    .getByRole('checkbox', { name: 'C', exact: true })
+    .check();
+  await scopeForm
+    .getByLabel('Required for base completion')
+    .selectOption('yes');
+  await scopeForm.getByLabel('Change-order candidate').selectOption('yes');
+  await scopeForm.getByLabel('Personal status').selectOption('in-progress');
+  await page.evaluate(() => {
+    if (window.__phase2TrackBPreview) {
+      window.__phase2TrackBPreview.failNextAdditionalScopeCommit = true;
+    }
+  });
   await scopeForm
     .getByRole('button', { name: 'Save personal additional scope' })
-    .click();
-  await page
-    .getByText(/No price, approval, or form was submitted/iu)
+    .evaluate((button) => {
+      button.click();
+      button.click();
+    });
+  await scopeForm
+    .getByRole('alert')
+    .getByText(/Synthetic durable commit failed/iu)
     .waitFor();
+  assert.equal(await scopeForm.getByLabel('Unit').inputValue(), 'unit-301');
+  assert.equal(await scopeForm.getByLabel('Category').inputValue(), 'full-paint');
   assert.equal(
-    await page.evaluate(
-      () => window.__phase2TrackBPreview?.additionalScopeRecords.length,
-    ),
-    1,
+    await scopeForm
+      .getByPlaceholder('What changed or was added?')
+      .inputValue(),
+    'Full paint requested after release.',
+  );
+  assert.equal(
+    await scopeForm
+      .getByPlaceholder('Who or what supplied this scope?')
+      .inputValue(),
+    'Synthetic property contact',
+  );
+  assert.equal(
+    await scopeForm.getByLabel('Trade, when relevant').inputValue(),
+    'paint',
+  );
+  assert.equal(await scopeForm.getByLabel('Source certainty').inputValue(), 'confirmed');
+  assert.equal(await scopeForm.getByRole('checkbox', { name: 'B' }).isChecked(), true);
+  assert.equal(
+    await scopeForm
+      .getByRole('checkbox', { name: 'C', exact: true })
+      .isChecked(),
+    true,
+  );
+  assert.equal(
+    await scopeForm.getByLabel('Date and time').inputValue(),
+    '2026-07-29T11:00',
+  );
+  assert.equal(
+    await scopeForm.getByLabel('Required for base completion').inputValue(),
+    'yes',
+  );
+  assert.equal(
+    await scopeForm.getByLabel('Change-order candidate').inputValue(),
+    'yes',
+  );
+  assert.equal(await scopeForm.getByLabel('Personal status').inputValue(), 'in-progress');
+  assert.equal(
+    await page.getByText(/durably saved/iu).count(),
+    0,
+    'A failed callback must render no save receipt.',
+  );
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      attempts:
+        window.__phase2TrackBPreview?.additionalScopeCommitAttempts ?? -1,
+      records: window.__phase2TrackBPreview?.additionalScopeRecords.length ?? -1,
+    })),
+    { attempts: 1, records: 0 },
+  );
+
+  await scopeForm.getByRole('button', { name: 'Retry save' }).click();
+  await page
+    .getByText(/durably saved.*No price, approval, or form was submitted/iu)
+    .waitFor();
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      attempts:
+        window.__phase2TrackBPreview?.additionalScopeCommitAttempts ?? -1,
+      records: window.__phase2TrackBPreview?.additionalScopeRecords.length ?? -1,
+    })),
+    { attempts: 2, records: 1 },
   );
   await page
     .getByRole('button', { name: /Open Change Order Approval/iu })
@@ -269,6 +357,132 @@ try {
     ),
     1,
     'The change-order action must remain a host callback only.',
+  );
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Assign work' }).waitFor();
+  await page.locator('.phase2-track-b-exceptions').getByText('Exceptions', { exact: true }).click();
+  await page.getByRole('region', { name: 'Additional scope records' }).waitFor();
+  assert.equal(
+    await page.getByText('Full paint requested after release.', { exact: true }).count(),
+    1,
+    'A proven durable preview commit must survive reload.',
+  );
+  assert.equal(
+    await page.getByText(/Required · unresolved/iu).count(),
+    1,
+    'Required incomplete scope must remain explicitly unresolved.',
+  );
+  assert.equal(
+    await page.evaluate(
+      () => window.__phase2TrackBPreview?.additionalScopeRecords.length,
+    ),
+    1,
+  );
+
+  await page
+    .getByRole('button', { name: 'Add additional scope' })
+    .click();
+  const reinspectionScopeForm = page.getByRole('form', {
+    name: 'Additional scope',
+  });
+  await reinspectionScopeForm.getByLabel('Unit').selectOption('unit-1505');
+  await reinspectionScopeForm
+    .getByPlaceholder('What changed or was added?')
+    .fill('Required full paint correction before reinspection.');
+  await reinspectionScopeForm
+    .getByPlaceholder('Who or what supplied this scope?')
+    .fill('Synthetic property contact');
+  await reinspectionScopeForm
+    .getByLabel('Source certainty')
+    .selectOption('confirmed');
+  await reinspectionScopeForm.getByRole('checkbox', { name: 'A' }).check();
+  await reinspectionScopeForm
+    .getByLabel('Required for base completion')
+    .selectOption('yes');
+  await reinspectionScopeForm
+    .getByLabel('Change-order candidate')
+    .selectOption('yes');
+  await reinspectionScopeForm
+    .getByLabel('Personal status')
+    .selectOption('in-progress');
+  await reinspectionScopeForm
+    .getByRole('button', { name: 'Save personal additional scope' })
+    .click();
+  await page
+    .getByText(
+      /Personal additional scope durably saved.*No price, approval, or form was submitted/iu,
+    )
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      () => window.__phase2TrackBPreview?.additionalScopeRecords.length,
+    ),
+    2,
+  );
+
+  await page
+    .getByRole('navigation', { name: 'Phase 2 Track B preview' })
+    .getByRole('button', { name: 'Field' })
+    .click();
+  await page.getByRole('button', { name: 'Open Unit 301' }).click();
+  const paintPanel301 = page.locator('.track-c-trade-panel.is-paint');
+  const paintB = paintPanel301
+    .locator('.track-c-section-row')
+    .filter({ hasText: 'Needs Los inspection' });
+  await paintB.getByRole('button').first().click();
+  await paintB.getByRole('button', { name: 'Record Los pass' }).click();
+  await page
+    .locator('.track-c-notice')
+    .getByText(/Los completion was not saved.*required Additional Scope/iu)
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      () => window.__phase2TrackBPreview?.latestEventCount,
+    ),
+    0,
+    'Required unfinished scope must block the Los-pass event.',
+  );
+
+  const paintC = paintPanel301
+    .locator('.track-c-section-row')
+    .filter({ hasText: 'Working' });
+  await paintC.getByRole('button').first().click();
+  await paintC.getByRole('button', { name: 'Crew reports complete' }).click();
+  await page
+    .locator('.track-c-notice')
+    .getByText(/Personal section record saved/iu)
+    .waitFor();
+  const eventCountAfterCrewReport = await page.evaluate(
+    () => window.__phase2TrackBPreview?.latestEventCount ?? 0,
+  );
+  assert.equal(
+    eventCountAfterCrewReport > 0,
+    true,
+    'Crew-reported completion must remain separate evidence.',
+  );
+
+  await page
+    .getByRole('button', { name: 'Back to compact TurnBoard' })
+    .click();
+  await page.getByRole('button', { name: 'Open Unit 1505' }).click();
+  const reinspectionRow = page
+    .locator('.track-c-trade-panel.is-paint .track-c-section-row')
+    .filter({ hasText: 'Reinspection pending' });
+  await reinspectionRow.getByRole('button').first().click();
+  await reinspectionRow
+    .getByRole('button', { name: 'Pass reinspection' })
+    .click();
+  await page
+    .locator('.track-c-notice')
+    .getByText(/Los completion was not saved.*required Additional Scope/iu)
+    .waitFor();
+  assert.equal(
+    await page.evaluate(
+      () => window.__phase2TrackBPreview?.latestEventCount ?? 0,
+    ),
+    eventCountAfterCrewReport,
+    'Required unfinished scope must block the reinspection-pass event.',
   );
 
   await page
@@ -310,6 +524,46 @@ try {
   await assertCriticalTargets(page, 'interactive flow');
   assert.deepEqual(findings, [], `interactive: ${findings.join('\n')}`);
   await context.close();
+
+  const unavailableContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'dark',
+  });
+  const unavailablePage = await unavailableContext.newPage();
+  const unavailableFindings = runtimeFindings(unavailablePage);
+  await unavailablePage.goto(
+    `${baseUrl}${previewPath}?scopeStorage=unavailable`,
+    { waitUntil: 'networkidle' },
+  );
+  await unavailablePage
+    .locator('.phase2-track-b-exceptions')
+    .getByText('Exceptions', { exact: true })
+    .click();
+  await unavailablePage
+    .getByText('Additional Scope saving is unavailable', { exact: true })
+    .waitFor();
+  assert.equal(
+    await unavailablePage
+      .getByRole('button', { name: 'Add additional scope' })
+      .count(),
+    0,
+    'No save workflow may appear without an approved durable callback.',
+  );
+  assert.equal(
+    await unavailablePage.getByRole('form', { name: 'Additional scope' }).count(),
+    0,
+  );
+  assert.equal(
+    await unavailablePage.getByText(/Required added scope stays unresolved/iu).count(),
+    1,
+  );
+  await assertNoHorizontalOverflow(unavailablePage, 'unavailable scope');
+  assert.deepEqual(
+    unavailableFindings,
+    [],
+    `unavailable scope: ${unavailableFindings.join('\n')}`,
+  );
+  await unavailableContext.close();
 
   console.log(
     `Phase 2 Track B browser gate passed. Screenshots: ${screenshots.join(', ')}`,

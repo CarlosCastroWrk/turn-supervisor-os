@@ -10,7 +10,11 @@ import {
   type TrackCWorkProjection,
   type TrackCWorkTarget,
 } from '../model';
-import { createTrackCBulkAssignmentProposal } from '../operations';
+import {
+  confirmTrackCBulkAssignmentProposal,
+  createTrackCBulkAssignmentProposal,
+  type TrackCSectionAction,
+} from '../operations';
 import {
   projectTrackCAssignmentEligibility,
   projectTrackCCrewDetail,
@@ -32,24 +36,47 @@ export const projectPhase2TrackBAssignmentUnits = (
   trade: TrackCTrade,
 ): readonly Phase2TrackBAssignmentUnit[] =>
   state.units.map((unit) => {
-    const releasedTargets = unit.applicableSections
-      .map((section) => ({ section, trade, unitId: unit.id }))
-      .filter(
-        (target) => projectTrackCWork(state, target)?.release === 'released',
+    const projections = unit.applicableSections
+      .map((section) => projectTrackCWork(state, {
+        section,
+        trade,
+        unitId: unit.id,
+      }))
+      .filter((projection): projection is TrackCWorkProjection =>
+        Boolean(projection),
       );
+    const releasedTargets = projections
+      .filter((projection) => projection.release === 'released')
+      .map(({ section, unitId }) => ({ section, trade, unitId }));
     const eligibility = releasedTargets.map((target) =>
       projectTrackCAssignmentEligibility(state, target),
     );
-    const reasons =
-      releasedTargets.length === 0
+    const responsibilityReasons = projections.flatMap((projection) => {
+      if (projection.assignmentConflict) {
+        return [
+          `Unit ${unit.unitNumber} has conflicting ${trade} responsibility on ${projection.section}. Resolve it before assigning the Unit.`,
+        ];
+      }
+      if (projection.activeCrewIds.length > 0) {
+        return [
+          `Unit ${unit.unitNumber} already has confirmed ${trade} responsibility on ${projection.section}. Clear it before assigning the Unit.`,
+        ];
+      }
+      return [];
+    });
+    const reasons = unique([
+      ...(releasedTargets.length === 0
         ? [`Unit ${unit.unitNumber} has no confirmed released ${trade} work.`]
-        : unique(eligibility.flatMap((item) => item.reasons));
+        : eligibility.flatMap((item) => item.reasons)),
+      ...responsibilityReasons,
+    ]);
 
     return {
       unit,
       releasedTargets,
       eligible:
         releasedTargets.length > 0 &&
+        responsibilityReasons.length === 0 &&
         eligibility.every((item) => item.eligible),
       reasons,
     };
@@ -121,6 +148,46 @@ export const createPhase2TrackBAssignmentProposal = (
       createdBy: input.createdBy,
     }),
   };
+};
+
+export const confirmPhase2TrackBAssignmentProposal = (
+  state: TrackCState,
+  proposal: TrackCBulkAssignmentProposal,
+  input: Parameters<typeof confirmTrackCBulkAssignmentProposal>[2],
+): ReturnType<typeof confirmTrackCBulkAssignmentProposal> => {
+  const options = new Map(
+    projectPhase2TrackBAssignmentUnits(state, proposal.trade).map((option) => [
+      option.unit.id,
+      option,
+    ]),
+  );
+  const invalidUnit = proposal.unitIds
+    .map((unitId) => options.get(unitId))
+    .find((option) => !option?.eligible);
+
+  if (invalidUnit) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid-proposal',
+        message:
+          `The reviewed proposal is stale because Unit-level responsibility changed. ${invalidUnit.reasons.join(' ')}`,
+      },
+    };
+  }
+
+  if (proposal.unitIds.some((unitId) => !options.has(unitId))) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid-proposal',
+        message:
+          'The reviewed proposal is stale because a Unit left the active property roster.',
+      },
+    };
+  }
+
+  return confirmTrackCBulkAssignmentProposal(state, proposal, input);
 };
 
 export interface Phase2TrackBCrewDetail extends TrackCCrewDetail {
@@ -212,6 +279,23 @@ export type Phase2AdditionalScopeResult =
   | { readonly ok: true; readonly value: Phase2AdditionalScopeRecord }
   | { readonly ok: false; readonly error: string };
 
+export interface Phase2AdditionalScopeCommitReceipt {
+  readonly recordId: string;
+  readonly committedAt: string;
+  readonly durable: true;
+}
+
+export type Phase2AdditionalScopeCommitResult =
+  | {
+      readonly ok: true;
+      readonly receipt: Phase2AdditionalScopeCommitReceipt;
+    }
+  | { readonly ok: false; readonly error: string };
+
+export type Phase2AdditionalScopeCommit = (
+  record: Phase2AdditionalScopeRecord,
+) => Promise<Phase2AdditionalScopeCommitResult>;
+
 const defaultTradeForCategory = (
   category: Phase2AdditionalScopeCategory,
 ): TrackCTrade | undefined => {
@@ -296,6 +380,55 @@ export const phase2AdditionalScopeBlocksBaseCompletion = (
 ) =>
   scope.requiredForBaseCompletion &&
   scope.status !== 'reported-complete';
+
+const phase2AdditionalScopeMatchesTarget = (
+  scope: Phase2AdditionalScopeRecord,
+  target: TrackCWorkTarget,
+) =>
+  scope.unitId === target.unitId &&
+  (!scope.trade || scope.trade === target.trade) &&
+  (scope.sections.length === 0 || scope.sections.includes(target.section));
+
+export const projectPhase2AdditionalScopeActionBlockers = (
+  scopes: readonly Phase2AdditionalScopeRecord[],
+  target: TrackCWorkTarget,
+  action: TrackCSectionAction,
+): readonly Phase2AdditionalScopeRecord[] => {
+  if (
+    action !== 'record-los-pass' &&
+    action !== 'record-reinspection-pass'
+  ) {
+    return [];
+  }
+
+  return scopes.filter(
+    (scope) =>
+      phase2AdditionalScopeBlocksBaseCompletion(scope) &&
+      phase2AdditionalScopeMatchesTarget(scope, target),
+  );
+};
+
+export interface Phase2AdditionalScopeCompletion {
+  readonly blocked: boolean;
+  readonly optionalCount: number;
+  readonly requiredCompleteCount: number;
+  readonly requiredUnresolvedCount: number;
+}
+
+export const projectPhase2AdditionalScopeCompletion = (
+  scopes: readonly Phase2AdditionalScopeRecord[],
+): Phase2AdditionalScopeCompletion => ({
+  blocked: scopes.some(phase2AdditionalScopeBlocksBaseCompletion),
+  optionalCount: scopes.filter((scope) => !scope.requiredForBaseCompletion)
+    .length,
+  requiredCompleteCount: scopes.filter(
+    (scope) =>
+      scope.requiredForBaseCompletion && scope.status === 'reported-complete',
+  ).length,
+  requiredUnresolvedCount: scopes.filter(
+    phase2AdditionalScopeBlocksBaseCompletion,
+  ).length,
+});
 
 export const phase2AdditionalScopeCategoryLabel = (
   category: Phase2AdditionalScopeCategory,

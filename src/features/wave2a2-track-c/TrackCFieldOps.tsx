@@ -25,6 +25,11 @@ import {
   recordTrackCPersonalPdsMirror,
   type TrackCSectionAction,
 } from './operations';
+import {
+  projectPhase2AdditionalScopeActionBlockers,
+  type Phase2AdditionalScopeCommit,
+  type Phase2AdditionalScopeRecord,
+} from './phase2-track-b/contracts';
 import { WalkView } from './WalkView';
 import './trackCFieldOps.css';
 
@@ -42,6 +47,11 @@ export interface TrackCFieldOpsProps {
   readonly idFactory?: (prefix: string) => string;
   readonly initialState: TrackCState;
   readonly initialView?: TrackCView;
+  readonly additionalScopes?: readonly Phase2AdditionalScopeRecord[];
+  readonly onAdditionalScopeCommit?: Phase2AdditionalScopeCommit;
+  readonly onOpenChangeOrder?: (
+    record: Phase2AdditionalScopeRecord,
+  ) => void;
   readonly onDialogOpenChange?: (open: boolean) => void;
   readonly onStateChange?: (state: TrackCState, reason: string) => void;
   readonly onCrewEditRequested?: (crewId: string) => void;
@@ -56,6 +66,9 @@ export const TrackCFieldOps = ({
   idFactory = createAppId,
   initialState,
   initialView = 'board',
+  additionalScopes = [],
+  onAdditionalScopeCommit,
+  onOpenChangeOrder,
   onDialogOpenChange,
   onStateChange,
   onCrewEditRequested,
@@ -115,6 +128,19 @@ export const TrackCFieldOps = ({
     target: TrackCWorkTarget,
     action: TrackCSectionAction,
   ) => {
+    const additionalScopeBlockers =
+      projectPhase2AdditionalScopeActionBlockers(
+        additionalScopes,
+        target,
+        action,
+      );
+    if (additionalScopeBlockers.length > 0) {
+      setNotice(
+        `Los completion was not saved. ${additionalScopeBlockers.length} required Additional Scope ${additionalScopeBlockers.length === 1 ? 'record remains' : 'records remain'} unresolved for this section. Crew reports remain separate evidence.`,
+      );
+      return;
+    }
+
     const result = applyTrackCSectionAction(state, {
       eventId: createId(`track-c-${action}`),
       action,
@@ -281,8 +307,11 @@ export const TrackCFieldOps = ({
         ) : null}
         {view === 'assign' ? (
           <AssignmentView
+            additionalScopes={additionalScopes}
             createId={createId}
             now={now}
+            onAdditionalScopeCommit={onAdditionalScopeCommit}
+            onOpenChangeOrder={onOpenChangeOrder}
             onStateChange={commitState}
             state={state}
           />

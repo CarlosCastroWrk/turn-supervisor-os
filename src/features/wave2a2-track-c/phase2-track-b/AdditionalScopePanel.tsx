@@ -1,5 +1,5 @@
 import { ExternalLink, Plus, ShieldAlert, X } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   TRACK_C_SECTIONS,
   type TrackCSection,
@@ -11,8 +11,10 @@ import {
   PHASE2_ADDITIONAL_SCOPE_CATEGORIES,
   PHASE2_ADDITIONAL_SCOPE_STATUSES,
   createPhase2AdditionalScopeRecord,
+  phase2AdditionalScopeBlocksBaseCompletion,
   phase2AdditionalScopeCategoryLabel,
   phase2AdditionalScopeStatusLabel,
+  type Phase2AdditionalScopeCommit,
   type Phase2AdditionalScopeCategory,
   type Phase2AdditionalScopeRecord,
   type Phase2AdditionalScopeStatus,
@@ -25,8 +27,13 @@ interface AdditionalScopePanelProps {
   readonly records: readonly Phase2AdditionalScopeRecord[];
   readonly createId: (prefix: string) => string;
   readonly now: () => string;
-  readonly onCreate: (record: Phase2AdditionalScopeRecord) => void;
+  readonly onCommit?: Phase2AdditionalScopeCommit;
   readonly onOpenChangeOrder?: (record: Phase2AdditionalScopeRecord) => void;
+}
+
+interface AdditionalScopeMessage {
+  readonly kind: 'error' | 'success';
+  readonly text: string;
 }
 
 const defaultTrade = (
@@ -49,7 +56,7 @@ export const AdditionalScopePanel = ({
   records,
   createId,
   now,
-  onCreate,
+  onCommit,
   onOpenChangeOrder,
 }: AdditionalScopePanelProps) => {
   const [open, setOpen] = useState(false);
@@ -69,7 +76,9 @@ export const AdditionalScopePanel = ({
     useState<Phase2ChangeOrderCandidate>('uncertain');
   const [status, setStatus] =
     useState<Phase2AdditionalScopeStatus>('recorded');
-  const [message, setMessage] = useState<string>();
+  const [message, setMessage] = useState<AdditionalScopeMessage>();
+  const [saving, setSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
 
   const selectedUnit = useMemo(
     () => state.units.find((unit) => unit.id === unitId),
@@ -84,9 +93,18 @@ export const AdditionalScopePanel = ({
     );
   };
 
-  const save = (event: FormEvent<HTMLFormElement>) => {
+  const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(undefined);
+    if (!onCommit) {
+      setMessage({
+        kind: 'error',
+        text: 'Additional scope was not saved. No approved durable record owner is available in this candidate.',
+      });
+      return;
+    }
+    if (saveInFlightRef.current) return;
+
     const result = createPhase2AdditionalScopeRecord(state, {
       id: createId('phase2-additional-scope'),
       unitId,
@@ -103,20 +121,77 @@ export const AdditionalScopePanel = ({
       status,
     });
     if (!result.ok) {
-      setMessage(result.error);
+      setMessage({ kind: 'error', text: result.error });
       return;
     }
-    onCreate(result.value);
-    setDescription('');
-    setSections([]);
-    setMessage(
-      'Personal additional scope saved. No price, approval, or form was submitted.',
-    );
+
+    saveInFlightRef.current = true;
+    setSaving(true);
+    try {
+      const committed = await onCommit(result.value);
+      if (!committed.ok) {
+        setMessage({
+          kind: 'error',
+          text: `Additional scope was not saved. ${committed.error} Your entries are still here.`,
+        });
+        return;
+      }
+      if (
+        committed.receipt.durable !== true ||
+        committed.receipt.recordId !== result.value.id ||
+        !Number.isFinite(Date.parse(committed.receipt.committedAt))
+      ) {
+        setMessage({
+          kind: 'error',
+          text: 'Additional scope was not saved because the durable receipt did not match this record. Your entries are still here.',
+        });
+        return;
+      }
+
+      setCategory('full-paint');
+      setDescription('');
+      setTrade('paint');
+      setSections([]);
+      setSourceContact('');
+      setSourceConfidence('uncertain');
+      setOccurredAt(localDateTime(now()));
+      setRequiredForBaseCompletion(false);
+      setChangeOrderCandidate('uncertain');
+      setStatus('recorded');
+      setMessage({
+        kind: 'success',
+        text: 'Personal additional scope durably saved. No price, approval, or form was submitted.',
+      });
+    } catch {
+      setMessage({
+        kind: 'error',
+        text: 'Additional scope was not saved because the durable commit failed. Your entries are still here.',
+      });
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
     <section className="phase2-track-b-additional-scope">
-      {!open ? (
+      {!onCommit ? (
+        <div
+          className="phase2-track-b-additional-scope__unavailable"
+          role="status"
+        >
+          <ShieldAlert aria-hidden="true" size={18} />
+          <span>
+            <strong>Additional Scope saving is unavailable</strong>
+            <small>
+              This candidate has no approved durable Additional Scope owner.
+              Required added scope stays unresolved; Turn OS will not claim
+              base completion from it. Keep the authoritative record on paper
+              and use an existing accepted note when needed.
+            </small>
+          </span>
+        </div>
+      ) : !open ? (
         <button
           className="phase2-track-b-secondary-button"
           data-track-c-critical-target="true"
@@ -311,23 +386,32 @@ export const AdditionalScopePanel = ({
             Personal note only. This does not price or approve work, submit a
             form, change paper, or affect payroll.
           </p>
-          {message ? <p role="status">{message}</p> : null}
+          {message ? (
+            <p role={message.kind === 'error' ? 'alert' : 'status'}>
+              {message.text}
+            </p>
+          ) : null}
           <button
             className="track-c-primary-button"
             data-track-c-critical-target="true"
+            disabled={saving}
             type="submit"
           >
-            Save personal additional scope
+            {saving
+              ? 'Saving…'
+              : message?.kind === 'error'
+                ? 'Retry save'
+                : 'Save personal additional scope'}
           </button>
         </form>
       )}
 
       {records.length > 0 ? (
         <section
-          aria-label="Saved additional scope"
+          aria-label="Additional scope records"
           className="phase2-track-b-additional-scope__records"
         >
-          <h3>Saved additional scope</h3>
+          <h3>Additional scope records</h3>
           {records.map((record) => {
             const unit = state.units.find(
               (candidate) => candidate.id === record.unitId,
@@ -348,7 +432,9 @@ export const AdditionalScopePanel = ({
                     : 'Source uncertain'}{' '}
                   · {record.sourceContact} ·{' '}
                   {record.requiredForBaseCompletion
-                    ? 'Required'
+                    ? phase2AdditionalScopeBlocksBaseCompletion(record)
+                      ? 'Required · unresolved'
+                      : 'Required · reported complete'
                     : 'Optional'}
                 </small>
                 {record.changeOrderCandidate !== 'no' &&

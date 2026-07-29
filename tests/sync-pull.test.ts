@@ -163,6 +163,11 @@ const appData = (localProject = project(), localUnit = unit()): AppData => ({
   issues: [],
   photoNotes: [],
   dailyLogs: [],
+  daySessions: [],
+  dailyReleaseBatches: [],
+  todayTasks: [],
+  fieldEvents: [],
+  walkSessions: [],
   reportDrafts: [],
   trainingQuestions: [],
   activityLogs: [],
@@ -176,6 +181,104 @@ const appData = (localProject = project(), localUnit = unit()): AppData => ({
   smartSuggestions: [],
   configurableStatuses: [],
 });
+
+const withLocalFieldCollections = (): AppData => {
+  const data = appData();
+  data.daySessions = [
+    {
+      id: 'day_session_local_only',
+      projectId: data.activeProjectId,
+      date: '2026-07-08',
+      startedAt: stamp,
+      startedBy: 'Los',
+      propertyContact: 'Property contact',
+      keyStatus: 'yes',
+      releaseBatchIds: ['release_local_only'],
+      activePaintCrewIds: [],
+      activeCleanCrewIds: [],
+      morningNote: '',
+      status: 'active',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  data.dailyReleaseBatches = [
+    {
+      id: 'release_local_only',
+      projectId: data.activeProjectId,
+      date: '2026-07-08',
+      propertyContact: 'Property contact',
+      sourceType: 'manual',
+      sourceLabel: 'Manual release',
+      status: 'confirmed',
+      items: [
+        {
+          id: 'release_item_local_only',
+          unitId: data.units[0].id,
+          trade: 'clean',
+          section: 'A',
+          sourceExcerpt: '104 A clean',
+        },
+      ],
+      uncertainties: [],
+      confirmedBy: 'Los',
+      confirmedAt: stamp,
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  data.todayTasks = [
+    {
+      id: 'today_task_local_only',
+      projectId: data.activeProjectId,
+      daySessionId: 'day_session_local_only',
+      date: '2026-07-08',
+      unitId: data.units[0].id,
+      trade: 'clean',
+      section: 'A',
+      kind: 'inspection',
+      title: 'Inspect 104 A clean',
+      slot: 'current',
+      status: 'planned',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  data.fieldEvents = [
+    {
+      id: 'field_event_local_only',
+      projectId: data.activeProjectId,
+      daySessionId: 'day_session_local_only',
+      unitId: data.units[0].id,
+      trade: 'clean',
+      section: 'A',
+      actorType: 'supervisor',
+      actorId: 'Los',
+      recordedAt: stamp,
+      recordedBy: 'Los',
+      sourceType: 'manual',
+      eventType: 'los-inspection',
+      summary: 'Personal inspection record.',
+      boundary: 'personal-record',
+    },
+  ];
+  data.walkSessions = [
+    {
+      id: 'walk_session_local_only',
+      projectId: data.activeProjectId,
+      daySessionId: 'day_session_local_only',
+      propertyContact: 'Property contact',
+      startedAt: stamp,
+      startedBy: 'Los',
+      selectedItemIds: ['release_item_local_only'],
+      outcomes: [],
+      status: 'active',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  return data;
+};
 
 const projectRow = (updatedAt = stamp): RemoteRow => ({
   id: 'project_sync_pull',
@@ -731,6 +834,48 @@ test('replaceRemoteData preserves a local-only unscoped Memory candidate', () =>
     next.memoryCandidates.map((candidate) => candidate.id),
     ['candidate_sync_pull', 'legacy_local_candidate'],
   );
+});
+
+test('remote merge and replacement preserve every local-only Wave 2A.2 collection', () => {
+  const local = withLocalFieldCollections();
+  const remote = {
+    projects: [project('2026-07-08T12:05:00.000Z')],
+    units: [unit('2026-07-08T12:05:00.000Z', 'cloud newer note')],
+  };
+
+  const merged = mergeRemoteData(local, remote);
+  const replaced = replaceRemoteData(local, remote);
+
+  for (const next of [merged, replaced]) {
+    assert.deepEqual(next.daySessions, local.daySessions);
+    assert.deepEqual(next.dailyReleaseBatches, local.dailyReleaseBatches);
+    assert.deepEqual(next.todayTasks, local.todayTasks);
+    assert.deepEqual(next.fieldEvents, local.fieldEvents);
+    assert.deepEqual(next.walkSessions, local.walkSessions);
+  }
+});
+
+test('Wave 2A.2 local collections are absent from the unchanged remote table configuration', () => {
+  assert.deepEqual(syncedTables, [
+    'projects',
+    'buildings',
+    'floors',
+    'units',
+    'crew_members',
+    'assignments',
+    'issues',
+    'photo_notes',
+    'daily_logs',
+    'report_drafts',
+    'training_questions',
+    'activity_logs',
+    'draft_actions',
+    'memories',
+    'memory_candidates',
+    'follow_up_tasks',
+    'ai_usage_events',
+  ]);
+  assert.equal(syncedTables.some((table) => ['day_sessions', 'daily_release_batches', 'today_tasks', 'field_events', 'walk_sessions'].includes(table)), false);
 });
 
 test('pull-before-upload keeps a newer cloud row from being re-overwritten by a stale local row', async () => {

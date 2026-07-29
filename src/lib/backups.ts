@@ -162,6 +162,104 @@ const dailyLogSchema = recordSchema.extend({
   createdAt: text,
   updatedAt: text,
 });
+const daySessionKeyStatusSchema = z.enum(['yes', 'no', 'partial-issue']);
+const fieldTradeSchema = z.enum(['paint', 'clean']);
+const fieldSectionSchema = z.enum(['common', 'A', 'B', 'C', 'D', 'E']);
+const daySessionSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  date: nonEmptyText,
+  startedAt: nonEmptyText,
+  startedBy: nonEmptyText,
+  propertyContact: nonEmptyText,
+  keyStatus: daySessionKeyStatusSchema,
+  releaseBatchIds: z.array(nonEmptyText),
+  activePaintCrewIds: z.array(nonEmptyText),
+  activeCleanCrewIds: z.array(nonEmptyText),
+  morningNote: text,
+  status: z.enum(['not-started', 'active', 'ending', 'closed', 'reopened']),
+  endedAt: nonEmptyText.optional(),
+  endKeyStatus: daySessionKeyStatusSchema.optional(),
+  paperReviewConfirmedAt: nonEmptyText.optional(),
+  propertyCheckInNote: text.optional(),
+  endNote: text.optional(),
+  createdAt: nonEmptyText,
+  updatedAt: nonEmptyText,
+});
+const dailyReleaseItemSchema = recordSchema.extend({
+  unitId: nonEmptyText,
+  trade: fieldTradeSchema,
+  section: fieldSectionSchema,
+  restriction: text.optional(),
+  sourceExcerpt: nonEmptyText,
+});
+const dailyReleaseBatchSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  date: nonEmptyText,
+  propertyContact: nonEmptyText,
+  sourceType: z.enum(['camera', 'photos', 'file', 'paste', 'manual']),
+  sourceLabel: nonEmptyText,
+  localSourceReference: nonEmptyText.optional(),
+  status: z.enum(['draft', 'confirmed', 'superseded']),
+  items: z.array(dailyReleaseItemSchema),
+  uncertainties: stringList,
+  confirmedBy: nonEmptyText.optional(),
+  confirmedAt: nonEmptyText.optional(),
+  createdAt: nonEmptyText,
+  updatedAt: nonEmptyText,
+});
+const todayTaskSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  daySessionId: nonEmptyText,
+  date: nonEmptyText,
+  unitId: nonEmptyText.optional(),
+  trade: fieldTradeSchema.optional(),
+  section: fieldSectionSchema.optional(),
+  kind: nonEmptyText,
+  title: nonEmptyText,
+  slot: z.enum(['current', 'next', 'backup', 'queue']),
+  status: z.enum(['planned', 'in-progress', 'completed', 'deferred']),
+  createdAt: nonEmptyText,
+  updatedAt: nonEmptyText,
+});
+const fieldEventSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  daySessionId: nonEmptyText.optional(),
+  unitId: nonEmptyText.optional(),
+  section: fieldSectionSchema.optional(),
+  trade: fieldTradeSchema.optional(),
+  actorType: nonEmptyText,
+  actorId: nonEmptyText,
+  reportedBy: nonEmptyText.optional(),
+  occurredAt: nonEmptyText.optional(),
+  recordedAt: nonEmptyText,
+  recordedBy: nonEmptyText,
+  sourceType: nonEmptyText,
+  sourceId: nonEmptyText.optional(),
+  eventType: nonEmptyText,
+  summary: text,
+  boundary: z.enum(['personal-record', 'property-reported', 'paper-mirror', 'official-external-reference']),
+  reversesEventId: nonEmptyText.optional(),
+});
+const walkSessionOutcomeSchema = z
+  .object({
+    selectedItemId: nonEmptyText,
+    outcome: z.enum(['accepted', 'correction-requested', 'not-walked', 'deferred']),
+  })
+  .passthrough();
+const walkSessionSchema = recordSchema.extend({
+  projectId: nonEmptyText,
+  daySessionId: nonEmptyText,
+  propertyContact: nonEmptyText,
+  startedAt: nonEmptyText,
+  startedBy: nonEmptyText,
+  selectedItemIds: z.array(nonEmptyText).min(1),
+  outcomes: z.array(walkSessionOutcomeSchema),
+  status: z.enum(['active', 'closed']),
+  endedAt: nonEmptyText.optional(),
+  note: text.optional(),
+  createdAt: nonEmptyText,
+  updatedAt: nonEmptyText,
+});
 const reportDraftSchema = recordSchema.extend({
   projectId: nonEmptyText,
   date: nonEmptyText,
@@ -352,6 +450,11 @@ const recordCollectionKeys = [
   'issues',
   'photoNotes',
   'dailyLogs',
+  'daySessions',
+  'dailyReleaseBatches',
+  'todayTasks',
+  'fieldEvents',
+  'walkSessions',
   'reportDrafts',
   'trainingQuestions',
   'activityLogs',
@@ -365,8 +468,9 @@ const recordCollectionKeys = [
   'smartSuggestions',
 ] as const;
 
-const appDataBackupSchema = z
-  .object({
+type BackupValidationData = Partial<AppData> & Pick<AppData, 'projects'>;
+
+const appDataBackupShape: z.ZodRawShape = {
     activeProjectId: z.string().optional(),
     projects: z.array(projectSchema).min(1, 'At least one project is required.'),
     buildings: z.array(buildingSchema).optional(),
@@ -377,6 +481,11 @@ const appDataBackupSchema = z
     issues: z.array(issueSchema).optional(),
     photoNotes: z.array(photoSchema).optional(),
     dailyLogs: z.array(dailyLogSchema).optional(),
+    daySessions: z.array(daySessionSchema).optional(),
+    dailyReleaseBatches: z.array(dailyReleaseBatchSchema).optional(),
+    todayTasks: z.array(todayTaskSchema).optional(),
+    fieldEvents: z.array(fieldEventSchema).optional(),
+    walkSessions: z.array(walkSessionSchema).optional(),
     reportDrafts: z.array(reportDraftSchema).optional(),
     trainingQuestions: z.array(trainingQuestionSchema).optional(),
     activityLogs: z.array(activityLogSchema).optional(),
@@ -389,9 +498,13 @@ const appDataBackupSchema = z
     followUpTasks: z.array(followUpSchema).optional(),
     smartSuggestions: z.array(suggestionSchema).optional(),
     configurableStatuses: z.array(knownText(UNIT_WORKFLOW_STATUSES, 'configurable Unit status')).optional(),
-  })
+};
+
+const appDataBackupSchema = z
+  .object(appDataBackupShape)
   .passthrough()
-  .superRefine((data, context) => {
+  .superRefine((rawData, context) => {
+    const data = rawData as unknown as BackupValidationData;
     let totalRecords = 0;
 
     for (const key of recordCollectionKeys) {
@@ -418,6 +531,334 @@ const appDataBackupSchema = z
         path: [],
       });
     }
+
+    const projectIds = new Set(data.projects.map((project) => project.id));
+    const unitProjectIds = new Map((data.units ?? []).map((unit) => [unit.id, unit.projectId]));
+    const crewMembersById = new Map((data.crewMembers ?? []).map((crew) => [crew.id, crew]));
+    const releaseBatchesById = new Map((data.dailyReleaseBatches ?? []).map((batch) => [batch.id, batch]));
+    const daySessionsById = new Map((data.daySessions ?? []).map((session) => [session.id, session]));
+    const fieldEventsById = new Map((data.fieldEvents ?? []).map((event) => [event.id, event]));
+    const releaseItemsById = new Map<string, { batchId: string; projectId: string }>();
+    const validateProjectScope = (key: string, records: Array<{ projectId: string }>) => {
+      records.forEach((record, index) => {
+        if (!projectIds.has(record.projectId)) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Local field record references a project that is not in this backup.',
+            path: [key, index, 'projectId'],
+          });
+        }
+      });
+    };
+    validateProjectScope('daySessions', data.daySessions ?? []);
+    validateProjectScope('dailyReleaseBatches', data.dailyReleaseBatches ?? []);
+    validateProjectScope('todayTasks', data.todayTasks ?? []);
+    validateProjectScope('fieldEvents', data.fieldEvents ?? []);
+    validateProjectScope('walkSessions', data.walkSessions ?? []);
+
+    const openDaySessionByProject = new Map<string, number>();
+    (data.daySessions ?? []).forEach((session, index) => {
+      const sessionIsOpen = ['active', 'ending', 'reopened'].includes(session.status);
+      const seenReleaseBatchIds = new Set<string>();
+      session.releaseBatchIds.forEach((releaseBatchId, releaseBatchIndex) => {
+        if (seenReleaseBatchIds.has(releaseBatchId)) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A Day Session may reference each release batch only once.',
+            path: ['daySessions', index, 'releaseBatchIds', releaseBatchIndex],
+          });
+        }
+        seenReleaseBatchIds.add(releaseBatchId);
+        const releaseBatch = releaseBatchesById.get(releaseBatchId);
+        if (!releaseBatch || releaseBatch.projectId !== session.projectId) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Day Session release batch must exist in the same project.',
+            path: ['daySessions', index, 'releaseBatchIds', releaseBatchIndex],
+          });
+          return;
+        }
+        if (sessionIsOpen && releaseBatch.status !== 'confirmed') {
+          context.addIssue({
+            code: 'custom',
+            message: 'An active, ending, or reopened Day Session may use only a confirmed release batch.',
+            path: ['daySessions', index, 'releaseBatchIds', releaseBatchIndex],
+          });
+        }
+        if (session.status === 'closed' && releaseBatch.status === 'draft') {
+          context.addIssue({
+            code: 'custom',
+            message: 'A closed Day Session cannot reference a draft release batch.',
+            path: ['daySessions', index, 'releaseBatchIds', releaseBatchIndex],
+          });
+        }
+        if (
+          session.status === 'closed' &&
+          releaseBatch.status === 'superseded' &&
+          (!releaseBatch.confirmedBy || !releaseBatch.confirmedAt)
+        ) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A superseded release linked to a closed Day Session requires its original confirmation evidence.',
+            path: ['daySessions', index, 'releaseBatchIds', releaseBatchIndex],
+          });
+        }
+        if (releaseBatch.date !== session.date) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A Day Session release batch must match the Day Session date.',
+            path: ['daySessions', index, 'releaseBatchIds', releaseBatchIndex],
+          });
+        }
+      });
+      if (sessionIsOpen && session.releaseBatchIds.length === 0) {
+        context.addIssue({
+          code: 'custom',
+          message: 'An active, ending, or reopened Day Session requires a confirmed release batch.',
+          path: ['daySessions', index, 'releaseBatchIds'],
+        });
+      }
+      const validateActiveCrewIds = (
+        crewIds: string[],
+        key: 'activePaintCrewIds' | 'activeCleanCrewIds',
+        expectedTrade: 'Painter' | 'Cleaner',
+      ) => {
+        const seenCrewIds = new Set<string>();
+        crewIds.forEach((crewId, crewIndex) => {
+          if (seenCrewIds.has(crewId)) {
+            context.addIssue({
+              code: 'custom',
+              message: 'A Day Session may reference each active crew only once per trade.',
+              path: ['daySessions', index, key, crewIndex],
+            });
+          }
+          seenCrewIds.add(crewId);
+          const crew = crewMembersById.get(crewId);
+          if (!crew || crew.projectId !== session.projectId || crew.trade !== expectedTrade) {
+            context.addIssue({
+              code: 'custom',
+              message: `Active ${expectedTrade} crew must exist in the same project and match the trade.`,
+              path: ['daySessions', index, key, crewIndex],
+            });
+          }
+        });
+      };
+      validateActiveCrewIds(session.activePaintCrewIds, 'activePaintCrewIds', 'Painter');
+      validateActiveCrewIds(session.activeCleanCrewIds, 'activeCleanCrewIds', 'Cleaner');
+      if (session.status === 'closed' && !session.endedAt) {
+        context.addIssue({
+          code: 'custom',
+          message: 'A closed Day Session requires endedAt.',
+          path: ['daySessions', index, 'endedAt'],
+        });
+      }
+      if (!sessionIsOpen) {
+        return;
+      }
+      const existingIndex = openDaySessionByProject.get(session.projectId);
+      if (existingIndex !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Only one active, ending, or reopened Day Session is allowed per project.',
+          path: ['daySessions', index, 'status'],
+        });
+      } else {
+        openDaySessionByProject.set(session.projectId, index);
+      }
+    });
+
+    (data.dailyReleaseBatches ?? []).forEach((batch, batchIndex) => {
+      if (batch.status === 'confirmed' && (!batch.confirmedBy || !batch.confirmedAt)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'A confirmed release requires confirmedBy and confirmedAt.',
+          path: ['dailyReleaseBatches', batchIndex, !batch.confirmedBy ? 'confirmedBy' : 'confirmedAt'],
+        });
+      }
+      const seenScopeKeys = new Set<string>();
+      batch.items.forEach((item, itemIndex) => {
+        if (unitProjectIds.get(item.unitId) !== batch.projectId) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Release item Unit must exist in the same project as its release batch.',
+            path: ['dailyReleaseBatches', batchIndex, 'items', itemIndex, 'unitId'],
+          });
+        }
+        if (releaseItemsById.has(item.id)) {
+          context.addIssue({
+            code: 'custom',
+            message: `Duplicate release item id "${item.id}".`,
+            path: ['dailyReleaseBatches', batchIndex, 'items', itemIndex, 'id'],
+          });
+        }
+        releaseItemsById.set(item.id, { batchId: batch.id, projectId: batch.projectId });
+        const scopeKey = `${item.unitId}\u0000${item.trade}\u0000${item.section}`;
+        if (seenScopeKeys.has(scopeKey)) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A release batch may contain each Unit, trade, and section scope only once.',
+            path: ['dailyReleaseBatches', batchIndex, 'items', itemIndex],
+          });
+        }
+        seenScopeKeys.add(scopeKey);
+      });
+    });
+
+    (data.todayTasks ?? []).forEach((task, taskIndex) => {
+      const daySession = daySessionsById.get(task.daySessionId);
+      if (!daySession || daySession.projectId !== task.projectId) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Today Task Day Session must exist in the same project.',
+          path: ['todayTasks', taskIndex, 'daySessionId'],
+        });
+      } else if (daySession.date !== task.date) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Today Task date must match its Day Session date.',
+          path: ['todayTasks', taskIndex, 'date'],
+        });
+      }
+      if (task.unitId && unitProjectIds.get(task.unitId) !== task.projectId) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Today Task Unit must exist in the same project.',
+          path: ['todayTasks', taskIndex, 'unitId'],
+        });
+      }
+    });
+
+    (data.fieldEvents ?? []).forEach((event, eventIndex) => {
+      if (event.daySessionId) {
+        const daySession = daySessionsById.get(event.daySessionId);
+        if (!daySession || daySession.projectId !== event.projectId) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Field Event Day Session must exist in the same project.',
+            path: ['fieldEvents', eventIndex, 'daySessionId'],
+          });
+        }
+      }
+      if (event.unitId && unitProjectIds.get(event.unitId) !== event.projectId) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Field Event Unit must exist in the same project.',
+          path: ['fieldEvents', eventIndex, 'unitId'],
+        });
+      }
+      if (event.reversesEventId) {
+        const reversedEvent = fieldEventsById.get(event.reversesEventId);
+        if (!reversedEvent || reversedEvent.projectId !== event.projectId || reversedEvent.id === event.id) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A reversing Field Event must reference a different event in the same project.',
+            path: ['fieldEvents', eventIndex, 'reversesEventId'],
+          });
+        }
+      }
+    });
+
+    const activeWalkByDaySession = new Map<string, number>();
+    (data.walkSessions ?? []).forEach((session, sessionIndex) => {
+      const daySession = daySessionsById.get(session.daySessionId);
+      if (!daySession || daySession.projectId !== session.projectId) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Walk Session Day Session must exist in the same project.',
+          path: ['walkSessions', sessionIndex, 'daySessionId'],
+        });
+      } else if (daySession.status === 'not-started') {
+        context.addIssue({
+          code: 'custom',
+          message: 'A Walk Session cannot begin before its Day Session starts.',
+          path: ['walkSessions', sessionIndex, 'daySessionId'],
+        });
+      } else if (session.status === 'active' && daySession.status === 'closed') {
+        context.addIssue({
+          code: 'custom',
+          message: 'An active Walk Session cannot remain open after its Day Session closes.',
+          path: ['walkSessions', sessionIndex, 'status'],
+        });
+      }
+      if (session.status === 'active') {
+        const existingIndex = activeWalkByDaySession.get(session.daySessionId);
+        if (existingIndex !== undefined) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Only one active Walk Session is allowed per Day Session.',
+            path: ['walkSessions', sessionIndex, 'status'],
+          });
+        } else {
+          activeWalkByDaySession.set(session.daySessionId, sessionIndex);
+        }
+      }
+      if (session.status === 'closed' && !session.endedAt) {
+        context.addIssue({
+          code: 'custom',
+          message: 'A closed Walk Session requires endedAt.',
+          path: ['walkSessions', sessionIndex, 'endedAt'],
+        });
+      }
+      if (session.status === 'active' && session.endedAt) {
+        context.addIssue({
+          code: 'custom',
+          message: 'An active Walk Session cannot have endedAt.',
+          path: ['walkSessions', sessionIndex, 'endedAt'],
+        });
+      }
+      const selectedItemIds = new Set(session.selectedItemIds);
+      if (selectedItemIds.size !== session.selectedItemIds.length) {
+        context.addIssue({
+          code: 'custom',
+          message: 'A Walk Session may select each release item only once.',
+          path: ['walkSessions', sessionIndex, 'selectedItemIds'],
+        });
+      }
+      const dayReleaseBatchIds = new Set(daySession?.releaseBatchIds ?? []);
+      session.selectedItemIds.forEach((selectedItemId, selectedItemIndex) => {
+        const releaseItem = releaseItemsById.get(selectedItemId);
+        if (
+          !releaseItem ||
+          releaseItem.projectId !== session.projectId ||
+          !dayReleaseBatchIds.has(releaseItem.batchId)
+        ) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Walk selection must reference a release item from the same Day Session.',
+            path: ['walkSessions', sessionIndex, 'selectedItemIds', selectedItemIndex],
+          });
+        }
+      });
+      const seenOutcomeIds = new Set<string>();
+      session.outcomes.forEach((outcome, outcomeIndex) => {
+        if (!selectedItemIds.has(outcome.selectedItemId)) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Walk outcome must reference a selected item.',
+            path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'selectedItemId'],
+          });
+        }
+        if (seenOutcomeIds.has(outcome.selectedItemId)) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A selected walk item may have only one current outcome.',
+            path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'selectedItemId'],
+          });
+        }
+        seenOutcomeIds.add(outcome.selectedItemId);
+      });
+      if (session.status === 'closed') {
+        session.selectedItemIds.forEach((selectedItemId, selectedItemIndex) => {
+          if (!seenOutcomeIds.has(selectedItemId)) {
+            context.addIssue({
+              code: 'custom',
+              message: 'A closed Walk Session requires one outcome for every selected item.',
+              path: ['walkSessions', sessionIndex, 'selectedItemIds', selectedItemIndex],
+            });
+          }
+        });
+      }
+    });
   });
 
 const backupCandidate = (parsed: unknown): unknown => {
@@ -452,7 +893,8 @@ export const parseJsonBackup = (text: string): AppData => {
     throw new Error(validationMessage(result.error));
   }
 
-  for (const [index, photo] of (result.data.photoNotes ?? []).entries()) {
+  const validatedData = result.data as unknown as BackupValidationData;
+  for (const [index, photo] of (validatedData.photoNotes ?? []).entries()) {
     if (!photo.imageData) {
       continue;
     }
@@ -468,7 +910,7 @@ export const parseJsonBackup = (text: string): AppData => {
     }
   }
 
-  const normalized = normalizeAppData(result.data as unknown as AppData);
+  const normalized = normalizeAppData(validatedData as AppData);
   if (!normalized.projects.some((project) => project.id === normalized.activeProjectId)) {
     throw new Error('That backup does not contain a usable active project. No local data was changed.');
   }

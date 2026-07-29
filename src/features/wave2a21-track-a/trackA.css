@@ -224,6 +224,17 @@
   color: var(--turn-color-secondary, var(--muted));
 }
 
+.w2a21a-task-detail dt {
+  display: grid;
+  gap: 3px;
+}
+
+.w2a21a-task-detail dt small {
+  color: var(--turn-color-secondary, var(--muted));
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
 .w2a21a-setup__review dd,
 .w2a21a-task-detail dd {
   margin: 0;

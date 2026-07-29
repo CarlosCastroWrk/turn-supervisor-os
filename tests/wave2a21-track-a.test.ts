@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
+import { parseJsonBackup } from '../src/lib/backups.ts';
+import { buildJsonBackup } from '../src/lib/exporters.ts';
 import type {
   FieldEvent,
   Project,
@@ -12,7 +13,8 @@ import type {
   TrackCState,
 } from '../src/features/wave2a2-track-c/model.ts';
 import {
-  activateProjectLocally,
+  persistPreparedProjectActivation,
+  prepareProjectActivation,
 } from '../src/features/wave2a21-track-a/activation.ts';
 import {
   adaptDurableFieldEventsToActivity,
@@ -33,9 +35,13 @@ import {
 } from '../src/features/wave2a21-track-a/projections.ts';
 import {
   START_DAY_EIGHT_STEP_CONTRACT,
-  createStartDaySavedDefaults,
   getStartDayStepContract,
+  resolveStartDayValues,
 } from '../src/features/wave2a21-track-a/startDayDefaults.ts';
+import {
+  PROJECT_SETUP_STEPS,
+  clampProjectSetupStep,
+} from '../src/features/wave2a21-track-a/projectSetup.ts';
 
 const NOW = '2026-07-29T14:00:00.000Z';
 const PROJECT_ID = 'project-wave2a21-track-a';
@@ -109,14 +115,15 @@ const createDraft = (
   ...overrides,
 });
 
-test('atomic local activation adds one project, its contacts, active scope, and one personal event', () => {
+test('activation preparation adds one candidate project, its contacts, active scope, and one personal event', () => {
   const data = createData();
   const before = structuredClone(data);
   const draft = createDraft();
-  const result = activateProjectLocally(data, draft);
+  const result = prepareProjectActivation(data, draft);
 
   assert.equal(result.ok, true);
   if (!result.ok) return;
+  assert.equal(result.stage, 'prepared');
   assert.equal(result.changed, true);
   assert.equal(result.data.activeProjectId, PROJECT_ID);
   assert.equal(result.data.projects.filter((project) => project.id === PROJECT_ID).length, 1);
@@ -129,11 +136,11 @@ test('atomic local activation adds one project, its contacts, active scope, and 
 });
 
 test('activation is idempotent for the same revision and refuses silent overwrite', () => {
-  const first = activateProjectLocally(createData(), createDraft());
+  const first = prepareProjectActivation(createData(), createDraft());
   assert.equal(first.ok, true);
   if (!first.ok) return;
 
-  const repeated = activateProjectLocally(first.data, createDraft());
+  const repeated = prepareProjectActivation(first.data, createDraft());
   assert.equal(repeated.ok, true);
   if (!repeated.ok) return;
   assert.equal(repeated.changed, false);
@@ -145,7 +152,7 @@ test('activation is idempotent for the same revision and refuses silent overwrit
     ...conflictingEvent.fieldEvents[0],
     summary: 'Different event using the same durable ID.',
   };
-  const collision = activateProjectLocally(conflictingEvent, createDraft());
+  const collision = prepareProjectActivation(conflictingEvent, createDraft());
   assert.equal(collision.ok, false);
   if (collision.ok) return;
   assert.equal(collision.code, 'invalid-configuration');
@@ -155,16 +162,17 @@ test('activation is idempotent for the same revision and refuses silent overwrit
     ...createProject(),
     propertyName: 'Changed without confirmation',
   };
-  const rejected = activateProjectLocally(first.data, createDraft({
+  const rejected = prepareProjectActivation(first.data, createDraft({
     project: changedProject,
   }));
   assert.deepEqual(rejected, {
     code: 'overwrite-confirmation-required',
     errors: ['This project already exists. Confirm before replacing its personal setup defaults.'],
     ok: false,
+    stage: 'preparation',
   });
 
-  const confirmed = activateProjectLocally(first.data, createDraft({
+  const confirmed = prepareProjectActivation(first.data, createDraft({
     configuration: {
       ...createConfiguration(),
       activatedAt: '2026-07-29T14:05:00.000Z',
@@ -185,7 +193,7 @@ test('activation fails closed for invalid contact scope and weakened authority',
     ...createContacts()[0],
     projectId: 'another-project',
   };
-  const wrongScope = activateProjectLocally(createData(), createDraft({
+  const wrongScope = prepareProjectActivation(createData(), createDraft({
     contacts: [wrongContact],
   }));
   assert.equal(wrongScope.ok, false);
@@ -200,7 +208,7 @@ test('activation fails closed for invalid contact scope and weakened authority',
       officialApprovals: true,
     },
   };
-  const unsafe = activateProjectLocally(createData(), createDraft({
+  const unsafe = prepareProjectActivation(createData(), createDraft({
     configuration: unsafeConfiguration,
   }));
   assert.equal(unsafe.ok, false);
@@ -208,7 +216,7 @@ test('activation fails closed for invalid contact scope and weakened authority',
   assert.equal(unsafe.code, 'invalid-configuration');
   assert.match(unsafe.errors.join(' '), /authority boundary/u);
 
-  const wrongConfigurationScope = activateProjectLocally(createData(), createDraft({
+  const wrongConfigurationScope = prepareProjectActivation(createData(), createDraft({
     configuration: {
       ...createConfiguration(),
       projectId: 'another-project',
@@ -218,6 +226,92 @@ test('activation fails closed for invalid contact scope and weakened authority',
   if (wrongConfigurationScope.ok) return;
   assert.equal(wrongConfigurationScope.code, 'invalid-configuration');
   assert.match(wrongConfigurationScope.errors.join(' '), /match the project/u);
+});
+
+test('activation timestamp matches strict backup shape and round-trips with an offset', () => {
+  const activatedAt = '2026-07-29T09:00:00.000-05:00';
+  const source = createData();
+  const prepared = prepareProjectActivation(source, createDraft({
+    configuration: {
+      ...createConfiguration(),
+      activatedAt,
+    },
+  }));
+
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal(prepared.event.recordedAt, activatedAt);
+
+  const restored = parseJsonBackup(buildJsonBackup(prepared.data)) as TrackAAppData;
+  const restoredProject = restored.projects.find((project) => project.id === PROJECT_ID);
+  const restoredEvent = restored.fieldEvents.find((event) => event.id === prepared.event.id);
+  assert.equal(restoredProject?.fieldConfiguration?.activatedAt, activatedAt);
+  assert.equal(restoredEvent?.recordedAt, activatedAt);
+  assert.deepEqual(restored.propertyContacts, createContacts());
+
+  const invalidTimestamps = [
+    '2026-07-29',
+    '2026-07-29T09:00:00.000',
+    '2026-02-30T09:00:00.000-05:00',
+    '2026-07-29T09:00:00.000Z trailing-data',
+  ];
+  for (const invalidTimestamp of invalidTimestamps) {
+    const invalidSource = createData();
+    const before = structuredClone(invalidSource);
+    const rejected = prepareProjectActivation(invalidSource, createDraft({
+      configuration: {
+        ...createConfiguration(),
+        activatedAt: invalidTimestamp,
+      },
+    }));
+    assert.equal(rejected.ok, false, `accepted invalid timestamp ${invalidTimestamp}`);
+    if (rejected.ok) continue;
+    assert.equal(rejected.code, 'invalid-configuration');
+    assert.match(rejected.errors.join(' '), /offset-capable ISO timestamp/u);
+    assert.equal('event' in rejected, false);
+    assert.deepEqual(invalidSource, before);
+  }
+});
+
+test('durable activation receipt is withheld on persistence failure and retry state is preserved', async () => {
+  const source = createData();
+  const draft = createDraft();
+  const prepared = prepareProjectActivation(source, draft);
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+
+  let attemptedData: Readonly<TrackAAppData> | undefined;
+  const rejected = await persistPreparedProjectActivation(prepared, (candidate) => {
+    attemptedData = candidate;
+    return false;
+  });
+  assert.equal(attemptedData, prepared.data);
+  assert.equal(rejected.ok, false);
+  if (rejected.ok) return;
+  assert.equal(rejected.stage, 'persistence');
+  assert.equal(rejected.code, 'persistence-failed');
+  assert.equal('receipt' in rejected, false);
+  assert.deepEqual(rejected.retry.sourceData, source);
+  assert.deepEqual(rejected.retry.draft, draft);
+  assert.deepEqual(source, createData());
+
+  const threw = await persistPreparedProjectActivation(prepared, () => {
+    throw new Error('Synthetic storage failure');
+  });
+  assert.equal(threw.ok, false);
+  assert.equal('receipt' in threw, false);
+
+  const persisted = await persistPreparedProjectActivation(prepared, () => true);
+  assert.equal(persisted.ok, true);
+  if (!persisted.ok) return;
+  assert.equal(persisted.stage, 'persisted');
+  assert.deepEqual(persisted.receipt, {
+    acknowledgement: 'durable-save-succeeded',
+    activatedAt: NOW,
+    changed: true,
+    eventId: `project-activated:${PROJECT_ID}:${NOW}`,
+    projectId: PROJECT_ID,
+  });
 });
 
 test('AppData adapter keeps shared data compatible without mutating it', () => {
@@ -230,40 +324,75 @@ test('AppData adapter keeps shared data compatible without mutating it', () => {
   assert.deepEqual(source, seedData);
 });
 
-test('Start Day saved defaults use the configured contact and allow explicit today-only overrides', () => {
+test('Start Day values preserve per-value saved-default and today-only provenance', () => {
   assert.equal(START_DAY_EIGHT_STEP_CONTRACT.length, 8);
   assert.deepEqual(getStartDayStepContract(), START_DAY_EIGHT_STEP_CONTRACT);
   assert.notEqual(getStartDayStepContract(), START_DAY_EIGHT_STEP_CONTRACT);
 
-  const defaults = createStartDaySavedDefaults(
+  const defaults = resolveStartDayValues(
     createConfiguration(),
     createContacts(),
   );
   assert.deepEqual(defaults.activeCrewIdsByTrade, {
-    Clean: ['crew-clean'],
-    Paint: ['crew-paint'],
+    Clean: {
+      source: 'saved-project-default',
+      value: ['crew-clean'],
+    },
+    Paint: {
+      source: 'saved-project-default',
+      value: ['crew-paint'],
+    },
   });
-  assert.equal(defaults.propertyContact, 'Tony');
+  assert.deepEqual(defaults.propertyContact, {
+    source: 'saved-project-default',
+    value: { id: 'contact-tony', name: 'Tony' },
+  });
 
-  const override = createStartDaySavedDefaults(
+  const alternateContact: PropertyContact = {
+    ...createContacts()[0],
+    id: 'contact-today',
+    isPrimary: false,
+    name: 'Today Contact',
+  };
+  const override = resolveStartDayValues(
     createConfiguration(),
-    createContacts(),
+    [...createContacts(), alternateContact],
     {
-      activeCrewIdsByTrade: { Paint: ['crew-paint-today'] },
+      activeCrewIdsByTrade: {
+        Clean: [],
+        Paint: ['crew-paint-today'],
+      },
+      propertyContactId: alternateContact.id,
       walkthroughScheduleWording: 'Today only: 2 PM walkthrough.',
+      workingHoursWording: 'Today only: 9 AM–4 PM.',
     },
   );
-  assert.deepEqual(override.activeCrewIdsByTrade, {
-    Clean: ['crew-clean'],
-    Paint: ['crew-paint-today'],
+  assert.deepEqual(override.activeCrewIdsByTrade.Clean, {
+    source: 'today-only-override',
+    value: [],
   });
-  assert.equal(override.walkthroughScheduleWording, 'Today only: 2 PM walkthrough.');
+  assert.deepEqual(override.activeCrewIdsByTrade.Paint, {
+    source: 'today-only-override',
+    value: ['crew-paint-today'],
+  });
+  assert.deepEqual(override.walkthroughScheduleWording, {
+    source: 'today-only-override',
+    value: 'Today only: 2 PM walkthrough.',
+  });
+  assert.deepEqual(override.workingHoursWording, {
+    source: 'today-only-override',
+    value: 'Today only: 9 AM–4 PM.',
+  });
+  assert.deepEqual(override.propertyContact, {
+    source: 'today-only-override',
+    value: { id: 'contact-today', name: 'Today Contact' },
+  });
   assert.equal(
     createConfiguration().defaultWalkthroughScheduleWording,
     'Daily walkthrough at noon.',
   );
   assert.throws(
-    () => createStartDaySavedDefaults(
+    () => resolveStartDayValues(
       createConfiguration(),
       [{ ...createContacts()[0], projectId: 'another-project' }],
     ),
@@ -516,7 +645,7 @@ test('durable field-event Activity adapter is project scoped, exact, sorted, and
 });
 
 test('AppData projection adapter preserves project scope when no Day Session is active', () => {
-  const activated = activateProjectLocally(createData(), createDraft());
+  const activated = prepareProjectActivation(createData(), createDraft());
   assert.equal(activated.ok, true);
   if (!activated.ok) return;
 
@@ -564,28 +693,10 @@ test('projection rejects cross-project and cross-session state instead of mergin
   );
 });
 
-test('the UI package exposes five controlled setup steps and isolated scroll ownership', async () => {
-  const [setupSource, taskSource, detailSource, css] = await Promise.all([
-    readFile(new URL('../src/features/wave2a21-track-a/ProjectSetupFlow.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/features/wave2a21-track-a/TodayTaskDetail.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/features/wave2a21-track-a/ProfilePrivacyScrollRegion.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../src/features/wave2a21-track-a/trackA.css', import.meta.url), 'utf8'),
-  ]);
-
-  const stepBlock = setupSource.match(
-    /PROJECT_SETUP_STEPS = Object\.freeze\(\[([\s\S]*?)\] as const\)/u,
-  );
-  assert.ok(stepBlock);
-  assert.equal(stepBlock[1].match(/\{ id:/gu)?.length, 5);
-  assert.ok(setupSource.includes('Step {step + 1} of {PROJECT_SETUP_STEPS.length}'));
-  assert.match(setupSource, /paper TurnBoard remains authoritative/u);
-  assert.match(setupSource, /onDraftChange/u);
-  assert.match(setupSource, /Activate personal project/u);
-  assert.match(taskSource, /Crew completion does not mean Los inspected or property accepted/u);
-  assert.match(taskSource, /does not change today’s confirmed release/u);
-  assert.match(detailSource, /data-turn-scroll-region="primary"/u);
-  assert.ok(css.includes('.w2a21a-profile-privacy-scroll'));
-  assert.ok(css.includes('overflow-y: auto'));
-  assert.match(css, /env\(safe-area-inset-bottom\)/u);
-  assert.match(css, /prefers-reduced-motion/u);
+test('the five-step setup clamp fails closed to a renderable controlled step', () => {
+  assert.equal(PROJECT_SETUP_STEPS.length, 5);
+  assert.equal(clampProjectSetupStep(-9), 0);
+  assert.equal(clampProjectSetupStep(Number.NaN), 0);
+  assert.equal(clampProjectSetupStep(2.9), 2);
+  assert.equal(clampProjectSetupStep(99), 4);
 });

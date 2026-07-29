@@ -1,7 +1,9 @@
 import type {
   ProjectConfiguration,
   PropertyContact,
-  StartDaySavedDefaults,
+  StartDayResolvedValue,
+  StartDayResolvedValues,
+  StartDayValueSource,
 } from './contracts';
 
 export const START_DAY_EIGHT_STEP_CONTRACT = Object.freeze([
@@ -16,19 +18,33 @@ export const START_DAY_EIGHT_STEP_CONTRACT = Object.freeze([
 ] as const);
 
 export interface StartDayDefaultOverrides {
-  readonly activeCrewIdsByTrade?: Partial<StartDaySavedDefaults['activeCrewIdsByTrade']>;
+  readonly activeCrewIdsByTrade?: {
+    readonly Paint?: readonly string[];
+    readonly Clean?: readonly string[];
+  };
   readonly propertyContactId?: string;
   readonly walkthroughScheduleWording?: string;
   readonly workingHoursWording?: string;
 }
 
 const unique = (values: readonly string[]) => [...new Set(values)];
+const SAVED_PROJECT_DEFAULT: StartDayValueSource = 'saved-project-default';
+const TODAY_ONLY_OVERRIDE: StartDayValueSource = 'today-only-override';
 
-export function createStartDaySavedDefaults(
+const resolvedValue = <T,>(
+  value: T,
+  overridden: boolean,
+): StartDayResolvedValue<T> => ({
+  source: overridden ? TODAY_ONLY_OVERRIDE : SAVED_PROJECT_DEFAULT,
+  value,
+});
+
+export function resolveStartDayValues(
   configuration: ProjectConfiguration,
   contacts: readonly PropertyContact[],
   overrides: StartDayDefaultOverrides = {},
-): StartDaySavedDefaults {
+): StartDayResolvedValues {
+  const propertyContactOverridden = overrides.propertyContactId !== undefined;
   const selectedContactId = overrides.propertyContactId
     ?? configuration.defaultPropertyContactId;
   const selectedContact = contacts.find((contact) =>
@@ -38,6 +54,10 @@ export function createStartDaySavedDefaults(
     throw new Error('The saved Start Day property contact is unavailable.');
   }
 
+  const workingHoursOverridden = overrides.workingHoursWording !== undefined;
+  const walkthroughOverridden = overrides.walkthroughScheduleWording !== undefined;
+  const paintCrewsOverridden = overrides.activeCrewIdsByTrade?.Paint !== undefined;
+  const cleanCrewsOverridden = overrides.activeCrewIdsByTrade?.Clean !== undefined;
   const workingHoursWording = (
     overrides.workingHoursWording
     ?? configuration.defaultWorkingHoursWording
@@ -52,28 +72,40 @@ export function createStartDaySavedDefaults(
 
   return {
     activeCrewIdsByTrade: {
-      Clean: configuration.enabledTrades.clean
-        ? unique(
-          overrides.activeCrewIdsByTrade?.Clean
-          ?? configuration.defaultCrewIdsByTrade.clean,
-        )
-        : [],
-      Paint: configuration.enabledTrades.paint
-        ? unique(
-          overrides.activeCrewIdsByTrade?.Paint
-          ?? configuration.defaultCrewIdsByTrade.paint,
-        )
-        : [],
+      Clean: resolvedValue(
+        configuration.enabledTrades.clean
+          ? unique(
+            overrides.activeCrewIdsByTrade?.Clean
+            ?? configuration.defaultCrewIdsByTrade.clean,
+          )
+          : [],
+        configuration.enabledTrades.clean && cleanCrewsOverridden,
+      ),
+      Paint: resolvedValue(
+        configuration.enabledTrades.paint
+          ? unique(
+            overrides.activeCrewIdsByTrade?.Paint
+            ?? configuration.defaultCrewIdsByTrade.paint,
+          )
+          : [],
+        configuration.enabledTrades.paint && paintCrewsOverridden,
+      ),
     },
-    propertyContact: selectedContact.name,
-    propertyContactId: selectedContact.id,
-    walkthroughScheduleWording,
-    workingHoursWording,
+    propertyContact: resolvedValue({
+      id: selectedContact.id,
+      name: selectedContact.name,
+    }, propertyContactOverridden),
+    walkthroughScheduleWording: resolvedValue(
+      walkthroughScheduleWording,
+      walkthroughOverridden,
+    ),
+    workingHoursWording: resolvedValue(
+      workingHoursWording,
+      workingHoursOverridden,
+    ),
   };
 }
 
 export function getStartDayStepContract() {
   return START_DAY_EIGHT_STEP_CONTRACT.map((step) => ({ ...step }));
 }
-
-export const projectStartDaySavedDefaults = createStartDaySavedDefaults;

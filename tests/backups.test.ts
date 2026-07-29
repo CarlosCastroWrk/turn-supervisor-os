@@ -7,6 +7,8 @@ import type { AppData } from '../src/types.ts';
 
 const cloneSeed = (): AppData => JSON.parse(JSON.stringify(seedData)) as AppData;
 const stamp = '2026-07-28T13:00:00.000Z';
+const minutesAfterStamp = (minutes: number) =>
+  new Date(Date.parse(stamp) + minutes * 60_000).toISOString();
 
 const withLocalFieldState = (): AppData => {
   const data = cloneSeed();
@@ -89,8 +91,8 @@ const withLocalFieldState = (): AppData => {
       recordedAt: stamp,
       recordedBy: 'Los',
       sourceType: 'direct-note',
-      eventType: 'los-inspection',
-      summary: 'Los recorded a personal inspection.',
+      eventType: 'los-passed',
+      summary: 'Los recorded a personal inspection pass.',
       boundary: 'personal-record',
     },
   ];
@@ -209,6 +211,56 @@ test('malformed or contradictory Wave 2A.2 local records fail closed', () => {
   );
 });
 
+test('Wave 2A.2 timestamps and lifecycle combinations fail closed', () => {
+  const invalidDate = withLocalFieldState();
+  invalidDate.daySessions[0].date = '07/28/2026';
+
+  const activeSessionWithEnd = withLocalFieldState();
+  activeSessionWithEnd.daySessions[0].endedAt = minutesAfterStamp(1);
+
+  const dayEndBeforeStart = withLocalFieldState();
+  dayEndBeforeStart.daySessions[0].status = 'closed';
+  dayEndBeforeStart.daySessions[0].endedAt = minutesAfterStamp(-1);
+  dayEndBeforeStart.todayTasks[0].status = 'completed';
+
+  const eventOccurredAfterRecording = withLocalFieldState();
+  eventOccurredAfterRecording.fieldEvents[0].occurredAt = minutesAfterStamp(1);
+
+  const walkBeforeDay = withLocalFieldState();
+  walkBeforeDay.walkSessions[0].createdAt = minutesAfterStamp(-1);
+  walkBeforeDay.walkSessions[0].startedAt = minutesAfterStamp(-1);
+
+  const activeTaskAfterDayClose = withLocalFieldState();
+  activeTaskAfterDayClose.daySessions[0].status = 'closed';
+  activeTaskAfterDayClose.daySessions[0].endedAt = minutesAfterStamp(2);
+  activeTaskAfterDayClose.daySessions[0].updatedAt = minutesAfterStamp(2);
+
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(invalidDate)),
+    /daySessions\.0\.date/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(activeSessionWithEnd)),
+    /daySessions\.0\.endedAt.*Only a closed Day Session may have endedAt/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(dayEndBeforeStart)),
+    /daySessions\.0\.endedAt.*cannot be earlier than startedAt/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(eventOccurredAfterRecording)),
+    /fieldEvents\.0\.occurredAt.*cannot be later than recordedAt/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(walkBeforeDay)),
+    /walkSessions\.0\.startedAt.*cannot start before its Day Session/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(activeTaskAfterDayClose)),
+    /todayTasks\.0\.status.*cannot retain planned or in-progress Today Tasks/,
+  );
+});
+
 test('Wave 2A.2 release and Day Session references fail closed across project boundaries', () => {
   const missingReleaseUnit = withLocalFieldState();
   missingReleaseUnit.dailyReleaseBatches[0].items[0].unitId = 'unit_not_in_backup';
@@ -302,6 +354,23 @@ test('confirmed releases and closed sessions require confirmation and end eviden
   );
 });
 
+test('confirmed releases are nonempty and Today Tasks stay inside selected confirmed scope', () => {
+  const emptyConfirmedRelease = withLocalFieldState();
+  emptyConfirmedRelease.dailyReleaseBatches[0].items = [];
+
+  const taskOutsideConfirmedScope = withLocalFieldState();
+  taskOutsideConfirmedScope.todayTasks[0].section = 'B';
+
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(emptyConfirmedRelease)),
+    /dailyReleaseBatches\.0\.items.*requires at least one released Unit, trade, and section item/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(taskOutsideConfirmedScope)),
+    /todayTasks\.0.*scope must exist in a confirmed release selected for its Day Session/,
+  );
+});
+
 test('Day Sessions require confirmed same-day releases and project-scoped trade-compatible crews', () => {
   const draftRelease = withLocalFieldState();
   draftRelease.dailyReleaseBatches[0].status = 'draft';
@@ -322,6 +391,7 @@ test('Day Sessions require confirmed same-day releases and project-scoped trade-
   closedSessionWithSupersededRelease.daySessions[0].status = 'closed';
   closedSessionWithSupersededRelease.daySessions[0].endedAt = stamp;
   closedSessionWithSupersededRelease.dailyReleaseBatches[0].status = 'superseded';
+  closedSessionWithSupersededRelease.todayTasks[0].status = 'completed';
 
   assert.throws(
     () => parseJsonBackup(JSON.stringify(draftRelease)),
@@ -405,11 +475,131 @@ test('Today Task dates and Field Event reversals preserve their project lifecycl
   );
   assert.throws(
     () => parseJsonBackup(JSON.stringify(missingReversedEvent)),
-    /fieldEvents\.0\.reversesEventId.*must reference a different event in the same project/,
+    /fieldEvents\.0\.reversesEventId.*must reference a different event in the same Day Session/,
   );
   assert.throws(
     () => parseJsonBackup(JSON.stringify(selfReversingEvent)),
-    /fieldEvents\.0\.reversesEventId.*must reference a different event in the same project/,
+    /fieldEvents\.0\.reversesEventId.*must reference a different event in the same Day Session/,
+  );
+});
+
+test('Field Event reversal history cannot cross Day Session boundaries', () => {
+  const crossSessionReversal = withLocalFieldState();
+  crossSessionReversal.daySessions.push({
+    ...crossSessionReversal.daySessions[0],
+    id: 'day_session_closed',
+    status: 'closed',
+    endedAt: minutesAfterStamp(1),
+    updatedAt: minutesAfterStamp(1),
+  });
+  crossSessionReversal.fieldEvents.push({
+    ...crossSessionReversal.fieldEvents[0],
+    id: 'field_event_cross_session_reversal',
+    daySessionId: 'day_session_closed',
+    eventType: 'event-reversed',
+    recordedAt: minutesAfterStamp(1),
+    reversesEventId: crossSessionReversal.fieldEvents[0].id,
+  });
+
+  const sameSessionReversal = withLocalFieldState();
+  sameSessionReversal.fieldEvents.push({
+    ...sameSessionReversal.fieldEvents[0],
+    id: 'field_event_callback_opened',
+    eventType: 'callback-opened',
+    recordedAt: minutesAfterStamp(1),
+    summary: 'Callback opened.',
+  });
+  sameSessionReversal.fieldEvents.push({
+    ...sameSessionReversal.fieldEvents[0],
+    id: 'field_event_callback_reversed',
+    eventType: 'event-reversed',
+    recordedAt: minutesAfterStamp(2),
+    reversesEventId: 'field_event_callback_opened',
+    summary: 'Callback entry reversed in the same Day Session.',
+  });
+  sameSessionReversal.walkSessions[0] = {
+    ...sameSessionReversal.walkSessions[0],
+    createdAt: minutesAfterStamp(3),
+    startedAt: minutesAfterStamp(3),
+    endedAt: minutesAfterStamp(4),
+    updatedAt: minutesAfterStamp(4),
+  };
+  sameSessionReversal.daySessions[0].updatedAt = minutesAfterStamp(4);
+
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(crossSessionReversal)),
+    /fieldEvents\.1\.reversesEventId.*must reference a different event in the same Day Session/,
+  );
+  assert.doesNotThrow(() => parseJsonBackup(JSON.stringify(sameSessionReversal)));
+});
+
+test('property-accepted walk outcomes require current same-session Los-pass evidence', () => {
+  const missingLosPass = withLocalFieldState();
+  missingLosPass.fieldEvents = [];
+
+  const crossSessionLosPass = withLocalFieldState();
+  crossSessionLosPass.daySessions.push({
+    ...crossSessionLosPass.daySessions[0],
+    id: 'day_session_other',
+    status: 'closed',
+    endedAt: stamp,
+  });
+  crossSessionLosPass.fieldEvents[0].daySessionId = 'day_session_other';
+
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(missingLosPass)),
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los-pass event from the same Day Session/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(crossSessionLosPass)),
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los-pass event from the same Day Session/,
+  );
+});
+
+test('property-accepted walk outcomes reject blocked or already-accepted scope', () => {
+  const blockedAfterLosPass = withLocalFieldState();
+  blockedAfterLosPass.fieldEvents[0].recordedAt = minutesAfterStamp(1);
+  blockedAfterLosPass.fieldEvents.push({
+    ...blockedAfterLosPass.fieldEvents[0],
+    id: 'field_event_callback_opened',
+    eventType: 'callback-opened',
+    recordedAt: minutesAfterStamp(2),
+    summary: 'Callback remains open.',
+  });
+  blockedAfterLosPass.walkSessions[0] = {
+    ...blockedAfterLosPass.walkSessions[0],
+    startedAt: minutesAfterStamp(3),
+    endedAt: minutesAfterStamp(4),
+    createdAt: minutesAfterStamp(3),
+    updatedAt: minutesAfterStamp(4),
+  };
+  blockedAfterLosPass.daySessions[0].updatedAt = minutesAfterStamp(4);
+
+  const alreadyAccepted = withLocalFieldState();
+  alreadyAccepted.fieldEvents[0].recordedAt = minutesAfterStamp(1);
+  alreadyAccepted.fieldEvents.push({
+    ...alreadyAccepted.fieldEvents[0],
+    id: 'field_event_property_accepted',
+    eventType: 'property-accepted',
+    recordedAt: minutesAfterStamp(2),
+    summary: 'Property acceptance was already recorded.',
+  });
+  alreadyAccepted.walkSessions[0] = {
+    ...alreadyAccepted.walkSessions[0],
+    startedAt: minutesAfterStamp(3),
+    endedAt: minutesAfterStamp(4),
+    createdAt: minutesAfterStamp(3),
+    updatedAt: minutesAfterStamp(4),
+  };
+  alreadyAccepted.daySessions[0].updatedAt = minutesAfterStamp(4);
+
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(blockedAfterLosPass)),
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires the selected scope to be unblocked after Los pass/,
+  );
+  assert.throws(
+    () => parseJsonBackup(JSON.stringify(alreadyAccepted)),
+    /walkSessions\.0\.outcomes\.0\.outcome.*cannot be recorded again for scope already accepted/,
   );
 });
 
@@ -443,6 +633,7 @@ test('Walk Sessions stay scoped to one Day Session and close with complete outco
   const activeWalkAfterDayClose = withLocalFieldState();
   activeWalkAfterDayClose.daySessions[0].status = 'closed';
   activeWalkAfterDayClose.daySessions[0].endedAt = stamp;
+  activeWalkAfterDayClose.todayTasks[0].status = 'completed';
   activeWalkAfterDayClose.walkSessions[0].status = 'active';
   activeWalkAfterDayClose.walkSessions[0].endedAt = undefined;
 

@@ -30,6 +30,8 @@ const text = z.string();
 const finiteNumber = z.number().finite();
 const nonNegativeNumber = finiteNumber.nonnegative();
 const stringList = z.array(z.string());
+const isoDate = z.iso.date();
+const isoTimestamp = z.iso.datetime({ offset: true });
 const knownText = (values: readonly string[], label: string) =>
   z.string().refine((value) => values.includes(value), `Invalid ${label}.`);
 const recordSchema = z.object({ id: nonEmptyText }).passthrough();
@@ -167,8 +169,8 @@ const fieldTradeSchema = z.enum(['paint', 'clean']);
 const fieldSectionSchema = z.enum(['common', 'A', 'B', 'C', 'D', 'E']);
 const daySessionSchema = recordSchema.extend({
   projectId: nonEmptyText,
-  date: nonEmptyText,
-  startedAt: nonEmptyText,
+  date: isoDate,
+  startedAt: isoTimestamp,
   startedBy: nonEmptyText,
   propertyContact: nonEmptyText,
   keyStatus: daySessionKeyStatusSchema,
@@ -177,13 +179,13 @@ const daySessionSchema = recordSchema.extend({
   activeCleanCrewIds: z.array(nonEmptyText),
   morningNote: text,
   status: z.enum(['not-started', 'active', 'ending', 'closed', 'reopened']),
-  endedAt: nonEmptyText.optional(),
+  endedAt: isoTimestamp.optional(),
   endKeyStatus: daySessionKeyStatusSchema.optional(),
-  paperReviewConfirmedAt: nonEmptyText.optional(),
+  paperReviewConfirmedAt: isoTimestamp.optional(),
   propertyCheckInNote: text.optional(),
   endNote: text.optional(),
-  createdAt: nonEmptyText,
-  updatedAt: nonEmptyText,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 const dailyReleaseItemSchema = recordSchema.extend({
   unitId: nonEmptyText,
@@ -194,7 +196,7 @@ const dailyReleaseItemSchema = recordSchema.extend({
 });
 const dailyReleaseBatchSchema = recordSchema.extend({
   projectId: nonEmptyText,
-  date: nonEmptyText,
+  date: isoDate,
   propertyContact: nonEmptyText,
   sourceType: z.enum(['camera', 'photos', 'file', 'paste', 'manual']),
   sourceLabel: nonEmptyText,
@@ -203,14 +205,14 @@ const dailyReleaseBatchSchema = recordSchema.extend({
   items: z.array(dailyReleaseItemSchema),
   uncertainties: stringList,
   confirmedBy: nonEmptyText.optional(),
-  confirmedAt: nonEmptyText.optional(),
-  createdAt: nonEmptyText,
-  updatedAt: nonEmptyText,
+  confirmedAt: isoTimestamp.optional(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 const todayTaskSchema = recordSchema.extend({
   projectId: nonEmptyText,
   daySessionId: nonEmptyText,
-  date: nonEmptyText,
+  date: isoDate,
   unitId: nonEmptyText.optional(),
   trade: fieldTradeSchema.optional(),
   section: fieldSectionSchema.optional(),
@@ -218,8 +220,8 @@ const todayTaskSchema = recordSchema.extend({
   title: nonEmptyText,
   slot: z.enum(['current', 'next', 'backup', 'queue']),
   status: z.enum(['planned', 'in-progress', 'completed', 'deferred']),
-  createdAt: nonEmptyText,
-  updatedAt: nonEmptyText,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 const fieldEventSchema = recordSchema.extend({
   projectId: nonEmptyText,
@@ -230,8 +232,8 @@ const fieldEventSchema = recordSchema.extend({
   actorType: nonEmptyText,
   actorId: nonEmptyText,
   reportedBy: nonEmptyText.optional(),
-  occurredAt: nonEmptyText.optional(),
-  recordedAt: nonEmptyText,
+  occurredAt: isoTimestamp.optional(),
+  recordedAt: isoTimestamp,
   recordedBy: nonEmptyText,
   sourceType: nonEmptyText,
   sourceId: nonEmptyText.optional(),
@@ -250,15 +252,15 @@ const walkSessionSchema = recordSchema.extend({
   projectId: nonEmptyText,
   daySessionId: nonEmptyText,
   propertyContact: nonEmptyText,
-  startedAt: nonEmptyText,
+  startedAt: isoTimestamp,
   startedBy: nonEmptyText,
   selectedItemIds: z.array(nonEmptyText).min(1),
   outcomes: z.array(walkSessionOutcomeSchema),
   status: z.enum(['active', 'closed']),
-  endedAt: nonEmptyText.optional(),
+  endedAt: isoTimestamp.optional(),
   note: text.optional(),
-  createdAt: nonEmptyText,
-  updatedAt: nonEmptyText,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 const reportDraftSchema = recordSchema.extend({
   projectId: nonEmptyText,
@@ -538,7 +540,31 @@ const appDataBackupSchema = z
     const releaseBatchesById = new Map((data.dailyReleaseBatches ?? []).map((batch) => [batch.id, batch]));
     const daySessionsById = new Map((data.daySessions ?? []).map((session) => [session.id, session]));
     const fieldEventsById = new Map((data.fieldEvents ?? []).map((event) => [event.id, event]));
-    const releaseItemsById = new Map<string, { batchId: string; projectId: string }>();
+    const releaseItemsById = new Map<
+      string,
+      {
+        batchId: string;
+        projectId: string;
+        section: AppData['dailyReleaseBatches'][number]['items'][number]['section'];
+        trade: AppData['dailyReleaseBatches'][number]['items'][number]['trade'];
+        unitId: string;
+      }
+    >();
+    const validateTimestampOrder = (
+      earlier: string | undefined,
+      later: string | undefined,
+      path: Array<string | number>,
+      message: string,
+    ) => {
+      if (!earlier || !later || Date.parse(earlier) <= Date.parse(later)) {
+        return;
+      }
+      context.addIssue({
+        code: 'custom',
+        message,
+        path,
+      });
+    };
     const validateProjectScope = (key: string, records: Array<{ projectId: string }>) => {
       records.forEach((record, index) => {
         if (!projectIds.has(record.projectId)) {
@@ -645,6 +671,18 @@ const appDataBackupSchema = z
       };
       validateActiveCrewIds(session.activePaintCrewIds, 'activePaintCrewIds', 'Painter');
       validateActiveCrewIds(session.activeCleanCrewIds, 'activeCleanCrewIds', 'Cleaner');
+      validateTimestampOrder(
+        session.createdAt,
+        session.startedAt,
+        ['daySessions', index, 'startedAt'],
+        'Day Session startedAt cannot be earlier than createdAt.',
+      );
+      validateTimestampOrder(
+        session.startedAt,
+        session.updatedAt,
+        ['daySessions', index, 'updatedAt'],
+        'Day Session updatedAt cannot be earlier than startedAt.',
+      );
       if (session.status === 'closed' && !session.endedAt) {
         context.addIssue({
           code: 'custom',
@@ -652,6 +690,37 @@ const appDataBackupSchema = z
           path: ['daySessions', index, 'endedAt'],
         });
       }
+      if (session.status !== 'closed' && session.endedAt) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Only a closed Day Session may have endedAt.',
+          path: ['daySessions', index, 'endedAt'],
+        });
+      }
+      validateTimestampOrder(
+        session.startedAt,
+        session.endedAt,
+        ['daySessions', index, 'endedAt'],
+        'Day Session endedAt cannot be earlier than startedAt.',
+      );
+      validateTimestampOrder(
+        session.endedAt,
+        session.updatedAt,
+        ['daySessions', index, 'updatedAt'],
+        'Day Session updatedAt cannot be earlier than endedAt.',
+      );
+      validateTimestampOrder(
+        session.startedAt,
+        session.paperReviewConfirmedAt,
+        ['daySessions', index, 'paperReviewConfirmedAt'],
+        'Paper review confirmation cannot be earlier than Day Session start.',
+      );
+      validateTimestampOrder(
+        session.paperReviewConfirmedAt,
+        session.updatedAt,
+        ['daySessions', index, 'updatedAt'],
+        'Day Session updatedAt cannot be earlier than paper review confirmation.',
+      );
       if (!sessionIsOpen) {
         return;
       }
@@ -675,6 +744,31 @@ const appDataBackupSchema = z
           path: ['dailyReleaseBatches', batchIndex, !batch.confirmedBy ? 'confirmedBy' : 'confirmedAt'],
         });
       }
+      if (batch.status === 'confirmed' && batch.items.length === 0) {
+        context.addIssue({
+          code: 'custom',
+          message: 'A confirmed release requires at least one released Unit, trade, and section item.',
+          path: ['dailyReleaseBatches', batchIndex, 'items'],
+        });
+      }
+      validateTimestampOrder(
+        batch.createdAt,
+        batch.updatedAt,
+        ['dailyReleaseBatches', batchIndex, 'updatedAt'],
+        'Release updatedAt cannot be earlier than createdAt.',
+      );
+      validateTimestampOrder(
+        batch.createdAt,
+        batch.confirmedAt,
+        ['dailyReleaseBatches', batchIndex, 'confirmedAt'],
+        'Release confirmedAt cannot be earlier than createdAt.',
+      );
+      validateTimestampOrder(
+        batch.confirmedAt,
+        batch.updatedAt,
+        ['dailyReleaseBatches', batchIndex, 'updatedAt'],
+        'Release updatedAt cannot be earlier than confirmedAt.',
+      );
       const seenScopeKeys = new Set<string>();
       batch.items.forEach((item, itemIndex) => {
         if (unitProjectIds.get(item.unitId) !== batch.projectId) {
@@ -691,7 +785,13 @@ const appDataBackupSchema = z
             path: ['dailyReleaseBatches', batchIndex, 'items', itemIndex, 'id'],
           });
         }
-        releaseItemsById.set(item.id, { batchId: batch.id, projectId: batch.projectId });
+        releaseItemsById.set(item.id, {
+          batchId: batch.id,
+          projectId: batch.projectId,
+          section: item.section,
+          trade: item.trade,
+          unitId: item.unitId,
+        });
         const scopeKey = `${item.unitId}\u0000${item.trade}\u0000${item.section}`;
         if (seenScopeKeys.has(scopeKey)) {
           context.addIssue({
@@ -705,6 +805,7 @@ const appDataBackupSchema = z
     });
 
     (data.todayTasks ?? []).forEach((task, taskIndex) => {
+      const taskUnitIsValid = !task.unitId || unitProjectIds.get(task.unitId) === task.projectId;
       const daySession = daySessionsById.get(task.daySessionId);
       if (!daySession || daySession.projectId !== task.projectId) {
         context.addIssue({
@@ -718,14 +819,60 @@ const appDataBackupSchema = z
           message: 'Today Task date must match its Day Session date.',
           path: ['todayTasks', taskIndex, 'date'],
         });
+      } else {
+        const confirmedReleaseItems = daySession.releaseBatchIds.flatMap((releaseBatchId) => {
+          const batch = releaseBatchesById.get(releaseBatchId);
+          const retainsConfirmationEvidence =
+            batch?.status === 'confirmed' ||
+            (batch?.status === 'superseded' && Boolean(batch.confirmedBy && batch.confirmedAt));
+          return retainsConfirmationEvidence ? batch.items : [];
+        });
+        const scopeExists = confirmedReleaseItems.some(
+          (item) =>
+            (!task.unitId || item.unitId === task.unitId) &&
+            (!task.trade || item.trade === task.trade) &&
+            (!task.section || item.section === task.section),
+        );
+        if (taskUnitIsValid && !scopeExists) {
+          context.addIssue({
+            code: 'custom',
+            message: 'Today Task scope must exist in a confirmed release selected for its Day Session.',
+            path: ['todayTasks', taskIndex],
+          });
+        }
+        if (daySession.status === 'closed' && ['planned', 'in-progress'].includes(task.status)) {
+          context.addIssue({
+            code: 'custom',
+            message: 'A closed Day Session cannot retain planned or in-progress Today Tasks.',
+            path: ['todayTasks', taskIndex, 'status'],
+          });
+        }
+        validateTimestampOrder(
+          daySession.startedAt,
+          task.updatedAt,
+          ['todayTasks', taskIndex, 'updatedAt'],
+          'Today Task updatedAt cannot be earlier than its Day Session start.',
+        );
+        validateTimestampOrder(
+          task.updatedAt,
+          daySession.endedAt,
+          ['todayTasks', taskIndex, 'updatedAt'],
+          'Today Task updatedAt cannot be later than its closed Day Session end.',
+        );
       }
-      if (task.unitId && unitProjectIds.get(task.unitId) !== task.projectId) {
+      if (!taskUnitIsValid) {
         context.addIssue({
           code: 'custom',
           message: 'Today Task Unit must exist in the same project.',
           path: ['todayTasks', taskIndex, 'unitId'],
         });
       }
+      validateTimestampOrder(
+        task.createdAt,
+        task.updatedAt,
+        ['todayTasks', taskIndex, 'updatedAt'],
+        'Today Task updatedAt cannot be earlier than createdAt.',
+      );
     });
 
     (data.fieldEvents ?? []).forEach((event, eventIndex) => {
@@ -737,8 +884,33 @@ const appDataBackupSchema = z
             message: 'Field Event Day Session must exist in the same project.',
             path: ['fieldEvents', eventIndex, 'daySessionId'],
           });
+        } else {
+          validateTimestampOrder(
+            daySession.startedAt,
+            event.recordedAt,
+            ['fieldEvents', eventIndex, 'recordedAt'],
+            'Field Event recordedAt cannot be earlier than its Day Session start.',
+          );
+          validateTimestampOrder(
+            event.recordedAt,
+            daySession.endedAt,
+            ['fieldEvents', eventIndex, 'recordedAt'],
+            'Field Event recordedAt cannot be later than its closed Day Session end.',
+          );
+          validateTimestampOrder(
+            daySession.startedAt,
+            event.occurredAt,
+            ['fieldEvents', eventIndex, 'occurredAt'],
+            'Field Event occurredAt cannot be earlier than its Day Session start.',
+          );
         }
       }
+      validateTimestampOrder(
+        event.occurredAt,
+        event.recordedAt,
+        ['fieldEvents', eventIndex, 'occurredAt'],
+        'Field Event occurredAt cannot be later than recordedAt.',
+      );
       if (event.unitId && unitProjectIds.get(event.unitId) !== event.projectId) {
         context.addIssue({
           code: 'custom',
@@ -748,15 +920,68 @@ const appDataBackupSchema = z
       }
       if (event.reversesEventId) {
         const reversedEvent = fieldEventsById.get(event.reversesEventId);
-        if (!reversedEvent || reversedEvent.projectId !== event.projectId || reversedEvent.id === event.id) {
+        if (
+          !reversedEvent ||
+          reversedEvent.projectId !== event.projectId ||
+          reversedEvent.id === event.id ||
+          !event.daySessionId ||
+          reversedEvent.daySessionId !== event.daySessionId
+        ) {
           context.addIssue({
             code: 'custom',
-            message: 'A reversing Field Event must reference a different event in the same project.',
+            message: 'A reversing Field Event must reference a different event in the same Day Session.',
             path: ['fieldEvents', eventIndex, 'reversesEventId'],
           });
+        } else {
+          validateTimestampOrder(
+            reversedEvent.recordedAt,
+            event.recordedAt,
+            ['fieldEvents', eventIndex, 'recordedAt'],
+            'A reversing Field Event cannot be recorded before the event it reverses.',
+          );
         }
       }
     });
+
+    const blockingFieldEventTypes = new Set([
+      'callback-opened',
+      'callback-correction-reported',
+      'property-correction-requested',
+    ]);
+    const activeFieldEventsForReleaseItemAt = (
+      daySessionId: string,
+      releaseItem: {
+        section: AppData['dailyReleaseBatches'][number]['items'][number]['section'];
+        trade: AppData['dailyReleaseBatches'][number]['items'][number]['trade'];
+        unitId: string;
+      },
+      at: string,
+    ) => {
+      const eventsThroughCutoff = (data.fieldEvents ?? []).filter(
+        (event) =>
+          event.daySessionId === daySessionId &&
+          Date.parse(event.recordedAt) <= Date.parse(at),
+      );
+      const reversedEventIds = new Set(
+        eventsThroughCutoff
+          .filter((event) => {
+            if (!event.reversesEventId) {
+              return false;
+            }
+            const reversedEvent = fieldEventsById.get(event.reversesEventId);
+            return Boolean(reversedEvent && reversedEvent.daySessionId === daySessionId);
+          })
+          .map((event) => event.reversesEventId as string),
+      );
+
+      return eventsThroughCutoff.filter(
+        (event) =>
+          !reversedEventIds.has(event.id) &&
+          event.unitId === releaseItem.unitId &&
+          event.trade === releaseItem.trade &&
+          event.section === releaseItem.section,
+      );
+    };
 
     const activeWalkByDaySession = new Map<string, number>();
     (data.walkSessions ?? []).forEach((session, sessionIndex) => {
@@ -779,6 +1004,19 @@ const appDataBackupSchema = z
           message: 'An active Walk Session cannot remain open after its Day Session closes.',
           path: ['walkSessions', sessionIndex, 'status'],
         });
+      } else {
+        validateTimestampOrder(
+          daySession.startedAt,
+          session.startedAt,
+          ['walkSessions', sessionIndex, 'startedAt'],
+          'Walk Session cannot start before its Day Session.',
+        );
+        validateTimestampOrder(
+          session.endedAt ?? session.updatedAt,
+          daySession.endedAt,
+          ['walkSessions', sessionIndex, session.endedAt ? 'endedAt' : 'updatedAt'],
+          'Walk Session cannot extend past its closed Day Session end.',
+        );
       }
       if (session.status === 'active') {
         const existingIndex = activeWalkByDaySession.get(session.daySessionId);
@@ -806,6 +1044,24 @@ const appDataBackupSchema = z
           path: ['walkSessions', sessionIndex, 'endedAt'],
         });
       }
+      validateTimestampOrder(
+        session.createdAt,
+        session.startedAt,
+        ['walkSessions', sessionIndex, 'startedAt'],
+        'Walk Session startedAt cannot be earlier than createdAt.',
+      );
+      validateTimestampOrder(
+        session.startedAt,
+        session.endedAt,
+        ['walkSessions', sessionIndex, 'endedAt'],
+        'Walk Session endedAt cannot be earlier than startedAt.',
+      );
+      validateTimestampOrder(
+        session.endedAt ?? session.startedAt,
+        session.updatedAt,
+        ['walkSessions', sessionIndex, 'updatedAt'],
+        'Walk Session updatedAt cannot be earlier than its latest lifecycle timestamp.',
+      );
       const selectedItemIds = new Set(session.selectedItemIds);
       if (selectedItemIds.size !== session.selectedItemIds.length) {
         context.addIssue({
@@ -846,6 +1102,61 @@ const appDataBackupSchema = z
           });
         }
         seenOutcomeIds.add(outcome.selectedItemId);
+        if (outcome.outcome === 'accepted') {
+          const releaseItem = releaseItemsById.get(outcome.selectedItemId);
+          if (releaseItem) {
+            const activeEvents = activeFieldEventsForReleaseItemAt(
+              session.daySessionId,
+              releaseItem,
+              session.startedAt,
+            );
+            const latestLosPass = activeEvents
+              .filter((event) => event.eventType === 'los-passed')
+              .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))[0];
+            if (!latestLosPass) {
+              context.addIssue({
+                code: 'custom',
+                message: 'Property acceptance requires a current Los-pass event from the same Day Session.',
+                path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
+              });
+            } else if (
+              activeEvents.some(
+                (event) =>
+                  blockingFieldEventTypes.has(event.eventType) &&
+                  event.recordedAt >= latestLosPass.recordedAt,
+              )
+            ) {
+              context.addIssue({
+                code: 'custom',
+                message: 'Property acceptance requires the selected scope to be unblocked after Los pass.',
+                path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
+              });
+            }
+
+            const alreadyAcceptedByEvent = activeEvents.some(
+              (event) => event.eventType === 'property-accepted',
+            );
+            const alreadyAcceptedByWalk = (data.walkSessions ?? []).some(
+              (otherSession) =>
+                otherSession.id !== session.id &&
+                otherSession.daySessionId === session.daySessionId &&
+                otherSession.status === 'closed' &&
+                otherSession.outcomes.some(
+                  (otherOutcome) =>
+                    otherOutcome.selectedItemId === outcome.selectedItemId &&
+                    otherOutcome.outcome === 'accepted',
+                ) &&
+                Date.parse(otherSession.endedAt ?? otherSession.updatedAt) <= Date.parse(session.startedAt),
+            );
+            if (alreadyAcceptedByEvent || alreadyAcceptedByWalk) {
+              context.addIssue({
+                code: 'custom',
+                message: 'Property acceptance cannot be recorded again for scope already accepted in this Day Session.',
+                path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
+              });
+            }
+          }
+        }
       });
       if (session.status === 'closed') {
         session.selectedItemIds.forEach((selectedItemId, selectedItemIndex) => {

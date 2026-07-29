@@ -257,8 +257,8 @@ const withLocalFieldCollections = (): AppData => {
       recordedAt: stamp,
       recordedBy: 'Los',
       sourceType: 'manual',
-      eventType: 'los-inspection',
-      summary: 'Personal inspection record.',
+      eventType: 'los-passed',
+      summary: 'Personal inspection pass.',
       boundary: 'personal-record',
     },
   ];
@@ -853,6 +853,84 @@ test('remote merge and replacement preserve every local-only Wave 2A.2 collectio
     assert.deepEqual(next.fieldEvents, local.fieldEvents);
     assert.deepEqual(next.walkSessions, local.walkSessions);
   }
+});
+
+test('initial remote replacement preserves only parent rows required by local field records', () => {
+  const local = withLocalFieldCollections();
+  local.buildings = [
+    {
+      id: 'building_local_field_parent',
+      projectId: local.activeProjectId,
+      name: 'Building A',
+      notes: '',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  local.floors = [
+    {
+      id: 'floor_local_field_parent',
+      buildingId: 'building_local_field_parent',
+      name: 'Floor 1',
+      notes: '',
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  local.units[0] = {
+    ...local.units[0],
+    buildingId: 'building_local_field_parent',
+    floorId: 'floor_local_field_parent',
+  };
+  local.crewMembers = [
+    {
+      id: 'crew_local_field_parent',
+      projectId: local.activeProjectId,
+      name: 'Local Paint Crew',
+      trade: 'Painter',
+      phone: '',
+      company: '',
+      language: '',
+      assignedLocation: '',
+      notes: '',
+      active: true,
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  local.daySessions[0].activePaintCrewIds = ['crew_local_field_parent'];
+  const unrelatedProject = {
+    ...project(),
+    id: 'project_unrelated_local',
+    name: 'Unrelated local project',
+  };
+  const unrelatedUnit = {
+    ...unit(),
+    id: 'unit_unrelated_local',
+    projectId: unrelatedProject.id,
+    unitNumber: '999',
+  };
+  local.projects.push(unrelatedProject);
+  local.units.push(unrelatedUnit);
+
+  const replaced = replaceRemoteData(local, {
+    buildings: [],
+    crewMembers: [],
+    floors: [],
+    projects: [],
+    units: [],
+  });
+
+  assert.deepEqual(replaced.projects.map((item) => item.id), ['project_sync_pull']);
+  assert.deepEqual(replaced.buildings.map((item) => item.id), ['building_local_field_parent']);
+  assert.deepEqual(replaced.floors.map((item) => item.id), ['floor_local_field_parent']);
+  assert.deepEqual(replaced.units.map((item) => item.id), ['unit_sync_pull_104']);
+  assert.deepEqual(replaced.crewMembers.map((item) => item.id), ['crew_local_field_parent']);
+  assert.deepEqual(replaced.daySessions, local.daySessions);
+  assert.deepEqual(replaced.dailyReleaseBatches, local.dailyReleaseBatches);
+  assert.deepEqual(replaced.todayTasks, local.todayTasks);
+  assert.deepEqual(replaced.fieldEvents, local.fieldEvents);
+  assert.deepEqual(replaced.walkSessions, local.walkSessions);
 });
 
 test('Wave 2A.2 local collections are absent from the unchanged remote table configuration', () => {

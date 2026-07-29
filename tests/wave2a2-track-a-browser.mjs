@@ -135,6 +135,33 @@ const assertContrast = async (page, foregroundSelector, backgroundSelector, labe
   );
 };
 
+const assertKeyboardFocusVisible = async (page, locator, label) => {
+  let focused = false;
+  for (let index = 0; index < 24; index += 1) {
+    await page.keyboard.press('Tab');
+    focused = await locator.evaluate((element) => document.activeElement === element);
+    if (focused) break;
+  }
+  assert.equal(focused, true, `${label} was not reachable by keyboard.`);
+  const focusStyle = await locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      focusVisible: element.matches(':focus-visible'),
+      outlineColor: style.outlineColor,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: Number.parseFloat(style.outlineWidth),
+    };
+  });
+  assert.equal(focusStyle.focusVisible, true, `${label} did not match :focus-visible.`);
+  assert.equal(focusStyle.outlineStyle, 'solid', `${label} did not expose a solid outline.`);
+  assert.ok(focusStyle.outlineWidth >= 3, `${label} outline was ${focusStyle.outlineWidth}px.`);
+  assert.notEqual(
+    focusStyle.outlineColor,
+    'rgba(0, 0, 0, 0)',
+    `${label} outline was transparent.`,
+  );
+};
+
 const assertMoreThemeState = async (page, theme, label) => {
   const displayName = theme === 'dark' ? 'Dark' : 'Light';
   assert.deepEqual(
@@ -172,15 +199,18 @@ const assertMoreThemeState = async (page, theme, label) => {
 const primaryNavigation = (page) =>
   page.getByRole('navigation', { name: 'Primary' });
 
-const createCleanPage = async (browser, options) => {
+const createCleanPage = async (browser, options, themePreference) => {
   const context = await browser.newContext(options);
   const page = await context.newPage();
   page.setDefaultTimeout(30_000);
   const findings = attachRuntimeChecks(page);
-  await page.addInitScript(() => {
+  await page.addInitScript((preference) => {
     localStorage.clear();
     sessionStorage.clear();
-  });
+    if (preference) {
+      localStorage.setItem('turn-os:appearance:v1:device', preference);
+    }
+  }, themePreference);
   return { context, findings, page };
 };
 
@@ -212,7 +242,7 @@ try {
     const { context, findings, page } = await createCleanPage(browser, {
       colorScheme: 'light',
       viewport: target.viewport,
-    });
+    }, 'light');
     await openHome(page);
 
     assert.equal(await page.locator('[data-wave2a2-shell="true"]').count(), 1);
@@ -231,11 +261,21 @@ try {
       await page.evaluate(() => document.documentElement.dataset.turnTheme),
       'light',
     );
+    assert.equal(
+      await page.evaluate(() => document.documentElement.dataset.turnThemePreference),
+      'light',
+    );
     await assertNoHorizontalOverflow(page, `${target.name} Home`);
     await assertTargetsAtLeast44(
       page,
       page.locator('[data-w2a2-critical-target="true"]:visible'),
       `${target.name} shell`,
+    );
+    await assertContrast(
+      page,
+      '.w2a2-navigation__plus > span',
+      '.w2a2-navigation__plus > span',
+      `${target.name} Plus navigation`,
     );
 
     await primaryNavigation(page)
@@ -264,10 +304,15 @@ try {
   const interaction = await createCleanPage(browser, {
     colorScheme: 'light',
     viewport: { width: 390, height: 844 },
-  });
+  }, 'light');
   await openHome(interaction.page);
   const { page } = interaction;
 
+  await assertKeyboardFocusVisible(
+    page,
+    page.locator('#lcc-central-plus'),
+    'Light Plus navigation',
+  );
   await page.getByRole('button', { name: 'Open Search', exact: true }).click();
   await page.getByRole('heading', { name: 'Search', exact: true }).waitFor();
   assert.equal(await page.locator('[data-wave2a2-shell="true"]').count(), 1);
@@ -300,6 +345,12 @@ try {
   });
 
   await primaryNavigation(page).getByRole('button', { name: 'Home', exact: true }).click();
+  await assertContrast(
+    page,
+    '.w2a2-navigation__plus > span',
+    '.w2a2-navigation__plus > span',
+    'Dark Plus navigation',
+  );
   await page.getByRole('button', { name: 'Open Capture preview' }).click();
   await page.getByRole('dialog', { name: 'Capture' }).waitFor();
   await page.waitForTimeout(220);
@@ -348,7 +399,22 @@ try {
     path: `${screenshotDir}/iphone-390-plus-dark.png`,
     fullPage: false,
   });
-  await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
+  await page.locator('.tc-option-list > button').filter({ hasText: 'Note' }).click();
+  const darkSaveNote = page.getByRole('button', { name: 'Save Note', exact: true });
+  assert.equal(await darkSaveNote.isDisabled(), true);
+  await page.getByLabel('Note', { exact: true }).fill('Synthetic dark contrast check');
+  assert.equal(await darkSaveNote.isEnabled(), true);
+  await assertContrast(
+    page,
+    '.tc-primary-button',
+    '.tc-primary-button',
+    'Dark Save Note CTA',
+  );
+  await page.screenshot({
+    path: `${screenshotDir}/iphone-390-cta-dark.png`,
+    fullPage: false,
+  });
+  await page.getByRole('button', { name: 'Close New Note' }).click();
   assert.equal(await page.getByRole('dialog').count(), 0);
 
   await primaryNavigation(page).getByRole('button', { name: 'More', exact: true }).click();
@@ -372,10 +438,49 @@ try {
   );
   await interaction.context.close();
 
+  const lightCta = await createCleanPage(browser, {
+    colorScheme: 'light',
+    viewport: { width: 390, height: 844 },
+  }, 'light');
+  await openHome(lightCta.page);
+  await primaryNavigation(lightCta.page)
+    .getByRole('button', { name: 'Open central Plus menu' })
+    .click();
+  await lightCta.page.getByRole('dialog', { name: 'Add to Turn OS' }).waitFor();
+  await lightCta.page
+    .locator('.tc-option-list > button')
+    .filter({ hasText: 'Note' })
+    .click();
+  const lightSaveNote = lightCta.page.getByRole('button', {
+    name: 'Save Note',
+    exact: true,
+  });
+  assert.equal(await lightSaveNote.isDisabled(), true);
+  await lightCta.page
+    .getByLabel('Note', { exact: true })
+    .fill('Synthetic light contrast check');
+  assert.equal(await lightSaveNote.isEnabled(), true);
+  await assertContrast(
+    lightCta.page,
+    '.tc-primary-button',
+    '.tc-primary-button',
+    'Light Save Note CTA',
+  );
+  await lightCta.page.screenshot({
+    path: `${screenshotDir}/iphone-390-cta-light.png`,
+    fullPage: false,
+  });
+  assert.deepEqual(
+    lightCta.findings,
+    [],
+    `Light CTA findings:\n${lightCta.findings.join('\n')}`,
+  );
+  await lightCta.context.close();
+
   const scrollCheck = await createCleanPage(browser, {
     colorScheme: 'light',
     viewport: { width: 390, height: 568 },
-  });
+  }, 'light');
   await openHome(scrollCheck.page);
   await primaryNavigation(scrollCheck.page)
     .getByRole('button', { name: 'TurnBoard', exact: true })
@@ -418,26 +523,30 @@ try {
   );
   await scrollCheck.context.close();
 
-  const firstPaint = await browser.newContext({
+  const systemDark = await createCleanPage(browser, {
     colorScheme: 'dark',
     reducedMotion: 'reduce',
     viewport: { width: 390, height: 844 },
   });
-  const firstPaintPage = await firstPaint.newPage();
-  await firstPaintPage.addInitScript(() => {
-    localStorage.setItem('turn-os:appearance:v1:device', 'dark');
-  });
-  await firstPaintPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  assert.equal(
-    await firstPaintPage.evaluate(() => document.documentElement.dataset.turnTheme),
-    'dark',
+  await openHome(systemDark.page);
+  assert.deepEqual(
+    await systemDark.page.evaluate(() => ({
+      preference: document.documentElement.dataset.turnThemePreference,
+      resolved: document.documentElement.dataset.turnTheme,
+    })),
+    { preference: 'system', resolved: 'dark' },
   );
-  await firstPaintPage.locator('[data-wave2a2-shell="true"]').waitFor();
   assert.equal(
-    await firstPaintPage.evaluate(() => document.documentElement.dataset.turnReducedMotion),
+    await systemDark.page.evaluate(() => document.documentElement.dataset.turnReducedMotion),
     'true',
   );
-  const routeAnimation = await firstPaintPage.locator('.w2a2-route-surface').evaluate(
+  await assertContrast(
+    systemDark.page,
+    '.w2a2-navigation__plus > span',
+    '.w2a2-navigation__plus > span',
+    'System-dark Plus navigation',
+  );
+  const routeAnimation = await systemDark.page.locator('.w2a2-route-surface').evaluate(
     (element) => getComputedStyle(element).animationDuration,
   );
   assert.ok(
@@ -446,7 +555,12 @@ try {
       || routeAnimation === '0.000001s',
     `Reduced-motion route animation remained ${routeAnimation}.`,
   );
-  await firstPaint.close();
+  assert.deepEqual(
+    systemDark.findings,
+    [],
+    `System-dark findings:\n${systemDark.findings.join('\n')}`,
+  );
+  await systemDark.context.close();
 
   console.log(`Wave 2A.2 Track A browser gate passed. Screenshots: ${screenshotDir}`);
 } finally {

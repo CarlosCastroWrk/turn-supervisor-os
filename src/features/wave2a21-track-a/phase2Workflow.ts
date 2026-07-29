@@ -61,6 +61,7 @@ export interface DailyReleaseDraft {
 }
 
 export interface PreparedDailyReleaseItem {
+  readonly exception?: DailyReleaseExceptionKind;
   readonly restriction?: string;
   readonly section: FieldSection;
   readonly trade: FieldTrade;
@@ -117,6 +118,23 @@ export interface FastStartDaySubmission {
   readonly schedule: ProjectDefaultSchedule;
 }
 
+export interface FastStartDayDraft {
+  readonly activeCrewIdsByTrade: {
+    readonly clean: readonly string[];
+    readonly paint: readonly string[];
+  };
+  readonly changeCrewsToday: boolean;
+  readonly changeScheduleToday: boolean;
+  readonly date: string;
+  readonly explicitStartConfirmation: boolean;
+  readonly keyStatus?: DaySessionKeyStatus;
+  readonly morningNote: string;
+  readonly propertyContactId: string;
+  readonly releaseDraft: DailyReleaseDraft;
+  readonly schedule: ProjectDefaultSchedule;
+  readonly version: 1;
+}
+
 export type FastStartDayPreparationResult =
   | {
       readonly ok: true;
@@ -148,6 +166,8 @@ export interface PrepareFastStartDayInput {
 }
 
 const TIME_VALUE_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/u;
+const SCHEDULE_TIME_PATTERN =
+  /\b(?:(?:[01]\d|2[0-3]):[0-5]\d|(?:1[0-2]|0?[1-9])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?))\b/giu;
 const unique = <T,>(values: readonly T[]) => [...new Set(values)];
 const sectionOrder: readonly FieldSection[] = ['common', 'A', 'B', 'C', 'D', 'E'];
 
@@ -169,6 +189,25 @@ export const formatWalkthroughScheduleWording = (walkthroughTime?: string) => (
     : 'Not scheduled'
 );
 
+const normalizeScheduleTime = (value: string): string | undefined => {
+  const trimmed = value.trim();
+  if (isValidTimeValue(trimmed)) return trimmed;
+  const normalized = trimmed.toUpperCase().replaceAll('.', '').replace(/\s+/gu, '');
+  const match = normalized.match(/^(1[0-2]|0?[1-9])(?::([0-5]\d))?(AM|PM)$/u);
+  if (!match) return undefined;
+  const sourceHour = Number(match[1]);
+  const hour = match[3] === 'AM'
+    ? sourceHour % 12
+    : (sourceHour % 12) + 12;
+  return `${String(hour).padStart(2, '0')}:${match[2] ?? '00'}`;
+};
+
+const scheduleTimesFromWording = (wording: string) => (
+  [...wording.matchAll(SCHEDULE_TIME_PATTERN)]
+    .map((match) => normalizeScheduleTime(match[0]))
+    .filter((value): value is string => Boolean(value))
+);
+
 export function configurationWithSchedule(
   configuration: ProjectConfiguration,
   schedule: ProjectDefaultSchedule,
@@ -185,10 +224,12 @@ export function configurationWithSchedule(
 export function resolveProjectDefaultSchedule(
   configuration: ProjectConfiguration,
 ): ProjectDefaultSchedule {
-  const workingTimes = configuration.defaultWorkingHoursWording
-    .match(/\b(?:[01]\d|2[0-3]):[0-5]\d\b/gu) ?? [];
-  const walkthroughTime = configuration.defaultWalkthroughScheduleWording
-    .match(/\b(?:[01]\d|2[0-3]):[0-5]\d\b/u)?.[0];
+  const workingTimes = scheduleTimesFromWording(
+    configuration.defaultWorkingHoursWording,
+  );
+  const walkthroughTime = scheduleTimesFromWording(
+    configuration.defaultWalkthroughScheduleWording,
+  )[0];
   return {
     workEndTime: workingTimes[1] ?? '',
     workStartTime: workingTimes[0] ?? '',
@@ -204,6 +245,41 @@ export const createDailyReleaseDraft = (
   selectedUnitIds: [],
   tradeChoice,
 });
+
+export function createFastStartDayDraft(input: {
+  readonly configuration: ProjectConfiguration;
+  readonly contacts: readonly PropertyContact[];
+  readonly crewOptions: readonly TrackACrewOption[];
+  readonly currentDate: string;
+  readonly projectId: string;
+}): FastStartDayDraft {
+  const availableContacts = input.contacts.filter((contact) =>
+    contact.projectId === input.projectId && contact.activeForProject !== false);
+  const availableTradeChoices = availableDailyReleaseTradeChoices(
+    input.configuration.enabledTrades,
+  );
+  return {
+    activeCrewIdsByTrade: defaultActiveCrewIds(
+      input.configuration,
+      input.crewOptions,
+    ),
+    changeCrewsToday: false,
+    changeScheduleToday: false,
+    date: input.currentDate,
+    explicitStartConfirmation: false,
+    keyStatus: undefined,
+    morningNote: '',
+    propertyContactId: availableContacts.some((contact) =>
+      contact.id === input.configuration.defaultPropertyContactId)
+      ? input.configuration.defaultPropertyContactId
+      : availableContacts[0]?.id ?? '',
+    releaseDraft: createDailyReleaseDraft(
+      availableTradeChoices[0] ?? 'Paint',
+    ),
+    schedule: resolveProjectDefaultSchedule(input.configuration),
+    version: 1,
+  };
+}
 
 export function setDailyReleaseUnitSelected(
   draft: DailyReleaseDraft,
@@ -354,6 +430,7 @@ export function prepareDailyReleasePlan(input: {
       const exception = exceptionByTarget.get(`${unit.id}:${section}`);
       if (blocksRelease(exception)) return [];
       return trades.map((trade): PreparedDailyReleaseItem => ({
+        exception,
         restriction: exceptionRestriction(exception),
         section,
         trade,
@@ -413,8 +490,12 @@ export function createConfirmedDailyReleaseBatch(
     id: `${context.batchId}:item:${index + 1}`,
     restriction: item.restriction,
     section: item.section,
-    sourceExcerpt:
+    sourceExcerpt: [
       `Manual personal selection: Unit ${item.unitNumber}, ${item.section}, ${item.trade}.`,
+      item.exception
+        ? `Target exception: ${DAILY_RELEASE_EXCEPTION_LABELS[item.exception]}.`
+        : '',
+    ].filter(Boolean).join(' '),
     trade: item.trade,
     unitId: item.unitId,
   }));
@@ -430,8 +511,7 @@ export function createConfirmedDailyReleaseBatch(
     sourceLabel: plan.sourceLabel,
     sourceType: 'manual',
     status: 'confirmed',
-    uncertainties: plan.exceptions.map((exception) =>
-      `${exception.unitId} ${exception.section}: ${DAILY_RELEASE_EXCEPTION_LABELS[exception.kind]}`),
+    uncertainties: [],
     updatedAt: context.confirmedAt,
   };
 }

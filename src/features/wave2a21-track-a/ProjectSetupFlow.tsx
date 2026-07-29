@@ -509,13 +509,30 @@ export function ProjectSetupFlow({
               </label>
               <dl className="w2a21a-setup__permission-state">
                 <div>
+                  <dt>Unit-number storage</dt>
+                  <dd>Personal app only · synthetic or explicitly approved data</dd>
+                </div>
+                <div>
+                  <dt>Crew-name storage</dt>
+                  <dd>Personal app only · synthetic or explicitly approved data</dd>
+                </div>
+                <div>
+                  <dt>Phone-number storage (optional)</dt>
+                  <dd>Leave blank unless synthetic or explicitly approved</dd>
+                </div>
+                <div>
                   <dt>Browser camera permission</dt>
                   <dd>{permissionCopy[cameraPermissionState]}</dd>
                 </div>
               </dl>
               <div className="w2a21a-setup__notice" role="note">
-                This records a personal reminder only. It does not request or grant property,
-                PDS, camera, or photo permission.
+                These settings reflect the existing personal-app data boundary:
+                {' '}{draft.configuration.permissions.personalAppData ===
+                  'synthetic-or-explicitly-approved-only'
+                  ? 'synthetic or explicitly approved data only.'
+                  : 'review the configured personal-data rule.'}
+                {' '}They do not request or grant property, PDS, device, camera,
+                contact, or photo permission.
               </div>
             </fieldset>
           </div>

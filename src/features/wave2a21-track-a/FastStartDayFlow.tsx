@@ -6,21 +6,20 @@ import {
 import type { DaySessionKeyStatus } from '../../types';
 import type {
   ProjectConfiguration,
-  ProjectDefaultSchedule,
   ProjectRosterUnitOption,
   PropertyContact,
   TrackACrewOption,
 } from './contracts';
 import { DailyReleaseSelector } from './DailyReleaseSelector';
 import type {
-  DailyReleaseDraft,
+  FastStartDayDraft,
   FastStartDaySubmission,
 } from './phase2Workflow';
 import {
   FAST_START_DAY_STEPS,
   availableDailyReleaseTradeChoices,
   clampFastStartDayStep,
-  createDailyReleaseDraft,
+  createFastStartDayDraft,
   defaultActiveCrewIds,
   prepareDailyReleasePlan,
   prepareFastStartDaySubmission,
@@ -34,7 +33,9 @@ export interface FastStartDayFlowProps {
   readonly crewOptions: readonly TrackACrewOption[];
   readonly currentDate: string;
   readonly currentStep?: number;
+  readonly draft?: FastStartDayDraft;
   readonly onCancel: () => void;
+  readonly onDraftChange?: (draft: FastStartDayDraft) => void;
   readonly onStepChange?: (step: number) => void;
   readonly onStartDay: (
     submission: FastStartDaySubmission,
@@ -64,7 +65,9 @@ export function FastStartDayFlow({
   crewOptions,
   currentDate,
   currentStep,
+  draft: controlledDraft,
   onCancel,
+  onDraftChange,
   onStepChange,
   onStartDay,
   projectId,
@@ -86,30 +89,31 @@ export function FastStartDayFlow({
     () => availableDailyReleaseTradeChoices(configuration.enabledTrades),
     [configuration.enabledTrades],
   );
-  const defaultTradeChoice = availableTradeChoices[0] ?? 'Paint';
   const [internalStep, setInternalStep] = useState(0);
   const step = clampFastStartDayStep(currentStep ?? internalStep);
-  const [date, setDate] = useState(currentDate);
-  const [propertyContactId, setPropertyContactId] = useState(
-    availableContacts.some((contact) =>
-      contact.id === configuration.defaultPropertyContactId)
-      ? configuration.defaultPropertyContactId
-      : availableContacts[0]?.id ?? '',
-  );
-  const [keyStatus, setKeyStatus] = useState<DaySessionKeyStatus>();
-  const [releaseDraft, setReleaseDraft] = useState<DailyReleaseDraft>(
-    () => createDailyReleaseDraft(defaultTradeChoice),
-  );
-  const [activeCrewIdsByTrade, setActiveCrewIdsByTrade] = useState(savedCrewIds);
-  const [schedule, setSchedule] = useState<ProjectDefaultSchedule>(savedSchedule);
-  const [changeCrewsToday, setChangeCrewsToday] = useState(false);
-  const [changeScheduleToday, setChangeScheduleToday] = useState(false);
-  const [morningNote, setMorningNote] = useState('');
-  const [explicitStartConfirmation, setExplicitStartConfirmation] = useState(false);
+  const [internalDraft, setInternalDraft] = useState<FastStartDayDraft>(() =>
+    createFastStartDayDraft({
+      configuration,
+      contacts,
+      crewOptions,
+      currentDate,
+      projectId,
+    }));
+  const draft = controlledDraft ?? internalDraft;
   const [errors, setErrors] = useState<readonly string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const startInFlight = useRef(false);
+
+  const updateDraft = (
+    update: (current: FastStartDayDraft) => FastStartDayDraft,
+  ) => {
+    const nextDraft = update(draft);
+    if (controlledDraft === undefined) {
+      setInternalDraft(nextDraft);
+    }
+    onDraftChange?.(nextDraft);
+  };
 
   const moveToStep = (nextStep: number) => {
     const clampedStep = clampFastStartDayStep(nextStep);
@@ -120,36 +124,39 @@ export function FastStartDayFlow({
   };
 
   const selectedContact = availableContacts.find((contact) =>
-    contact.id === propertyContactId);
+    contact.id === draft.propertyContactId);
   const releaseReview = prepareDailyReleasePlan({
     contacts: availableContacts,
-    date,
-    draft: releaseDraft,
+    date: draft.date,
+    draft: draft.releaseDraft,
     enabledTrades: configuration.enabledTrades,
     projectId,
-    propertyContactId,
+    propertyContactId: draft.propertyContactId,
     rosterUnits,
   });
 
   const toggleCrew = (crew: TrackACrewOption) => {
-    setActiveCrewIdsByTrade((current) => {
-      const currentIds = current[crew.trade];
+    updateDraft((current) => {
+      const currentIds = current.activeCrewIdsByTrade[crew.trade];
       return {
         ...current,
-        [crew.trade]: currentIds.includes(crew.id)
-          ? currentIds.filter((crewId) => crewId !== crew.id)
-          : [...currentIds, crew.id],
+        activeCrewIdsByTrade: {
+          ...current.activeCrewIdsByTrade,
+          [crew.trade]: currentIds.includes(crew.id)
+            ? currentIds.filter((crewId) => crewId !== crew.id)
+            : [...currentIds, crew.id],
+        },
+        explicitStartConfirmation: false,
       };
     });
-    setExplicitStartConfirmation(false);
   };
 
   const continueFlow = () => {
     const nextErrors: string[] = [];
     if (step === 0) {
-      if (!date) nextErrors.push('Confirm the field date.');
+      if (!draft.date) nextErrors.push('Confirm the field date.');
       if (!selectedContact) nextErrors.push('Select an active Property Contact.');
-      if (!keyStatus) nextErrors.push('Record today’s key status.');
+      if (!draft.keyStatus) nextErrors.push('Record today’s key status.');
     }
     if (step === 1 && !releaseReview.ok) {
       nextErrors.push(...releaseReview.errors);
@@ -165,20 +172,20 @@ export function FastStartDayFlow({
   const start = async () => {
     if (saved || startInFlight.current) return;
     const prepared = prepareFastStartDaySubmission({
-      activeCrewIdsByTrade,
+      activeCrewIdsByTrade: draft.activeCrewIdsByTrade,
       contacts: availableContacts,
       crewOptions,
-      date,
+      date: draft.date,
       enabledTrades: configuration.enabledTrades,
-      explicitStartConfirmation,
-      keyStatus,
-      morningNote,
+      explicitStartConfirmation: draft.explicitStartConfirmation,
+      keyStatus: draft.keyStatus,
+      morningNote: draft.morningNote,
       projectId,
-      propertyContactId,
+      propertyContactId: draft.propertyContactId,
       propertyName,
-      releaseDraft,
+      releaseDraft: draft.releaseDraft,
       rosterUnits,
-      schedule,
+      schedule: draft.schedule,
     });
     if (!prepared.ok) {
       setErrors(prepared.errors);
@@ -238,29 +245,35 @@ export function FastStartDayFlow({
                 Field date
                 <input
                   onChange={(event) => {
-                    setDate(event.target.value);
-                    setReleaseDraft((current) => ({
+                    updateDraft((current) => ({
                       ...current,
-                      explicitConfirmation: false,
+                      date: event.target.value,
+                      explicitStartConfirmation: false,
+                      releaseDraft: {
+                        ...current.releaseDraft,
+                        explicitConfirmation: false,
+                      },
                     }));
-                    setExplicitStartConfirmation(false);
                   }}
                   type="date"
-                  value={date}
+                  value={draft.date}
                 />
               </label>
               <label>
                 Property Contact
                 <select
                   onChange={(event) => {
-                    setPropertyContactId(event.target.value);
-                    setReleaseDraft((current) => ({
+                    updateDraft((current) => ({
                       ...current,
-                      explicitConfirmation: false,
+                      explicitStartConfirmation: false,
+                      propertyContactId: event.target.value,
+                      releaseDraft: {
+                        ...current.releaseDraft,
+                        explicitConfirmation: false,
+                      },
                     }));
-                    setExplicitStartConfirmation(false);
                   }}
-                  value={propertyContactId}
+                  value={draft.propertyContactId}
                 >
                   <option value="">Select contact</option>
                   {availableContacts.map((contact) => (
@@ -277,11 +290,14 @@ export function FastStartDayFlow({
                 {keyStatusOptions.map((option) => (
                   <label key={option.value}>
                     <input
-                      checked={keyStatus === option.value}
+                      checked={draft.keyStatus === option.value}
                       name="phase2-key-status"
                       onChange={() => {
-                        setKeyStatus(option.value);
-                        setExplicitStartConfirmation(false);
+                        updateDraft((current) => ({
+                          ...current,
+                          explicitStartConfirmation: false,
+                          keyStatus: option.value,
+                        }));
                       }}
                       type="radio"
                     />
@@ -304,10 +320,13 @@ export function FastStartDayFlow({
             </p>
             <DailyReleaseSelector
               availableTradeChoices={availableTradeChoices}
-              draft={releaseDraft}
+              draft={draft.releaseDraft}
               onChange={(nextDraft) => {
-                setReleaseDraft(nextDraft);
-                setExplicitStartConfirmation(false);
+                updateDraft((current) => ({
+                  ...current,
+                  explicitStartConfirmation: false,
+                  releaseDraft: nextDraft,
+                }));
               }}
               rosterUnits={rosterUnits}
             />
@@ -327,20 +346,23 @@ export function FastStartDayFlow({
                   </p>
                 </span>
                 <button
-                  aria-expanded={changeCrewsToday}
+                  aria-expanded={draft.changeCrewsToday}
                   onClick={() => {
-                    if (changeCrewsToday) {
-                      setActiveCrewIdsByTrade(savedCrewIds);
-                      setExplicitStartConfirmation(false);
-                    }
-                    setChangeCrewsToday((current) => !current);
+                    updateDraft((current) => ({
+                      ...current,
+                      activeCrewIdsByTrade: current.changeCrewsToday
+                        ? savedCrewIds
+                        : current.activeCrewIdsByTrade,
+                      changeCrewsToday: !current.changeCrewsToday,
+                      explicitStartConfirmation: false,
+                    }));
                   }}
                   type="button"
                 >
-                  {changeCrewsToday ? 'Use saved crews' : 'Changed today'}
+                  {draft.changeCrewsToday ? 'Use saved crews' : 'Changed today'}
                 </button>
               </div>
-              {changeCrewsToday ? (
+              {draft.changeCrewsToday ? (
                 (['paint', 'clean'] as const).filter(
                   (trade) => configuration.enabledTrades[trade],
                 ).map((trade) => (
@@ -350,7 +372,7 @@ export function FastStartDayFlow({
                       crew.trade === trade && crew.active !== false).map((crew) => (
                       <label className="w2a21a-setup__check" key={crew.id}>
                         <input
-                          checked={activeCrewIdsByTrade[trade].includes(crew.id)}
+                          checked={draft.activeCrewIdsByTrade[trade].includes(crew.id)}
                           onChange={() => toggleCrew(crew)}
                           type="checkbox"
                         />
@@ -367,7 +389,7 @@ export function FastStartDayFlow({
                     <li key={trade}>
                       <strong>{crewTradeLabel[trade]}</strong>
                       <span>
-                        {activeCrewIdsByTrade[trade].map((crewId) =>
+                        {draft.activeCrewIdsByTrade[trade].map((crewId) =>
                           crewOptions.find((crew) => crew.id === crewId)?.name
                           ?? `Unavailable crew (${crewId})`).join(', ') || 'None saved'}
                       </span>
@@ -391,61 +413,73 @@ export function FastStartDayFlow({
                   </p>
                 </span>
                 <button
-                  aria-expanded={changeScheduleToday}
+                  aria-expanded={draft.changeScheduleToday}
                   onClick={() => {
-                    if (changeScheduleToday) {
-                      setSchedule(savedSchedule);
-                      setExplicitStartConfirmation(false);
-                    }
-                    setChangeScheduleToday((current) => !current);
+                    updateDraft((current) => ({
+                      ...current,
+                      changeScheduleToday: !current.changeScheduleToday,
+                      explicitStartConfirmation: false,
+                      schedule: current.changeScheduleToday
+                        ? savedSchedule
+                        : current.schedule,
+                    }));
                   }}
                   type="button"
                 >
-                  {changeScheduleToday ? 'Use saved schedule' : 'Changed today'}
+                  {draft.changeScheduleToday ? 'Use saved schedule' : 'Changed today'}
                 </button>
               </div>
-              {changeScheduleToday ? (
+              {draft.changeScheduleToday ? (
                 <div className="w2a21a-setup__columns">
                   <label>
                     Work start
                     <input
                       onChange={(event) => {
-                        setSchedule((current) => ({
+                        updateDraft((current) => ({
                           ...current,
-                          workStartTime: event.target.value,
+                          explicitStartConfirmation: false,
+                          schedule: {
+                            ...current.schedule,
+                            workStartTime: event.target.value,
+                          },
                         }));
-                        setExplicitStartConfirmation(false);
                       }}
                       type="time"
-                      value={schedule.workStartTime}
+                      value={draft.schedule.workStartTime}
                     />
                   </label>
                   <label>
                     Work end
                     <input
                       onChange={(event) => {
-                        setSchedule((current) => ({
+                        updateDraft((current) => ({
                           ...current,
-                          workEndTime: event.target.value,
+                          explicitStartConfirmation: false,
+                          schedule: {
+                            ...current.schedule,
+                            workEndTime: event.target.value,
+                          },
                         }));
-                        setExplicitStartConfirmation(false);
                       }}
                       type="time"
-                      value={schedule.workEndTime}
+                      value={draft.schedule.workEndTime}
                     />
                   </label>
                   <label>
                     Walkthrough (optional)
                     <input
                       onChange={(event) => {
-                        setSchedule((current) => ({
+                        updateDraft((current) => ({
                           ...current,
-                          walkthroughTime: event.target.value || undefined,
+                          explicitStartConfirmation: false,
+                          schedule: {
+                            ...current.schedule,
+                            walkthroughTime: event.target.value || undefined,
+                          },
                         }));
-                        setExplicitStartConfirmation(false);
                       }}
                       type="time"
-                      value={schedule.walkthroughTime ?? ''}
+                      value={draft.schedule.walkthroughTime ?? ''}
                     />
                   </label>
                 </div>
@@ -458,11 +492,14 @@ export function FastStartDayFlow({
                 Personal note
                 <textarea
                   onChange={(event) => {
-                    setMorningNote(event.target.value);
-                    setExplicitStartConfirmation(false);
+                    updateDraft((current) => ({
+                      ...current,
+                      explicitStartConfirmation: false,
+                      morningNote: event.target.value,
+                    }));
                   }}
                   placeholder="Anything Los needs to remember this morning"
-                  value={morningNote}
+                  value={draft.morningNote}
                 />
               </label>
             </section>
@@ -474,7 +511,7 @@ export function FastStartDayFlow({
             <h2>Review and Start Day</h2>
             <dl className="w2a21a-setup__review">
               <div><dt>Property</dt><dd>{propertyName}</dd></div>
-              <div><dt>Date</dt><dd>{date}</dd></div>
+              <div><dt>Date</dt><dd>{draft.date}</dd></div>
               <div>
                 <dt>Property Contact</dt>
                 <dd>{selectedContact?.name ?? 'Not selected'}</dd>
@@ -482,7 +519,8 @@ export function FastStartDayFlow({
               <div>
                 <dt>Keys</dt>
                 <dd>
-                  {keyStatusOptions.find((option) => option.value === keyStatus)?.label
+                  {keyStatusOptions.find((option) =>
+                    option.value === draft.keyStatus)?.label
                     ?? 'Not recorded'}
                 </dd>
               </div>
@@ -497,18 +535,22 @@ export function FastStartDayFlow({
               <div>
                 <dt>Active crews</dt>
                 <dd>
-                  {activeCrewIdsByTrade.paint.length} Paint · {
-                    activeCrewIdsByTrade.clean.length
+                  {draft.activeCrewIdsByTrade.paint.length} Paint · {
+                    draft.activeCrewIdsByTrade.clean.length
                   } Clean
                 </dd>
               </div>
               <div>
                 <dt>Work hours</dt>
-                <dd>{schedule.workStartTime}–{schedule.workEndTime}</dd>
+                <dd>{draft.schedule.workStartTime}–{draft.schedule.workEndTime}</dd>
               </div>
               <div>
                 <dt>Walkthrough</dt>
-                <dd>{schedule.walkthroughTime || 'Not scheduled'}</dd>
+                <dd>{draft.schedule.walkthroughTime || 'Not scheduled'}</dd>
+              </div>
+              <div>
+                <dt>Morning note</dt>
+                <dd>{draft.morningNote || 'None'}</dd>
               </div>
               <div>
                 <dt>Authority</dt>
@@ -517,8 +559,11 @@ export function FastStartDayFlow({
             </dl>
             <label className="w2a21a-setup__switch">
               <input
-                checked={explicitStartConfirmation}
-                onChange={(event) => setExplicitStartConfirmation(event.target.checked)}
+                checked={draft.explicitStartConfirmation}
+                onChange={(event) => updateDraft((current) => ({
+                  ...current,
+                  explicitStartConfirmation: event.target.checked,
+                }))}
                 type="checkbox"
               />
               <span>

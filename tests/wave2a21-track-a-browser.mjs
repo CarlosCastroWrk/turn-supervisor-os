@@ -156,9 +156,28 @@ try {
     'not-confirmed',
   );
   await page.getByText('Not decided by this browser or device', { exact: true }).waitFor();
+  await page.getByText('Unit-number storage', { exact: true }).waitFor();
+  await page.getByText('Crew-name storage', { exact: true }).waitFor();
+  await page.getByText('Phone-number storage (optional)', { exact: true }).waitFor();
+  assert.equal(
+    await page.getByText(
+      'Personal app only · synthetic or explicitly approved data',
+      { exact: true },
+    ).count(),
+    2,
+  );
   await page.getByText(
-    /does not request or grant property, PDS, camera, or photo permission/u,
+    'Leave blank unless synthetic or explicitly approved',
+    { exact: true },
   ).waitFor();
+  const personalDataBoundary = page.getByRole('note').filter({
+    hasText: 'existing personal-app data boundary',
+  });
+  await personalDataBoundary.waitFor();
+  const personalDataBoundaryCopy = await personalDataBoundary.textContent();
+  assert.match(personalDataBoundaryCopy ?? '', /synthetic or explicitly approved data only/u);
+  assert.match(personalDataBoundaryCopy ?? '', /do not request or grant property/u);
+  assert.match(personalDataBoundaryCopy ?? '', /photo permission/u);
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await assertStep(page, 5, 'review navigation');
@@ -214,7 +233,8 @@ try {
     await startDay.getByLabel('Property Contact').inputValue(),
     'qa-contact-primary',
   );
-  await startDay.getByLabel('Received', { exact: true }).check();
+  await startDay.getByLabel('Property Contact').selectOption('qa-contact-today');
+  await startDay.getByLabel('Partial / issue', { exact: true }).check();
   await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
@@ -228,6 +248,11 @@ try {
   await startDay.getByRole('checkbox', { name: /Unit 101/u }).check();
   await startDay.getByLabel('Both', { exact: true }).check();
   assert.equal(await startDay.getByLabel('Both', { exact: true }).isChecked(), true);
+  await startDay.locator('summary').filter({ hasText: 'Exceptions' }).click();
+  const bedroomBException = startDay.locator('label')
+    .filter({ hasText: /^Bedroom B/u })
+    .locator('select');
+  await bedroomBException.selectOption('access-issue');
   await startDay.getByRole('checkbox', { name: /I reviewed today’s release/u }).check();
   await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
 
@@ -235,18 +260,85 @@ try {
   console.log('Track A browser gate: crews and defaults.');
   await startDay.getByText('Paint Crew Alpha', { exact: true }).waitFor();
   await startDay.getByText('Clean Crew Beta', { exact: true }).waitFor();
+  await startDay.getByRole('button', { name: 'Changed today', exact: true }).first().click();
+  await startDay.getByLabel('Paint Crew Today', { exact: true }).check();
   await startDay.getByRole('button', { name: 'Changed today', exact: true }).last().click();
   assert.equal(await startDay.getByLabel('Work start').inputValue(), '08:00');
-  await startDay.getByLabel('Work start').fill('09:00');
-  await startDay.getByRole('button', { name: 'Use saved schedule', exact: true }).click();
-  await startDay.getByRole('button', { name: 'Changed today', exact: true }).last().click();
-  assert.equal(await startDay.getByLabel('Work start').inputValue(), '08:00');
-  await startDay.getByLabel('Personal note').fill('Synthetic morning note');
+  await startDay.getByLabel('Work start').fill('09:30');
+  await startDay.getByLabel('Work end').fill('17:30');
+  await startDay.getByLabel('Walkthrough (optional)').fill('13:15');
+  await startDay.getByLabel('Personal note').fill(
+    'Exact synthetic morning note — preserve punctuation.',
+  );
   await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText('Screen 4 of 4 · Review and Start Day', { exact: true }).waitFor();
   console.log('Track A browser gate: Start Day review.');
   await startDay.getByRole('checkbox', { name: /I reviewed this Start Day record/u }).check();
+  assert.match(page.url(), /startDayDraft=/u);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Screen 4 of 4 · Review and Start Day', { exact: true }).waitFor();
+  await startDay.getByText('Synthetic Today Contact', { exact: true }).waitFor();
+  await startDay.getByText('Partial / issue', { exact: true }).waitFor();
+  await startDay.getByText('09:30–17:30', { exact: true }).waitFor();
+  await startDay.getByText('13:15', { exact: true }).waitFor();
+  await startDay.getByText(
+    'Exact synthetic morning note — preserve punctuation.',
+    { exact: true },
+  ).waitFor();
+  assert.equal(
+    await startDay.getByRole(
+      'checkbox',
+      { name: /I reviewed this Start Day record/u },
+    ).isChecked(),
+    true,
+  );
+
+  await startDay.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByText('Screen 3 of 4 · Crews and defaults', { exact: true }).waitFor();
+  assert.equal(
+    await startDay.getByLabel('Paint Crew Today', { exact: true }).isChecked(),
+    true,
+  );
+  assert.equal(await startDay.getByLabel('Work start').inputValue(), '09:30');
+  assert.equal(await startDay.getByLabel('Work end').inputValue(), '17:30');
+  assert.equal(await startDay.getByLabel('Walkthrough (optional)').inputValue(), '13:15');
+  assert.equal(
+    await startDay.getByLabel('Personal note').inputValue(),
+    'Exact synthetic morning note — preserve punctuation.',
+  );
+  await startDay.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
+  assert.equal(
+    await startDay.getByRole('checkbox', { name: /Unit 101/u }).isChecked(),
+    true,
+  );
+  assert.equal(
+    await bedroomBException.inputValue(),
+    'access-issue',
+  );
+  assert.equal(
+    await startDay.getByRole(
+      'checkbox',
+      { name: /I reviewed today’s release/u },
+    ).isChecked(),
+    true,
+  );
+  await startDay.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByText('Screen 1 of 4 · Day and access', { exact: true }).waitFor();
+  assert.equal(
+    await startDay.getByLabel('Property Contact').inputValue(),
+    'qa-contact-today',
+  );
+  assert.equal(
+    await startDay.getByLabel('Partial / issue', { exact: true }).isChecked(),
+    true,
+  );
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByText('Screen 4 of 4 · Review and Start Day', { exact: true }).waitFor();
+
   const startDayButton = startDay.getByRole('button', { name: 'Start Day', exact: true });
   await startDayButton.click();
   await startDay.getByText(

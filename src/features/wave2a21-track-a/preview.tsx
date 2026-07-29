@@ -15,6 +15,8 @@ import {
   type ProjectSetupCrewOption,
 } from './ProjectSetupFlow';
 import { TodayTaskDetail } from './TodayTaskDetail';
+import type { FastStartDayDraft } from './phase2Workflow';
+import { createFastStartDayDraft } from './phase2Workflow';
 import { resolveStartDayValues } from './startDayDefaults';
 import '../../styles.css';
 import './preview.css';
@@ -35,6 +37,21 @@ const contacts: readonly PropertyContact[] = [{
   title: 'Property Manager',
   updatedAt: ACTIVATED_AT,
 }];
+
+const startDayContacts: readonly PropertyContact[] = [
+  ...contacts,
+  {
+    activeForProject: true,
+    createdAt: ACTIVATED_AT,
+    id: 'qa-contact-today',
+    isPrimary: false,
+    name: 'Synthetic Today Contact',
+    projectId: PROJECT_ID,
+    role: 'Field Lead / Market Partner',
+    title: 'Field Lead / Market Partner',
+    updatedAt: ACTIVATED_AT,
+  },
+];
 
 const configuration: ProjectConfiguration = {
   activatedAt: ACTIVATED_AT,
@@ -195,6 +212,25 @@ const initialStartDayStepFromUrl = () => {
   return value === null ? 0 : Number(value);
 };
 
+const defaultStartDayDraft = () => createFastStartDayDraft({
+  configuration,
+  contacts: startDayContacts,
+  crewOptions,
+  currentDate: '2026-08-01',
+  projectId: PROJECT_ID,
+});
+
+const initialStartDayDraftFromUrl = (): FastStartDayDraft => {
+  const encoded = new URLSearchParams(window.location.search).get('startDayDraft');
+  if (!encoded) return defaultStartDayDraft();
+  try {
+    const parsed = JSON.parse(encoded) as FastStartDayDraft;
+    return parsed.version === 1 ? parsed : defaultStartDayDraft();
+  } catch {
+    return defaultStartDayDraft();
+  }
+};
+
 const initialScreenFromUrl = (): PreviewScreen => {
   const value = new URLSearchParams(window.location.search).get('screen');
   return value === 'start-day' || value === 'today' || value === 'profile-privacy'
@@ -206,6 +242,9 @@ export function TrackABehaviorHarness() {
   const [screen, setScreen] = useState<PreviewScreen>(initialScreenFromUrl);
   const [currentStep, setCurrentStep] = useState(initialStepFromUrl);
   const [startDayStep, setStartDayStep] = useState(initialStartDayStepFromUrl);
+  const [startDayDraft, setStartDayDraft] = useState(
+    initialStartDayDraftFromUrl,
+  );
   const [draft, setDraft] = useState<ProjectActivationDraft>(initialDraft);
   const [status, setStatus] = useState(
     'Synthetic package harness. No AppData is persisted here.',
@@ -274,11 +313,18 @@ export function TrackABehaviorHarness() {
         {screen === 'start-day' ? (
           <FastStartDayFlow
             configuration={draft.configuration}
-            contacts={draft.contacts}
+            contacts={startDayContacts}
             crewOptions={crewOptions}
             currentDate="2026-08-01"
             currentStep={startDayStep}
+            draft={startDayDraft}
             onCancel={() => setStatus('Start Day cancelled.')}
+            onDraftChange={(nextDraft) => {
+              setStartDayDraft(nextDraft);
+              const nextUrl = new URL(window.location.href);
+              nextUrl.searchParams.set('startDayDraft', JSON.stringify(nextDraft));
+              window.history.replaceState(null, '', nextUrl);
+            }}
             onStepChange={(nextStep) => {
               setStartDayStep(nextStep);
               const nextUrl = new URL(window.location.href);

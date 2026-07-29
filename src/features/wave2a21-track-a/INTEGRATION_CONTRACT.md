@@ -79,17 +79,33 @@ The flow reuses the saved property, active Property Contacts, time defaults,
 and active Paint/Clean crews. A contact, crew, or schedule change inside Start
 Day is today-only and must not silently rewrite Project Setup.
 
-For durable route restoration, the host may control the visible screen with:
+For durable route and draft restoration, the host should control both the
+visible screen and the complete in-progress draft with:
 
 ```ts
 currentStep?: number
 onStepChange?: (step: number) => void
+draft?: FastStartDayDraft
+onDraftChange?: (draft: FastStartDayDraft) => void
 ```
 
 Derive `currentStep` from host route state and update that route from
-`onStepChange`. Without those props, the component retains compatible internal
-four-screen navigation. The controlled step changes only the visible decision
-screen; it does not persist or confirm Start Day.
+`onStepChange`. Persist the versioned `FastStartDayDraft` through the host's
+existing durable local draft boundary and restore it through `draft`. The draft
+contains the selected contact, key status, release selection and exceptions,
+active crews, crew/schedule override choices, schedule values, morning note,
+and review confirmation. Persist the step and draft together after each
+callback so a reload cannot show an older draft on a newer review screen.
+
+The host must revalidate restored contact, roster, crew, and schedule references
+before allowing confirmation. It must not infer release or Start Day
+confirmation during restoration. Browser memory, component state, or
+session-only storage is not sufficient durable restoration.
+
+Without the controlled props, the component retains compatible internal
+four-screen navigation and draft state. That fallback is useful for mounting,
+but is not a claim of durable persistence. The controlled step changes only the
+visible decision screen; it does not persist or confirm Start Day.
 
 Keys use only `Received`, `Not received`, and `Partial / issue`. Key status is
 access information, not work authorization.

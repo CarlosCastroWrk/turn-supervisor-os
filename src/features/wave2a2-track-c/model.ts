@@ -233,12 +233,14 @@ export interface TrackCCrewDetail extends TrackCCrewSummary {
 export type TrackCAssignmentWarningCode =
   | 'unreleased'
   | 'duplicate-active-crew'
+  | 'duplicate-release-responsibility'
   | 'access-conflict'
   | 'occupancy-restriction'
   | 'maintenance-blocked'
   | 'source-uncertain'
   | 'assignment-source-conflict'
   | 'crew-trade-mismatch'
+  | 'crew-not-active-today'
   | 'no-applicable-released-sections';
 
 export interface TrackCAssignmentWarning {
@@ -259,6 +261,7 @@ export interface TrackCBulkAssignmentProposal {
   readonly id: string;
   readonly trade: TrackCTrade;
   readonly crewId: string;
+  readonly activeCrewIds: readonly string[];
   readonly unitIds: readonly string[];
   readonly sectionMode: 'all-released' | 'specific';
   readonly requestedSections: readonly TrackCSection[];
@@ -277,6 +280,7 @@ export interface TrackCAssignmentReceipt {
   readonly assignedTargets: readonly TrackCWorkTarget[];
   readonly skippedTargets: readonly TrackCWorkTarget[];
   readonly recordedAt: string;
+  readonly idempotentReplay: boolean;
   readonly officialPaperChanged: false;
   readonly payrollChanged: false;
 }
@@ -300,7 +304,8 @@ export interface TrackCOperationError {
     | 'not-walk-candidate'
     | 'incomplete-walk'
     | 'mirror-not-eligible'
-    | 'confirmation-required';
+    | 'confirmation-required'
+    | 'idempotency-conflict';
   readonly message: string;
 }
 

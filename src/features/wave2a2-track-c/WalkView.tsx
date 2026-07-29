@@ -9,9 +9,20 @@ import {
 import {
   type Dispatch,
   type SetStateAction,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
+import {
+  createTrackBOfficialFormRequest,
+  type TrackBOfficialFormRequest,
+  type TrackBPropertyContact,
+} from '../wave2a21-track-b/contracts';
+import {
+  acquireTrackBOneShot,
+  releaseTrackBOneShot,
+} from '../wave2a21-track-b/oneShot';
 import {
   type TrackCState,
   type TrackCWalkOutcome,
@@ -22,6 +33,7 @@ import {
 import {
   endTrackCWalk,
   startTrackCWalk,
+  updateTrackCActiveWalkOutcomes,
 } from './operations';
 import {
   projectTrackCWalkCandidates,
@@ -30,14 +42,18 @@ import {
   trackCUnitForTarget,
 } from './projections';
 
-interface WalkViewProps {
+export interface WalkViewProps {
   readonly state: TrackCState;
   readonly createId: (prefix: string) => string;
   readonly now: () => string;
+  readonly propertyContacts?: readonly TrackBPropertyContact[];
   readonly outcomes: Readonly<Record<string, TrackCWalkOutcome>>;
   readonly onOutcomesChange: Dispatch<
     SetStateAction<Readonly<Record<string, TrackCWalkOutcome>>>
   >;
+  readonly onOfficialFormRequested?: (
+    request: TrackBOfficialFormRequest,
+  ) => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
   readonly onStateChange: (state: TrackCState, reason: string) => void;
 }
@@ -56,8 +72,10 @@ export const WalkView = ({
   state,
   createId,
   now,
+  propertyContacts = [],
   outcomes,
   onOutcomesChange,
+  onOfficialFormRequested,
   onRequestMirror,
   onStateChange,
 }: WalkViewProps) => {
@@ -66,6 +84,24 @@ export const WalkView = ({
   const [selectedKeys, setSelectedKeys] = useState<readonly string[]>([]);
   const [confirmedInspection, setConfirmedInspection] = useState(false);
   const [message, setMessage] = useState<string>();
+  const outcomesRef = useRef(outcomes);
+  const startGuardRef = useRef(false);
+  const endGuardRef = useRef(false);
+
+  useEffect(() => {
+    outcomesRef.current = outcomes;
+  }, [outcomes]);
+
+  useEffect(() => {
+    const restored = Object.fromEntries(
+      (state.activeWalk?.outcomes ?? []).map((outcome) => [
+        trackCWorkKey(outcome.target),
+        outcome.outcome,
+      ]),
+    );
+    outcomesRef.current = restored;
+    onOutcomesChange(restored);
+  }, [onOutcomesChange, state.activeWalk?.id, state.activeWalk?.outcomes]);
 
   const candidateByKey = useMemo(
     () =>
@@ -85,6 +121,7 @@ export const WalkView = ({
   };
 
   const start = () => {
+    if (!acquireTrackBOneShot(startGuardRef)) return;
     const selectedTargets = selectedKeys
       .map((key) => candidateByKey.get(key)?.target)
       .filter((target): target is TrackCWorkTarget => Boolean(target));
@@ -97,26 +134,29 @@ export const WalkView = ({
       confirmedLosInspection: confirmedInspection,
     });
     if (!result.ok) {
+      releaseTrackBOneShot(startGuardRef);
       setMessage(result.error.message);
       return;
     }
     setMessage(undefined);
+    outcomesRef.current = {};
     onOutcomesChange({});
     onStateChange(result.value, 'walk-started');
   };
 
   const end = () => {
-    if (!state.activeWalk) return;
+    if (!state.activeWalk || !acquireTrackBOneShot(endGuardRef)) return;
     const result = endTrackCWalk(state, {
       endedAt: now(),
       recordedBy: 'Los',
-      eventIdPrefix: createId('track-c-walk-outcome'),
+      eventIdPrefix: `track-b-walk-outcome:${state.activeWalk.id}`,
       outcomes: state.activeWalk.selectedTargets.map((target) => ({
         target,
-        outcome: outcomes[trackCWorkKey(target)],
+        outcome: outcomesRef.current[trackCWorkKey(target)],
       })),
     });
     if (!result.ok) {
+      releaseTrackBOneShot(endGuardRef);
       setMessage(result.error.message);
       return;
     }
@@ -125,8 +165,37 @@ export const WalkView = ({
     );
     setSelectedKeys([]);
     setConfirmedInspection(false);
+    outcomesRef.current = {};
     onOutcomesChange({});
     onStateChange(result.value, 'walk-ended');
+  };
+
+  const recordOutcome = (
+    target: TrackCWorkTarget,
+    outcome: TrackCWalkOutcome,
+  ) => {
+    const key = trackCWorkKey(target);
+    const nextOutcomes = {
+      ...outcomesRef.current,
+      [key]: outcome,
+    };
+    const result = updateTrackCActiveWalkOutcomes(
+      state,
+      state.activeWalk?.selectedTargets.flatMap((selectedTarget) => {
+        const selectedOutcome =
+          nextOutcomes[trackCWorkKey(selectedTarget)];
+        return selectedOutcome
+          ? [{ target: selectedTarget, outcome: selectedOutcome }]
+          : [];
+      }) ?? [],
+    );
+    if (!result.ok) {
+      setMessage(result.error.message);
+      return;
+    }
+    outcomesRef.current = nextOutcomes;
+    onOutcomesChange(nextOutcomes);
+    onStateChange(result.value, 'walk-outcome-draft-saved');
   };
 
   const latestWalk =
@@ -141,7 +210,7 @@ export const WalkView = ({
 
   if (state.activeWalk) {
     const allRecorded = state.activeWalk.selectedTargets.every((target) =>
-      Boolean(outcomes[trackCWorkKey(target)])
+      Boolean(outcomesRef.current[trackCWorkKey(target)])
     );
     return (
       <section className="track-c-walk" aria-labelledby="track-c-active-walk-heading">
@@ -175,14 +244,12 @@ export const WalkView = ({
                 <div className="track-c-outcome-grid">
                   {OUTCOMES.map((item) => (
                     <button
-                      aria-pressed={outcomes[key] === item.outcome}
+                      aria-pressed={
+                        outcomesRef.current[key] === item.outcome
+                      }
                       data-track-c-critical-target="true"
                       key={item.outcome}
-                      onClick={() =>
-                        onOutcomesChange((current) => ({
-                          ...current,
-                          [key]: item.outcome,
-                        }))}
+                      onClick={() => recordOutcome(target, item.outcome)}
                       type="button"
                     >
                       {item.label}
@@ -208,6 +275,31 @@ export const WalkView = ({
     );
   }
 
+  if (candidates.length === 0) {
+    return (
+      <section
+        className="track-c-walk"
+        aria-labelledby="track-c-walk-heading"
+      >
+        <header className="track-c-view-heading">
+          <div>
+            <h1 id="track-c-walk-heading">Start Walk</h1>
+            <p>Los-passed, pending, and unblocked only</p>
+          </div>
+          <span>0 ready</span>
+        </header>
+        <div className="track-c-empty">
+          <ClipboardCheck aria-hidden="true" size={24} />
+          <h2>No work is ready to walk</h2>
+          <p>
+            Work appears here only after Los passes inspection and every
+            blocker is clear.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="track-c-walk" aria-labelledby="track-c-walk-heading">
       <header className="track-c-view-heading">
@@ -218,50 +310,65 @@ export const WalkView = ({
         <span>{candidates.length} ready</span>
       </header>
       <div className="track-c-form-stack">
-        <label className="track-c-field">
-          <span>Who are you walking with?</span>
-          <span className="track-c-field__input">
-            <UserRound aria-hidden="true" size={18} />
-            <input
-              onChange={(event) => setPropertyContact(event.target.value)}
-              placeholder="Property contact"
-              type="text"
-              value={propertyContact}
-            />
-          </span>
-        </label>
+        {propertyContacts.length > 0 ? (
+          <label className="track-c-field">
+            <span>Who are you walking with?</span>
+            <span className="track-c-field__input">
+              <UserRound aria-hidden="true" size={18} />
+              <select
+                aria-label="Property walkthrough contact"
+                onChange={(event) => setPropertyContact(event.target.value)}
+                value={propertyContact}
+              >
+                <option value="">Choose property contact</option>
+                {propertyContacts.map((contact) => (
+                  <option key={contact.id} value={contact.name}>
+                    {contact.name}
+                    {contact.roleLabel ? ` · ${contact.roleLabel}` : ''}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+        ) : (
+          <label className="track-c-field">
+            <span>Who are you walking with?</span>
+            <span className="track-c-field__input">
+              <UserRound aria-hidden="true" size={18} />
+              <input
+                onChange={(event) => setPropertyContact(event.target.value)}
+                placeholder="Property contact"
+                type="text"
+                value={propertyContact}
+              />
+            </span>
+          </label>
+        )}
         <fieldset className="track-c-choice-list track-c-walk-candidates">
           <legend>Select exact work</legend>
-          {candidates.length > 0 ? (
-            candidates.map((candidate) => {
-              const key = trackCWorkKey(candidate.target);
-              return (
-                <label key={key}>
-                  <input
-                    checked={selectedKeys.includes(key)}
-                    onChange={() => toggleCandidate(candidate.target)}
-                    type="checkbox"
-                  />
-                  <span>
-                    <strong>
-                      Unit {candidate.unitNumber} ·{' '}
-                      {candidate.target.trade === 'paint' ? 'Paint' : 'Clean'}{' '}
-                      {trackCSectionLabel(candidate.target.section)}
-                    </strong>
-                    <small>
-                      {trackCCrewName(state, candidate.crewId)} · {candidate.locationLabel}
-                    </small>
-                  </span>
-                </label>
-              );
-            })
-          ) : (
-            <div className="track-c-empty">
-              <ClipboardCheck aria-hidden="true" size={24} />
-              <h2>No walk candidates</h2>
-              <p>Items appear only after Los passes inspection and blockers are clear.</p>
-            </div>
-          )}
+          {candidates.map((candidate) => {
+            const key = trackCWorkKey(candidate.target);
+            return (
+              <label key={key}>
+                <input
+                  checked={selectedKeys.includes(key)}
+                  onChange={() => toggleCandidate(candidate.target)}
+                  type="checkbox"
+                />
+                <span>
+                  <strong>
+                    Unit {candidate.unitNumber} ·{' '}
+                    {candidate.target.trade === 'paint' ? 'Paint' : 'Clean'}{' '}
+                    {trackCSectionLabel(candidate.target.section)}
+                  </strong>
+                  <small>
+                    {trackCCrewName(state, candidate.crewId)} ·{' '}
+                    {candidate.locationLabel}
+                  </small>
+                </span>
+              </label>
+            );
+          })}
         </fieldset>
         <label className="track-c-confirm-row">
           <input
@@ -332,6 +439,26 @@ export const WalkView = ({
                 );
               })}
             </div>
+          ) : null}
+          {onOfficialFormRequested && eligibleMirrors.length > 0 ? (
+            <button
+              data-track-c-critical-target="true"
+              onClick={() =>
+                onOfficialFormRequested(
+                  createTrackBOfficialFormRequest(
+                    eligibleMirrors.map((outcome) => outcome.target),
+                  ),
+                )}
+              type="button"
+            >
+              Open Turn Sign-Off form
+            </button>
+          ) : null}
+          {onOfficialFormRequested && eligibleMirrors.length > 0 ? (
+            <p className="track-c-boundary-copy">
+              Opens the reviewed external form only. Turn OS does not prefill or
+              submit it.
+            </p>
           ) : null}
           <p className="track-c-paper-reminder">
             <TimerReset aria-hidden="true" size={17} />

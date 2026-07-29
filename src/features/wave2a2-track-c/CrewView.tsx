@@ -7,6 +7,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
+import type { TrackBWorkNavigationRequest } from '../wave2a21-track-b/contracts';
 import type {
   TrackCCrewDetail,
   TrackCState,
@@ -19,21 +20,24 @@ import {
   trackCUnitForTarget,
 } from './projections';
 
-interface CrewViewProps {
+export interface CrewViewProps {
   readonly state: TrackCState;
   readonly selectedCrewId?: string;
   readonly onOpenCrew: (crewId: string) => void;
   readonly onCloseCrew: () => void;
   readonly onEditCrew?: (crewId: string) => void;
   readonly onContactCrew?: (crewId: string) => void;
+  readonly onOpenWork?: (request: TrackBWorkNavigationRequest) => void;
 }
 
 const CrewWorkList = ({
   detail,
   state,
+  onOpenWork,
 }: {
   detail: TrackCCrewDetail;
   state: TrackCState;
+  onOpenWork?: (request: TrackBWorkNavigationRequest) => void;
 }) => {
   const groups: readonly {
     label: string;
@@ -59,11 +63,43 @@ const CrewWorkList = ({
                 const unit = trackCUnitForTarget(state, work);
                 return (
                   <li key={`${group.label}:${work.id}`}>
-                    <strong>Unit {unit?.unitNumber ?? work.unitId}</strong>
-                    <span>
-                      {work.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
-                      {trackCSectionLabel(work.section)}
-                    </span>
+                    {onOpenWork ? (
+                      <button
+                        aria-label={`Open Unit ${unit?.unitNumber ?? work.unitId} ${
+                          work.trade === 'paint' ? 'Paint' : 'Clean'
+                        } ${trackCSectionLabel(work.section)}`}
+                        data-track-c-critical-target="true"
+                        onClick={() =>
+                          onOpenWork({
+                            source: 'crew-detail',
+                            target: {
+                              unitId: work.unitId,
+                              trade: work.trade,
+                              section: work.section,
+                            },
+                          })}
+                        type="button"
+                      >
+                        <strong>
+                          Unit {unit?.unitNumber ?? work.unitId}
+                        </strong>
+                        <span>
+                          {work.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
+                          {trackCSectionLabel(work.section)}
+                        </span>
+                        <ChevronRight aria-hidden="true" size={17} />
+                      </button>
+                    ) : (
+                      <>
+                        <strong>
+                          Unit {unit?.unitNumber ?? work.unitId}
+                        </strong>
+                        <span>
+                          {work.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
+                          {trackCSectionLabel(work.section)}
+                        </span>
+                      </>
+                    )}
                   </li>
                 );
               })}
@@ -82,12 +118,14 @@ const CrewDetail = ({
   onClose,
   onEdit,
   onContact,
+  onOpenWork,
 }: {
   state: TrackCState;
   crewId: string;
   onClose: () => void;
   onEdit?: () => void;
   onContact?: () => void;
+  onOpenWork?: (request: TrackBWorkNavigationRequest) => void;
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const detail = useMemo(
@@ -163,7 +201,11 @@ const CrewDetail = ({
         Counts use confirmed events only. No ranking, blame, payroll, or payment
         eligibility is calculated.
       </p>
-      <CrewWorkList detail={detail} state={state} />
+      <CrewWorkList
+        detail={detail}
+        onOpenWork={onOpenWork}
+        state={state}
+      />
       <section className="track-c-recent-activity">
         <header>
           <Icon aria-hidden="true" size={18} />
@@ -196,6 +238,7 @@ export const CrewView = ({
   onCloseCrew,
   onEditCrew,
   onContactCrew,
+  onOpenWork,
 }: CrewViewProps) => {
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
 
@@ -208,6 +251,7 @@ export const CrewView = ({
           onContactCrew ? () => onContactCrew(selectedCrewId) : undefined
         }
         onEdit={onEditCrew ? () => onEditCrew(selectedCrewId) : undefined}
+        onOpenWork={onOpenWork}
         state={state}
       />
     );

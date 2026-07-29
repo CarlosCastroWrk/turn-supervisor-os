@@ -307,6 +307,16 @@ export const searchTrackCCompactUnits = (
   );
 };
 
+export const projectTrackCReleasedUnitsForTrade = (
+  state: TrackCState,
+  trade: TrackCTrade,
+): readonly TrackCUnit[] =>
+  state.units.filter((unit) =>
+    unit.workFacts.some(
+      (fact) => fact.trade === trade && fact.release === 'released',
+    ),
+  );
+
 const emptyCrewStats = (): TrackCCrewStats => ({
   currentAssignments: 0,
   waiting: 0,

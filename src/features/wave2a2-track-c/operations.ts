@@ -20,6 +20,7 @@ import {
   projectTrackCWalkCandidates,
   projectTrackCWork,
 } from './projections';
+import { resolveTrackBActiveCrewIds } from '../wave2a21-track-b/contracts';
 
 const error = (
   code: Parameters<typeof operationError>[0],
@@ -37,7 +38,8 @@ const operationError = (
     | 'not-walk-candidate'
     | 'incomplete-walk'
     | 'mirror-not-eligible'
-    | 'confirmation-required',
+    | 'confirmation-required'
+    | 'idempotency-conflict',
   message: string,
 ) => ({ code, message }) as const;
 
@@ -234,6 +236,7 @@ export interface TrackCBulkProposalInput {
   readonly sections?: readonly TrackCSection[];
   readonly createdAt: string;
   readonly createdBy: string;
+  readonly activeCrewIds?: readonly string[];
 }
 
 const warningForProjection = (
@@ -356,6 +359,7 @@ const proposalReviewFingerprint = (
     id: proposal.id,
     trade: proposal.trade,
     crewId: proposal.crewId,
+    activeCrewIds: proposal.activeCrewIds,
     unitIds: proposal.unitIds,
     sectionMode: proposal.sectionMode,
     requestedSections: proposal.requestedSections,
@@ -384,6 +388,10 @@ export const createTrackCBulkAssignmentProposal = (
   input: TrackCBulkProposalInput,
 ): TrackCBulkAssignmentProposal => {
   const crew = state.crews.find((candidate) => candidate.id === input.crewId);
+  const activeCrewIds = resolveTrackBActiveCrewIds(
+    state.crews,
+    input.activeCrewIds,
+  );
   const requestedSections =
     input.sectionMode === 'specific'
       ? [...new Set(input.sections ?? [])]
@@ -397,20 +405,62 @@ export const createTrackCBulkAssignmentProposal = (
       severity: 'blocking',
       message: `Selected crew is not a compatible ${input.trade} crew.`,
     });
+  } else if (!activeCrewIds.includes(crew.id)) {
+    proposalWarnings.push({
+      code: 'crew-not-active-today',
+      severity: 'blocking',
+      message: `${crew.name} is not active today.`,
+    });
   }
 
   for (const unitId of [...new Set(input.unitIds)]) {
-    const unit = state.units.find((candidate) => candidate.id === unitId);
+    const matchingUnits = state.units.filter((candidate) => candidate.id === unitId);
+    const unit = matchingUnits[0];
     if (!unit) continue;
+    if (matchingUnits.length !== 1) {
+      proposalWarnings.push({
+        code: 'duplicate-release-responsibility',
+        severity: 'blocking',
+        message: `Unit ${unit.unitNumber} appears in conflicting release records. Resolve the source before assigning.`,
+      });
+      continue;
+    }
     const candidateSections =
       input.sectionMode === 'all-released'
         ? unit.applicableSections
         : unit.applicableSections.filter((section) =>
             requestedSections.includes(section)
           );
-    const candidateProjections = candidateSections
-      .map((section) => projectTrackCWork(state, { unitId, trade: input.trade, section }))
-      .filter((item): item is TrackCWorkProjection => Boolean(item));
+    const candidateProjections = candidateSections.flatMap((section) => {
+      const matchingFacts = unit.workFacts.filter(
+        (fact) => fact.trade === input.trade && fact.section === section,
+      );
+      if (matchingFacts.length === 0) return [];
+      if (matchingFacts.length > 1) {
+        const target = { unitId, trade: input.trade, section };
+        items.push({
+          target,
+          eligible: false,
+          warnings: [{
+            code: 'duplicate-release-responsibility',
+            severity: 'blocking',
+            message: `Unit ${unit.unitNumber} ${section} has duplicate ${input.trade} responsibility records.`,
+            target,
+          }],
+          reviewedStateFingerprint: fingerprintText({
+            target,
+            duplicateFactIds: matchingFacts.map((fact) => fact.id).sort(),
+          }),
+        });
+        return [];
+      }
+      const projection = projectTrackCWork(state, {
+        unitId,
+        trade: input.trade,
+        section,
+      });
+      return projection ? [projection] : [];
+    });
 
     const selectedProjections =
       input.sectionMode === 'all-released'
@@ -429,7 +479,11 @@ export const createTrackCBulkAssignmentProposal = (
     for (const projection of selectedProjections) {
       const warnings = [
         ...warningForProjection(projection),
-        ...proposalWarnings.filter((warning) => warning.code === 'crew-trade-mismatch'),
+        ...proposalWarnings.filter(
+          (warning) =>
+            warning.code === 'crew-trade-mismatch' ||
+            warning.code === 'crew-not-active-today',
+        ),
       ];
       items.push({
         target: {
@@ -448,6 +502,7 @@ export const createTrackCBulkAssignmentProposal = (
     id: input.proposalId,
     trade: input.trade,
     crewId: input.crewId,
+    activeCrewIds,
     unitIds: [...new Set(input.unitIds)],
     sectionMode: input.sectionMode,
     requestedSections,
@@ -490,10 +545,91 @@ export const confirmTrackCBulkAssignmentProposal = (
     );
   }
 
+  const eligibleItems = proposal.items.filter((item) => item.eligible);
+  if (eligibleItems.length === 0) {
+    return error('invalid-proposal', 'The proposal contains no eligible sections.');
+  }
+  const assignedTargets = eligibleItems.map((item) => item.target);
+  const skippedTargets = proposal.items
+    .filter((item) => !item.eligible)
+    .map((item) => item.target);
+  if (
+    proposal.warnings.some(
+      (warning) => warning.code === 'duplicate-release-responsibility',
+    ) ||
+    proposal.items.some((item) =>
+      item.warnings.some(
+        (warning) => warning.code === 'duplicate-release-responsibility',
+      ),
+    )
+  ) {
+    return error(
+      'invalid-proposal',
+      'Conflicting release responsibility must be resolved before any part of this proposal can save.',
+    );
+  }
+  const events = eligibleItems.map((item) =>
+    confirmedEvent({
+      id: `${input.eventIdPrefix}-${fingerprintText(item.target)}`,
+      eventType: 'assignment-confirmed',
+      target: item.target,
+      crewId: proposal.crewId,
+      recordedAt: input.recordedAt,
+      recordedBy: input.recordedBy,
+      sourceType: 'personal-confirmation',
+      sourceLabel: `Confirmed personal proposal ${proposal.id}`,
+      summary:
+        'Personal crew assignment recorded. Authoritative paper and payroll remain unchanged.',
+    })
+  );
+  const existingById = new Map(
+    state.events
+      .filter((event) => events.some((candidate) => candidate.id === event.id))
+      .map((event) => [event.id, event]),
+  );
+  if (existingById.size > 0) {
+    const exactReplay =
+      existingById.size === events.length &&
+      events.every((event) => {
+        const existing = existingById.get(event.id);
+        return Boolean(
+          existing &&
+          existing.eventType === 'assignment-confirmed' &&
+          trackCWorkKey(existing.target) === trackCWorkKey(event.target) &&
+          existing.crewId === proposal.crewId &&
+          existing.confirmation === 'confirmed',
+        );
+      });
+    if (!exactReplay) {
+      return error(
+        'idempotency-conflict',
+        'This confirmation identity is already tied to different or incomplete assignment evidence.',
+      );
+    }
+    return {
+      ok: true,
+      value: {
+        state,
+        receipt: {
+          proposalId: proposal.id,
+          assignedTargets,
+          skippedTargets,
+          recordedAt:
+            existingById.values().next().value?.recordedAt ??
+            input.recordedAt,
+          idempotentReplay: true,
+          officialPaperChanged: false,
+          payrollChanged: false,
+        },
+      },
+    };
+  }
+
   const freshProposal = createTrackCBulkAssignmentProposal(state, {
     proposalId: proposal.id,
     trade: proposal.trade,
     crewId: proposal.crewId,
+    activeCrewIds: proposal.activeCrewIds,
     unitIds: proposal.unitIds,
     sectionMode: proposal.sectionMode,
     sections: proposal.requestedSections,
@@ -507,33 +643,10 @@ export const confirmTrackCBulkAssignmentProposal = (
     );
   }
 
-  const eligibleItems = proposal.items.filter((item) => item.eligible);
-  if (eligibleItems.length === 0) {
-    return error('invalid-proposal', 'The proposal contains no eligible sections.');
-  }
   const crew = state.crews.find((candidate) => candidate.id === proposal.crewId);
   if (!crew || crew.trade !== proposal.trade) {
     return error('invalid-proposal', 'The selected crew is not compatible.');
   }
-
-  const events = eligibleItems.map((item, index) =>
-    confirmedEvent({
-      id: `${input.eventIdPrefix}-${index + 1}`,
-      eventType: 'assignment-confirmed',
-      target: item.target,
-      crewId: proposal.crewId,
-      recordedAt: input.recordedAt,
-      recordedBy: input.recordedBy,
-      sourceType: 'personal-confirmation',
-      sourceLabel: `Confirmed personal proposal ${proposal.id}`,
-      summary:
-        'Personal crew assignment recorded. Authoritative paper and payroll remain unchanged.',
-    })
-  );
-  const assignedTargets = eligibleItems.map((item) => item.target);
-  const skippedTargets = proposal.items
-    .filter((item) => !item.eligible)
-    .map((item) => item.target);
 
   return {
     ok: true,
@@ -544,8 +657,45 @@ export const confirmTrackCBulkAssignmentProposal = (
         assignedTargets,
         skippedTargets,
         recordedAt: input.recordedAt,
+        idempotentReplay: false,
         officialPaperChanged: false,
         payrollChanged: false,
+      },
+    },
+  };
+};
+
+export const updateTrackCActiveWalkOutcomes = (
+  state: TrackCState,
+  outcomes: readonly TrackCWalkOutcomeRecord[],
+): TrackCResult<TrackCState> => {
+  const activeWalk = state.activeWalk;
+  if (!activeWalk) {
+    return error('no-active-walk', 'There is no active walk to update.');
+  }
+  const selectedKeys = new Set(activeWalk.selectedTargets.map(trackCWorkKey));
+  const unique = new Map<string, TrackCWalkOutcomeRecord>();
+  for (const outcome of outcomes) {
+    const key = trackCWorkKey(outcome.target);
+    if (!selectedKeys.has(key) || unique.has(key)) {
+      return error(
+        'incomplete-walk',
+        'Provisional outcomes must refer once to work selected for this active walk.',
+      );
+    }
+    unique.set(key, outcome);
+  }
+  return {
+    ok: true,
+    value: {
+      ...state,
+      activeWalk: {
+        ...activeWalk,
+        outcomes: activeWalk.selectedTargets
+          .map((target) => unique.get(trackCWorkKey(target)))
+          .filter(
+            (outcome): outcome is TrackCWalkOutcomeRecord => Boolean(outcome),
+          ),
       },
     },
   };

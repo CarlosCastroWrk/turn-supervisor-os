@@ -63,7 +63,7 @@ const assertSingleCapture = async (page, label) => {
 };
 
 const assertNativePlus = async (page, expectedHash, label) => {
-  await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+  await page.getByRole('button', { name: 'Open central Plus menu', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Add to Turn OS' });
   await dialog.waitFor();
   assert.equal(await page.getByRole('dialog').count(), 1, `${label} stacked Add dialogs.`);
@@ -71,7 +71,10 @@ const assertNativePlus = async (page, expectedHash, label) => {
   await dialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
   assert.equal(await currentHash(page), expectedHash, `${label} changed route while dismissing Add.`);
-  await page.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
+  await page.waitForFunction(() => {
+    const main = document.getElementById('launch-command-center-main');
+    return document.activeElement === main && Boolean(main?.getClientRects().length);
+  });
 };
 
 const openLegacyCapture = async (page, label) => {
@@ -85,7 +88,7 @@ const closeCaptureOnce = async (
   page,
   expectedHash,
   label,
-  expectedFocusLabel = 'Open central add menu',
+  expectedFocusLabel = 'Open central Plus menu',
 ) => {
   await page.getByRole('button', { name: 'Close Field Copilot', exact: true }).click();
   await page.locator('.capture-workspace[role="dialog"]').waitFor({ state: 'hidden' });

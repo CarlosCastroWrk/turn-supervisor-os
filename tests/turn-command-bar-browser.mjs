@@ -67,7 +67,7 @@ try {
       `${target.name} exposed the superseded persistent command bar.`,
     );
 
-    await page.getByRole('button', { name: 'Open central add menu', exact: true }).click();
+    await page.getByRole('button', { name: 'Open central Plus menu', exact: true }).click();
     const addDialog = page.getByRole('dialog', { name: 'Add to Turn OS' });
     await addDialog.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 1, `${target.name} stacked Add dialogs.`);
@@ -78,7 +78,10 @@ try {
     );
     await addDialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
     await addDialog.waitFor({ state: 'hidden' });
-    await page.waitForFunction(() => document.activeElement?.id === 'lcc-central-plus');
+    await page.waitForFunction(() => {
+      const main = document.getElementById('launch-command-center-main');
+      return document.activeElement === main && Boolean(main?.getClientRects().length);
+    });
 
     await page.getByRole('button', { name: 'Open Search', exact: true }).click();
     const search = page.getByRole('searchbox');

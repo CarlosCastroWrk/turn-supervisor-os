@@ -288,7 +288,15 @@ try {
   const offlinePage = await offlineContext.newPage();
   await installFakeSupabase(offlinePage);
   await offlinePage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  await offlinePage.getByRole('region', { name: 'Home command center' }).waitFor();
+  await offlinePage.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  assert.equal(
+    await offlinePage.getByRole('heading', { name: 'Home', exact: true }).count(),
+    1,
+  );
+  assert.equal(
+    await offlinePage.locator('[data-testid="launch-command-center-shell"]').count(),
+    1,
+  );
   await offlinePage.getByText('Offline local continuity', { exact: true }).waitFor();
   await offlineContext.close();
 
@@ -309,7 +317,7 @@ try {
   await mismatchPage.goto(baseUrl, { waitUntil: 'domcontentloaded' });
   await mismatchPage.getByRole('heading', { name: 'Welcome back', exact: true }).waitFor();
   assert.equal(
-    await mismatchPage.getByRole('region', { name: 'Home command center' }).count(),
+    await mismatchPage.locator('[data-testid="launch-command-center-shell"]').count(),
     0,
   );
   await mismatchContext.close();

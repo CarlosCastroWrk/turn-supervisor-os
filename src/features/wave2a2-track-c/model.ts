@@ -101,12 +101,26 @@ export interface TrackCWalkOutcomeRecord {
   readonly note?: string;
 }
 
+export interface TrackCWalkSelectionReview {
+  readonly target: TrackCWorkTarget;
+  readonly responsibleCrewId: string;
+  readonly release: TrackCReleaseState;
+  readonly access: TrackCAccessState;
+  readonly sourceConfidence: TrackCSourceConfidence;
+  readonly assignmentConflict: boolean;
+  readonly inspection: TrackCInspectionState;
+  readonly property: TrackCPropertyState;
+  readonly callbackOpen: boolean;
+  readonly confirmedEventCount: number;
+}
+
 export interface TrackCWalkSession {
   readonly id: string;
   readonly propertyContact: string;
   readonly startedAt: string;
   readonly startedBy: string;
   readonly selectedTargets: readonly TrackCWorkTarget[];
+  readonly reviewedSelections: readonly TrackCWalkSelectionReview[];
   readonly status: 'active' | 'completed';
   readonly endedAt?: string;
   readonly outcomes?: readonly TrackCWalkOutcomeRecord[];
@@ -238,6 +252,7 @@ export interface TrackCBulkAssignmentProposalItem {
   readonly target: TrackCWorkTarget;
   readonly eligible: boolean;
   readonly warnings: readonly TrackCAssignmentWarning[];
+  readonly reviewedStateFingerprint: string;
 }
 
 export interface TrackCBulkAssignmentProposal {
@@ -251,6 +266,7 @@ export interface TrackCBulkAssignmentProposal {
   readonly createdBy: string;
   readonly items: readonly TrackCBulkAssignmentProposalItem[];
   readonly warnings: readonly TrackCAssignmentWarning[];
+  readonly reviewFingerprint: string;
   readonly personalProposalOnly: true;
   readonly officialPaperChanged: false;
   readonly payrollChanged: false;

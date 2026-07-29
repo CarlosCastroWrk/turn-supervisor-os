@@ -1,6 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createSyntheticTrackCState } from './fixtures';
+import {
+  createSyntheticTrackCState,
+  createTrackCScaleState,
+} from './fixtures';
 import { TrackCFieldOps } from './TrackCFieldOps';
 import './preview.css';
 
@@ -22,10 +25,16 @@ window.__trackCPreview = {
   crewContactRequests: [],
 };
 
+const scale = new URLSearchParams(window.location.search).get('scale');
+const initialState =
+  scale === '500'
+    ? createTrackCScaleState(500)
+    : createSyntheticTrackCState();
+
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
     <TrackCFieldOps
-      initialState={createSyntheticTrackCState()}
+      initialState={initialState}
       now={() => '2026-07-28T20:00:00.000Z'}
       onCrewContactRequested={(crewId) =>
         window.__trackCPreview?.crewContactRequests.push(crewId)}

@@ -7,6 +7,7 @@ import {
 } from '../src/features/wave2a2-track-c/fixtures.ts';
 import {
   TRACK_C_OPERATION_BOUNDARY,
+  applyTrackCSectionAction,
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
   endTrackCWalk,
@@ -316,6 +317,94 @@ test('bulk confirmation atomically rejects a multi-item proposal when a later it
   );
 });
 
+test('bulk confirmation atomically rejects reviewed identity, crew, trade, Unit, and section tampering', () => {
+  const initial = createSyntheticTrackCState();
+  const reviewed = createTrackCBulkAssignmentProposal(
+    initial,
+    proposalInput({ proposalId: 'reviewed-immutable-identity' }),
+  );
+  assert.equal(reviewed.items.length, 1);
+  assert.equal(reviewed.items[0]?.eligible, true);
+
+  const tamperedProposals = [
+    {
+      label: 'identity',
+      proposal: { ...reviewed, id: 'tampered-identity' },
+    },
+    {
+      label: 'crew',
+      proposal: { ...reviewed, crewId: 'crew-atlas-paint' },
+    },
+    {
+      label: 'trade',
+      proposal: { ...reviewed, trade: 'clean' },
+    },
+    {
+      label: 'Unit',
+      proposal: { ...reviewed, unitIds: ['unit-606'] },
+    },
+    {
+      label: 'section',
+      proposal: {
+        ...reviewed,
+        items: reviewed.items.map((item, index) =>
+          index === 0
+            ? { ...item, target: { ...item.target, section: 'B' } }
+            : item
+        ),
+      },
+    },
+  ];
+
+  for (const { label, proposal } of tamperedProposals) {
+    const result = confirmTrackCBulkAssignmentProposal(
+      initial,
+      proposal,
+      confirmInput(`tampered-${label}`),
+    );
+    assert.equal(result.ok, false, `${label} tampering must be rejected.`);
+    assert.equal(result.error.code, 'invalid-proposal');
+    assert.match(result.error.message, /identity changed/i);
+    assert.equal(
+      initial.events.some((event) => event.id.startsWith(`tampered-${label}`)),
+      false,
+      `${label} tampering must not append any assignment event.`,
+    );
+  }
+});
+
+test('crew-complete evidence remains recordable when access blocks Los inspection', () => {
+  const initial = createSyntheticTrackCState();
+  const blockedTarget = target('401', 'clean', 'B');
+  const before = projectTrackCWork(initial, blockedTarget);
+  assert.equal(before?.access, 'access-blocked');
+  assert.equal(before?.execution, 'assigned');
+
+  const recorded = applyTrackCSectionAction(initial, {
+    eventId: 'blocked-access-crew-report',
+    action: 'record-crew-complete',
+    target: blockedTarget,
+    recordedAt: '2026-07-28T20:30:00.000Z',
+    recordedBy: 'Los',
+  });
+  assert.equal(recorded.ok, true);
+  const after = projectTrackCWork(recorded.value, blockedTarget);
+  assert.equal(after?.execution, 'crew-reported-complete');
+  assert.equal(after?.inspection, 'needs-los-inspection');
+  assert.equal(after?.access, 'access-blocked');
+
+  const inspection = applyTrackCSectionAction(recorded.value, {
+    eventId: 'blocked-access-los-pass',
+    action: 'record-los-pass',
+    target: blockedTarget,
+    recordedAt: '2026-07-28T20:31:00.000Z',
+    recordedBy: 'Los',
+  });
+  assert.equal(inspection.ok, false);
+  assert.equal(inspection.error.code, 'blocked');
+  assert.match(inspection.error.message, /access is blocked/i);
+});
+
 test('walk candidates require Los pass, pending property walk, and no blockers', () => {
   const candidates = projectTrackCWalkCandidates(createSyntheticTrackCState());
   const keys = candidates.map((candidate) =>
@@ -326,6 +415,134 @@ test('walk candidates require Los pass, pending property walk, and no blockers',
   assert.equal(keys.includes('301:paint:B'), false);
   assert.equal(keys.includes('401:paint:A'), false);
   assert.equal(keys.includes('410:paint:A'), false);
+});
+
+test('End Walk atomically rejects callback, access, assignment, or prior-acceptance changes on any reviewed target', () => {
+  const firstTarget = target('301', 'paint', 'common');
+  const staleTarget = target('301', 'paint', 'A');
+  const startWalk = () => {
+    const initial = createSyntheticTrackCState();
+    const started = startTrackCWalk(initial, {
+      walkSessionId: 'walk-stale-review',
+      propertyContact: 'Synthetic property contact',
+      selectedTargets: [firstTarget, staleTarget],
+      startedAt: '2026-07-28T21:00:00.000Z',
+      startedBy: 'Los',
+      confirmedLosInspection: true,
+    });
+    assert.equal(started.ok, true);
+    return started.value;
+  };
+  const confirmedEvent = (overrides) => ({
+    id: 'stale-walk-event',
+    eventType: 'assignment-confirmed',
+    confirmation: 'confirmed',
+    target: staleTarget,
+    crewId: 'crew-atlas-paint',
+    recordedAt: '2026-07-28T21:05:00.000Z',
+    recordedBy: 'Synthetic test',
+    sourceType: 'personal-confirmation',
+    sourceLabel: 'Adversarial Track C test',
+    summary: 'State changed after walk review.',
+    personalRecordOnly: true,
+    officialPaperChanged: false,
+    payrollChanged: false,
+    ...overrides,
+  });
+
+  const callbackState = applyTrackCSectionAction(startWalk(), {
+    eventId: 'stale-walk-callback',
+    action: 'open-callback',
+    target: staleTarget,
+    recordedAt: '2026-07-28T21:05:00.000Z',
+    recordedBy: 'Los',
+  });
+  assert.equal(callbackState.ok, true);
+
+  const reworkState = applyTrackCSectionAction(callbackState.value, {
+    eventId: 'stale-walk-rework',
+    action: 'record-correction-ready',
+    target: staleTarget,
+    recordedAt: '2026-07-28T21:06:00.000Z',
+    recordedBy: 'Los',
+  });
+  assert.equal(reworkState.ok, true);
+
+  const accessStart = startWalk();
+  const accessState = {
+    ...accessStart,
+    units: accessStart.units.map((unit) =>
+      unit.id !== staleTarget.unitId
+        ? unit
+        : {
+            ...unit,
+            workFacts: unit.workFacts.map((fact) =>
+              fact.trade === staleTarget.trade &&
+              fact.section === staleTarget.section
+                ? {
+                    ...fact,
+                    access: 'access-blocked',
+                    restrictionLabel: 'Access changed during the walk.',
+                  }
+                : fact
+            ),
+          }
+    ),
+  };
+  const assignmentStart = startWalk();
+  const assignmentState = {
+    ...assignmentStart,
+    events: [
+      ...assignmentStart.events,
+      confirmedEvent({ id: 'stale-walk-assignment' }),
+    ],
+  };
+  const acceptanceStart = startWalk();
+  const priorAcceptanceState = {
+    ...acceptanceStart,
+    events: [
+      ...acceptanceStart.events,
+      confirmedEvent({
+        id: 'stale-walk-acceptance',
+        eventType: 'property-accepted',
+        crewId: 'crew-bluebird-paint',
+      }),
+    ],
+  };
+
+  for (const [label, state] of [
+    ['callback', callbackState.value],
+    ['rework', reworkState.value],
+    ['access', accessState],
+    ['assignment', assignmentState],
+    ['prior acceptance', priorAcceptanceState],
+  ]) {
+    const result = endTrackCWalk(state, {
+      endedAt: '2026-07-28T21:10:00.000Z',
+      recordedBy: 'Los',
+      eventIdPrefix: `rejected-${label.replaceAll(' ', '-')}`,
+      outcomes: [
+        { target: firstTarget, outcome: 'accepted' },
+        { target: staleTarget, outcome: 'accepted' },
+      ],
+    });
+    assert.equal(result.ok, false, `${label} change must reject End Walk.`);
+    assert.equal(result.error.code, 'not-walk-candidate');
+    assert.match(result.error.message, /stale/i);
+    assert.equal(
+      state.events.some((event) =>
+        event.id.startsWith(`rejected-${label.replaceAll(' ', '-')}`)
+      ),
+      false,
+      `${label} rejection must append no property-acceptance events.`,
+    );
+    assert.equal(
+      projectTrackCWork(state, firstTarget)?.property,
+      'pending-property-walk',
+      `${label} rejection must leave the otherwise-valid first target pending.`,
+    );
+    assert.equal(state.activeWalk?.status, 'active');
+  }
 });
 
 test('walk correction preserves crew while acceptance and personal paper mirror remain separate explicit events', () => {

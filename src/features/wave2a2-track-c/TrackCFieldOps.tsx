@@ -4,7 +4,13 @@ import {
   MapPinned,
   UsersRound,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { AssignmentView } from './AssignmentView';
 import { BoardView } from './BoardView';
 import { CrewView } from './CrewView';
@@ -51,6 +57,7 @@ export const TrackCFieldOps = ({
   >({});
   const sequenceRef = useRef(0);
   const shellRef = useRef<HTMLDivElement>(null);
+  const mirrorDialogRef = useRef<HTMLElement>(null);
   const mirrorCancelRef = useRef<HTMLButtonElement>(null);
   const mirrorTriggerRef = useRef<HTMLElement | null>(null);
 
@@ -118,6 +125,42 @@ export const TrackCFieldOps = ({
     if (mirrorTarget) mirrorCancelRef.current?.focus();
   }, [mirrorTarget]);
 
+  const handleMirrorKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      dismissMirror();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const dialog = mirrorDialogRef.current;
+    const focusable = dialog
+      ? Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter((element) => !element.hidden)
+      : [];
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !dialog?.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !dialog?.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   const confirmMirror = () => {
     if (!mirrorTarget) return;
     const result = recordTrackCPersonalPdsMirror(state, {
@@ -145,14 +188,22 @@ export const TrackCFieldOps = ({
       ref={shellRef}
       tabIndex={-1}
     >
-      <header className="track-c-shell__header">
+      <header
+        aria-hidden={mirrorTarget ? true : undefined}
+        className="track-c-shell__header"
+        inert={mirrorTarget ? true : undefined}
+      >
         <div>
           <strong>Turn OS</strong>
           <span>Personal field companion</span>
         </div>
         <span>{state.propertyName}</span>
       </header>
-      <main className="track-c-shell__main">
+      <main
+        aria-hidden={mirrorTarget ? true : undefined}
+        className="track-c-shell__main"
+        inert={mirrorTarget ? true : undefined}
+      >
         {view === 'board' ? (
           <BoardView
             onCloseUnit={() => setSelectedUnitId(undefined)}
@@ -194,7 +245,12 @@ export const TrackCFieldOps = ({
         ) : null}
       </main>
       {notice ? (
-        <div className="track-c-notice" role="status">
+        <div
+          aria-hidden={mirrorTarget ? true : undefined}
+          className="track-c-notice"
+          inert={mirrorTarget ? true : undefined}
+          role="status"
+        >
           <span>{notice}</span>
           <button
             aria-label="Dismiss notice"
@@ -209,15 +265,14 @@ export const TrackCFieldOps = ({
       {mirrorTarget ? (
         <div
           className="track-c-dialog-layer"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') dismissMirror();
-          }}
+          onKeyDown={handleMirrorKeyDown}
         >
           <section
             aria-describedby="track-c-mirror-description"
-            aria-label="Confirm personal paper mirror"
+            aria-labelledby="track-c-mirror-heading"
             aria-modal="true"
             className="track-c-confirm-card track-c-shell__confirm"
+            ref={mirrorDialogRef}
             role="dialog"
           >
             <h2 id="track-c-mirror-heading">Confirm personal mirror</h2>
@@ -246,7 +301,12 @@ export const TrackCFieldOps = ({
           </section>
         </div>
       ) : null}
-      <nav aria-label="Track C field operations" className="track-c-nav">
+      <nav
+        aria-hidden={mirrorTarget ? true : undefined}
+        aria-label="Track C field operations"
+        className="track-c-nav"
+        inert={mirrorTarget ? true : undefined}
+      >
         {[
           { view: 'board' as const, label: 'TurnBoard', Icon: ClipboardList },
           { view: 'crews' as const, label: 'Crews', Icon: UsersRound },

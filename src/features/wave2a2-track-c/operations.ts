@@ -10,6 +10,7 @@ import {
   type TrackCState,
   type TrackCTrade,
   type TrackCWalkOutcomeRecord,
+  type TrackCWalkSelectionReview,
   type TrackCWalkSession,
   type TrackCWorkProjection,
   type TrackCWorkTarget,
@@ -64,19 +65,38 @@ const appendEvents = (
   events: [...state.events, ...events],
 });
 
-const transitionBlocker = (
+const sourceOrAssignmentBlocker = (
   projection: TrackCWorkProjection,
 ): string | undefined => {
   if (projection.release !== 'released') return 'Work is not confirmed released.';
-  if (projection.access === 'occupied-restricted') {
-    return 'Occupied or restricted scope cannot be entered.';
-  }
-  if (projection.access !== 'clear') return 'Access is blocked.';
   if (projection.sourceConfidence !== 'confirmed') {
     return 'Source evidence is uncertain or conflicting.';
   }
   if (projection.assignmentConflict) return 'Assignment evidence conflicts.';
   return undefined;
+};
+
+const accessBlocker = (
+  projection: TrackCWorkProjection,
+): string | undefined => {
+  if (projection.access === 'occupied-restricted') {
+    return 'Occupied or restricted scope cannot be entered.';
+  }
+  if (projection.access !== 'clear') return 'Access is blocked.';
+  return undefined;
+};
+
+const transitionBlocker = (
+  projection: TrackCWorkProjection,
+  action: TrackCSectionAction,
+): string | undefined => {
+  const sourceBlocker = sourceOrAssignmentBlocker(projection);
+  if (sourceBlocker) return sourceBlocker;
+
+  // A crew report is historical evidence. Current access can block Los from
+  // entering or inspecting without erasing a completion report already received.
+  if (action === 'record-crew-complete') return undefined;
+  return accessBlocker(projection);
 };
 
 export type TrackCSectionAction =
@@ -103,7 +123,7 @@ export const applyTrackCSectionAction = (
   const projection = projectTrackCWork(state, request.target);
   if (!projection) return error('not-found', 'The selected section/trade was not found.');
 
-  const blocker = transitionBlocker(projection);
+  const blocker = transitionBlocker(projection, request.action);
   if (blocker) return error('blocked', blocker);
   if (projection.activeCrewIds.length !== 1) {
     return error(
@@ -295,6 +315,70 @@ const warningForProjection = (
   return warnings;
 };
 
+const fingerprintText = (value: unknown) => {
+  const input = JSON.stringify(value);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `track-c-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+};
+
+const reviewedStateFingerprint = (projection: TrackCWorkProjection) =>
+  fingerprintText({
+    factId: projection.id,
+    target: {
+      unitId: projection.unitId,
+      trade: projection.trade,
+      section: projection.section,
+    },
+    release: projection.release,
+    access: projection.access,
+    sourceConfidence: projection.sourceConfidence,
+    sourceLabel: projection.sourceLabel,
+    restrictionLabel: projection.restrictionLabel ?? null,
+    activeCrewIds: [...projection.activeCrewIds].sort(),
+    assignmentConflict: projection.assignmentConflict,
+    confirmedEventCount: projection.confirmedEventCount,
+    latestConfirmedEventId: projection.latestConfirmedEvent?.id ?? null,
+  });
+
+type TrackCProposalWithoutFingerprint = Omit<
+  TrackCBulkAssignmentProposal,
+  'reviewFingerprint'
+>;
+
+const proposalReviewFingerprint = (
+  proposal: TrackCProposalWithoutFingerprint | TrackCBulkAssignmentProposal,
+) =>
+  fingerprintText({
+    id: proposal.id,
+    trade: proposal.trade,
+    crewId: proposal.crewId,
+    unitIds: proposal.unitIds,
+    sectionMode: proposal.sectionMode,
+    requestedSections: proposal.requestedSections,
+    createdAt: proposal.createdAt,
+    createdBy: proposal.createdBy,
+    items: proposal.items.map((item) => ({
+      target: item.target,
+      eligible: item.eligible,
+      warningCodes: item.warnings.map((warning) => [
+        warning.code,
+        warning.severity,
+      ]),
+      reviewedStateFingerprint: item.reviewedStateFingerprint,
+    })),
+    warningCodes: proposal.warnings.map((warning) => [
+      warning.code,
+      warning.severity,
+    ]),
+    personalProposalOnly: proposal.personalProposalOnly,
+    officialPaperChanged: proposal.officialPaperChanged,
+    payrollChanged: proposal.payrollChanged,
+  });
+
 export const createTrackCBulkAssignmentProposal = (
   state: TrackCState,
   input: TrackCBulkProposalInput,
@@ -355,11 +439,12 @@ export const createTrackCBulkAssignmentProposal = (
         },
         eligible: warnings.every((warning) => warning.severity !== 'blocking'),
         warnings,
+        reviewedStateFingerprint: reviewedStateFingerprint(projection),
       });
     }
   }
 
-  return {
+  const proposal: TrackCProposalWithoutFingerprint = {
     id: input.proposalId,
     trade: input.trade,
     crewId: input.crewId,
@@ -373,6 +458,10 @@ export const createTrackCBulkAssignmentProposal = (
     personalProposalOnly: true,
     officialPaperChanged: false,
     payrollChanged: false,
+  };
+  return {
+    ...proposal,
+    reviewFingerprint: proposalReviewFingerprint(proposal),
   };
 };
 
@@ -394,6 +483,30 @@ export const confirmTrackCBulkAssignmentProposal = (
   if (!input.confirmed) {
     return error('confirmation-required', 'Explicit proposal confirmation is required.');
   }
+  if (proposalReviewFingerprint(proposal) !== proposal.reviewFingerprint) {
+    return error(
+      'invalid-proposal',
+      'The reviewed proposal identity changed. Review the crew, trade, Units, and sections again.',
+    );
+  }
+
+  const freshProposal = createTrackCBulkAssignmentProposal(state, {
+    proposalId: proposal.id,
+    trade: proposal.trade,
+    crewId: proposal.crewId,
+    unitIds: proposal.unitIds,
+    sectionMode: proposal.sectionMode,
+    sections: proposal.requestedSections,
+    createdAt: proposal.createdAt,
+    createdBy: proposal.createdBy,
+  });
+  if (freshProposal.reviewFingerprint !== proposal.reviewFingerprint) {
+    return error(
+      'invalid-proposal',
+      'The reviewed proposal is stale because assignment, access, release, source, crew, Unit, trade, or section evidence changed. Review again.',
+    );
+  }
+
   const eligibleItems = proposal.items.filter((item) => item.eligible);
   if (eligibleItems.length === 0) {
     return error('invalid-proposal', 'The proposal contains no eligible sections.');
@@ -401,26 +514,6 @@ export const confirmTrackCBulkAssignmentProposal = (
   const crew = state.crews.find((candidate) => candidate.id === proposal.crewId);
   if (!crew || crew.trade !== proposal.trade) {
     return error('invalid-proposal', 'The selected crew is not compatible.');
-  }
-
-  for (const item of proposal.items) {
-    const current = projectTrackCWork(state, item.target);
-    if (!current) {
-      return error(
-        'invalid-proposal',
-        'The reviewed proposal is stale because a selected section no longer exists. Review again.',
-      );
-    }
-    const currentWarnings = warningForProjection(current);
-    const currentlyEligible = currentWarnings.every(
-      (warning) => warning.severity !== 'blocking',
-    );
-    if (currentlyEligible !== item.eligible) {
-      return error(
-        'invalid-proposal',
-        'The reviewed proposal is stale because assignment, access, release, or source evidence changed. Review again.',
-      );
-    }
   }
 
   const events = eligibleItems.map((item, index) =>
@@ -502,12 +595,35 @@ export const startTrackCWalk = (
       'Every selected item must be Los-passed, unblocked, pending property walk, and not accepted.',
     );
   }
+  const reviewedSelections: TrackCWalkSelectionReview[] = [];
+  for (const target of selectedTargets) {
+    const projection = projectTrackCWork(state, target);
+    if (!projection?.responsibleCrewId) {
+      return error(
+        'not-walk-candidate',
+        'Every selected item must retain one confirmed responsible crew.',
+      );
+    }
+    reviewedSelections.push({
+      target,
+      responsibleCrewId: projection.responsibleCrewId,
+      release: projection.release,
+      access: projection.access,
+      sourceConfidence: projection.sourceConfidence,
+      assignmentConflict: projection.assignmentConflict,
+      inspection: projection.inspection,
+      property: projection.property,
+      callbackOpen: projection.callbackOpen,
+      confirmedEventCount: projection.confirmedEventCount,
+    });
+  }
   const activeWalk: TrackCWalkSession = {
     id: input.walkSessionId,
     propertyContact: input.propertyContact.trim(),
     startedAt: input.startedAt,
     startedBy: input.startedBy,
     selectedTargets,
+    reviewedSelections,
     status: 'active',
   };
   return { ok: true, value: { ...state, activeWalk } };
@@ -526,6 +642,21 @@ export const endTrackCWalk = (
 ): TrackCResult<TrackCState> => {
   const activeWalk = state.activeWalk;
   if (!activeWalk) return error('no-active-walk', 'There is no active walk to end.');
+  const selectedKeys = activeWalk.selectedTargets.map(trackCWorkKey);
+  const outcomeKeys = input.outcomes.map((outcome) =>
+    trackCWorkKey(outcome.target)
+  );
+  const uniqueOutcomeKeys = new Set(outcomeKeys);
+  if (
+    input.outcomes.length !== selectedKeys.length ||
+    uniqueOutcomeKeys.size !== outcomeKeys.length ||
+    outcomeKeys.some((key) => !selectedKeys.includes(key))
+  ) {
+    return error(
+      'incomplete-walk',
+      'Record exactly one outcome for every selected section and trade.',
+    );
+  }
   const outcomeByKey = new Map(
     input.outcomes.map((outcome) => [trackCWorkKey(outcome.target), outcome]),
   );
@@ -540,11 +671,53 @@ export const endTrackCWalk = (
     );
   }
 
+  const reviewedByKey = new Map(
+    activeWalk.reviewedSelections.map((review) => [
+      trackCWorkKey(review.target),
+      review,
+    ]),
+  );
+  const currentByKey = new Map<string, TrackCWorkProjection>();
+  for (const target of activeWalk.selectedTargets) {
+    const key = trackCWorkKey(target);
+    const reviewed = reviewedByKey.get(key);
+    const current = projectTrackCWork(state, target);
+    const stillWalkEligible =
+      current?.release === 'released' &&
+      current.access === 'clear' &&
+      current.sourceConfidence === 'confirmed' &&
+      !current.assignmentConflict &&
+      Boolean(current.responsibleCrewId) &&
+      current.inspection === 'los-passed' &&
+      current.property === 'pending-property-walk' &&
+      !current.callbackOpen;
+    const unchangedSinceStart =
+      reviewed &&
+      current &&
+      reviewed.responsibleCrewId === current.responsibleCrewId &&
+      reviewed.release === current.release &&
+      reviewed.access === current.access &&
+      reviewed.sourceConfidence === current.sourceConfidence &&
+      reviewed.assignmentConflict === current.assignmentConflict &&
+      reviewed.inspection === current.inspection &&
+      reviewed.property === current.property &&
+      reviewed.callbackOpen === current.callbackOpen &&
+      reviewed.confirmedEventCount === current.confirmedEventCount;
+
+    if (!stillWalkEligible || !unchangedSinceStart) {
+      return error(
+        'not-walk-candidate',
+        'Walk review is stale because callback, rework, access, assignment, release, source, inspection, or acceptance state changed. Review the walk again.',
+      );
+    }
+    currentByKey.set(key, current);
+  }
+
   const outcomes = activeWalk.selectedTargets.map(
     (target) => outcomeByKey.get(trackCWorkKey(target)) as TrackCWalkOutcomeRecord,
   );
   const events = outcomes.map((outcome, index) => {
-    const projection = projectTrackCWork(state, outcome.target);
+    const projection = currentByKey.get(trackCWorkKey(outcome.target));
     const crewId = projection?.responsibleCrewId;
     const common = {
       id: `${input.eventIdPrefix}-${index + 1}`,

@@ -58,6 +58,12 @@ may enter Today’s Task. Draft, rejected, wrong-date, and wrong-property batche
 Confirmed release entries that conflict with the roster fail loudly rather than inventing
 Units, sections, or trade availability.
 
+An active Today’s Task is projected from exactly `DaySession.releaseBatchIds`. The
+projection rejects the entire selection when any selected ID is missing, duplicated,
+unconfirmed, on the wrong property/date, duplicated in the supplied release records, or
+does not match a previously recorded task. One valid release cannot hide one invalid
+selected release.
+
 Keys/access remain separate from release authorization.
 
 ## Day Session
@@ -78,21 +84,35 @@ The deterministic 10-step flow is:
 
 1. Confirm property.
 2. Confirm date.
-3. Confirm property contact.
+3. Confirm property contact, exact working-hours wording, and exact walkthrough-schedule
+   wording.
 4. Confirm Start Day key/access observation.
-5. Confirm today’s released work.
+5. Confirm today’s released work and record an assignment-evidence/review note. This
+   documents Los’s review; it does not edit or create an assignment.
 6. Confirm active Paint crews.
 7. Confirm active Clean crews.
 8. Add an optional morning note.
-9. Review.
+9. Review the exact wording and the derived goal.
 10. Explicitly confirm Start Day.
 
 No release means Start Day cannot silently create Today’s Task. A missing or partial key
 observation produces an access warning but does not rewrite release authorization.
 
+The Start Day review persists and displays:
+
+- the assignment-evidence/review note
+- exact working-hours wording
+- exact walkthrough-schedule wording
+- a derived goal with scope `today-confirmed-release`, metric `sections`, milestone
+  `los-inspected`, and a target equal to the physical-section count in the exact selected
+  release set
+
+Start Day rejects a manually supplied or stale goal whose target does not match that exact
+Today’s Task.
+
 ### End Day
 
-End Day produces a deterministic section-based summary for:
+End Day produces a deterministic **section-trade-grain** operational summary for:
 
 - released today
 - assigned
@@ -104,10 +124,16 @@ End Day produces a deterministic section-based summary for:
 - ready to walk
 - property accepted
 - waiting
-- notes/photos
 
-Unresolved released sections remain unresolved. Los can close his personal Day Session after
-an explicit review, with a clear unresolved-work warning.
+Every operational count above represents a released `Unit + physical section + trade`
+record. It is not a Unit count and is not the physical-section progress metric. Unresolved
+identifiers and warning copy use the same section-trade grain.
+
+Notes/photos are labeled separately as an **event count**. Their count includes only events
+whose `propertyId` and `daySessionId` both match the Day Session being closed.
+
+Unresolved released section-trades remain unresolved. Los can close his personal Day Session
+after an explicit review, with a clear unresolved-work warning.
 
 `keyStatus` preserves the Start Day key/access observation. End Day uses the separate optional
 `endKeyStatus`; closing or reopening a Day Session never overwrites the opening observation.
@@ -144,13 +170,17 @@ The synthetic 40-Unit release contains 112 physical sections. Its preview report
 
 `48 of 112 released sections inspected by Los` (`43%`)
 
+This physical-section progress metric intentionally differs from End Day’s operational
+section-trade counts. A physical section with both Paint and Clean remains one progress
+section but contributes two records to an End Day section-trade count.
+
 Home filters are exact:
 
 - **Working** — a released section with at least one trade in `working`
 - **Waiting** — a released section with at least one explicit waiting reason
 - **Callbacks** — a released section with `callback-required` or `reinspection-pending`
 - **Ready to walk** — no waiting/open callback, every released trade passed Los’s inspection,
-  and the property-walk state is neither accepted nor correction-requested
+  and every released trade has the explicit property-walk state `pending`
 
 Zero records produce a real empty state. No filter falls back to roster Units.
 
@@ -226,4 +256,5 @@ node --experimental-strip-types --import ./tests/register-ts-loader.mjs \
 
 The browser gate covers 320/390/430px iPhone viewports, iPad landscape, Mac, no horizontal
 page overflow, 44px critical targets, 16px text inputs, Start Day, End Day, exact queues,
-no-release behavior, date rollover, and synthetic render/interaction timing.
+no-release behavior, date rollover, synthetic render/interaction timing, and computed
+actual-style Light-theme contrast of at least 4.5:1 for the primary CTA and warning copy.

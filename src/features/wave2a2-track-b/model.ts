@@ -10,6 +10,7 @@ import type {
   PropertyRoster,
   StartDayReview,
   TodayTask,
+  TodayTaskGoal,
   TodayTaskProgress,
   TodayTaskQueue,
   TodayTaskQueueId,
@@ -30,18 +31,23 @@ export const START_DAY_STEPS = [
   'Start Day',
 ] as const;
 
-export const END_DAY_SUMMARY_LABELS: Readonly<Record<keyof Omit<EndDaySummary, 'unresolvedSectionIds'>, string>> = {
-  assigned: 'Assigned',
-  callbacksOpen: 'Callbacks open',
-  callbacksResolved: 'Callbacks resolved',
-  crewReportedComplete: 'Crew reported complete',
-  inspected: 'Inspected',
-  notesAndPhotos: 'Notes/photos',
-  propertyAccepted: 'Property accepted',
-  readyToWalk: 'Ready to walk',
-  releasedToday: 'Released today',
-  waiting: 'Waiting',
-  working: 'Working',
+type EndDaySummaryCountKey = keyof Omit<
+  EndDaySummary,
+  'eventCountGrain' | 'operationalCountGrain' | 'unresolvedSectionTradeIds'
+>;
+
+export const END_DAY_SUMMARY_LABELS: Readonly<Record<EndDaySummaryCountKey, string>> = {
+  assigned: 'Assigned · section-trades',
+  callbacksOpen: 'Callbacks open · section-trades',
+  callbacksResolved: 'Callbacks resolved · section-trades',
+  crewReportedComplete: 'Crew reported complete · section-trades',
+  inspected: 'Inspected · section-trades',
+  notePhotoEvents: 'Notes/photos · events',
+  propertyAccepted: 'Property accepted · section-trades',
+  readyToWalk: 'Ready to walk · section-trades',
+  releasedToday: 'Released today · section-trades',
+  waiting: 'Waiting · section-trades',
+  working: 'Working · section-trades',
 };
 
 const ACTIVE_DAY_STATUSES = new Set<DaySession['status']>(['active', 'ending', 'reopened']);
@@ -73,6 +79,26 @@ export interface CloseDayResult {
 const unique = <T,>(values: readonly T[]) => [...new Set(values)];
 
 const stableSectionKey = (unitId: string, sectionId: string) => `${unitId}::${sectionId}`;
+const stableSectionTradeKey = (unitId: string, sectionId: string, trade: string) => (
+  `${unitId}::${sectionId}::${trade}`
+);
+const taskSectionKey = (section: TodayTaskSection) => (
+  `${stableSectionKey(section.unitId, section.sectionId)}::${section.tradeStates
+    .map((state) => state.trade)
+    .sort()
+    .join(',')}`
+);
+const exactIdsMatch = (left: readonly string[], right: readonly string[]) => (
+  left.length === right.length
+  && left.every((id) => right.includes(id))
+  && right.every((id) => left.includes(id))
+);
+const exactStringMultisetMatch = (left: readonly string[], right: readonly string[]) => {
+  if (left.length !== right.length) return false;
+  const sortedLeft = [...left].sort();
+  const sortedRight = [...right].sort();
+  return sortedLeft.every((value, index) => value === sortedRight[index]);
+};
 
 const wasInspected = (state: LosInspectionState) => state !== 'pending';
 
@@ -89,9 +115,62 @@ const hasOpenCallback = (section: TodayTaskSection) => section.tradeStates.some(
   (state) => state.inspection === 'callback-required' || state.inspection === 'reinspection-pending',
 );
 
-const hasResolvedCallback = (section: TodayTaskSection) => section.tradeStates.some(
-  (state) => state.inspection === 'passed-after-callback',
-);
+interface SelectedReleaseResult {
+  errors: readonly string[];
+  releases: readonly DailyReleaseBatch[];
+}
+
+export interface SessionTaskProjectionResult {
+  errors: readonly string[];
+  task?: TodayTask;
+}
+
+export function validateSelectedReleaseSet(
+  releaseBatchIds: readonly string[],
+  releases: readonly DailyReleaseBatch[],
+  propertyId: string,
+  date: string,
+): SelectedReleaseResult {
+  const errors: string[] = [];
+  const selected: DailyReleaseBatch[] = [];
+  if (releaseBatchIds.length === 0) {
+    return { errors: ['At least one confirmed daily release batch is required.'], releases: [] };
+  }
+
+  const duplicateIds = unique(
+    releaseBatchIds.filter((id, index) => releaseBatchIds.indexOf(id) !== index),
+  );
+  duplicateIds.forEach((id) => errors.push(`Selected release batch ID ${id} is duplicated.`));
+
+  for (const id of unique(releaseBatchIds)) {
+    const matches = releases.filter((release) => release.id === id);
+    if (matches.length === 0) {
+      errors.push(`Selected release batch ID ${id} is missing.`);
+      continue;
+    }
+    if (matches.length > 1) {
+      errors.push(`Selected release batch ID ${id} resolves to multiple release records.`);
+      continue;
+    }
+    const release = matches[0];
+    selected.push(release);
+    if (
+      release.confirmationStatus !== 'confirmed'
+      || !release.confirmedAt
+      || !release.confirmedBy
+    ) {
+      errors.push(`Release batch ${id} is not explicitly confirmed.`);
+    }
+    if (release.propertyId !== propertyId) {
+      errors.push(`Release batch ${id} does not match the selected property.`);
+    }
+    if (release.date !== date) {
+      errors.push(`Release batch ${id} does not match the selected date.`);
+    }
+  }
+
+  return { errors, releases: selected };
+}
 
 export function validateReleaseAgainstRoster(
   roster: PropertyRoster,
@@ -211,6 +290,106 @@ export function createTodayTask(
   };
 }
 
+export function createTodayTaskGoal(task: TodayTask): TodayTaskGoal {
+  return {
+    metric: 'sections',
+    milestone: 'los-inspected',
+    scope: 'today-confirmed-release',
+    target: task.sections.length,
+  };
+}
+
+export function validateTodayTaskGoal(
+  goal: TodayTaskGoal,
+  task: TodayTask,
+): readonly string[] {
+  const errors: string[] = [];
+  if (goal.scope !== 'today-confirmed-release') {
+    errors.push('Today’s Task goal scope must be today-confirmed-release.');
+  }
+  if (goal.metric !== 'sections') {
+    errors.push('Today’s Task goal metric must be sections.');
+  }
+  if (goal.milestone !== 'los-inspected') {
+    errors.push('Today’s Task goal milestone must be los-inspected.');
+  }
+  if (goal.target !== task.sections.length) {
+    errors.push(
+      `Today’s Task goal target ${goal.target} does not match the exact selected release target ${task.sections.length}.`,
+    );
+  }
+  return errors;
+}
+
+export function projectTodayTaskForSession(
+  roster: PropertyRoster,
+  releases: readonly DailyReleaseBatch[],
+  session: DaySession,
+  recordedTask?: TodayTask | null,
+): SessionTaskProjectionResult {
+  const selected = validateSelectedReleaseSet(
+    session.releaseBatchIds,
+    releases,
+    session.propertyId,
+    session.date,
+  );
+  const errors = [...selected.errors];
+  if (roster.propertyId !== session.propertyId) {
+    errors.push('Day Session property does not match the property roster.');
+  }
+  if (errors.length > 0) return { errors };
+
+  let authorizedTask: TodayTask | null = null;
+  try {
+    authorizedTask = createTodayTask(
+      roster,
+      selected.releases,
+      session.date,
+      session.daySessionId,
+    );
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : 'Selected release validation failed.');
+    return { errors };
+  }
+  if (!authorizedTask) {
+    return { errors: ['The exact selected release IDs did not produce Today’s Task.'] };
+  }
+  if (!exactIdsMatch(authorizedTask.releaseBatchIds, session.releaseBatchIds)) {
+    errors.push('Today’s Task release IDs do not exactly match DaySession.releaseBatchIds.');
+  }
+  errors.push(...validateTodayTaskGoal(session.goal, authorizedTask));
+
+  if (recordedTask) {
+    if (!exactIdsMatch(recordedTask.releaseBatchIds, session.releaseBatchIds)) {
+      errors.push('Recorded Today’s Task release IDs do not exactly match DaySession.releaseBatchIds.');
+    }
+    if (recordedTask.daySessionId !== session.daySessionId) {
+      errors.push('Recorded Today’s Task does not match the active Day Session.');
+    }
+    if (
+      recordedTask.propertyId !== authorizedTask.propertyId
+      || recordedTask.date !== authorizedTask.date
+      || recordedTask.sections.length !== authorizedTask.sections.length
+    ) {
+      errors.push('Recorded Today’s Task does not match the exact selected release scope.');
+    } else {
+      const authorizedKeys = authorizedTask.sections.map(taskSectionKey);
+      const recordedKeys = recordedTask.sections.map(taskSectionKey);
+      if (!exactStringMultisetMatch(recordedKeys, authorizedKeys)) {
+        errors.push('Recorded Today’s Task section-trade scope does not exactly match the selected release.');
+      }
+    }
+  }
+
+  if (errors.length > 0) return { errors };
+  return {
+    errors,
+    task: recordedTask
+      ? { ...recordedTask }
+      : authorizedTask,
+  };
+}
+
 export function calculateTodayTaskProgress(task: TodayTask | null): TodayTaskProgress {
   const target = task?.sections.length ?? 0;
   const actual = task?.sections.filter((section) => (
@@ -250,8 +429,7 @@ export function selectTodayTaskQueue(
       && !hasOpenCallback(section)
       && everyTrade(section, (state) => (
         passedInspection(state.inspection)
-        && state.propertyWalk !== 'accepted'
-        && state.propertyWalk !== 'correction-requested'
+        && state.propertyWalk === 'pending'
       ))
     );
   });
@@ -291,6 +469,7 @@ export function createPersonalDayEvent(input: Omit<DaySessionEvent, 'personalOff
 export function startDaySession(
   review: StartDayReview,
   releases: readonly DailyReleaseBatch[],
+  roster: PropertyRoster,
   existingSessions: readonly DaySession[],
   recordedAt: string,
 ): StartDayResult {
@@ -299,24 +478,45 @@ export function startDaySession(
   if (!review.propertyId.trim()) errors.push('Property is required.');
   if (!review.date.trim()) errors.push('Date is required.');
   if (!review.propertyContact.trim()) errors.push('Property contact is required.');
+  if (!review.workingHoursWording.trim()) errors.push('Exact working-hours wording is required.');
+  if (!review.walkthroughScheduleWording.trim()) {
+    errors.push('Walkthrough schedule wording is required.');
+  }
+  if (!review.assignmentEvidenceReviewNote.trim()) {
+    errors.push('Assignment evidence / review note is required.');
+  }
   if (!review.crewReviewConfirmed.Paint) errors.push('Paint crew review is required.');
   if (!review.crewReviewConfirmed.Clean) errors.push('Clean crew review is required.');
   if (!review.explicitConfirmation) errors.push('Explicit Start Day confirmation is required.');
 
-  const selectedReleases = releases.filter((release) => review.releaseBatchIds.includes(release.id));
-  if (selectedReleases.length === 0) {
-    errors.push('At least one confirmed daily release batch is required.');
+  const selected = validateSelectedReleaseSet(
+    review.releaseBatchIds,
+    releases,
+    review.propertyId,
+    review.date,
+  );
+  errors.push(...selected.errors);
+  if (roster.propertyId !== review.propertyId) {
+    errors.push('Start Day property does not match the property roster.');
   }
-  for (const release of selectedReleases) {
-    if (
-      release.confirmationStatus !== 'confirmed'
-      || !release.confirmedAt
-      || !release.confirmedBy
-    ) {
-      errors.push(`Release batch ${release.id} is not explicitly confirmed.`);
-    }
-    if (release.propertyId !== review.propertyId || release.date !== review.date) {
-      errors.push(`Release batch ${release.id} does not match the selected property and date.`);
+  if (selected.errors.length === 0 && roster.propertyId === review.propertyId) {
+    try {
+      const task = createTodayTask(
+        roster,
+        selected.releases,
+        review.date,
+        review.daySessionId,
+      );
+      if (!task) {
+        errors.push('The exact selected release IDs did not produce Today’s Task.');
+      } else {
+        if (!exactIdsMatch(task.releaseBatchIds, review.releaseBatchIds)) {
+          errors.push('Today’s Task release IDs do not exactly match the selected release IDs.');
+        }
+        errors.push(...validateTodayTaskGoal(review.goal, task));
+      }
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : 'Selected release validation failed.');
     }
   }
 
@@ -347,16 +547,20 @@ export function startDaySession(
     accountId: review.accountId,
     activeCrewIds: unique([...activeCrewIdsByTrade.Paint, ...activeCrewIdsByTrade.Clean]),
     activeCrewIdsByTrade,
+    assignmentEvidenceReviewNote: review.assignmentEvidenceReviewNote.trim(),
     date: review.date,
     daySessionId: review.daySessionId,
+    goal: { ...review.goal },
     keyStatus: review.keyStatus,
     morningNote: review.morningNote?.trim() || undefined,
     propertyContact: review.propertyContact.trim(),
     propertyId: review.propertyId,
-    releaseBatchIds: unique(review.releaseBatchIds),
+    releaseBatchIds: [...review.releaseBatchIds],
     startedAt: recordedAt,
     startedBy: review.startedBy,
     status: 'active',
+    walkthroughScheduleWording: review.walkthroughScheduleWording.trim(),
+    workingHoursWording: review.workingHoursWording.trim(),
   };
 
   return {
@@ -390,40 +594,54 @@ export function markDaySessionEnding(session: DaySession): DaySession {
 export function buildEndDaySummary(
   task: TodayTask | null,
   events: readonly DaySessionEvent[],
+  session: Pick<DaySession, 'daySessionId' | 'propertyId'>,
 ): EndDaySummary {
   const sections = task?.sections ?? [];
-  const notesAndPhotos = events.filter((event) => (
-    event.eventType === 'note-saved' || event.eventType === 'photo-saved'
+  const sectionTrades = sections.flatMap((section) => section.tradeStates.map((state) => ({
+    id: stableSectionTradeKey(section.unitId, section.sectionId, state.trade),
+    section,
+    state,
+  })));
+  const notePhotoEvents = events.filter((event) => (
+    event.propertyId === session.propertyId
+    && event.daySessionId === session.daySessionId
+    && (event.eventType === 'note-saved' || event.eventType === 'photo-saved')
   )).length;
-  const unresolvedSectionIds = sections
-    .filter((section) => !everyTrade(section, (state) => state.propertyWalk === 'accepted'))
-    .map((section) => stableSectionKey(section.unitId, section.sectionId));
+  const unresolvedSectionTradeIds = sectionTrades
+    .filter(({ state }) => state.propertyWalk !== 'accepted')
+    .map(({ id }) => id);
 
   return {
-    assigned: sections.filter((section) => everyTrade(
-      section,
-      (state) => Boolean(state.assignedCrewId) && state.execution !== 'unassigned',
+    assigned: sectionTrades.filter(({ state }) => (
+      Boolean(state.assignedCrewId) && state.execution !== 'unassigned'
     )).length,
-    callbacksOpen: sections.filter(hasOpenCallback).length,
-    callbacksResolved: sections.filter(hasResolvedCallback).length,
-    crewReportedComplete: sections.filter((section) => everyTrade(
-      section,
-      (state) => state.execution === 'crew-reported-complete',
+    callbacksOpen: sectionTrades.filter(({ state }) => (
+      state.inspection === 'callback-required' || state.inspection === 'reinspection-pending'
     )).length,
-    inspected: sections.filter((section) => everyTrade(
-      section,
-      (state) => wasInspected(state.inspection),
+    callbacksResolved: sectionTrades.filter(
+      ({ state }) => state.inspection === 'passed-after-callback',
+    ).length,
+    crewReportedComplete: sectionTrades.filter(
+      ({ state }) => state.execution === 'crew-reported-complete',
+    ).length,
+    eventCountGrain: 'events',
+    inspected: sectionTrades.filter(({ state }) => wasInspected(state.inspection)).length,
+    notePhotoEvents,
+    operationalCountGrain: 'section-trades',
+    propertyAccepted: sectionTrades.filter(
+      ({ state }) => state.propertyWalk === 'accepted',
+    ).length,
+    readyToWalk: sectionTrades.filter(({ section, state }) => (
+      section.waitingReasons.length === 0
+      && state.inspection !== 'callback-required'
+      && state.inspection !== 'reinspection-pending'
+      && passedInspection(state.inspection)
+      && state.propertyWalk === 'pending'
     )).length,
-    notesAndPhotos,
-    propertyAccepted: sections.filter((section) => everyTrade(
-      section,
-      (state) => state.propertyWalk === 'accepted',
-    )).length,
-    readyToWalk: selectTodayTaskQueue(task, 'ready-to-walk').records.length,
-    releasedToday: sections.length,
-    unresolvedSectionIds,
-    waiting: selectTodayTaskQueue(task, 'waiting').records.length,
-    working: selectTodayTaskQueue(task, 'working').records.length,
+    releasedToday: sectionTrades.length,
+    unresolvedSectionTradeIds,
+    waiting: sectionTrades.filter(({ section }) => section.waitingReasons.length > 0).length,
+    working: sectionTrades.filter(({ state }) => state.execution === 'working').length,
   };
 }
 
@@ -446,9 +664,9 @@ export function closeDaySession(
   } else if (review.endKeyStatus !== 'yes') {
     warnings.push('Keys or access remain unresolved at End Day.');
   }
-  if (summary.unresolvedSectionIds.length > 0) {
+  if (summary.unresolvedSectionTradeIds.length > 0) {
     warnings.push(
-      `${summary.unresolvedSectionIds.length} released ${summary.unresolvedSectionIds.length === 1 ? 'section remains' : 'sections remain'} unresolved.`,
+      `${summary.unresolvedSectionTradeIds.length} released ${summary.unresolvedSectionTradeIds.length === 1 ? 'section-trade remains' : 'section-trades remain'} unresolved.`,
     );
   }
   if (errors.length > 0) return { errors, warnings };
@@ -476,8 +694,8 @@ export function closeDaySession(
       recordedBy,
       sourceId: session.daySessionId,
       sourceType: 'day-session',
-      summary: summary.unresolvedSectionIds.length > 0
-        ? `Los closed the personal Day Session with ${summary.unresolvedSectionIds.length} unresolved released sections.`
+      summary: summary.unresolvedSectionTradeIds.length > 0
+        ? `Los closed the personal Day Session with ${summary.unresolvedSectionTradeIds.length} unresolved released section-trades.`
         : 'Los closed the personal Day Session after review.',
     }),
     errors,

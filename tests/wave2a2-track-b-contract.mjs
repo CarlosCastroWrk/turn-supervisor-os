@@ -10,12 +10,15 @@ import {
   closeDaySession,
   createPersonalDayEvent,
   createTodayTask,
+  createTodayTaskGoal,
   getDayRecoveryDecision,
   getTodayTaskQueueCounts,
   markDaySessionEnding,
+  projectTodayTaskForSession,
   reopenClosedDaySession,
   selectTodayTaskQueue,
   startDaySession,
+  validateSelectedReleaseSet,
   validateReleaseAgainstRoster,
 } from '../src/features/wave2a2-track-b/model.ts';
 import {
@@ -32,20 +35,28 @@ import {
 const featureRoot = new URL('../src/features/wave2a2-track-b/', import.meta.url);
 const readFeature = (name) => readFile(new URL(name, featureRoot), 'utf8');
 
-const createStartReview = (release, overrides = {}) => ({
-  accountId: SYNTHETIC_ACCOUNT_ID,
-  activeCrewIdsByTrade: { Clean: ['clean-green'], Paint: ['paint-blue'] },
-  crewReviewConfirmed: { Clean: true, Paint: true },
-  date: SYNTHETIC_DATE,
-  daySessionId: 'day-session-contract',
-  explicitConfirmation: true,
-  keyStatus: 'yes',
-  propertyContact: release.propertyContact,
-  propertyId: SYNTHETIC_PROPERTY_ID,
-  releaseBatchIds: [release.id],
-  startedBy: 'Los',
-  ...overrides,
-});
+const createStartReview = (release, overrides = {}, roster = createSyntheticRoster()) => {
+  const task = createTodayTask(roster, [release], SYNTHETIC_DATE, 'day-session-contract');
+  assert.ok(task);
+  return {
+    accountId: SYNTHETIC_ACCOUNT_ID,
+    activeCrewIdsByTrade: { Clean: ['clean-green'], Paint: ['paint-blue'] },
+    assignmentEvidenceReviewNote: 'Reviewed exact synthetic assignment evidence.',
+    crewReviewConfirmed: { Clean: true, Paint: true },
+    date: SYNTHETIC_DATE,
+    daySessionId: 'day-session-contract',
+    explicitConfirmation: true,
+    goal: createTodayTaskGoal(task),
+    keyStatus: 'yes',
+    propertyContact: release.propertyContact,
+    propertyId: SYNTHETIC_PROPERTY_ID,
+    releaseBatchIds: [release.id],
+    startedBy: 'Los',
+    walkthroughScheduleWording: 'Daily walkthrough at 12:00 PM with the synthetic contact.',
+    workingHoursWording: 'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
+    ...overrides,
+  };
+};
 
 test('PropertyRoster stays distinct from a confirmed 40-Unit DailyReleaseBatch', () => {
   const roster = createSyntheticRoster(500);
@@ -103,6 +114,149 @@ test('an incompatible confirmed release fails instead of inventing roster struct
   );
 });
 
+test('Start Day rejects every invalid selected release ID and validates the exact goal target', () => {
+  const roster = createSyntheticRoster();
+  const valid = createSyntheticRelease(roster);
+  const invalidReleases = [
+    {
+      ...valid,
+      confirmedAt: undefined,
+      confirmedBy: undefined,
+      confirmationStatus: 'draft',
+      id: 'release-draft',
+    },
+    {
+      ...valid,
+      id: 'release-wrong-property',
+      propertyId: 'another-property',
+    },
+    {
+      ...valid,
+      date: '2026-08-04',
+      id: 'release-wrong-date',
+    },
+  ];
+
+  for (const release of invalidReleases) {
+    const result = startDaySession(
+      createStartReview(valid, { releaseBatchIds: [valid.id, release.id] }),
+      [valid, release],
+      roster,
+      [],
+      '2026-08-03T12:15:00.000Z',
+    );
+    assert.equal(result.session, undefined, `${release.id} must reject the entire selected set`);
+  }
+
+  const missing = startDaySession(
+    createStartReview(valid, { releaseBatchIds: [valid.id, 'release-missing'] }),
+    [valid],
+    roster,
+    [],
+    '2026-08-03T12:15:00.000Z',
+  );
+  assert.equal(missing.session, undefined);
+  assert.match(missing.errors.join(' '), /release-missing is missing/u);
+
+  const duplicate = startDaySession(
+    createStartReview(valid, { releaseBatchIds: [valid.id, valid.id] }),
+    [valid],
+    roster,
+    [],
+    '2026-08-03T12:15:00.000Z',
+  );
+  assert.equal(duplicate.session, undefined);
+  assert.match(duplicate.errors.join(' '), /is duplicated/u);
+
+  const duplicateSource = validateSelectedReleaseSet(
+    [valid.id],
+    [valid, { ...valid }],
+    SYNTHETIC_PROPERTY_ID,
+    SYNTHETIC_DATE,
+  );
+  assert.match(duplicateSource.errors.join(' '), /multiple release records/u);
+
+  const wrongGoal = startDaySession(
+    createStartReview(valid, {
+      goal: {
+        metric: 'sections',
+        milestone: 'los-inspected',
+        scope: 'today-confirmed-release',
+        target: 111,
+      },
+    }),
+    [valid],
+    roster,
+    [],
+    '2026-08-03T12:15:00.000Z',
+  );
+  assert.equal(wrongGoal.session, undefined);
+  assert.match(wrongGoal.errors.join(' '), /target 111.*target 112/u);
+});
+
+test('active Today’s Task uses exactly DaySession.releaseBatchIds', () => {
+  const roster = createSyntheticRoster();
+  const selected = createSyntheticRelease(roster);
+  const extra = {
+    ...createSyntheticRelease(roster, 41),
+    id: 'release-extra',
+  };
+  const active = createSyntheticActiveSession(selected, roster).session;
+  assert.ok(active);
+
+  const projection = projectTodayTaskForSession(roster, [selected, extra], active);
+  assert.deepEqual(projection.errors, []);
+  assert.ok(projection.task);
+  assert.deepEqual(projection.task.releaseBatchIds, [selected.id]);
+  assert.equal(projection.task.sections.length, 112);
+
+  const recordedMismatch = {
+    ...createSyntheticTodayTask(roster, selected, active.daySessionId),
+    releaseBatchIds: [extra.id],
+  };
+  const rejectedRecordedTask = projectTodayTaskForSession(
+    roster,
+    [selected, extra],
+    active,
+    recordedMismatch,
+  );
+  assert.equal(rejectedRecordedTask.task, undefined);
+  assert.match(rejectedRecordedTask.errors.join(' '), /do not exactly match/u);
+
+  const wrongSessionTask = {
+    ...createSyntheticTodayTask(roster, selected, 'another-day-session'),
+  };
+  const rejectedWrongSessionTask = projectTodayTaskForSession(
+    roster,
+    [selected],
+    active,
+    wrongSessionTask,
+  );
+  assert.equal(rejectedWrongSessionTask.task, undefined);
+  assert.match(rejectedWrongSessionTask.errors.join(' '), /active Day Session/u);
+
+  const duplicateScopeTask = structuredClone(
+    createSyntheticTodayTask(roster, selected, active.daySessionId),
+  );
+  duplicateScopeTask.sections[1] = structuredClone(duplicateScopeTask.sections[0]);
+  const rejectedDuplicateScope = projectTodayTaskForSession(
+    roster,
+    [selected],
+    active,
+    duplicateScopeTask,
+  );
+  assert.equal(rejectedDuplicateScope.task, undefined);
+  assert.match(rejectedDuplicateScope.errors.join(' '), /scope does not exactly match/u);
+
+  const missingSelectedId = projectTodayTaskForSession(
+    roster,
+    [selected],
+    { ...active, releaseBatchIds: [selected.id, 'release-missing'] },
+  );
+  assert.equal(missingSelectedId.task, undefined);
+  assert.match(missingSelectedId.errors.join(' '), /release-missing is missing/u);
+});
+
 test('progress names one section metric, one Los-inspected milestone, actual, and target', () => {
   const task = createSyntheticTodayTask();
   const progress = calculateTodayTaskProgress(task);
@@ -137,6 +291,27 @@ test('Home queue filters return only exact released section records', () => {
     ))));
   }
 
+  const firstReady = selectTodayTaskQueue(task, 'ready-to-walk').records[0];
+  assert.ok(firstReady);
+  const notExplicitlyPending = {
+    ...task,
+    sections: task.sections.map((section) => (
+      section.unitId === firstReady.unitId && section.sectionId === firstReady.sectionId
+        ? {
+            ...section,
+            tradeStates: section.tradeStates.map((state, index) => (
+              index === 0 ? { ...state, propertyWalk: 'not-ready' } : state
+            )),
+          }
+        : section
+    )),
+  };
+  assert.equal(
+    selectTodayTaskQueue(notExplicitlyPending, 'ready-to-walk').records.length,
+    33,
+    'Ready to walk requires every released section-trade to be explicitly pending',
+  );
+
   const untouched = createTodayTask(
     createSyntheticRoster(),
     [createSyntheticRelease()],
@@ -148,7 +323,8 @@ test('Home queue filters return only exact released section records', () => {
 });
 
 test('Start Day uses ten explicit steps, requires confirmation, and treats keys as access only', () => {
-  const release = createSyntheticRelease();
+  const roster = createSyntheticRoster();
+  const release = createSyntheticRelease(roster);
   assert.deepEqual(START_DAY_STEPS, [
     'Confirm property',
     'Confirm date',
@@ -165,6 +341,7 @@ test('Start Day uses ten explicit steps, requires confirmation, and treats keys 
   const missingConfirmation = startDaySession(
     createStartReview(release, { explicitConfirmation: false }),
     [release],
+    roster,
     [],
     '2026-08-03T12:15:00.000Z',
   );
@@ -173,22 +350,43 @@ test('Start Day uses ten explicit steps, requires confirmation, and treats keys 
   const noKeys = startDaySession(
     createStartReview(release, { keyStatus: 'no' }),
     [release],
+    roster,
     [],
     '2026-08-03T12:15:00.000Z',
   );
   assert.ok(noKeys.session, 'confirmed release remains authorized even when access is unresolved');
   assert.equal(noKeys.session.keyStatus, 'no');
+  assert.equal(
+    noKeys.session.assignmentEvidenceReviewNote,
+    'Reviewed exact synthetic assignment evidence.',
+  );
+  assert.equal(
+    noKeys.session.workingHoursWording,
+    'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
+  );
+  assert.equal(
+    noKeys.session.walkthroughScheduleWording,
+    'Daily walkthrough at 12:00 PM with the synthetic contact.',
+  );
+  assert.deepEqual(noKeys.session.goal, {
+    metric: 'sections',
+    milestone: 'los-inspected',
+    scope: 'today-confirmed-release',
+    target: 112,
+  });
   assert.match(noKeys.warnings.join(' '), /No keys are recorded/u);
 });
 
 test('one active Day Session is allowed per property/account', () => {
-  const release = createSyntheticRelease();
-  const active = createSyntheticActiveSession(release).session;
+  const roster = createSyntheticRoster();
+  const release = createSyntheticRelease(roster);
+  const active = createSyntheticActiveSession(release, roster).session;
   assert.ok(active);
 
   const conflict = startDaySession(
     createStartReview(release),
     [release],
+    roster,
     [active],
     '2026-08-03T12:20:00.000Z',
   );
@@ -236,25 +434,58 @@ test('End Day summarizes deterministically and preserves unresolved work', () =>
   const task = createSyntheticTodayTask();
   const active = createSyntheticActiveSession().session;
   assert.ok(active);
-  const events = createSyntheticEvents(active);
+  const linkedEvents = createSyntheticEvents(active);
+  const events = [
+    ...linkedEvents,
+    {
+      ...linkedEvents[0],
+      daySessionId: 'another-day-session',
+      eventId: 'wrong-session-note',
+    },
+    {
+      ...linkedEvents[1],
+      eventId: 'wrong-property-photo',
+      propertyId: 'another-property',
+    },
+  ];
   const taskSnapshot = structuredClone(task);
-  const summary = buildEndDaySummary(task, events);
+  const summary = buildEndDaySummary(task, events, active);
 
   assert.deepEqual(summary, {
-    assigned: 72,
-    callbacksOpen: 6,
-    callbacksResolved: 2,
-    crewReportedComplete: 48,
-    inspected: 48,
-    notesAndPhotos: 2,
-    propertyAccepted: 8,
-    readyToWalk: 34,
-    releasedToday: 112,
-    unresolvedSectionIds: summary.unresolvedSectionIds,
-    waiting: 8,
-    working: 16,
+    assigned: 144,
+    callbacksOpen: 12,
+    callbacksResolved: 4,
+    crewReportedComplete: 96,
+    eventCountGrain: 'events',
+    inspected: 96,
+    notePhotoEvents: 2,
+    operationalCountGrain: 'section-trades',
+    propertyAccepted: 16,
+    readyToWalk: 68,
+    releasedToday: 224,
+    unresolvedSectionTradeIds: summary.unresolvedSectionTradeIds,
+    waiting: 16,
+    working: 32,
   });
-  assert.equal(summary.unresolvedSectionIds.length, 104);
+  assert.equal(summary.unresolvedSectionTradeIds.length, 208);
+  assert.ok(summary.unresolvedSectionTradeIds.every((id) => /::(?:Paint|Clean)$/u.test(id)));
+
+  const pendingTradeChangedToNotReady = structuredClone(task);
+  const firstPendingSection = pendingTradeChangedToNotReady.sections.find((section) => (
+    section.tradeStates.some((state) => state.propertyWalk === 'pending')
+  ));
+  assert.ok(firstPendingSection);
+  const firstPendingTrade = firstPendingSection.tradeStates.find(
+    (state) => state.propertyWalk === 'pending',
+  );
+  assert.ok(firstPendingTrade);
+  firstPendingTrade.propertyWalk = 'not-ready';
+  const strictReadySummary = buildEndDaySummary(pendingTradeChangedToNotReady, events, active);
+  assert.equal(
+    strictReadySummary.readyToWalk,
+    67,
+    'section-trade Ready to walk counts only explicit pending property-walk states',
+  );
 
   const result = closeDaySession(
     markDaySessionEnding(active),
@@ -276,7 +507,7 @@ test('End Day summarizes deterministically and preserves unresolved work', () =>
   assert.equal(result.session.endKeyStatus, 'partial-issue');
   assert.equal(result.session.propertyCheckIn, 'Checked in with synthetic contact.');
   assert.match(result.warnings.join(' '), /Keys or access remain unresolved at End Day/u);
-  assert.match(result.warnings.join(' '), /104 released sections remain unresolved/u);
+  assert.match(result.warnings.join(' '), /208 released section-trades remain unresolved/u);
   assert.deepEqual(task, taskSnapshot, 'End Day must not convert unresolved work into completion');
 });
 
@@ -339,11 +570,12 @@ test('500-Unit roster and 40-Unit release projections remain bounded', () => {
 });
 
 test('feature source preserves integration and operational boundaries', async () => {
-  const [component, model, types, css] = await Promise.all([
+  const [component, model, types, css, previewCss] = await Promise.all([
     readFeature('DayTaskWorkspace.tsx'),
     readFeature('model.ts'),
     readFeature('types.ts'),
     readFeature('track-b.css'),
+    readFeature('preview.css'),
   ]);
   const source = [component, model, types].join('\n');
 
@@ -358,4 +590,11 @@ test('feature source preserves integration and operational boundaries', async ()
   assert.match(css, /min-height:\s*44px/u);
   assert.match(css, /overflow-x:\s*clip/u);
   assert.match(css, /@media \(max-width:\s*359px\)/u);
+  assert.match(css, /--w2a2b-cta:\s*#0969c3/u);
+  assert.match(css, /--w2a2b-warning:\s*#7a4700/u);
+  assert.equal(/--w2a2b-cta:\s*var\(/u.test(css), false);
+  assert.equal(/--w2a2b-warning:\s*var\(/u.test(css), false);
+  assert.match(css, /button\.w2a2b-primary-button\s*\{[^}]*color:\s*#ffffff/su);
+  assert.equal(/--cta\s*:/u.test(previewCss), false);
+  assert.equal(/--amber\s*:/u.test(previewCss), false);
 });

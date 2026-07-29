@@ -26,9 +26,11 @@ import {
   calculateTodayTaskProgress,
   closeDaySession,
   createTodayTask,
+  createTodayTaskGoal,
   getDayRecoveryDecision,
   getTodayTaskQueueCounts,
   markDaySessionEnding,
+  projectTodayTaskForSession,
   selectTodayTaskQueue,
   startDaySession,
 } from './model';
@@ -93,21 +95,6 @@ const isOpenDay = (session?: DaySession) => (
   || session?.status === 'ending'
   || session?.status === 'reopened'
 );
-const taskSectionKey = (section: TodayTask['sections'][number]) => (
-  `${section.unitId}::${section.sectionId}::${section.tradeStates
-    .map((state) => state.trade)
-    .sort()
-    .join(',')}`
-);
-const hasSameTaskScope = (candidate: TodayTask, authorized: TodayTask) => {
-  if (
-    candidate.date !== authorized.date
-    || candidate.propertyId !== authorized.propertyId
-    || candidate.sections.length !== authorized.sections.length
-  ) return false;
-  const authorizedKeys = new Set(authorized.sections.map(taskSectionKey));
-  return candidate.sections.every((section) => authorizedKeys.has(taskSectionKey(section)));
-};
 
 interface PageHeaderProps {
   onBack: () => void;
@@ -147,6 +134,7 @@ interface StartDayFlowProps {
   onStarted: (session: DaySession, event: DaySessionEvent) => void;
   propertyName: string;
   propertyId: string;
+  propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
   startedBy: string;
 }
@@ -163,16 +151,30 @@ export function StartDayFlow({
   onStarted,
   propertyId,
   propertyName,
+  propertyRoster,
   releases,
   startedBy,
 }: StartDayFlowProps) {
-  const confirmedReleases = releases.filter((release) => (
+  const confirmedReleases = useMemo(() => releases.filter((release) => (
     release.propertyId === propertyId
     && release.date === currentDate
     && release.confirmationStatus === 'confirmed'
     && Boolean(release.confirmedAt)
     && Boolean(release.confirmedBy)
-  ));
+  )), [currentDate, propertyId, releases]);
+  const releaseProjection = useMemo(() => {
+    try {
+      return {
+        error: '',
+        task: createTodayTask(propertyRoster, confirmedReleases, currentDate),
+      };
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Release validation failed.',
+        task: null,
+      };
+    }
+  }, [confirmedReleases, currentDate, propertyRoster]);
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<readonly string[]>([]);
   const [warnings, setWarnings] = useState<readonly string[]>([]);
@@ -182,22 +184,40 @@ export function StartDayFlow({
       Clean: crews.filter((crew) => crew.activeToday && crew.trade === 'Clean').map((crew) => crew.id),
       Paint: crews.filter((crew) => crew.activeToday && crew.trade === 'Paint').map((crew) => crew.id),
     },
+    assignmentEvidenceReviewNote: '',
     crewReviewConfirmed: { Clean: false, Paint: false },
     date: currentDate,
     daySessionId: idFactory(),
     explicitConfirmation: false,
+    goal: releaseProjection.task
+      ? createTodayTaskGoal(releaseProjection.task)
+      : {
+          metric: 'sections',
+          milestone: 'los-inspected',
+          scope: 'today-confirmed-release',
+          target: 0,
+        },
     keyStatus: 'yes',
     morningNote: '',
     propertyContact: confirmedReleases[0]?.propertyContact ?? '',
     propertyId,
     releaseBatchIds: confirmedReleases.map((release) => release.id),
     startedBy,
+    walkthroughScheduleWording: '',
+    workingHoursWording: '',
   }));
 
   const currentTitle = START_DAY_STEPS[step];
   const canContinue = (
-    (step !== 2 || review.propertyContact.trim().length > 0)
-    && (step !== 4 || confirmedReleases.length > 0)
+    (step !== 2 || (
+      review.propertyContact.trim().length > 0
+      && review.workingHoursWording.trim().length > 0
+      && review.walkthroughScheduleWording.trim().length > 0
+    ))
+    && (step !== 4 || (
+      Boolean(releaseProjection.task)
+      && review.assignmentEvidenceReviewNote.trim().length > 0
+    ))
   );
 
   const toggleCrew = (trade: TrackBTrade, crewId: string) => {
@@ -228,7 +248,7 @@ export function StartDayFlow({
   };
 
   const start = () => {
-    const result = startDaySession(review, releases, existingSessions, now());
+    const result = startDaySession(review, releases, propertyRoster, existingSessions, now());
     setErrors(result.errors);
     setWarnings(result.warnings);
     if (result.session && result.startEvent) {
@@ -257,18 +277,44 @@ export function StartDayFlow({
     }
     if (step === 2) {
       return (
-        <label className="w2a2b-field">
-          <span>Property contact</span>
-          <input
-            autoComplete="off"
-            onChange={(event) => {
-              const { value } = event.currentTarget;
-              setReview((current) => ({ ...current, propertyContact: value }));
-            }}
-            value={review.propertyContact}
-          />
-          <small>Record the person Los expects to coordinate with today.</small>
-        </label>
+        <div className="w2a2b-field-stack">
+          <label className="w2a2b-field">
+            <span>Property contact</span>
+            <input
+              autoComplete="off"
+              onChange={(event) => {
+                const { value } = event.currentTarget;
+                setReview((current) => ({ ...current, propertyContact: value }));
+              }}
+              value={review.propertyContact}
+            />
+            <small>Record the person Los expects to coordinate with today.</small>
+          </label>
+          <label className="w2a2b-field">
+            <span>Exact working-hours wording</span>
+            <textarea
+              onChange={(event) => {
+                const { value } = event.currentTarget;
+                setReview((current) => ({ ...current, workingHoursWording: value }));
+              }}
+              placeholder="Preserve the property’s wording exactly"
+              rows={3}
+              value={review.workingHoursWording}
+            />
+          </label>
+          <label className="w2a2b-field">
+            <span>Walkthrough schedule wording</span>
+            <textarea
+              onChange={(event) => {
+                const { value } = event.currentTarget;
+                setReview((current) => ({ ...current, walkthroughScheduleWording: value }));
+              }}
+              placeholder="Preserve the agreed schedule wording exactly"
+              rows={3}
+              value={review.walkthroughScheduleWording}
+            />
+          </label>
+        </div>
       );
     }
     if (step === 3) {
@@ -294,15 +340,43 @@ export function StartDayFlow({
     }
     if (step === 4) {
       return confirmedReleases.length > 0 ? (
-        <section className="w2a2b-review-card">
-          <span className="w2a2b-eyebrow">Confirmed release evidence</span>
-          <h2>{confirmedReleases.length} confirmed {confirmedReleases.length === 1 ? 'batch' : 'batches'}</h2>
-          <p>
-            {confirmedReleases.reduce((sum, release) => sum + release.entries.length, 0)}
-            {' '}released sections will form Today’s Task.
-          </p>
-          <p className="w2a2b-boundary-copy">Roster membership alone does not enter Today’s Task.</p>
-        </section>
+        <div className="w2a2b-field-stack">
+          <section className="w2a2b-review-card">
+            <span className="w2a2b-eyebrow">Confirmed release evidence</span>
+            <h2>{confirmedReleases.length} confirmed {confirmedReleases.length === 1 ? 'batch' : 'batches'}</h2>
+            <p>
+              {releaseProjection.task?.sections.length ?? 0}
+              {' '}released physical sections will form Today’s Task.
+            </p>
+            <p>
+              Goal: {review.goal.target} sections · Los inspected · today-confirmed-release
+            </p>
+            {confirmedReleases.map((release) => (
+              <p className="w2a2b-source-reference" key={release.id}>
+                Source: {release.originalSourceReference ?? 'No source reference recorded'}
+              </p>
+            ))}
+            <p className="w2a2b-boundary-copy">
+              Roster membership alone does not enter Today’s Task.
+            </p>
+            {releaseProjection.error ? (
+              <p className="w2a2b-inline-error" role="alert">{releaseProjection.error}</p>
+            ) : null}
+          </section>
+          <label className="w2a2b-field">
+            <span>Assignment evidence / review note</span>
+            <textarea
+              onChange={(event) => {
+                const { value } = event.currentTarget;
+                setReview((current) => ({ ...current, assignmentEvidenceReviewNote: value }));
+              }}
+              placeholder="Record what Los reviewed; this does not create or edit an assignment"
+              rows={4}
+              value={review.assignmentEvidenceReviewNote}
+            />
+            <small>Personal evidence note only. No assignment is created or changed.</small>
+          </label>
+        </div>
       ) : (
         <button
           className="w2a2b-empty-card w2a2b-empty-card--button"
@@ -368,6 +442,24 @@ export function StartDayFlow({
             <div><dt>Contact</dt><dd>{review.propertyContact}</dd></div>
             <div><dt>Keys</dt><dd>{keyStatusLabel[review.keyStatus]}</dd></div>
             <div><dt>Confirmed releases</dt><dd>{review.releaseBatchIds.length}</dd></div>
+            <div>
+              <dt>Assignment evidence / review note</dt>
+              <dd>{review.assignmentEvidenceReviewNote}</dd>
+            </div>
+            <div><dt>Exact working-hours wording</dt><dd>{review.workingHoursWording}</dd></div>
+            <div>
+              <dt>Walkthrough schedule wording</dt>
+              <dd>{review.walkthroughScheduleWording}</dd>
+            </div>
+            <div>
+              <dt>Goal scope</dt>
+              <dd>{review.goal.scope}</dd>
+            </div>
+            <div>
+              <dt>Goal metric / milestone</dt>
+              <dd>{review.goal.metric} / {review.goal.milestone}</dd>
+            </div>
+            <div><dt>Goal target</dt><dd>{review.goal.target} physical sections</dd></div>
             <div><dt>Paint crews</dt><dd>{review.activeCrewIdsByTrade.Paint.length}</dd></div>
             <div><dt>Clean crews</dt><dd>{review.activeCrewIdsByTrade.Clean.length}</dd></div>
           </dl>
@@ -464,7 +556,10 @@ export function EndDayFlow({
   session,
   task,
 }: EndDayFlowProps) {
-  const summary = useMemo(() => buildEndDaySummary(task, events), [events, task]);
+  const summary = useMemo(
+    () => buildEndDaySummary(task, events, session),
+    [events, session, task],
+  );
   const [review, setReview] = useState<EndDayReview>({
     endKeyStatus: undefined,
     endNote: '',
@@ -474,8 +569,8 @@ export function EndDayFlow({
   });
   const [errors, setErrors] = useState<readonly string[]>([]);
   const [warnings, setWarnings] = useState<readonly string[]>(
-    summary.unresolvedSectionIds.length > 0
-      ? [`${summary.unresolvedSectionIds.length} released sections remain unresolved.`]
+    summary.unresolvedSectionTradeIds.length > 0
+      ? [`${summary.unresolvedSectionTradeIds.length} released section-trades remain unresolved.`]
       : [],
   );
 
@@ -497,7 +592,10 @@ export function EndDayFlow({
       <PageHeader onBack={onCancel} title="End Day" />
       <section className="w2a2b-review-card">
         <span className="w2a2b-eyebrow">Deterministic summary</span>
-        <h2>{summary.releasedToday} released sections</h2>
+        <h2>{summary.releasedToday} released section-trades</h2>
+        <p className="w2a2b-grain-copy">
+          Operational state counts use section-trade grain. Notes/photos use event count.
+        </p>
         <div className="w2a2b-summary-grid">
           {(Object.keys(END_DAY_SUMMARY_LABELS) as (keyof typeof END_DAY_SUMMARY_LABELS)[]).map((key) => (
             <div key={key}>
@@ -508,14 +606,14 @@ export function EndDayFlow({
         </div>
       </section>
 
-      {summary.unresolvedSectionIds.length > 0 ? (
+      {summary.unresolvedSectionTradeIds.length > 0 ? (
         <section className="w2a2b-unresolved-card">
           <AlertTriangle aria-hidden="true" size={22} />
           <span>
             <strong>Unresolved work stays unresolved</strong>
             <small>
-              You may close the personal day, but {summary.unresolvedSectionIds.length}
-              {' '}released sections still need follow-up.
+              You may close the personal day, but {summary.unresolvedSectionTradeIds.length}
+              {' '}released section-trades still need follow-up.
             </small>
           </span>
         </section>
@@ -621,6 +719,7 @@ interface DayTaskHomeProps {
   onStartDay: () => void;
   propertyName: string;
   rosterCount: number;
+  scopeErrors: readonly string[];
   session?: DaySession;
   task: TodayTask | null;
 }
@@ -633,6 +732,7 @@ function DayTaskHome({
   onStartDay,
   propertyName,
   rosterCount,
+  scopeErrors,
   session,
   task,
 }: DayTaskHomeProps) {
@@ -682,7 +782,12 @@ function DayTaskHome({
           </span>
           {task ? <strong>{task.sections.length} sections</strong> : null}
         </div>
-        {!task ? (
+        {scopeErrors.length > 0 ? (
+          <div className="w2a2b-message is-error" role="alert">
+            <p>Today’s Task was rejected because its release selection is not exact.</p>
+            {scopeErrors.map((error) => <p key={error}>{error}</p>)}
+          </div>
+        ) : !task ? (
           <button
             className="w2a2b-empty-card w2a2b-empty-card--button"
             data-track-b-critical-target="true"
@@ -938,19 +1043,13 @@ export function DayTaskWorkspace({
   );
   const [events, setEvents] = useState<readonly DaySessionEvent[]>(initialEvents);
   const [receipt, setReceipt] = useState('');
-  const task = useMemo(() => {
-    const derived = createTodayTask(
-      propertyRoster,
-      releases,
-      session?.date ?? currentDate,
-      session?.daySessionId,
-    );
-    if (!derived) return null;
-    if (initialTask && hasSameTaskScope(initialTask, derived)) {
-      return { ...initialTask, daySessionId: session?.daySessionId };
-    }
-    return derived;
-  }, [currentDate, initialTask, propertyRoster, releases, session]);
+  const taskProjection = useMemo(
+    () => session
+      ? projectTodayTaskForSession(propertyRoster, releases, session, initialTask)
+      : { errors: [] as readonly string[], task: undefined },
+    [initialTask, propertyRoster, releases, session],
+  );
+  const task = taskProjection.task ?? null;
 
   const externalAction = (action: 'import-work' | 'assign-crews' | 'start-walk') => {
     onExternalAction?.(action);
@@ -982,6 +1081,7 @@ export function DayTaskWorkspace({
         }}
         propertyId={propertyRoster.propertyId}
         propertyName={propertyRoster.propertyName}
+        propertyRoster={propertyRoster}
         releases={releases}
         startedBy={startedBy}
       />
@@ -1032,6 +1132,7 @@ export function DayTaskWorkspace({
         onStartDay={() => setView({ id: 'start-day' })}
         propertyName={propertyRoster.propertyName}
         rosterCount={propertyRoster.units.length}
+        scopeErrors={isOpenDay(session) ? taskProjection.errors : []}
         session={session}
         task={isOpenDay(session) ? task : null}
       />

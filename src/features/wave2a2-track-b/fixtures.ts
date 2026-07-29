@@ -1,5 +1,6 @@
 import {
   createTodayTask,
+  createTodayTaskGoal,
   type StartDayResult,
   startDaySession,
 } from './model';
@@ -170,24 +171,36 @@ export function createSyntheticTodayTask(
 
 export function createSyntheticActiveSession(
   release = createSyntheticRelease(),
+  roster = createSyntheticRoster(),
 ): StartDayResult {
+  const selectedTask = createTodayTask(
+    roster,
+    [release],
+    SYNTHETIC_DATE,
+    'day-session-synthetic',
+  );
+  if (!selectedTask) throw new Error('Synthetic release did not produce a Start Day goal.');
   return startDaySession({
     accountId: SYNTHETIC_ACCOUNT_ID,
     activeCrewIdsByTrade: {
       Clean: ['clean-green'],
       Paint: ['paint-blue', 'paint-gold'],
     },
+    assignmentEvidenceReviewNote: 'Reviewed the synthetic assignment evidence reference.',
     crewReviewConfirmed: { Clean: true, Paint: true },
     date: SYNTHETIC_DATE,
     daySessionId: 'day-session-synthetic',
     explicitConfirmation: true,
+    goal: createTodayTaskGoal(selectedTask),
     keyStatus: 'yes',
     morningNote: 'Synthetic preview only.',
     propertyContact: release.propertyContact,
     propertyId: SYNTHETIC_PROPERTY_ID,
     releaseBatchIds: [release.id],
     startedBy: 'Los',
-  }, [release], [], '2026-08-03T12:15:00.000Z');
+    walkthroughScheduleWording: 'Daily walkthrough at 12:00 PM with the synthetic contact.',
+    workingHoursWording: 'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
+  }, [release], roster, [], '2026-08-03T12:15:00.000Z');
 }
 
 export function createSyntheticEvents(

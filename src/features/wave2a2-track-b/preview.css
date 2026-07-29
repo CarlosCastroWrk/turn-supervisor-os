@@ -10,9 +10,8 @@
   --text: #0a1622;
   --muted: #5c6876;
   --border: #d9e0e8;
-  --blue: #0879e8;
+  --blue: #0969c3;
   --green: #2f8a4c;
-  --amber: #b86d00;
   --red: #c43d36;
 }
 
@@ -64,7 +63,6 @@ body {
     --border: #3f3f43;
     --blue: #4da3ff;
     --green: #56bf75;
-    --amber: #efa63b;
     --red: #ff716a;
   }
 

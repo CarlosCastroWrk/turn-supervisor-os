@@ -17,7 +17,7 @@ const viewports = [
 ];
 
 const createCleanPage = async (browser, viewport) => {
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ colorScheme: 'light', viewport });
   const page = await context.newPage();
   const findings = [];
   page.setDefaultTimeout(30_000);
@@ -29,6 +29,45 @@ const createCleanPage = async (browser, viewport) => {
     findings.push(`requestfailed: ${request.url()} ${request.failure()?.errorText ?? ''}`);
   });
   return { context, findings, page };
+};
+
+const assertActualContrast = async (locator, label, minimum = 4.5) => {
+  const measurement = await locator.evaluate((element) => {
+    const parseColor = (value) => {
+      const channels = value.match(/[\d.]+/gu)?.map(Number) ?? [];
+      if (channels.length < 3) throw new Error(`Unsupported computed color: ${value}`);
+      const firstThree = channels.slice(0, 3);
+      return value.startsWith('color(srgb ')
+        ? firstThree.map((channel) => channel * 255)
+        : firstThree;
+    };
+    const luminance = (channels) => {
+      const linear = channels.map((channel) => {
+        const value = channel / 255;
+        return value <= 0.04045
+          ? value / 12.92
+          : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+    };
+    const style = getComputedStyle(element);
+    const foreground = style.color;
+    const background = style.backgroundColor;
+    const foregroundLuminance = luminance(parseColor(foreground));
+    const backgroundLuminance = luminance(parseColor(background));
+    const ratio = (
+      Math.max(foregroundLuminance, backgroundLuminance) + 0.05
+    ) / (
+      Math.min(foregroundLuminance, backgroundLuminance) + 0.05
+    );
+    return { background, foreground, ratio };
+  });
+  assert.ok(
+    measurement.ratio >= minimum,
+    `${label} contrast ${measurement.ratio.toFixed(2)}:1 was below ${minimum}:1 `
+      + `(${measurement.foreground} on ${measurement.background}).`,
+  );
+  return { ...measurement, label };
 };
 
 const assertNoHorizontalOverflow = async (page, label) => {
@@ -86,6 +125,7 @@ const server = await createServer({
 });
 let browser;
 const timings = [];
+const contrastMeasurements = [];
 
 try {
   await server.listen();
@@ -153,12 +193,49 @@ try {
     await load(page, 'not-started');
     await page.getByRole('button', { name: 'Start Day', exact: true }).click();
     await page.getByRole('heading', { name: 'Start Day', exact: true }).waitFor();
+    const primaryCtaContrast = await assertActualContrast(
+      page.getByRole('button', { name: 'Continue', exact: true }),
+      'Light primary CTA',
+    );
+    assert.equal(
+      primaryCtaContrast.foreground,
+      'rgb(255, 255, 255)',
+      'the actual computed CTA foreground must be white, not inherited page text',
+    );
+    contrastMeasurements.push(primaryCtaContrast);
 
     for (let step = 1; step <= 9; step += 1) {
       await page.getByText(`Step ${step} of 10`, { exact: true }).waitFor();
       await assertNoHorizontalOverflow(page, `Start Day step ${step}`);
       await assertCriticalTargets(page, `Start Day step ${step}`);
       await assertVisibleInputsAtLeast16(page, `Start Day step ${step}`);
+      if (step === 3) {
+        await page.getByLabel('Exact working-hours wording').fill(
+          'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
+        );
+        await page.getByLabel('Walkthrough schedule wording').fill(
+          'Daily walkthrough at 12:00 PM with the synthetic contact.',
+        );
+      }
+      if (step === 5) {
+        await page.getByLabel('Assignment evidence / review note').fill(
+          'Reviewed exact synthetic assignment evidence.',
+        );
+      }
+      if (step === 9) {
+        await page.getByText('Reviewed exact synthetic assignment evidence.', { exact: true }).waitFor();
+        await page.getByText(
+          'Occupied areas: 10:00 AM–5:00 PM; vacant areas may continue later.',
+          { exact: true },
+        ).waitFor();
+        await page.getByText(
+          'Daily walkthrough at 12:00 PM with the synthetic contact.',
+          { exact: true },
+        ).waitFor();
+        await page.getByText('today-confirmed-release', { exact: true }).waitFor();
+        await page.getByText('sections / los-inspected', { exact: true }).waitFor();
+        await page.getByText('112 physical sections', { exact: true }).waitFor();
+      }
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
     }
 
@@ -176,6 +253,16 @@ try {
     await load(page, 'active');
     await page.getByRole('button', { name: 'End day', exact: true }).click();
     await page.getByRole('heading', { name: 'End Day', exact: true }).waitFor();
+    await page.getByText('224 released section-trades', { exact: true }).waitFor();
+    await page.getByText(
+      'Operational state counts use section-trade grain. Notes/photos use event count.',
+      { exact: true },
+    ).waitFor();
+    await page.getByText('Notes/photos · events', { exact: true }).waitFor();
+    contrastMeasurements.push(await assertActualContrast(
+      page.locator('.w2a2b-message.is-warning'),
+      'Light warning message',
+    ));
     await page.getByText('Unresolved work stays unresolved', { exact: true }).waitFor();
     await page.getByText('Reviewed', { exact: true }).click();
     await page.getByRole('radio', { name: 'Yes', exact: true }).click();
@@ -210,6 +297,12 @@ try {
       await page.getByText(`Step ${step} of 10`, { exact: true }).waitFor();
       if (step === 3) {
         await page.getByLabel('Property contact').fill('Synthetic property contact');
+        await page.getByLabel('Exact working-hours wording').fill(
+          'Occupied areas: 10:00 AM–5:00 PM.',
+        );
+        await page.getByLabel('Walkthrough schedule wording').fill(
+          'Daily walkthrough at 12:00 PM.',
+        );
       }
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
     }
@@ -247,6 +340,7 @@ try {
   assert.ok(slowestLoad < 5_000, `slowest preview load was ${slowestLoad.toFixed(1)}ms`);
   assert.ok(slowestQueue < 1_000, `slowest queue open was ${slowestQueue.toFixed(1)}ms`);
   console.log(`Track B browser performance: ${JSON.stringify(timings)}`);
+  console.log(`Track B actual-style contrast: ${JSON.stringify(contrastMeasurements)}`);
   console.log(`Wave 2A.2 Track B screenshots: ${screenshotDir}`);
 } finally {
   await browser?.close();

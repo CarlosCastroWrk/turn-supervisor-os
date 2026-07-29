@@ -54,15 +54,24 @@ export type DaySessionStatus =
 
 export type DayKeyStatus = 'yes' | 'no' | 'partial-issue';
 
+export interface TodayTaskGoal {
+  metric: 'sections';
+  milestone: 'los-inspected';
+  scope: 'today-confirmed-release';
+  target: number;
+}
+
 export interface DaySession {
   accountId: string;
   activeCrewIds: readonly string[];
   activeCrewIdsByTrade: Readonly<Record<TrackBTrade, readonly string[]>>;
+  assignmentEvidenceReviewNote: string;
   closedAt?: string;
   date: string;
   daySessionId: string;
   endKeyStatus?: DayKeyStatus;
   endNote?: string;
+  goal: TodayTaskGoal;
   keyStatus: DayKeyStatus;
   morningNote?: string;
   propertyCheckIn?: string;
@@ -74,21 +83,27 @@ export interface DaySession {
   startedAt?: string;
   startedBy: string;
   status: DaySessionStatus;
+  walkthroughScheduleWording: string;
+  workingHoursWording: string;
 }
 
 export interface StartDayReview {
   accountId: string;
   activeCrewIdsByTrade: Readonly<Record<TrackBTrade, readonly string[]>>;
+  assignmentEvidenceReviewNote: string;
   crewReviewConfirmed: Readonly<Record<TrackBTrade, boolean>>;
   date: string;
   daySessionId: string;
   explicitConfirmation: boolean;
+  goal: TodayTaskGoal;
   keyStatus: DayKeyStatus;
   morningNote?: string;
   propertyContact: string;
   propertyId: string;
   releaseBatchIds: readonly string[];
   startedBy: string;
+  walkthroughScheduleWording: string;
+  workingHoursWording: string;
 }
 
 export type DayActorType = 'los' | 'crew' | 'property' | 'system';
@@ -196,12 +211,14 @@ export interface EndDaySummary {
   callbacksOpen: number;
   callbacksResolved: number;
   crewReportedComplete: number;
+  eventCountGrain: 'events';
   inspected: number;
-  notesAndPhotos: number;
+  notePhotoEvents: number;
+  operationalCountGrain: 'section-trades';
   propertyAccepted: number;
   readyToWalk: number;
   releasedToday: number;
-  unresolvedSectionIds: readonly string[];
+  unresolvedSectionTradeIds: readonly string[];
   waiting: number;
   working: number;
 }

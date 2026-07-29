@@ -27,7 +27,7 @@ const scenario: PreviewScenario = (
 
 const roster = createSyntheticRoster(500);
 const release = createSyntheticRelease(roster, 40);
-const activeResult = createSyntheticActiveSession(release);
+const activeResult = createSyntheticActiveSession(release, roster);
 
 if (!activeResult.session) {
   throw new Error('The synthetic active Day Session fixture is invalid.');

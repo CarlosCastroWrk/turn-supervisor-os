@@ -82,8 +82,8 @@ const stableSectionKey = (unitId: string, sectionId: string) => `${unitId}::${se
 const stableSectionTradeKey = (unitId: string, sectionId: string, trade: string) => (
   `${unitId}::${sectionId}::${trade}`
 );
-const taskSectionKey = (section: TodayTaskSection) => (
-  `${stableSectionKey(section.unitId, section.sectionId)}::${section.tradeStates
+const taskSectionLineageKey = (section: TodayTaskSection) => (
+  `${stableSectionKey(section.unitId, section.sectionId)}::${section.releaseBatchId}::${section.tradeStates
     .map((state) => state.trade)
     .sort()
     .join(',')}`
@@ -373,10 +373,13 @@ export function projectTodayTaskForSession(
     ) {
       errors.push('Recorded Today’s Task does not match the exact selected release scope.');
     } else {
-      const authorizedKeys = authorizedTask.sections.map(taskSectionKey);
-      const recordedKeys = recordedTask.sections.map(taskSectionKey);
+      const authorizedKeys = authorizedTask.sections.map(taskSectionLineageKey);
+      const recordedKeys = recordedTask.sections.map(taskSectionLineageKey);
       if (!exactStringMultisetMatch(recordedKeys, authorizedKeys)) {
-        errors.push('Recorded Today’s Task section-trade scope does not exactly match the selected release.');
+        errors.push(
+          'Recorded Today’s Task section-trade scope does not exactly match '
+          + 'the selected release or its release lineage.',
+        );
       }
     }
   }

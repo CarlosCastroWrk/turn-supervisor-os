@@ -222,6 +222,11 @@ try {
           'Reviewed exact synthetic assignment evidence.',
         );
       }
+      if (step === 8) {
+        await page.getByLabel('Morning note Optional').fill(
+          'Keep south stairwell access note visible.',
+        );
+      }
       if (step === 9) {
         await page.getByText('Reviewed exact synthetic assignment evidence.', { exact: true }).waitFor();
         await page.getByText(
@@ -235,6 +240,9 @@ try {
         await page.getByText('today-confirmed-release', { exact: true }).waitFor();
         await page.getByText('sections / los-inspected', { exact: true }).waitFor();
         await page.getByText('112 physical sections', { exact: true }).waitFor();
+        await page.getByText('Keep south stairwell access note visible.', { exact: true }).waitFor();
+        await page.getByText('Blue Paint, Gold Paint', { exact: true }).waitFor();
+        await page.getByText('Green Clean', { exact: true }).waitFor();
       }
       await page.getByRole('button', { name: 'Continue', exact: true }).click();
     }

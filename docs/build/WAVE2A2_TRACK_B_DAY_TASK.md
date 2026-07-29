@@ -62,7 +62,9 @@ An active Today’s Task is projected from exactly `DaySession.releaseBatchIds`.
 projection rejects the entire selection when any selected ID is missing, duplicated,
 unconfirmed, on the wrong property/date, duplicated in the supplied release records, or
 does not match a previously recorded task. One valid release cannot hide one invalid
-selected release.
+selected release. A recorded Today’s Task must also preserve each section’s exact
+`releaseBatchId`; changing section-level release lineage is rejected even when the visible
+Unit, section, and trade scope is unchanged.
 
 Keys/access remain separate from release authorization.
 
@@ -103,6 +105,8 @@ The Start Day review persists and displays:
 - the assignment-evidence/review note
 - exact working-hours wording
 - exact walkthrough-schedule wording
+- the optional morning note, or an explicit empty state
+- the selected Paint and Clean crew names rather than count-only summaries
 - a derived goal with scope `today-confirmed-release`, metric `sections`, milestone
   `los-inspected`, and a target equal to the physical-section count in the exact selected
   release set

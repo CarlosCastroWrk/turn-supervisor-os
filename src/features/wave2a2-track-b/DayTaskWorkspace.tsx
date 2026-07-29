@@ -234,6 +234,11 @@ export function StartDayFlow({
       };
     });
   };
+  const selectedCrewNames = (trade: TrackBTrade) => (
+    review.activeCrewIdsByTrade[trade].map((crewId) => (
+      crews.find((crew) => crew.id === crewId)?.name ?? `Unknown crew (${crewId})`
+    ))
+  );
 
   const continueFlow = () => {
     if (!canContinue) return;
@@ -452,6 +457,10 @@ export function StartDayFlow({
               <dd>{review.walkthroughScheduleWording}</dd>
             </div>
             <div>
+              <dt>Morning note</dt>
+              <dd>{review.morningNote?.trim() || 'None recorded'}</dd>
+            </div>
+            <div>
               <dt>Goal scope</dt>
               <dd>{review.goal.scope}</dd>
             </div>
@@ -460,8 +469,14 @@ export function StartDayFlow({
               <dd>{review.goal.metric} / {review.goal.milestone}</dd>
             </div>
             <div><dt>Goal target</dt><dd>{review.goal.target} physical sections</dd></div>
-            <div><dt>Paint crews</dt><dd>{review.activeCrewIdsByTrade.Paint.length}</dd></div>
-            <div><dt>Clean crews</dt><dd>{review.activeCrewIdsByTrade.Clean.length}</dd></div>
+            <div>
+              <dt>Paint crews</dt>
+              <dd>{selectedCrewNames('Paint').join(', ') || 'None selected'}</dd>
+            </div>
+            <div>
+              <dt>Clean crews</dt>
+              <dd>{selectedCrewNames('Clean').join(', ') || 'None selected'}</dd>
+            </div>
           </dl>
         </section>
       );

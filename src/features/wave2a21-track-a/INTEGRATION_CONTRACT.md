@@ -13,7 +13,7 @@ write remote/Supabase data.
 
 ## Required host wiring
 
-### 1. Five-step project setup
+### 1. Five-step Project Setup
 
 Mount `ProjectSetupFlow` as a controlled component and retain all of these host
 values until activation is durably acknowledged:
@@ -22,6 +22,19 @@ values until activation is durably acknowledged:
 - `draft`
 - `activationErrors`
 - overwrite confirmation state
+
+The visible groups must remain exactly:
+
+1. Property
+2. Contacts and schedule
+3. Property roster
+4. Crews and permissions
+5. Review and activate
+
+Map existing accepted roster records into `ProjectRosterUnitOption`. The roster
+review is not a Daily Release and must not release work. Pass the browser
+camera-permission state as observed by the host; the component must not invent
+or request permission. Advanced image/file import remains unavailable.
 
 The host must implement the component callbacks for step changes, draft
 changes, contact add/remove, and activation. It must not infer activation from
@@ -47,34 +60,77 @@ Use this exact sequence:
    install `result.data`, navigate, and show activation success.
 
 The host must preserve `propertyContacts` and each project's
-`fieldConfiguration` through local save, reload, export, and restore. This
-slice adds no remote table or sync behavior.
+`fieldConfiguration` through local save, reload, export, and restore. Structured
+time controls write the accepted
+`defaultWorkingHoursWording`/`defaultWalkthroughScheduleWording` fields; this
+slice adds no new persisted field, remote table, or sync behavior.
 
-### 3. Eight-step live Start Day
+### 3. Four-screen Fast Start Day
 
-Mount one live Start Day flow using `START_DAY_EIGHT_STEP_CONTRACT` in this
+Mount `FastStartDayFlow` using `FAST_START_DAY_STEPS` in this
 visible order:
 
-1. Confirm project and day
-2. Confirm property contact
-3. Confirm keys and access
-4. Review today's confirmed release
-5. Confirm active Paint and Clean crews
-6. Review hours and walkthrough defaults
-7. Add an optional morning note
-8. Review and Start Day
+1. Day and access
+2. Daily Release
+3. Crews and defaults
+4. Review and Start Day
 
-Resolve configured values with `resolveStartDayValues`. Preserve each wrapped
-value and its `source` through the live flow. Pass the unwrapped values into
-the accepted Day Session/Start Day model without changing their source:
+The flow reuses the saved property, active Property Contacts, time defaults,
+and active Paint/Clean crews. A contact, crew, or schedule change inside Start
+Day is today-only and must not silently rewrite Project Setup.
 
-- `saved-project-default`
-- `today-only-override`
+For durable route restoration, the host may control the visible screen with:
 
-Today-only overrides must not silently rewrite the saved project
-configuration.
+```ts
+currentStep?: number
+onStepChange?: (step: number) => void
+```
 
-### 4. Today destination and canonical projection
+Derive `currentStep` from host route state and update that route from
+`onStepChange`. Without those props, the component retains compatible internal
+four-screen navigation. The controlled step changes only the visible decision
+screen; it does not persist or confirm Start Day.
+
+Keys use only `Received`, `Not received`, and `Partial / issue`. Key status is
+access information, not work authorization.
+
+`onStartDay` is the only write boundary. The host must:
+
+1. Re-read the latest roster and active Day Session state.
+2. Revalidate `submission.release` with
+   `validatePreparedReleaseAgainstRoster`.
+3. Reject if another Day Session is active or any accepted Phase 1 invariant
+   fails.
+4. Create one confirmed `DailyReleaseBatch`, one active `DaySession`, the
+   required durable events, and any host-derived Today records in one candidate
+   `AppData` snapshot.
+5. Persist that complete candidate once.
+6. Return `true` only after durable persistence succeeds.
+
+A `false` return or throw means nothing started, nothing released, and no
+Activity receipt may appear. Keep the component mounted for retry. The host
+must unmount/navigate only after `true`.
+
+### 4. Daily Release selection
+
+`DailyReleaseSelector` starts with no Unit selected. Los must explicitly:
+
+- select Units from the known Property roster;
+- choose Paint, Clean, or Both within the enabled project trades;
+- review structurally applicable Common/A–E sections;
+- record only explicit section exceptions; and
+- check the release confirmation.
+
+All structurally applicable sections default into a selected Unit. An
+unreleased or occupied/restricted exception removes only that section from the
+personal release. An access issue remains visible as a restriction and does
+not imply authorization. `createConfirmedDailyReleaseBatch` may run only after
+the host revalidates the roster fingerprint.
+
+Property roster, confirmed Daily Release, and Today’s Task are three separate
+records. The selector does not create a task or mutate AppData.
+
+### 5. Today destination and canonical projection
 
 Add one host-owned Today route/destination that mounts `TodayTaskDetail`.
 Provide:
@@ -90,7 +146,7 @@ Use the same canonical projection for Today counts, progress, crew current
 work, Units touched, and Activity. Do not recompute competing counts in the
 host.
 
-### 5. Profile and Privacy scroll ownership
+### 6. Profile and Privacy scroll ownership
 
 Mount each real Profile and Privacy detail body inside its own
 `ProfilePrivacyScrollRegion`. The shared shell must provide height containment
@@ -98,7 +154,7 @@ without adding a second vertical scroll owner around that detail region.
 Verify each route can scroll independently and retains the correct
 `data-detail-scroll-owner`.
 
-### 6. Activity
+### 7. Activity
 
 After durable activation succeeds, the persisted `project-activated`
 `FieldEvent` may be projected through `adaptDurableFieldEventsToActivity`.
@@ -114,9 +170,14 @@ package harness:
 - force durable-save failure and show no success while the draft remains
   retryable;
 - retry successfully, reload, and retain project configuration and contacts;
-- complete all eight Start Day steps;
+- complete all four Fast Start Day screens;
+- prove no Unit is released before explicit selection and confirmation;
+- prove a stale roster prevents confirmation;
+- force atomic Start Day persistence failure and show no Day Session, release,
+  task, or Activity receipt;
+- retry the same preserved Start Day draft successfully;
 - open the Today task destination and each queue;
-- show mixed saved-default/today-only provenance truthfully;
+- show saved defaults and today-only changes truthfully;
 - render counts and Activity from one canonical projection;
 - independently scroll Profile and Privacy;
 - show the activation Activity event only after persistence acknowledgement;

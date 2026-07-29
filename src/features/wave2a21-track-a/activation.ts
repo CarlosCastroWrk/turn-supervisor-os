@@ -10,6 +10,7 @@ import type {
   TrackAAppData,
   TrackAProject,
 } from './contracts';
+import { PROPERTY_CONTACT_ROLES } from './contracts';
 
 const nonEmpty = (value: string) => value.trim().length > 0;
 const unique = (values: readonly string[]) => new Set(values).size === values.length;
@@ -129,14 +130,19 @@ const validateContacts = (draft: ProjectActivationDraft): readonly string[] => {
     if (!nonEmpty(contact.id) || !nonEmpty(contact.name) || !nonEmpty(contact.title)) {
       errors.push('Every property contact requires an ID, name, and title.');
     }
+    if (contact.role && !PROPERTY_CONTACT_ROLES.includes(contact.role)) {
+      errors.push(`Property contact ${contact.id} has an unsupported role.`);
+    }
   }
   const primaryContacts = draft.contacts.filter((contact) => contact.isPrimary);
   if (primaryContacts.length !== 1) {
     errors.push('Exactly one property contact must be primary.');
   }
   if (!draft.contacts.some((contact) =>
-    contact.id === draft.configuration.defaultPropertyContactId && contact.isPrimary)) {
-    errors.push('The default property contact must be the primary project contact.');
+    contact.id === draft.configuration.defaultPropertyContactId
+    && contact.isPrimary
+    && contact.activeForProject !== false)) {
+    errors.push('The default property contact must be active and primary for this project.');
   }
   return errors;
 };

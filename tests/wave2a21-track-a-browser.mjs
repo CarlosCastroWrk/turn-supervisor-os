@@ -53,7 +53,7 @@ const assertSource = async (page, id, source, label, value) => {
 await mkdir(screenshotDir, { recursive: true });
 
 const server = await createServer({
-  cacheDir: '/private/tmp/pds-wave2a21-track-a-vite',
+  cacheDir: '/private/tmp/pds-wave2a21-track-a-browser/node_modules/.vite',
   configLoader: 'runner',
   logLevel: 'error',
   optimizeDeps: {
@@ -84,49 +84,91 @@ try {
   assert.equal(await page.getByRole('main').count(), 1);
   await assertStep(page, 1, 'negative step clamp');
   await assertNoHorizontalOverflow(page, 'Setup step 1');
+  console.log('Track A browser gate: setup loaded.');
 
-  const projectName = page.getByLabel('Project name', { exact: true });
-  assert.equal(await projectName.inputValue(), 'Synthetic Turn project');
-  await projectName.fill('Edited synthetic Turn project');
-  assert.equal(await projectName.inputValue(), 'Edited synthetic Turn project');
-
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await assertStep(page, 2, 'Continue navigation');
-  assert.equal(await page.getByLabel('Los’s role', { exact: true }).inputValue(), 'Turn supervisor');
-  assert.equal(await page.getByLabel('Los’s role', { exact: true }).isEditable(), false);
+  const propertyName = page.getByLabel('Property name', { exact: true });
+  assert.equal(await propertyName.inputValue(), 'Synthetic Moon Tower');
+  await propertyName.fill('Edited Synthetic Property');
+  assert.equal(await propertyName.inputValue(), 'Edited Synthetic Property');
+  assert.equal(
+    await page.getByLabel('Property location', { exact: true }).inputValue(),
+    'Synthetic Austin property',
+  );
+  assert.equal(
+    await page.getByLabel('Supervisor name', { exact: true }).inputValue(),
+    'Los',
+  );
+  assert.equal(
+    await page.getByRole('combobox', { name: /User role/u }).inputValue(),
+    'turn-supervisor',
+  );
   assert.equal(await page.getByLabel('Paint', { exact: true }).isChecked(), true);
   assert.equal(await page.getByLabel('Clean', { exact: true }).isChecked(), true);
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await assertStep(page, 3, 'daily defaults navigation');
-  assert.equal(
-    await page.getByRole('textbox', { name: 'Working hours', exact: true }).inputValue(),
-    'Saved working hours: 10 AM–5 PM.',
-  );
-  assert.equal(
-    await page.getByRole('textbox', { name: 'Daily walkthrough', exact: true }).inputValue(),
-    'Saved walkthrough at noon.',
-  );
-  assert.equal(await page.getByLabel('Paint Crew Alpha', { exact: true }).isChecked(), true);
-  assert.equal(await page.getByLabel('Paint Crew Today', { exact: true }).isChecked(), false);
-  assert.equal(await page.getByLabel('Clean Crew Beta', { exact: true }).isChecked(), true);
-  await page.getByLabel('Paint Crew Today', { exact: true }).check();
-
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await assertStep(page, 4, 'contact navigation');
+  await assertStep(page, 2, 'contacts and schedule navigation');
+  console.log('Track A browser gate: contacts and schedule.');
   assert.equal(
     await page.getByLabel('Name', { exact: true }).inputValue(),
     'Synthetic Property Contact',
   );
-  assert.equal(await page.getByLabel('Primary daily contact').isChecked(), true);
+  const contactRole = page.getByRole('combobox', { name: /^Role/u });
+  assert.equal(await contactRole.inputValue(), 'Property Manager');
+  assert.deepEqual(
+    await contactRole.locator('option').allTextContents(),
+    [
+      'Property Manager',
+      'Maintenance',
+      'Field Lead / Market Partner',
+      'Runner',
+      'Other',
+    ],
+  );
+  assert.equal(
+    await page.getByRole('checkbox', { name: /Active for current project/u }).isChecked(),
+    true,
+  );
+  assert.equal(await page.getByLabel('Default daily contact').isChecked(), true);
+  assert.equal(await page.getByLabel('Default work start').inputValue(), '08:00');
+  assert.equal(await page.getByLabel('Default work end').inputValue(), '18:00');
+  assert.equal(await page.getByLabel('Default walkthrough time (optional)').inputValue(), '12:00');
+  await page.getByLabel('Default walkthrough time (optional)').fill('');
+
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await assertStep(page, 3, 'Property roster navigation');
+  console.log('Track A browser gate: Property roster.');
+  assert.equal(await page.getByText('Unit 101', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('Unit 202', { exact: true }).count(), 1);
+  await page.getByText(
+    'Advanced file and image import is not included in this candidate.',
+    { exact: true },
+  ).waitFor();
+
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await assertStep(page, 4, 'crews and permissions navigation');
+  console.log('Track A browser gate: crews and permissions.');
+  assert.equal(await page.getByLabel('Paint Crew Alpha', { exact: true }).isChecked(), true);
+  assert.equal(await page.getByLabel('Paint Crew Today', { exact: true }).isChecked(), false);
+  assert.equal(await page.getByLabel('Clean Crew Beta', { exact: true }).isChecked(), true);
+  await page.getByLabel('Paint Crew Today', { exact: true }).check();
+  assert.equal(
+    await page.getByLabel('Personal photo rule').inputValue(),
+    'not-confirmed',
+  );
+  await page.getByText('Not decided by this browser or device', { exact: true }).waitFor();
+  await page.getByText(
+    /does not request or grant property, PDS, camera, or photo permission/u,
+  ).waitFor();
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await assertStep(page, 5, 'review navigation');
+  console.log('Track A browser gate: setup review.');
   assert.equal(
     await page.getByText('Paper TurnBoard remains authoritative', { exact: true }).count(),
     1,
   );
-  await page.getByRole('button', { name: 'Activate personal project', exact: true }).click();
+  await page.getByText('2 known Units.', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Activate Project', exact: true }).click();
   await page.getByText(
     'Activation requested. A host persistence acknowledgement is still required.',
     { exact: true },
@@ -136,16 +178,101 @@ try {
     path: `${screenshotDir}/setup-review-mobile.png`,
   });
 
-  await page.getByRole('button', { name: 'Go to step 1: Project', exact: true }).click();
+  await page.getByRole('button', { name: 'Go to step 1: Property', exact: true }).click();
   await assertStep(page, 1, 'direct step navigation');
-  assert.equal(await projectName.inputValue(), 'Edited synthetic Turn project');
+  assert.equal(await propertyName.inputValue(), 'Edited Synthetic Property');
 
   await page.goto(`${baseUrl}?step=99`, { waitUntil: 'networkidle' });
   await assertStep(page, 5, 'upper step clamp');
   await page.goto(`${baseUrl}?step=not-a-number`, { waitUntil: 'networkidle' });
   await assertStep(page, 1, 'non-finite step clamp');
 
+  await page.setViewportSize({ width: 320, height: 780 });
+  await assertNoHorizontalOverflow(page, 'Project Setup at 320px');
+  await page.setViewportSize({ width: 430, height: 880 });
+  await assertNoHorizontalOverflow(page, 'Project Setup at 430px');
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto(`${baseUrl}?screen=start-day&startDayStep=2`, {
+    waitUntil: 'networkidle',
+  });
+  await page.getByText('Screen 3 of 4 · Crews and defaults', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
+  assert.match(page.url(), /startDayStep=1/u);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
+
+  await page.goto(`${baseUrl}?screen=start-day&failStartOnce=1`, {
+    waitUntil: 'networkidle',
+  });
+  console.log('Track A browser gate: Fast Start Day loaded.');
+  const startDay = page.locator('[data-fast-start-day="true"]');
+  await startDay.waitFor();
+  await page.getByText('Screen 1 of 4 · Day and access', { exact: true }).waitFor();
+  assert.equal(
+    await startDay.getByLabel('Property Contact').inputValue(),
+    'qa-contact-primary',
+  );
+  await startDay.getByLabel('Received', { exact: true }).check();
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+
+  await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
+  console.log('Track A browser gate: Daily Release.');
+  assert.equal(
+    await startDay.getByRole('checkbox', { name: /Unit 101/u }).isChecked(),
+    false,
+  );
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+  await startDay.getByText(/Select at least one Unit/u).waitFor();
+  await startDay.getByRole('checkbox', { name: /Unit 101/u }).check();
+  await startDay.getByLabel('Both', { exact: true }).check();
+  assert.equal(await startDay.getByLabel('Both', { exact: true }).isChecked(), true);
+  await startDay.getByRole('checkbox', { name: /I reviewed today’s release/u }).check();
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+
+  await page.getByText('Screen 3 of 4 · Crews and defaults', { exact: true }).waitFor();
+  console.log('Track A browser gate: crews and defaults.');
+  await startDay.getByText('Paint Crew Alpha', { exact: true }).waitFor();
+  await startDay.getByText('Clean Crew Beta', { exact: true }).waitFor();
+  await startDay.getByRole('button', { name: 'Changed today', exact: true }).last().click();
+  assert.equal(await startDay.getByLabel('Work start').inputValue(), '08:00');
+  await startDay.getByLabel('Work start').fill('09:00');
+  await startDay.getByRole('button', { name: 'Use saved schedule', exact: true }).click();
+  await startDay.getByRole('button', { name: 'Changed today', exact: true }).last().click();
+  assert.equal(await startDay.getByLabel('Work start').inputValue(), '08:00');
+  await startDay.getByLabel('Personal note').fill('Synthetic morning note');
+  await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
+
+  await page.getByText('Screen 4 of 4 · Review and Start Day', { exact: true }).waitFor();
+  console.log('Track A browser gate: Start Day review.');
+  await startDay.getByRole('checkbox', { name: /I reviewed this Start Day record/u }).check();
+  const startDayButton = startDay.getByRole('button', { name: 'Start Day', exact: true });
+  await startDayButton.click();
+  await startDay.getByText(
+    'Start Day was not saved. Nothing was started, released, or added to Activity. Retry, edit, or cancel.',
+    { exact: true },
+  ).waitFor();
+  await page.getByText('Synthetic host rejected 10 release items.', { exact: true }).waitFor();
+  assert.equal(await startDayButton.isEnabled(), true);
+  await startDayButton.click();
+  await startDay.getByText('Start Day was durably saved by the host.', { exact: true }).waitFor();
+  await page.getByText(
+    'Synthetic host atomically accepted 10 release items.',
+    { exact: true },
+  ).waitFor();
+  assert.equal(
+    await startDay.getByRole('button', { name: 'Day started', exact: true }).isDisabled(),
+    true,
+  );
+  await assertNoHorizontalOverflow(page, 'Fast Start Day');
+  await page.screenshot({
+    fullPage: false,
+    path: `${screenshotDir}/fast-start-day-mobile.png`,
+  });
+
   await page.getByRole('button', { name: 'Today task', exact: true }).click();
+  console.log('Track A browser gate: Today detail.');
   await page.getByRole('heading', { name: 'Today’s Task', exact: true }).waitFor();
   assert.equal(
     await page.getByRole('heading', { name: 'Start Day choices', exact: true }).count(),
@@ -176,7 +303,7 @@ try {
     'walkthrough',
     'saved-project-default',
     'Saved project default',
-    'Saved walkthrough at noon.',
+    '12:00',
   );
   await assertSource(
     page,

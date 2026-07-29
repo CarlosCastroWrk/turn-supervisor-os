@@ -25,9 +25,14 @@ import {
 import type {
   ProjectActivationDraft,
   ProjectConfiguration,
+  ProjectRosterUnitOption,
   PropertyContact,
+  TrackACrewOption,
   TrackAAppData,
   TrackAProject,
+} from '../src/features/wave2a21-track-a/contracts.ts';
+import {
+  PROPERTY_CONTACT_ROLES,
 } from '../src/features/wave2a21-track-a/contracts.ts';
 import {
   buildCanonicalFieldProjection,
@@ -42,6 +47,21 @@ import {
   PROJECT_SETUP_STEPS,
   clampProjectSetupStep,
 } from '../src/features/wave2a21-track-a/projectSetup.ts';
+import {
+  FAST_START_DAY_STEPS,
+  availableDailyReleaseTradeChoices,
+  clampFastStartDayStep,
+  configurationWithSchedule,
+  createConfirmedDailyReleaseBatch,
+  createDailyReleaseDraft,
+  defaultActiveCrewIds,
+  prepareDailyReleasePlan,
+  prepareFastStartDaySubmission,
+  resolveProjectDefaultSchedule,
+  setDailyReleaseException,
+  setDailyReleaseUnitSelected,
+  validatePreparedReleaseAgainstRoster,
+} from '../src/features/wave2a21-track-a/phase2Workflow.ts';
 import {
   projectCanonicalFieldConsumers,
 } from '../src/features/launch-command-center/canonicalFieldConsumers.ts';
@@ -70,9 +90,12 @@ const createContacts = (): readonly PropertyContact[] => [{
   id: 'contact-tony',
   isPrimary: true,
   name: 'Tony',
+  activeForProject: true,
+  note: 'Synthetic personal contact note',
   phone: 'synthetic-only',
   projectId: PROJECT_ID,
-  title: 'Property contact',
+  role: 'Property Manager',
+  title: 'Property Manager',
   updatedAt: NOW,
 }];
 
@@ -84,8 +107,8 @@ const createConfiguration = (): ProjectConfiguration => ({
     paint: ['crew-paint'],
   },
   defaultPropertyContactId: 'contact-tony',
-  defaultWalkthroughScheduleWording: 'Daily walkthrough at noon.',
-  defaultWorkingHoursWording: 'Occupied areas 10 AM–5 PM; vacant areas later.',
+  defaultWalkthroughScheduleWording: '12:00',
+  defaultWorkingHoursWording: '08:00–18:00',
   enabledTrades: { clean: true, paint: true },
   permissions: {
     officialApprovals: false,
@@ -116,6 +139,54 @@ const createDraft = (
   contacts: createContacts(),
   project: createProject(),
   ...overrides,
+});
+
+const rosterUnits: readonly ProjectRosterUnitOption[] = [
+  {
+    applicableSections: ['common', 'A', 'B', 'C'],
+    building: 'Synthetic Tower',
+    floor: '1',
+    id: 'unit-101',
+    unitNumber: '101',
+    unitType: '3 bedroom',
+  },
+  {
+    applicableSections: ['common', 'A', 'B'],
+    building: 'Synthetic Tower',
+    floor: '2',
+    id: 'unit-202',
+    unitNumber: '202',
+    unitType: '2 bedroom',
+  },
+];
+
+const crewOptions: readonly TrackACrewOption[] = [
+  { id: 'crew-paint', name: 'Synthetic Paint', trade: 'paint' },
+  { id: 'crew-clean', name: 'Synthetic Clean', trade: 'clean' },
+  {
+    active: false,
+    id: 'crew-paint-inactive',
+    name: 'Inactive Paint',
+    trade: 'paint',
+  },
+];
+
+test('Phase 2 Property Contact roles match the approved operational choices exactly', () => {
+  assert.deepEqual(PROPERTY_CONTACT_ROLES, [
+    'Property Manager',
+    'Maintenance',
+    'Field Lead / Market Partner',
+    'Runner',
+    'Other',
+  ]);
+});
+
+test('Fast Start Day exposes a bounded four-screen route step', () => {
+  assert.equal(clampFastStartDayStep(-1), 0);
+  assert.equal(clampFastStartDayStep(0), 0);
+  assert.equal(clampFastStartDayStep(2.8), 2);
+  assert.equal(clampFastStartDayStep(99), 3);
+  assert.equal(clampFastStartDayStep(Number.NaN), 0);
 });
 
 test('activation preparation adds one candidate project, its contacts, active scope, and one personal event', () => {
@@ -327,6 +398,249 @@ test('AppData adapter keeps shared data compatible without mutating it', () => {
   assert.deepEqual(source, seedData);
 });
 
+test('Project Setup uses five authorized groups and stores native time controls in accepted wording fields', () => {
+  assert.deepEqual(
+    PROJECT_SETUP_STEPS.map((step) => step.label),
+    [
+      'Property',
+      'Contacts and schedule',
+      'Property roster',
+      'Crews and permissions',
+      'Review and activate',
+    ],
+  );
+  const source = createConfiguration();
+  const configured = configurationWithSchedule(source, {
+    walkthroughTime: '12:30',
+    workEndTime: '18:15',
+    workStartTime: '07:45',
+  });
+  assert.equal(configured.defaultWorkingHoursWording, '07:45–18:15');
+  assert.equal(configured.defaultWalkthroughScheduleWording, '12:30');
+  assert.deepEqual(resolveProjectDefaultSchedule(configured), {
+    walkthroughTime: '12:30',
+    workEndTime: '18:15',
+    workStartTime: '07:45',
+  });
+  assert.equal('defaultSchedule' in configured, false);
+  assert.equal(source.defaultWorkingHoursWording, '08:00–18:00');
+
+  const withoutWalkthrough = configurationWithSchedule(source, {
+    workEndTime: '17:00',
+    workStartTime: '09:00',
+  });
+  assert.equal(withoutWalkthrough.defaultWalkthroughScheduleWording, 'Not scheduled');
+  assert.deepEqual(resolveProjectDefaultSchedule(withoutWalkthrough), {
+    walkthroughTime: undefined,
+    workEndTime: '17:00',
+    workStartTime: '09:00',
+  });
+});
+
+test('Daily Release starts empty, defaults applicable sections only after Unit selection, and requires explicit review', () => {
+  const initial = createDailyReleaseDraft('Both');
+  assert.deepEqual(initial.selectedUnitIds, []);
+  assert.equal(initial.explicitConfirmation, false);
+
+  const unconfirmed = prepareDailyReleasePlan({
+    contacts: createContacts(),
+    date: '2026-08-01',
+    draft: initial,
+    enabledTrades: { clean: true, paint: true },
+    projectId: PROJECT_ID,
+    propertyContactId: 'contact-tony',
+    rosterUnits,
+  });
+  assert.equal(unconfirmed.ok, false);
+  if (unconfirmed.ok) return;
+  assert.match(unconfirmed.errors.join(' '), /explicitly confirm/u);
+  assert.match(unconfirmed.errors.join(' '), /at least one Unit/u);
+
+  let draft = setDailyReleaseUnitSelected(initial, 'unit-101', true);
+  draft = setDailyReleaseUnitSelected(draft, 'unit-202', true);
+  draft = setDailyReleaseException(draft, 'unit-101', 'B', 'unreleased-bedroom');
+  draft = setDailyReleaseException(draft, 'unit-101', 'C', 'access-issue');
+  draft = setDailyReleaseException(draft, 'unit-202', 'A', 'occupied-restricted');
+  draft = { ...draft, explicitConfirmation: true };
+
+  const prepared = prepareDailyReleasePlan({
+    contacts: createContacts(),
+    date: '2026-08-01',
+    draft,
+    enabledTrades: { clean: true, paint: true },
+    projectId: PROJECT_ID,
+    propertyContactId: 'contact-tony',
+    rosterUnits,
+  });
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal(prepared.plan.items.length, 10);
+  assert.equal(
+    prepared.plan.items.some((item) =>
+      item.unitId === 'unit-101' && item.section === 'B'),
+    false,
+  );
+  assert.equal(
+    prepared.plan.items.some((item) =>
+      item.unitId === 'unit-202' && item.section === 'A'),
+    false,
+  );
+  assert.equal(
+    prepared.plan.items.filter((item) =>
+      item.unitId === 'unit-101'
+      && item.section === 'C'
+      && item.restriction === 'Access issue').length,
+    2,
+  );
+  assert.deepEqual(initial, createDailyReleaseDraft('Both'));
+});
+
+test('Daily Release respects enabled Paint/Clean scope and rejects stale roster confirmation', () => {
+  assert.deepEqual(
+    availableDailyReleaseTradeChoices({ clean: true, paint: true }),
+    ['Paint', 'Clean', 'Both'],
+  );
+  assert.deepEqual(
+    availableDailyReleaseTradeChoices({ clean: false, paint: true }),
+    ['Paint'],
+  );
+  assert.deepEqual(
+    availableDailyReleaseTradeChoices({ clean: true, paint: false }),
+    ['Clean'],
+  );
+
+  const bothDraft = {
+    ...setDailyReleaseUnitSelected(createDailyReleaseDraft('Both'), 'unit-101', true),
+    explicitConfirmation: true,
+  };
+  const disabledTrade = prepareDailyReleasePlan({
+    contacts: createContacts(),
+    date: '2026-08-01',
+    draft: bothDraft,
+    enabledTrades: { clean: false, paint: true },
+    projectId: PROJECT_ID,
+    propertyContactId: 'contact-tony',
+    rosterUnits,
+  });
+  assert.equal(disabledTrade.ok, false);
+  if (disabledTrade.ok) return;
+  assert.match(disabledTrade.errors.join(' '), /not enabled/u);
+
+  const paintDraft = { ...bothDraft, tradeChoice: 'Paint' as const };
+  const prepared = prepareDailyReleasePlan({
+    contacts: createContacts(),
+    date: '2026-08-01',
+    draft: paintDraft,
+    enabledTrades: { clean: false, paint: true },
+    projectId: PROJECT_ID,
+    propertyContactId: 'contact-tony',
+    rosterUnits,
+  });
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal(prepared.plan.items.every((item) => item.trade === 'paint'), true);
+
+  const changedRoster = rosterUnits.map((unit) =>
+    unit.id === 'unit-101'
+      ? { ...unit, applicableSections: ['common', 'A'] as const }
+      : unit);
+  assert.match(
+    validatePreparedReleaseAgainstRoster(prepared.plan, changedRoster).join(' '),
+    /roster changed/u,
+  );
+  assert.throws(
+    () => createConfirmedDailyReleaseBatch(prepared.plan, changedRoster, {
+      batchId: 'release-batch-1',
+      confirmedAt: NOW,
+      confirmedBy: 'Los',
+    }),
+    /roster changed/u,
+  );
+
+  const batch = createConfirmedDailyReleaseBatch(prepared.plan, rosterUnits, {
+    batchId: 'release-batch-1',
+    confirmedAt: NOW,
+    confirmedBy: 'Los',
+  });
+  assert.equal(batch.status, 'confirmed');
+  assert.equal(batch.sourceType, 'manual');
+  assert.equal(batch.items.length, 4);
+  assert.equal(batch.items.every((item) => item.trade === 'paint'), true);
+});
+
+test('Fast Start Day is four screens, reuses active defaults, and returns an atomic host payload without mutation', () => {
+  assert.deepEqual(
+    FAST_START_DAY_STEPS.map((step) => step.label),
+    [
+      'Day and access',
+      'Daily release',
+      'Crews and defaults',
+      'Review and Start Day',
+    ],
+  );
+  assert.deepEqual(defaultActiveCrewIds(createConfiguration(), crewOptions), {
+    clean: ['crew-clean'],
+    paint: ['crew-paint'],
+  });
+
+  const releaseDraft = {
+    ...setDailyReleaseUnitSelected(createDailyReleaseDraft('Both'), 'unit-101', true),
+    explicitConfirmation: true,
+  };
+  const input = {
+    activeCrewIdsByTrade: {
+      clean: ['crew-clean'],
+      paint: ['crew-paint'],
+    },
+    contacts: createContacts(),
+    crewOptions,
+    date: '2026-08-01',
+    enabledTrades: { clean: true, paint: true },
+    explicitStartConfirmation: true,
+    keyStatus: 'partial-issue' as const,
+    morningNote: '  Synthetic note  ',
+    projectId: PROJECT_ID,
+    propertyContactId: 'contact-tony',
+    propertyName: 'Moon Tower',
+    releaseDraft,
+    rosterUnits,
+    schedule: {
+      walkthroughTime: '12:00',
+      workEndTime: '18:00',
+      workStartTime: '08:00',
+    },
+  };
+  const before = structuredClone(input);
+  const prepared = prepareFastStartDaySubmission(input);
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal(prepared.submission.keyStatus, 'partial-issue');
+  assert.equal(prepared.submission.morningNote, 'Synthetic note');
+  assert.equal(prepared.submission.release.items.length, 8);
+  assert.deepEqual(input, before);
+
+  const missingKeyAndConfirmation = prepareFastStartDaySubmission({
+    ...input,
+    explicitStartConfirmation: false,
+    keyStatus: undefined,
+  });
+  assert.equal(missingKeyAndConfirmation.ok, false);
+  if (missingKeyAndConfirmation.ok) return;
+  assert.match(missingKeyAndConfirmation.errors.join(' '), /key status/u);
+  assert.match(missingKeyAndConfirmation.errors.join(' '), /confirm Start Day/u);
+
+  const unavailableCrew = prepareFastStartDaySubmission({
+    ...input,
+    activeCrewIdsByTrade: {
+      clean: ['crew-clean'],
+      paint: ['crew-paint-inactive'],
+    },
+  });
+  assert.equal(unavailableCrew.ok, false);
+  if (unavailableCrew.ok) return;
+  assert.match(unavailableCrew.errors.join(' '), /unavailable/u);
+});
+
 test('Start Day values preserve per-value saved-default and today-only provenance', () => {
   assert.equal(START_DAY_EIGHT_STEP_CONTRACT.length, 8);
   assert.deepEqual(getStartDayStepContract(), START_DAY_EIGHT_STEP_CONTRACT);
@@ -392,7 +706,7 @@ test('Start Day values preserve per-value saved-default and today-only provenanc
   });
   assert.equal(
     createConfiguration().defaultWalkthroughScheduleWording,
-    'Daily walkthrough at noon.',
+    '12:00',
   );
   assert.throws(
     () => resolveStartDayValues(
@@ -762,6 +1076,16 @@ test('projection rejects cross-project and cross-session state instead of mergin
 
 test('the five-step setup clamp fails closed to a renderable controlled step', () => {
   assert.equal(PROJECT_SETUP_STEPS.length, 5);
+  assert.deepEqual(
+    PROJECT_SETUP_STEPS.map((step) => step.id),
+    [
+      'property',
+      'contacts-schedule',
+      'property-roster',
+      'crews-permissions',
+      'review-activate',
+    ],
+  );
   assert.equal(clampProjectSetupStep(-9), 0);
   assert.equal(clampProjectSetupStep(Number.NaN), 0);
   assert.equal(clampProjectSetupStep(2.9), 2);

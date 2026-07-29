@@ -933,6 +933,44 @@ test('initial remote replacement preserves only parent rows required by local fi
   assert.deepEqual(replaced.walkSessions, local.walkSessions);
 });
 
+test('initial remote replacement preserves a real-project crew referenced only by a Field Event actor', () => {
+  const local = withLocalFieldCollections();
+  const eventActorCrew = {
+    id: 'crew_field_event_actor_only',
+    projectId: local.activeProjectId,
+    name: 'Field Event Crew',
+    trade: 'Cleaner',
+    phone: '',
+    company: '',
+    language: '',
+    assignedLocation: '',
+    notes: '',
+    active: true,
+    createdAt: stamp,
+    updatedAt: stamp,
+  };
+  local.crewMembers = [eventActorCrew];
+  local.daySessions[0].activePaintCrewIds = [];
+  local.daySessions[0].activeCleanCrewIds = [];
+  local.fieldEvents[0] = {
+    ...local.fieldEvents[0],
+    actorType: 'crew',
+    actorId: eventActorCrew.id,
+  };
+
+  assert.equal(local.projects[0]?.mode, 'real');
+
+  const replaced = replaceRemoteData(local, {
+    crewMembers: [],
+    projects: [],
+    units: [],
+  });
+
+  assert.deepEqual(replaced.crewMembers.map((crew) => crew.id), [eventActorCrew.id]);
+  assert.equal(replaced.fieldEvents[0]?.actorType, 'crew');
+  assert.equal(replaced.fieldEvents[0]?.actorId, eventActorCrew.id);
+});
+
 test('Wave 2A.2 local collections are absent from the unchanged remote table configuration', () => {
   assert.deepEqual(syncedTables, [
     'projects',

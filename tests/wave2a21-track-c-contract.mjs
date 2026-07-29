@@ -132,10 +132,13 @@ test('Search and Notifications preserve the exact origin stack and scroll', () =
 
 test('Section 14 inventory is complete and quarantines legacy primary entries', () => {
   assert.equal(TRACK_C_SECTION_14_ROUTE_INVENTORY.length, 30);
+  assert.equal(canExposeTrackCPrimaryRoute('home'), true);
   assert.equal(canExposeTrackCPrimaryRoute('notes'), true);
+  assert.equal(canExposeTrackCPrimaryRoute('official-forms'), true);
   assert.equal(canExposeTrackCPrimaryRoute('photos'), false);
   assert.equal(canExposeTrackCPrimaryRoute('paste-text'), false);
   assert.equal(canExposeTrackCPrimaryRoute('import-work'), false);
+  assert.equal(canExposeTrackCPrimaryRoute('unknown-route'), false);
   assert.deepEqual(TRACK_C_OFFICIAL_FORMS_AVAILABILITY, {
     available: true,
     externalOnly: true,
@@ -153,6 +156,12 @@ test('shell exposes a Home control and scroll restoration without weakening rout
   assert.match(shellSource, /data-w2a21-home-control="true"/u);
   assert.match(shellSource, /onOpenHome \?\? \(\(\) => onNavigate\('home'\)\)/u);
   assert.match(shellSource, /contentScrollRestorationRef/u);
+  assert.match(shellSource, /const routeScrollRestoration = contentScrollRestorationRef\.current/u);
+  assert.match(shellSource, /scrollRequestToken/u);
+  assert.doesNotMatch(
+    shellSource,
+    /contentScrollRestorationRef\.current\s*\?\.onScrollTopChange/u,
+  );
   assert.match(shellSource, /previousContentFocusKeyRef/u);
   assert.match(shellSource, /pendingContentFocusKeyRef/u);
   assert.doesNotMatch(

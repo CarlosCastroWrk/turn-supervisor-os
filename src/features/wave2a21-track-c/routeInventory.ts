@@ -139,11 +139,15 @@ export const TRACK_C_LEGACY_ROUTE_QUARANTINE = [
   },
 ] as const;
 
-export const getTrackCSection14Route = (id: TrackCSection14RouteId) =>
+export const getTrackCSection14Route = (id: string) =>
   TRACK_C_SECTION_14_ROUTE_INVENTORY.find((item) => item.id === id);
 
-export const canExposeTrackCPrimaryRoute = (id: TrackCSection14RouteId) =>
-  getTrackCSection14Route(id)?.primaryDisposition !== 'unavailable';
+export const canExposeTrackCPrimaryRoute = (id: string) => {
+  const disposition = getTrackCSection14Route(id)?.primaryDisposition;
+  return disposition === 'accepted-native'
+    || disposition === 'external-only'
+    || disposition === 'host-route';
+};
 
 export const isTrackCLegacyPrimaryRoute = (hash: string) => {
   const normalized = hash.split('?')[0];

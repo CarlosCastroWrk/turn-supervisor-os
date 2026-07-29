@@ -73,6 +73,7 @@ export interface Wave2A2UnifiedShellProps
   contentScrollRestoration?: {
     key: string;
     onScrollTopChange?: (scrollTop: number) => void;
+    requestToken?: number | string;
     restore: boolean;
     scrollTop?: number;
   };
@@ -130,6 +131,7 @@ export function Wave2A2UnifiedShell({
   const contentScrollRestorationRef = useRef(contentScrollRestoration);
   contentScrollRestorationRef.current = contentScrollRestoration;
   const scrollKey = contentScrollRestoration?.key ?? contentFocusKey;
+  const scrollRequestToken = contentScrollRestoration?.requestToken;
   const shouldRestoreScroll =
     contentScrollRestoration?.restore ?? restoreContentScroll;
   const setMainRef = (node: HTMLElement | null) => {
@@ -144,6 +146,7 @@ export function Wave2A2UnifiedShell({
     const main = mainRef.current;
     if (!main) return undefined;
     const scrollPositions = scrollPositionsRef.current;
+    const routeScrollRestoration = contentScrollRestorationRef.current;
     let scrollRegion: HTMLElement | null = null;
     let lastKnownPosition = 0;
 
@@ -151,15 +154,14 @@ export function Wave2A2UnifiedShell({
       if (scrollRegion) {
         lastKnownPosition = scrollRegion.scrollTop;
         scrollPositions.set(scrollKey, lastKnownPosition);
-        contentScrollRestorationRef.current
-          ?.onScrollTopChange?.(lastKnownPosition);
+        routeScrollRestoration?.onScrollTopChange?.(lastKnownPosition);
       }
     };
 
     const frame = window.requestAnimationFrame(() => {
       scrollRegion = findPrimaryScrollRegion(main);
       scrollRegion.scrollTop = shouldRestoreScroll
-        ? contentScrollRestorationRef.current?.scrollTop
+        ? routeScrollRestoration?.scrollTop
           ?? scrollPositions.get(scrollKey)
           ?? 0
         : 0;
@@ -171,12 +173,34 @@ export function Wave2A2UnifiedShell({
       window.cancelAnimationFrame(frame);
       scrollRegion?.removeEventListener('scroll', rememberPosition);
       scrollPositions.set(scrollKey, lastKnownPosition);
-      contentScrollRestorationRef.current
-        ?.onScrollTopChange?.(lastKnownPosition);
+      routeScrollRestoration?.onScrollTopChange?.(lastKnownPosition);
     };
   }, [
     contentFocusKey,
     scrollKey,
+    shouldRestoreScroll,
+  ]);
+
+  useLayoutEffect(() => {
+    if (scrollRequestToken === undefined) return undefined;
+    const main = mainRef.current;
+    if (!main) return undefined;
+    const scrollPositions = scrollPositionsRef.current;
+    const requestedScrollTop = contentScrollRestorationRef.current?.scrollTop;
+    const frame = window.requestAnimationFrame(() => {
+      const scrollRegion = findPrimaryScrollRegion(main);
+      scrollRegion.scrollTop = shouldRestoreScroll
+        ? requestedScrollTop
+          ?? scrollPositions.get(scrollKey)
+          ?? 0
+        : 0;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    contentFocusKey,
+    scrollKey,
+    scrollRequestToken,
     shouldRestoreScroll,
   ]);
 

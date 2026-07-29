@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   buildTrackDReportMetrics,
   canConfirmTrackDImport,
+  createTrackDSourceBinding,
   createUnavailableExtractionDraft,
   displayPermissionValue,
   filterTrackDActivity,
@@ -146,10 +147,18 @@ test('attachment transcription retains the original source reference and File ob
     kind: 'paste',
     name: 'Pasted source text',
   };
+  const originalBinding = createTrackDSourceBinding(
+    originalSource,
+    1,
+    undefined,
+    [originalFile],
+  ).binding;
   const retained = resolveTrackDImportProvenance(
     {
       source: originalSource,
       sourceFiles: [originalFile],
+      revision: originalBinding.revision,
+      fingerprint: originalBinding.fingerprint,
     },
     fallbackSource,
   );
@@ -472,7 +481,8 @@ test('Track D shell and source contracts encode the repaired integration seams',
   assert.match(primitives, /data-track-d-page=/);
   assert.match(directPhoto, /initialFile\?: File/);
   assert.match(directPhoto, /useState<File \| null>\(\(\) =>/);
-  assert.match(sourceFirstImport, /sourceFiles: provenance\?\.sourceFiles \?\? \[\]/);
+  assert.match(sourceFirstImport, /prepareTrackDConfirmedImport/);
+  assert.match(sourceFirstImport, /isTrackDImportCommitReceipt/);
   assert.match(sourceFirstImport, /transcriptionKind/);
   assert.match(sourceFirstImport, /confirmationInFlightRef/);
   assert.match(sourceFirstImport, /Paint scope/);

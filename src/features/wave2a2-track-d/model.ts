@@ -21,6 +21,24 @@ export interface TrackDSourceReference {
   capturedAt: string;
 }
 
+export interface TrackDSourceFileMetadata {
+  name: string;
+  mimeType: string;
+  byteSize: number;
+  lastModified: number;
+}
+
+export interface TrackDOriginalSource {
+  originalText?: string;
+  files: readonly TrackDSourceFileMetadata[];
+}
+
+export interface TrackDSourceBinding {
+  sourceId: string;
+  revision: number;
+  fingerprint: string;
+}
+
 export interface TrackDImportRow {
   id: string;
   sourceRow: number;
@@ -41,6 +59,8 @@ export interface TrackDImportRow {
 export interface TrackDImportDraft {
   kind: TrackDImportKind;
   source: TrackDSourceReference;
+  sourceBinding: TrackDSourceBinding;
+  originalSource: TrackDOriginalSource;
   rows: TrackDImportRow[];
   warnings: string[];
   extractionAvailable: boolean;
@@ -50,21 +70,34 @@ export interface TrackDImportDraft {
 export interface TrackDConfirmedImport {
   kind: TrackDImportKind;
   source: TrackDSourceReference;
+  sourceBinding: TrackDSourceBinding;
+  originalSource: TrackDOriginalSource;
   rows: TrackDImportRow[];
   sourceFiles: readonly File[];
   confirmedAt: string;
   transcriptionKind?: TrackDTextTranscriptionKind;
 }
 
+export interface TrackDImportCommitReceipt {
+  /** Returned only after the complete source-bound transaction commits. */
+  committed: true;
+  sourceBinding: TrackDSourceBinding;
+}
+
 export interface TrackDImportProvenance {
   source: TrackDSourceReference;
   sourceFiles: readonly File[];
+  originalText?: string;
+  revision: number;
+  fingerprint: string;
 }
 
 export interface TrackDImportParseOptions {
   existingUnitNumbers?: Iterable<string>;
   source: TrackDSourceReference;
   kind: TrackDImportKind;
+  sourceFiles?: readonly File[];
+  sourceRevision?: number;
 }
 
 export interface TrackDSaveReceipt {
@@ -377,6 +410,63 @@ const normalizeHeader = (value: string) =>
 const normalizeUnitKey = (value: string) =>
   value.trim().normalize('NFKC').toLocaleLowerCase('en-US');
 
+const sourceFileMetadata = (
+  files: readonly File[] = [],
+): TrackDSourceFileMetadata[] =>
+  files.map((file) => ({
+    name: file.name,
+    mimeType: file.type,
+    byteSize: file.size,
+    lastModified: file.lastModified,
+  }));
+
+const stableSourceFingerprint = (
+  source: TrackDSourceReference,
+  originalSource: TrackDOriginalSource,
+) => {
+  const serialized = JSON.stringify({
+    source: {
+      id: source.id,
+      kind: source.kind,
+      name: source.name,
+      mimeType: source.mimeType ?? '',
+      byteSize: source.byteSize ?? null,
+      capturedAt: source.capturedAt,
+    },
+    originalText: originalSource.originalText ?? null,
+    files: originalSource.files,
+  });
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < serialized.length; index += 1) {
+    hash ^= serialized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `fnv1a-${(hash >>> 0).toString(16).padStart(8, '0')}`;
+};
+
+export const createTrackDSourceBinding = (
+  source: TrackDSourceReference,
+  revision: number,
+  originalText?: string,
+  files: readonly File[] = [],
+): {
+  binding: TrackDSourceBinding;
+  originalSource: TrackDOriginalSource;
+} => {
+  const originalSource: TrackDOriginalSource = {
+    ...(originalText !== undefined ? { originalText } : {}),
+    files: sourceFileMetadata(files),
+  };
+  return {
+    binding: {
+      sourceId: source.id,
+      revision,
+      fingerprint: stableSourceFingerprint(source, originalSource),
+    },
+    originalSource,
+  };
+};
+
 const createRowId = (sourceId: string, sourceRow: number) =>
   `${sourceId}-row-${sourceRow}`;
 
@@ -454,7 +544,15 @@ const TRACK_D_ROW_CONFLICTS = new Set([
   'Unit already exists in the supplied roster.',
   'Unit is not in the supplied property roster.',
   'Unit number is required.',
+  'Unit number format needs review.',
 ]);
+
+const isGeneratedRowConflict = (conflict: string) =>
+  TRACK_D_ROW_CONFLICTS.has(conflict) ||
+  conflict.startsWith('Section ');
+
+const isPlausibleUnitNumber = (value: string) =>
+  /^(?=.*\d)[A-Za-z0-9][A-Za-z0-9 .#-]*$/.test(value.trim());
 
 export const revalidateTrackDImportRows = (
   rows: TrackDImportRow[],
@@ -473,7 +571,7 @@ export const revalidateTrackDImportRows = (
   return rows.map((row) => {
     const key = normalizeUnitKey(row.unitNumber);
     const conflicts = row.conflicts.filter(
-      (conflict) => !TRACK_D_ROW_CONFLICTS.has(conflict),
+      (conflict) => !isGeneratedRowConflict(conflict),
     );
     if (!row.excluded && key && (counts.get(key) ?? 0) > 1) {
       conflicts.push('Duplicate Unit in this source.');
@@ -495,6 +593,30 @@ export const revalidateTrackDImportRows = (
       conflicts.push('Unit is not in the supplied property roster.');
     }
     if (!row.excluded && !key) conflicts.push('Unit number is required.');
+    if (!row.excluded && key && !isPlausibleUnitNumber(row.unitNumber)) {
+      conflicts.push('Unit number format needs review.');
+    }
+    if (!row.excluded) {
+      const unitType = Number.parseInt(row.unitType.trim(), 10);
+      row.applicableSections.forEach((section) => {
+        const normalized = section.trim().toLocaleUpperCase('en-US');
+        if (normalized === 'COMMON') return;
+        if (!/^[A-E]$/.test(normalized)) {
+          conflicts.push(`Section ${section} is not supported.`);
+          return;
+        }
+        if (
+          Number.isInteger(unitType) &&
+          unitType >= 1 &&
+          unitType <= 5 &&
+          normalized.charCodeAt(0) - 64 > unitType
+        ) {
+          conflicts.push(
+            `Section ${normalized} is not valid for Unit type ${unitType}.`,
+          );
+        }
+      });
+    }
     return { ...row, conflicts };
   });
 };
@@ -520,12 +642,48 @@ const parseDelimitedText = async (
     HEADER_ALIASES.get(normalizeHeader(header)),
   );
   const warnings = parsed.errors.map((error) => error.message);
+  const normalizedHeaders = headers.map(normalizeHeader);
+  if (
+    normalizedHeaders.some(
+      (header) =>
+        ['trade', 'service', 'carpet', 'carpet cleaning', 'repair'].includes(
+          header,
+        ) || /(?:carpet|resurface|maintenance|repair)/.test(header),
+    )
+  ) {
+    warnings.push(
+      'Unsupported trade column found. This intake accepts explicit Paint and Clean scope only.',
+    );
+  }
+  const originalLines = text.split(/\r\n|\n|\r/);
   const rows = records.slice(1).map((record, index) => {
     const sourceRow = index + 2;
-    const row = emptyRow(options.source, sourceRow, record.join(' | '));
+    const row = emptyRow(
+      options.source,
+      sourceRow,
+      originalLines[sourceRow - 1] ?? record.join(' | '),
+    );
+    if (record.length !== headers.length) {
+      row.conflicts.push(
+        `Source row has ${record.length} columns; expected ${headers.length}.`,
+      );
+    }
+    const seenScopeValues = new Map<string, string>();
     record.forEach((value, cellIndex) => {
       const field = mappedHeaders[cellIndex];
       if (!field || !value) return;
+      if (field === 'paintRequested' || field === 'cleanRequested') {
+        const previous = seenScopeValues.get(field);
+        if (
+          previous !== undefined &&
+          normalizeHeader(previous) !== normalizeHeader(value)
+        ) {
+          row.conflicts.push(
+            `Conflicting ${field === 'paintRequested' ? 'Paint' : 'Clean'} scope values in this source row.`,
+          );
+        }
+        seenScopeValues.set(field, value);
+      }
       if (field === 'applicableSections') {
         row.applicableSections = parseSections(value, row.uncertainties);
       } else if (field === 'paintRequested') {
@@ -586,11 +744,14 @@ const parseManualText = (
 ) => {
   const rows = text
     .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const sourceRow = index + 1;
-      const row = emptyRow(options.source, sourceRow, line);
+    .map((sourceExcerpt, index) => ({
+      line: sourceExcerpt.trim(),
+      sourceExcerpt,
+      sourceRow: index + 1,
+    }))
+    .filter(({ line }) => Boolean(line))
+    .map(({ line, sourceExcerpt, sourceRow }) => {
+      const row = emptyRow(options.source, sourceRow, sourceExcerpt);
       const pieces = line
         .split(/[;|]/)
         .map((piece) => piece.trim())
@@ -647,11 +808,19 @@ export async function parseTrackDImportText(
   text: string,
   options: TrackDImportParseOptions,
 ): Promise<TrackDImportDraft> {
+  const { binding, originalSource } = createTrackDSourceBinding(
+    options.source,
+    options.sourceRevision ?? 1,
+    text,
+    options.sourceFiles,
+  );
   const trimmed = text.trim();
   if (!trimmed) {
     return {
       kind: options.kind,
       source: options.source,
+      sourceBinding: binding,
+      originalSource,
       rows: [],
       warnings: ['Add source text before creating a preview.'],
       extractionAvailable: true,
@@ -659,11 +828,13 @@ export async function parseTrackDImportText(
   }
   const firstLine = trimmed.split(/\r?\n/, 1)[0] ?? '';
   const result = looksLikeDelimitedHeader(firstLine)
-    ? await parseDelimitedText(trimmed, options)
-    : parseManualText(trimmed, options);
+    ? await parseDelimitedText(text, options)
+    : parseManualText(text, options);
   return {
     kind: options.kind,
     source: options.source,
+    sourceBinding: binding,
+    originalSource,
     rows: result.rows,
     warnings: result.warnings,
     extractionAvailable: true,
@@ -673,25 +844,129 @@ export async function parseTrackDImportText(
 export function createUnavailableExtractionDraft(
   kind: TrackDImportKind,
   source: TrackDSourceReference,
+  sourceFiles: readonly File[] = [],
+  sourceRevision = 1,
 ): TrackDImportDraft {
+  const { binding, originalSource } = createTrackDSourceBinding(
+    source,
+    sourceRevision,
+    undefined,
+    sourceFiles,
+  );
   return {
     kind,
     source,
+    sourceBinding: binding,
+    originalSource,
     rows: [],
     warnings: ['Source attached — extraction not yet available.'],
     extractionAvailable: false,
   };
 }
 
-export function canConfirmTrackDImport(draft: TrackDImportDraft) {
+export function isTrackDImportDraftCurrent(
+  draft: TrackDImportDraft,
+  provenance: TrackDImportProvenance | null | undefined,
+) {
+  if (!provenance) return false;
+  const current = createTrackDSourceBinding(
+    provenance.source,
+    provenance.revision,
+    provenance.originalText,
+    provenance.sourceFiles,
+  );
+  return Boolean(
+    current.binding.fingerprint === provenance.fingerprint &&
+      draft.sourceBinding.sourceId === provenance.source.id &&
+      draft.sourceBinding.revision === provenance.revision &&
+      draft.sourceBinding.fingerprint === provenance.fingerprint,
+  );
+}
+
+export function canConfirmTrackDImport(
+  draft: TrackDImportDraft,
+  provenance?: TrackDImportProvenance | null,
+) {
   const included = draft.rows.filter((row) => !row.excluded);
   return (
+    (provenance === undefined ||
+      isTrackDImportDraftCurrent(draft, provenance)) &&
     draft.extractionAvailable &&
+    draft.warnings.length === 0 &&
     included.length > 0 &&
     included.every(
-      (row) => row.unitNumber.trim() && row.conflicts.length === 0,
+      (row) =>
+        row.unitNumber.trim() &&
+        row.conflicts.length === 0 &&
+        row.uncertainties.length === 0,
     )
   );
+}
+
+export function prepareTrackDConfirmedImport(
+  draft: TrackDImportDraft,
+  provenance: TrackDImportProvenance | null | undefined,
+  existingUnitNumbers: Iterable<string> = [],
+  confirmedAt = new Date().toISOString(),
+): TrackDConfirmedImport | null {
+  if (!provenance || !isTrackDImportDraftCurrent(draft, provenance)) {
+    return null;
+  }
+  const rows = revalidateTrackDImportRows(
+    draft.rows,
+    existingUnitNumbers,
+    draft.kind,
+  );
+  const revalidatedDraft: TrackDImportDraft = { ...draft, rows };
+  if (!canConfirmTrackDImport(revalidatedDraft, provenance)) return null;
+
+  return {
+    kind: revalidatedDraft.kind,
+    source: revalidatedDraft.source,
+    sourceBinding: revalidatedDraft.sourceBinding,
+    originalSource: revalidatedDraft.originalSource,
+    rows: rows.filter((row) => !row.excluded),
+    sourceFiles: provenance.sourceFiles,
+    confirmedAt,
+    ...(revalidatedDraft.transcriptionKind
+      ? { transcriptionKind: revalidatedDraft.transcriptionKind }
+      : {}),
+  };
+}
+
+export function trackDSourceBindingsMatch(
+  left: TrackDSourceBinding,
+  right: TrackDSourceBinding,
+) {
+  return (
+    left.sourceId === right.sourceId &&
+    left.revision === right.revision &&
+    left.fingerprint === right.fingerprint
+  );
+}
+
+export function isTrackDImportCommitReceipt(
+  value: unknown,
+  expectedBinding: TrackDSourceBinding,
+): value is TrackDImportCommitReceipt {
+  if (!value || typeof value !== 'object') return false;
+  const receipt = value as Partial<TrackDImportCommitReceipt>;
+  return (
+    receipt.committed === true &&
+    Boolean(receipt.sourceBinding) &&
+    trackDSourceBindingsMatch(
+      receipt.sourceBinding as TrackDSourceBinding,
+      expectedBinding,
+    )
+  );
+}
+
+export function isTrackDSaveReceipt(
+  value: unknown,
+): value is TrackDSaveReceipt {
+  if (!value || typeof value !== 'object') return false;
+  const receipt = value as Partial<TrackDSaveReceipt>;
+  return Boolean(receipt.recordId?.trim() && receipt.message?.trim());
 }
 
 export function resolveTrackDImportProvenance(
@@ -702,11 +977,19 @@ export function resolveTrackDImportProvenance(
     return {
       source: attached.source,
       sourceFiles: attached.sourceFiles,
+      ...(attached.originalText !== undefined
+        ? { originalText: attached.originalText }
+        : {}),
+      revision: attached.revision,
+      fingerprint: attached.fingerprint,
     };
   }
+  const { binding } = createTrackDSourceBinding(fallbackSource, 1);
   return {
     source: fallbackSource,
     sourceFiles: [],
+    revision: binding.revision,
+    fingerprint: binding.fingerprint,
   };
 }
 

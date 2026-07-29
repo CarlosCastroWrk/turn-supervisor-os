@@ -185,6 +185,109 @@ try {
     await context.close();
   }
 
+  const integrityContext = await browser.newContext({
+    colorScheme: 'light',
+    viewport: { width: 390, height: 844 },
+  });
+  const integrityPage = await integrityContext.newPage();
+  const integrityFindings = attachRuntimeChecks(integrityPage);
+  await integrityPage.goto(`${baseUrl}${previewPath}`, {
+    waitUntil: 'networkidle',
+  });
+
+  // 01/03: editing the source starts a newer parse revision; the older,
+  // slower result must never replace it.
+  await integrityPage
+    .getByRole('button', {
+      name: 'Paste Text Parse copied rows deterministically',
+      exact: true,
+    })
+    .click();
+  const sourceWording = integrityPage.getByLabel('Source wording');
+  const createPreview = integrityPage.getByRole('button', {
+    name: 'Create review preview',
+    exact: true,
+  });
+  await sourceWording.fill('Unit: 101; notes: SLOW_PARSE');
+  await createPreview.click();
+  await sourceWording.fill('Unit: 102; notes: FAST_PARSE');
+  await createPreview.click();
+  await integrityPage
+    .getByRole('heading', { name: 'Pasted source text', exact: true })
+    .waitFor();
+  assert.equal(
+    await integrityPage.getByLabel('Unit', { exact: true }).inputValue(),
+    '102',
+  );
+  await integrityPage.waitForTimeout(450);
+  assert.equal(
+    await integrityPage.getByLabel('Unit', { exact: true }).inputValue(),
+    '102',
+  );
+
+  // 02: replacing a text file while its parse is running leaves only the
+  // replacement review visible.
+  await integrityPage
+    .getByRole('button', { name: 'Start over', exact: true })
+    .click();
+  const integrityFileInput = integrityPage.locator(
+    'input[type="file"][accept*=".pdf"]',
+  );
+  await integrityFileInput.setInputFiles({
+    buffer: Buffer.from('Unit: 101; notes: SLOW_PARSE'),
+    mimeType: 'text/plain',
+    name: 'earlier.txt',
+  });
+  await integrityFileInput.setInputFiles({
+    buffer: Buffer.from('Unit: 102; notes: FAST_PARSE'),
+    mimeType: 'text/plain',
+    name: 'replacement.txt',
+  });
+  await integrityPage
+    .getByRole('heading', { name: 'replacement.txt', exact: true })
+    .waitFor();
+  await integrityPage.waitForTimeout(450);
+  assert.equal(
+    await integrityPage.getByRole('heading', {
+      name: 'replacement.txt',
+      exact: true,
+    }).count(),
+    1,
+  );
+  assert.equal(
+    await integrityPage.getByLabel('Unit', { exact: true }).inputValue(),
+    '102',
+  );
+
+  // 14: parser exceptions preserve the exact retryable source.
+  await integrityPage
+    .getByRole('button', { name: 'Start over', exact: true })
+    .click();
+  await integrityPage
+    .getByRole('button', {
+      name: 'Paste Text Parse copied rows deterministically',
+      exact: true,
+    })
+    .click();
+  await integrityPage
+    .getByLabel('Source wording')
+    .fill('Unit: 101; notes: THROW_PARSE');
+  await integrityPage
+    .getByRole('button', { name: 'Create review preview', exact: true })
+    .click();
+  await integrityPage.getByText(/Preview failed\. Nothing was imported/).waitFor();
+  assert.equal(
+    await integrityPage.getByLabel('Source wording').inputValue(),
+    'Unit: 101; notes: THROW_PARSE',
+  );
+
+  assert.deepEqual(
+    integrityFindings,
+    [],
+    `Track D integrity runtime findings:\n${integrityFindings.join('\n')}`,
+  );
+  await integrityContext.close();
+
   const context = await browser.newContext({
     colorScheme: 'light',
     viewport: { width: 390, height: 844 },
@@ -205,7 +308,12 @@ try {
       exact: true,
     })
     .waitFor();
-  await page.getByRole('button', { name: 'Paste Text', exact: true }).click();
+  await page
+    .getByRole('button', {
+      name: 'Paste Text',
+      exact: true,
+    })
+    .click();
   await page.getByText(/Original attachment retained: release\.pdf/).waitFor();
   await page.getByLabel('Source wording').fill('101');
   await page
@@ -282,7 +390,88 @@ try {
   assert.match(importResult, /"transcriptionKind": "paste"/);
   assert.match(importResult, /"paintRequested": true/);
   assert.match(importResult, /"cleanRequested": false/);
+  assert.match(importResult, /"originalText": "101"/);
   assert.match(importResult, /confirmCount:1/);
+
+  // 15/17/18/22/23/24: a rejected complete-save callback never produces a
+  // success receipt, leaves the exact source/review retryable, and succeeds
+  // only after a later complete matching receipt.
+  await page
+    .getByRole('button', { name: 'Start a new intake', exact: true })
+    .click();
+  await page
+    .getByRole('button', {
+      name: 'Paste Text Parse copied rows deterministically',
+      exact: true,
+    })
+    .click();
+  const failingSource =
+    'Unit: 102; paint: yes; clean: no; notes: SAVE_FAIL';
+  await page.getByLabel('Source wording').fill(failingSource);
+  await page
+    .getByRole('button', { name: 'Create review preview', exact: true })
+    .click();
+  await page.getByLabel(/I reviewed this personal preview/).check();
+  await page
+    .getByRole('button', { name: 'Confirm reviewed intake', exact: true })
+    .click();
+  await page.getByText(/Confirmation failed\. Nothing is marked saved/).waitFor();
+  assert.equal(
+    await page.getByLabel('Restrictions or source notes').inputValue(),
+    'SAVE_FAIL',
+  );
+  assert.match(
+    await page.getByTestId('preview-result').innerText(),
+    /confirmCount:1/,
+  );
+  await page
+    .getByLabel('Restrictions or source notes')
+    .fill('retry succeeds');
+  await page.getByLabel(/I reviewed this personal preview/).check();
+  await page
+    .getByRole('button', { name: 'Confirm reviewed intake', exact: true })
+    .click();
+  await page.getByText(/Intake confirmed once and locked/).waitFor();
+  const retryResult = await page.getByTestId('preview-result').innerText();
+  assert.match(retryResult, /confirmCount:2/);
+  assert.match(retryResult, /SAVE_FAIL/);
+  assert.doesNotMatch(retryResult, /retry succeeds/);
+
+  // Direct Note saves clear only the exact committed revision. Newer wording
+  // and Unit context survive an earlier in-flight save.
+  await page.getByRole('button', { name: 'Note', exact: true }).click();
+  await page.getByRole('heading', { name: 'New Note', exact: true }).waitFor();
+  const noteWording = page.getByLabel('Note wording');
+  await noteWording.fill('Earlier note wording');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await page.getByRole('button', { name: 'Saving…', exact: true }).waitFor();
+  await noteWording.fill('Newer unsaved note wording');
+  await page.getByLabel('Unit context (optional)').selectOption('unit-102');
+  await page.getByText(/earlier note was saved.*newer wording/i).waitFor();
+  assert.equal(await noteWording.inputValue(), 'Newer unsaved note wording');
+  assert.equal(
+    await page.getByLabel('Unit context (optional)').inputValue(),
+    'unit-102',
+  );
+  assert.match(
+    await page.getByTestId('preview-result').innerText(),
+    /Earlier note wording/,
+  );
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await page.getByText('Note saved', { exact: true }).waitFor();
+  assert.equal(await noteWording.inputValue(), '');
+
+  // Save and offline-style host failures retain current Note wording for retry.
+  await noteWording.fill('OFFLINE_FAIL remains retryable');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await page.getByText(/Note was not saved/).waitFor();
+  assert.equal(
+    await noteWording.inputValue(),
+    'OFFLINE_FAIL remains retryable',
+  );
+  await noteWording.fill('Retry after connectivity returns');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await page.getByText('Note saved', { exact: true }).waitFor();
 
   await page.getByRole('button', { name: 'Photo', exact: true }).click();
   await page.getByRole('heading', { name: 'New Photo', exact: true }).waitFor();
@@ -301,10 +490,39 @@ try {
   );
   await page.getByLabel('Caption (optional)').fill('Plus picker handoff');
   await page.getByRole('button', { name: 'Save photo', exact: true }).click();
-  await page.getByText('Photo saved', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Saving…', exact: true }).waitFor();
+  await page.getByLabel('Caption (optional)').fill('Newer photo context');
+  await page.getByText(/earlier photo was saved.*newer photo or context/i).waitFor();
   const photoResult = await page.getByTestId('preview-result').innerText();
   assert.match(photoResult, /"fileName": "plus-selected\.svg"/);
   assert.match(photoResult, /"caption": "Plus picker handoff"/);
+  assert.equal(
+    await page.getByLabel('Caption (optional)').inputValue(),
+    'Newer photo context',
+  );
+  await page.getByRole('button', { name: 'Save photo', exact: true }).click();
+  await page.getByText('Photo saved', { exact: true }).waitFor();
+  const photosInput = page.locator(
+    'input[type="file"][accept="image/*"]:not([capture])',
+  );
+  await photosInput.setInputFiles({
+    buffer: Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+    ),
+    mimeType: 'image/svg+xml',
+    name: 'retry-photo.svg',
+  });
+  await page.getByText('retry-photo.svg', { exact: true }).waitFor();
+  await page.getByLabel('Caption (optional)').fill('SAVE_FAIL photo');
+  await page.getByRole('button', { name: 'Save photo', exact: true }).click();
+  await page.getByText(/Photo was not saved/).waitFor();
+  assert.equal(
+    await page.getByLabel('Caption (optional)').inputValue(),
+    'SAVE_FAIL photo',
+  );
+  await page.getByLabel('Caption (optional)').fill('Photo retry succeeds');
+  await page.getByRole('button', { name: 'Save photo', exact: true }).click();
+  await page.getByText('Photo saved', { exact: true }).waitFor();
   await assertMinimumTargets(
     page.locator('[data-track-d-critical-target="receipt-action"]:visible'),
     'receipt actions',

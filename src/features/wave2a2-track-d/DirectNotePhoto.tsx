@@ -10,10 +10,11 @@ import {
   useState,
   type ChangeEvent,
 } from 'react';
-import type {
-  TrackDNoteRequest,
-  TrackDPhotoRequest,
-  TrackDSaveReceipt,
+import {
+  isTrackDSaveReceipt,
+  type TrackDNoteRequest,
+  type TrackDPhotoRequest,
+  type TrackDSaveReceipt,
 } from './model';
 import {
   TrackDPage,
@@ -35,6 +36,7 @@ export interface TrackDResumableNote {
 export interface DirectNoteFlowProps {
   initialUnitId?: string;
   onBack?: () => void;
+  /** Resolve only after the exact request is durably saved. */
   onSave: (
     request: TrackDNoteRequest,
   ) => Promise<TrackDSaveReceipt> | TrackDSaveReceipt;
@@ -59,44 +61,86 @@ export function DirectNoteFlow({
   const [status, setStatus] = useState('');
   const [saving, setSaving] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const revisionRef = useRef(0);
+  const saveAttemptRef = useRef(0);
+  const saveInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveAttemptRef.current += 1;
+    };
+  }, []);
+
+  const markEdited = () => {
+    revisionRef.current += 1;
+    setReceipt(null);
+  };
 
   const startNew = () => {
+    markEdited();
     setWording('');
     setUnitId(initialUnitId ?? '');
-    setReceipt(null);
     setStatus('');
     textareaRef.current?.focus();
   };
 
   const resume = () => {
     if (!resumableNote) return;
+    markEdited();
     setWording(resumableNote.wording);
     setUnitId(resumableNote.unitId ?? '');
-    setReceipt(null);
     setStatus('Unsaved note restored. Review it before saving.');
     textareaRef.current?.focus();
   };
 
   const save = async () => {
+    if (saveInFlightRef.current) return;
     if (!wording.trim()) {
       setStatus('Type a note before saving.');
       return;
     }
+    const revision = revisionRef.current;
+    const request: TrackDNoteRequest = {
+      wording,
+      ...(unitId ? { unitId } : {}),
+      recordedAt: new Date().toISOString(),
+    };
+    saveInFlightRef.current = true;
+    const attempt = saveAttemptRef.current + 1;
+    saveAttemptRef.current = attempt;
     setSaving(true);
+    setReceipt(null);
     setStatus('');
     try {
-      const nextReceipt = await onSave({
-        wording,
-        ...(unitId ? { unitId } : {}),
-        recordedAt: new Date().toISOString(),
-      });
+      const nextReceipt = await onSave(request);
+      if (!isTrackDSaveReceipt(nextReceipt)) {
+        throw new Error('Note host did not return a complete save receipt.');
+      }
+      if (!mountedRef.current || saveAttemptRef.current !== attempt) return;
       setReceipt(nextReceipt);
-      setWording('');
-      setStatus('');
+      if (revisionRef.current === revision) {
+        revisionRef.current += 1;
+        setWording('');
+        setStatus('');
+      } else {
+        setStatus(
+          'The earlier note was saved. Newer wording or Unit context remains unsaved.',
+        );
+      }
     } catch {
-      setStatus('Note was not saved. Your wording remains on this screen.');
+      if (mountedRef.current && saveAttemptRef.current === attempt) {
+        setStatus(
+          'Note was not saved. Your current wording and Unit context remain available to retry.',
+        );
+      }
     } finally {
-      setSaving(false);
+      if (saveAttemptRef.current === attempt) {
+        saveInFlightRef.current = false;
+        if (mountedRef.current) setSaving(false);
+      }
     }
   };
 
@@ -138,7 +182,10 @@ export function DirectNoteFlow({
           <label className="w2a2d-field">
             <span>Unit context (optional)</span>
             <select
-              onChange={(event) => setUnitId(event.currentTarget.value)}
+              onChange={(event) => {
+                markEdited();
+                setUnitId(event.currentTarget.value);
+              }}
               value={unitId}
             >
               <option value="">No Unit</option>
@@ -153,7 +200,10 @@ export function DirectNoteFlow({
             <span>Note wording</span>
             <textarea
               autoFocus
-              onChange={(event) => setWording(event.currentTarget.value)}
+              onChange={(event) => {
+                markEdited();
+                setWording(event.currentTarget.value);
+              }}
               placeholder="Type the observation exactly as you want it saved"
               ref={textareaRef}
               rows={7}
@@ -198,6 +248,7 @@ export interface DirectPhotoFlowProps {
   initialFile?: File;
   initialUnitId?: string;
   onBack?: () => void;
+  /** Resolve only after the exact file and context are durably saved. */
   onSave: (
     request: TrackDPhotoRequest,
   ) => Promise<TrackDSaveReceipt> | TrackDSaveReceipt;
@@ -242,6 +293,23 @@ export function DirectPhotoFlow({
   const [saving, setSaving] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
+  const revisionRef = useRef(0);
+  const saveAttemptRef = useRef(0);
+  const saveInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      saveAttemptRef.current += 1;
+    };
+  }, []);
+
+  const markEdited = () => {
+    revisionRef.current += 1;
+    setReceipt(null);
+  };
 
   useEffect(() => {
     if (!file) {
@@ -261,38 +329,70 @@ export function DirectPhotoFlow({
       setStatus('Choose an image file. Nothing was saved.');
       return;
     }
+    markEdited();
     setFile(selected);
-    setReceipt(null);
     setStatus('Photo selected. Add optional context, then save.');
   };
 
   const save = async () => {
+    if (saveInFlightRef.current) return;
     if (!file) {
       setStatus('Take or choose a photo before saving.');
       return;
     }
+    if (!permission.canSave) {
+      setStatus(
+        'Photo was not saved because storage permission is unavailable. The selected photo remains on this screen.',
+      );
+      return;
+    }
+    const revision = revisionRef.current;
+    const request: TrackDPhotoRequest = {
+      file,
+      context: {
+        ...(propertyId ? { propertyId } : {}),
+        ...(unitId ? { unitId } : {}),
+        ...(trade ? { trade } : {}),
+        ...(section.trim() ? { section: section.trim() } : {}),
+        caption,
+      },
+      recordedAt: new Date().toISOString(),
+    };
+    saveInFlightRef.current = true;
+    const attempt = saveAttemptRef.current + 1;
+    saveAttemptRef.current = attempt;
     setSaving(true);
+    setReceipt(null);
     setStatus('');
     try {
-      const nextReceipt = await onSave({
-        file,
-        context: {
-          ...(propertyId ? { propertyId } : {}),
-          ...(unitId ? { unitId } : {}),
-          ...(trade ? { trade } : {}),
-          ...(section.trim() ? { section: section.trim() } : {}),
-          caption,
-        },
-        recordedAt: new Date().toISOString(),
-      });
+      const nextReceipt = await onSave(request);
+      if (!isTrackDSaveReceipt(nextReceipt)) {
+        throw new Error('Photo host did not return a complete save receipt.');
+      }
+      if (!mountedRef.current || saveAttemptRef.current !== attempt) return;
       setReceipt(nextReceipt);
-      setFile(null);
-      setCaption('');
-      setSection('');
+      if (revisionRef.current === revision) {
+        revisionRef.current += 1;
+        setFile(null);
+        setCaption('');
+        setSection('');
+        setStatus('');
+      } else {
+        setStatus(
+          'The earlier photo was saved. The newer photo or context remains unsaved.',
+        );
+      }
     } catch {
-      setStatus('Photo was not saved. The selected photo remains on this screen.');
+      if (mountedRef.current && saveAttemptRef.current === attempt) {
+        setStatus(
+          'Photo was not saved. The selected photo and current context remain available to retry.',
+        );
+      }
     } finally {
-      setSaving(false);
+      if (saveAttemptRef.current === attempt) {
+        saveInFlightRef.current = false;
+        if (mountedRef.current) setSaving(false);
+      }
     }
   };
 
@@ -370,7 +470,10 @@ export function DirectPhotoFlow({
             <label className="w2a2d-field">
               <span>Unit (optional)</span>
               <select
-                onChange={(event) => setUnitId(event.currentTarget.value)}
+                onChange={(event) => {
+                  markEdited();
+                  setUnitId(event.currentTarget.value);
+                }}
                 value={unitId}
               >
                 <option value="">No Unit</option>
@@ -384,9 +487,12 @@ export function DirectPhotoFlow({
             <label className="w2a2d-field">
               <span>Trade (optional)</span>
               <select
-                onChange={(event) =>
-                  setTrade(event.currentTarget.value as '' | 'Paint' | 'Clean')
-                }
+                onChange={(event) => {
+                  markEdited();
+                  setTrade(
+                    event.currentTarget.value as '' | 'Paint' | 'Clean',
+                  );
+                }}
                 value={trade}
               >
                 <option value="">No trade</option>
@@ -397,7 +503,10 @@ export function DirectPhotoFlow({
             <label className="w2a2d-field">
               <span>Section (optional)</span>
               <input
-                onChange={(event) => setSection(event.currentTarget.value)}
+                onChange={(event) => {
+                  markEdited();
+                  setSection(event.currentTarget.value);
+                }}
                 placeholder="Common, A, B, C…"
                 value={section}
               />
@@ -405,7 +514,10 @@ export function DirectPhotoFlow({
             <label className="w2a2d-field">
               <span>Caption (optional)</span>
               <textarea
-                onChange={(event) => setCaption(event.currentTarget.value)}
+                onChange={(event) => {
+                  markEdited();
+                  setCaption(event.currentTarget.value);
+                }}
                 rows={3}
                 value={caption}
               />

@@ -17,11 +17,16 @@ import {
 } from 'react';
 import {
   canConfirmTrackDImport,
+  createTrackDSourceBinding,
   createUnavailableExtractionDraft,
+  isTrackDImportCommitReceipt,
+  isTrackDImportDraftCurrent,
   parseTrackDImportText,
+  prepareTrackDConfirmedImport,
   revalidateTrackDImportRows,
-  resolveTrackDImportProvenance,
+  trackDSourceBindingsMatch,
   type TrackDConfirmedImport,
+  type TrackDImportCommitReceipt,
   type TrackDImportDraft,
   type TrackDImportKind,
   type TrackDImportProvenance,
@@ -118,9 +123,14 @@ export interface SourceFirstImportProps {
   existingUnitNumbers?: readonly string[];
   initialKind?: TrackDImportKind;
   onBack?: () => void;
+  /**
+   * The host must commit the complete prepared import atomically or reject
+   * without leaving partial operational records.
+   */
   onConfirm: (
     confirmed: TrackDConfirmedImport,
-  ) => Promise<void> | void;
+  ) => Promise<TrackDImportCommitReceipt> | TrackDImportCommitReceipt;
+  parseSource?: typeof parseTrackDImportText;
 }
 
 export function SourceFirstImport({
@@ -129,6 +139,7 @@ export function SourceFirstImport({
   initialKind = 'property-roster',
   onBack,
   onConfirm,
+  parseSource = parseTrackDImportText,
 }: SourceFirstImportProps) {
   const [kind, setKind] = useState<TrackDImportKind>(initialKind);
   const [draft, setDraft] = useState<TrackDImportDraft | null>(null);
@@ -142,6 +153,10 @@ export function SourceFirstImport({
   const [saving, setSaving] = useState(false);
   const confirmationInFlightRef = useRef(false);
   const confirmationAttemptRef = useRef(0);
+  const parseAttemptRef = useRef(0);
+  const sourceRevisionRef = useRef(0);
+  const draftRef = useRef<TrackDImportDraft | null>(null);
+  const provenanceRef = useRef<TrackDImportProvenance | null>(null);
   const mountedRef = useRef(true);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
@@ -152,6 +167,7 @@ export function SourceFirstImport({
     return () => {
       mountedRef.current = false;
       confirmationAttemptRef.current += 1;
+      parseAttemptRef.current += 1;
     };
   }, []);
 
@@ -163,10 +179,50 @@ export function SourceFirstImport({
   const canMutateIntake = () =>
     !saving && !confirmationInFlightRef.current;
 
+  const replaceDraft = (nextDraft: TrackDImportDraft | null) => {
+    draftRef.current = nextDraft;
+    setDraft(nextDraft);
+  };
+
+  const replaceProvenance = (
+    nextProvenance: TrackDImportProvenance | null,
+  ) => {
+    provenanceRef.current = nextProvenance;
+    setProvenance(nextProvenance);
+  };
+
+  const invalidatePendingWork = () => {
+    parseAttemptRef.current += 1;
+    confirmationAttemptRef.current += 1;
+  };
+
+  const bindSource = (
+    source: TrackDSourceReference,
+    sourceFiles: readonly File[],
+    revision: number,
+    originalText?: string,
+  ): TrackDImportProvenance => {
+    const { binding } = createTrackDSourceBinding(
+      source,
+      revision,
+      originalText,
+      sourceFiles,
+    );
+    return {
+      source,
+      sourceFiles,
+      ...(originalText !== undefined ? { originalText } : {}),
+      revision,
+      fingerprint: binding.fingerprint,
+    };
+  };
+
   const resetIntake = () => {
     if (!canMutateIntake()) return;
-    setDraft(null);
-    setProvenance(null);
+    invalidatePendingWork();
+    sourceRevisionRef.current += 1;
+    replaceDraft(null);
+    replaceProvenance(null);
     setTextMode(null);
     setSourceText('');
     setReviewed(false);
@@ -187,10 +243,30 @@ export function SourceFirstImport({
       const continuesAttachedSource =
         draft?.extractionAvailable === false &&
         (provenance?.sourceFiles.length ?? 0) > 0;
+      invalidatePendingWork();
+      const revision = sourceRevisionRef.current + 1;
+      sourceRevisionRef.current = revision;
+      const fallbackSource = createSourceReference(
+        choice,
+        choice === 'paste' ? 'Pasted source text' : 'Manual entry',
+      );
+      const nextSource =
+        continuesAttachedSource && provenance
+          ? provenance
+          : bindSource(fallbackSource, [], revision, '');
       setTextMode(choice);
       setSourceText('');
-      setDraft(null);
-      if (!continuesAttachedSource) setProvenance(null);
+      replaceDraft(null);
+      replaceProvenance(
+        continuesAttachedSource && provenance
+          ? bindSource(
+              provenance.source,
+              provenance.sourceFiles,
+              revision,
+              '',
+            )
+          : nextSource,
+      );
       setReviewed(false);
       setConfirmed(false);
     }
@@ -209,31 +285,67 @@ export function SourceFirstImport({
     const name =
       files.length === 1 ? first.name : `${files.length} source photos`;
     const source = createSourceReference(sourceKind, name, first);
-    setProvenance({ source, sourceFiles: files });
+    invalidatePendingWork();
+    const revision = sourceRevisionRef.current + 1;
+    sourceRevisionRef.current = revision;
+    const initialProvenance = bindSource(source, files, revision);
+    replaceProvenance(initialProvenance);
+    replaceDraft(null);
     setTextMode(null);
     setReviewed(false);
     setConfirmed(false);
 
     if (files.length === 1 && isTextSource(first)) {
+      const parseAttempt = parseAttemptRef.current + 1;
+      parseAttemptRef.current = parseAttempt;
       try {
         const text = await first.text();
-        const nextDraft = await parseTrackDImportText(text, {
+        if (
+          !mountedRef.current ||
+          parseAttemptRef.current !== parseAttempt ||
+          provenanceRef.current?.source.id !== source.id ||
+          provenanceRef.current.revision !== revision
+        ) {
+          return;
+        }
+        const textProvenance = bindSource(source, files, revision, text);
+        replaceProvenance(textProvenance);
+        const nextDraft = await parseSource(text, {
           existingUnitNumbers,
           kind,
           source,
+          sourceFiles: files,
+          sourceRevision: revision,
         });
-        setDraft(nextDraft);
+        if (
+          !mountedRef.current ||
+          parseAttemptRef.current !== parseAttempt ||
+          !isTrackDImportDraftCurrent(
+            nextDraft,
+            provenanceRef.current,
+          )
+        ) {
+          return;
+        }
+        replaceDraft(nextDraft);
         setStatus('Source attached. Review every row before confirming.');
       } catch {
-        setDraft(null);
-        setStatus(
-          'Turn OS could not read this text file. Nothing was imported.',
-        );
+        if (
+          mountedRef.current &&
+          parseAttemptRef.current === parseAttempt
+        ) {
+          replaceDraft(null);
+          setStatus(
+            'Turn OS could not read this text file. Nothing was imported. Retry or choose another source.',
+          );
+        }
       }
       return;
     }
 
-    setDraft(createUnavailableExtractionDraft(kind, source));
+    replaceDraft(
+      createUnavailableExtractionDraft(kind, source, files, revision),
+    );
     setStatus(
       'Source attached — extraction not yet available. Paste text or enter rows manually.',
     );
@@ -241,35 +353,72 @@ export function SourceFirstImport({
 
   const createTextPreview = async () => {
     if (!textMode || !canMutateIntake()) return;
-    const fallbackSource = createSourceReference(
-      textMode,
-      textMode === 'paste' ? 'Pasted source text' : 'Manual entry',
-    );
-    const attachedSource =
-      (provenance?.sourceFiles.length ?? 0) > 0 ? provenance : null;
-    const nextProvenance = resolveTrackDImportProvenance(
-      attachedSource,
-      fallbackSource,
-    );
-    const nextDraft = await parseTrackDImportText(sourceText, {
-      existingUnitNumbers,
-      kind,
-      source: nextProvenance.source,
-    });
-    setDraft({
-      ...nextDraft,
-      ...(attachedSource ? { transcriptionKind: textMode } : {}),
-    });
-    setProvenance(nextProvenance);
+    const textSnapshot = sourceText;
+    let sourceProvenance = provenanceRef.current;
+    if (!sourceProvenance) {
+      const source = createSourceReference(
+        textMode,
+        textMode === 'paste' ? 'Pasted source text' : 'Manual entry',
+      );
+      const revision = sourceRevisionRef.current + 1;
+      sourceRevisionRef.current = revision;
+      sourceProvenance = bindSource(source, [], revision, textSnapshot);
+      replaceProvenance(sourceProvenance);
+    } else if (sourceProvenance.originalText !== textSnapshot) {
+      const revision = sourceRevisionRef.current + 1;
+      sourceRevisionRef.current = revision;
+      sourceProvenance = bindSource(
+        sourceProvenance.source,
+        sourceProvenance.sourceFiles,
+        revision,
+        textSnapshot,
+      );
+      replaceProvenance(sourceProvenance);
+    }
+
+    const parseAttempt = parseAttemptRef.current + 1;
+    parseAttemptRef.current = parseAttempt;
+    const attachedSource = sourceProvenance.sourceFiles.length > 0;
     setReviewed(false);
     setConfirmed(false);
-    setStatus(
-      nextDraft.rows.length > 0
-        ? attachedSource
-          ? 'Preview created from the transcription. The original attachment remains linked.'
-          : 'Preview created. Review every row before confirming.'
-        : 'No reviewable rows were found.',
-    );
+    setStatus('Creating a source-bound preview…');
+    try {
+      const nextDraft = await parseSource(textSnapshot, {
+        existingUnitNumbers,
+        kind,
+        source: sourceProvenance.source,
+        sourceFiles: sourceProvenance.sourceFiles,
+        sourceRevision: sourceProvenance.revision,
+      });
+      if (
+        !mountedRef.current ||
+        parseAttemptRef.current !== parseAttempt ||
+        !isTrackDImportDraftCurrent(nextDraft, provenanceRef.current)
+      ) {
+        return;
+      }
+      replaceDraft({
+        ...nextDraft,
+        ...(attachedSource ? { transcriptionKind: textMode } : {}),
+      });
+      setStatus(
+        nextDraft.rows.length > 0
+          ? attachedSource
+            ? 'Preview created from the transcription. The original attachment remains linked.'
+            : 'Preview created. Review every row before confirming.'
+          : 'No reviewable rows were found. Edit the source or discard this intake.',
+      );
+    } catch {
+      if (
+        mountedRef.current &&
+        parseAttemptRef.current === parseAttempt
+      ) {
+        replaceDraft(null);
+        setStatus(
+          'Preview failed. Nothing was imported. Your exact source remains available to retry, edit, or discard.',
+        );
+      }
+    }
   };
 
   const updateRow = (
@@ -284,40 +433,66 @@ export function SourceFirstImport({
       existingUnitNumbers,
       draft.kind,
     );
-    setDraft({ ...draft, rows });
+    replaceDraft({ ...draft, rows });
     setReviewed(false);
   };
 
   const confirm = async () => {
+    const currentDraft = draftRef.current;
+    const currentProvenance = provenanceRef.current;
     if (
-      !draft ||
+      !currentDraft ||
       !reviewed ||
       confirmed ||
       confirmationInFlightRef.current ||
-      !canConfirmTrackDImport(draft)
+      !canConfirmTrackDImport(currentDraft, currentProvenance)
     ) {
+      return;
+    }
+    const prepared = prepareTrackDConfirmedImport(
+      currentDraft,
+      currentProvenance,
+      existingUnitNumbers,
+    );
+    if (!prepared) {
+      setReviewed(false);
+      setStatus(
+        'This review no longer matches the current source or has unresolved validation. Nothing was saved. Recreate and review the preview.',
+      );
       return;
     }
     confirmationInFlightRef.current = true;
     const attemptId = confirmationAttemptRef.current + 1;
     confirmationAttemptRef.current = attemptId;
+    const committedBinding = prepared.sourceBinding;
     setSaving(true);
     setStatus('');
     try {
-      await onConfirm({
-        kind: draft.kind,
-        source: draft.source,
-        rows: includedRows,
-        sourceFiles: provenance?.sourceFiles ?? [],
-        confirmedAt: new Date().toISOString(),
-        ...(draft.transcriptionKind
-          ? { transcriptionKind: draft.transcriptionKind }
-          : {}),
-      });
+      const receipt = await onConfirm(prepared);
+      if (!isTrackDImportCommitReceipt(receipt, committedBinding)) {
+        throw new Error('Import host did not return a complete commit receipt.');
+      }
       if (
         !mountedRef.current ||
         confirmationAttemptRef.current !== attemptId
       ) {
+        return;
+      }
+      const latestDraft = draftRef.current;
+      const latestProvenance = provenanceRef.current;
+      const stillCurrent =
+        latestDraft !== null &&
+        latestProvenance !== null &&
+        isTrackDImportDraftCurrent(latestDraft, latestProvenance) &&
+        trackDSourceBindingsMatch(
+          latestDraft.sourceBinding,
+          committedBinding,
+        );
+      if (!stillCurrent) {
+        setReviewed(false);
+        setStatus(
+          'An earlier intake was saved, but newer source changes remain unsaved on this screen. Review them before saving again.',
+        );
         return;
       }
       setConfirmed(true);
@@ -330,7 +505,7 @@ export function SourceFirstImport({
         confirmationAttemptRef.current === attemptId
       ) {
         setStatus(
-          'Confirmation failed. The reviewed source remains on this screen.',
+          'Confirmation failed. Nothing is marked saved. The exact source and reviewed draft remain available to retry, edit, or discard.',
         );
       }
     } finally {
@@ -443,7 +618,28 @@ export function SourceFirstImport({
               disabled={saving}
               onChange={(event) => {
                 if (canMutateIntake()) {
-                  setSourceText(event.currentTarget.value);
+                  const nextText = event.currentTarget.value;
+                  invalidatePendingWork();
+                  const revision = sourceRevisionRef.current + 1;
+                  sourceRevisionRef.current = revision;
+                  const current = provenanceRef.current;
+                  const source =
+                    current?.source ??
+                    createSourceReference(
+                      textMode,
+                      textMode === 'paste'
+                        ? 'Pasted source text'
+                        : 'Manual entry',
+                    );
+                  const files = current?.sourceFiles ?? [];
+                  setSourceText(nextText);
+                  replaceProvenance(
+                    bindSource(source, files, revision, nextText),
+                  );
+                  replaceDraft(null);
+                  setReviewed(false);
+                  setConfirmed(false);
+                  setStatus('');
                 }
               }}
               placeholder="Paste or type the source exactly as received"
@@ -555,9 +751,10 @@ export function SourceFirstImport({
                   not mark work assigned, complete, inspected, accepted, or paid.
                 </span>
               </label>
-              {!canConfirmTrackDImport(draft) ? (
+              {!canConfirmTrackDImport(draft, provenance) ? (
                 <p className="w2a2d-error-copy">
-                  Resolve every duplicate, roster, unknown-Unit, and missing-Unit
+                  Recreate stale previews and resolve every warning,
+                  uncertainty, duplicate, unsupported scope, roster, and Unit
                   conflict before confirming.
                 </p>
               ) : null}
@@ -567,7 +764,7 @@ export function SourceFirstImport({
                   saving ||
                   confirmed ||
                   !reviewed ||
-                  !canConfirmTrackDImport(draft)
+                  !canConfirmTrackDImport(draft, provenance)
                 }
                 onClick={() => void confirm()}
                 type="button"

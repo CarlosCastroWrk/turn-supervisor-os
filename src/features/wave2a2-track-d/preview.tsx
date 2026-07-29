@@ -2,17 +2,21 @@ import { StrictMode, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   ActivitySurface,
+  DirectNoteFlow,
   DirectPhotoFlow,
   SourceFirstImport,
   TrackDReportsAndProof,
+  parseTrackDImportText,
   projectLegacyActivityRecord,
   type TrackDConfirmedImport,
+  type TrackDImportParseOptions,
+  type TrackDNoteRequest,
   type TrackDPhotoRequest,
   type TrackDSaveReceipt,
 } from './index';
 import './preview.css';
 
-type PreviewSurface = 'import' | 'photo' | 'activity' | 'reports';
+type PreviewSurface = 'import' | 'note' | 'photo' | 'activity' | 'reports';
 type PreviewTheme = 'system' | 'light' | 'dark';
 
 const units = [
@@ -84,6 +88,13 @@ export function TrackDPreview() {
 
   const confirmImport = async (confirmed: TrackDConfirmedImport) => {
     await new Promise((resolve) => window.setTimeout(resolve, 250));
+    if (
+      confirmed.rows.some((row) =>
+        /SAVE_FAIL|OFFLINE_FAIL/.test(row.restrictions),
+      )
+    ) {
+      throw new Error('Synthetic complete-save failure');
+    }
     setConfirmCount((count) => count + 1);
     setResult(
       JSON.stringify(
@@ -93,17 +104,63 @@ export function TrackDPreview() {
           sourceFiles: confirmed.sourceFiles.map((file) => file.name),
           sourceKind: confirmed.source.kind,
           sourceName: confirmed.source.name,
+          sourceFingerprint: confirmed.sourceBinding.fingerprint,
+          sourceRevision: confirmed.sourceBinding.revision,
+          originalText: confirmed.originalSource.originalText,
           transcriptionKind: confirmed.transcriptionKind,
         },
         null,
         2,
       ),
     );
+    return {
+      committed: true as const,
+      sourceBinding: confirmed.sourceBinding,
+    };
+  };
+
+  const parsePreviewSource = async (
+    text: string,
+    options: TrackDImportParseOptions,
+  ) => {
+    if (text.includes('THROW_PARSE')) {
+      throw new Error('Synthetic parser failure');
+    }
+    if (text.includes('SLOW_PARSE')) {
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+    } else {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    }
+    return parseTrackDImportText(text, options);
+  };
+
+  const saveNote = async (
+    request: TrackDNoteRequest,
+  ): Promise<TrackDSaveReceipt> => {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    if (/SAVE_FAIL|OFFLINE_FAIL/.test(request.wording)) {
+      throw new Error('Synthetic note save failure');
+    }
+    setResult(
+      JSON.stringify(
+        {
+          unitId: request.unitId,
+          wording: request.wording,
+        },
+        null,
+        2,
+      ),
+    );
+    return previewReceipt('note-1', 'Note saved');
   };
 
   const savePhoto = async (
     request: TrackDPhotoRequest,
   ): Promise<TrackDSaveReceipt> => {
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+    if (/SAVE_FAIL|OFFLINE_FAIL/.test(request.context.caption)) {
+      throw new Error('Synthetic photo save failure');
+    }
     setResult(
       JSON.stringify(
         {
@@ -122,7 +179,7 @@ export function TrackDPreview() {
   return (
     <main className="w2a2d-preview-shell">
       <nav aria-label="Track D test surfaces" className="w2a2d-preview-toolbar">
-        {(['import', 'photo', 'activity', 'reports'] as const).map((item) => (
+        {(['import', 'note', 'photo', 'activity', 'reports'] as const).map((item) => (
           <button
             aria-pressed={surface === item}
             key={item}
@@ -157,6 +214,21 @@ export function TrackDPreview() {
           existingUnitNumbers={units.map((unit) => unit.unitNumber)}
           initialKind="daily-release"
           onConfirm={confirmImport}
+          parseSource={parsePreviewSource}
+        />
+      ) : null}
+
+      {surface === 'note' ? (
+        <DirectNoteFlow
+          initialUnitId="unit-101"
+          onSave={saveNote}
+          onUndo={() => {
+            setResult('Note undo requested.');
+          }}
+          onView={() => {
+            setResult('Note view requested.');
+          }}
+          units={units}
         />
       ) : null}
 

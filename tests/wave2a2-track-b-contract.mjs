@@ -248,6 +248,19 @@ test('active Today’s Task uses exactly DaySession.releaseBatchIds', () => {
   assert.equal(rejectedDuplicateScope.task, undefined);
   assert.match(rejectedDuplicateScope.errors.join(' '), /scope does not exactly match/u);
 
+  const tamperedSectionLineage = structuredClone(
+    createSyntheticTodayTask(roster, selected, active.daySessionId),
+  );
+  tamperedSectionLineage.sections[0].releaseBatchId = extra.id;
+  const rejectedSectionLineage = projectTodayTaskForSession(
+    roster,
+    [selected, extra],
+    active,
+    tamperedSectionLineage,
+  );
+  assert.equal(rejectedSectionLineage.task, undefined);
+  assert.match(rejectedSectionLineage.errors.join(' '), /release lineage/u);
+
   const missingSelectedId = projectTodayTaskForSession(
     roster,
     [selected],

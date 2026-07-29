@@ -1,0 +1,37 @@
+export {
+  TRACK_C_LEGACY_ROUTE_QUARANTINE,
+  TRACK_C_OFFICIAL_FORMS_AVAILABILITY,
+  TRACK_C_SECTION_14_ROUTE_INVENTORY,
+  canExposeTrackCPrimaryRoute,
+  getTrackCSection14Route,
+  isTrackCLegacyPrimaryRoute,
+  type TrackCPrimaryDisposition,
+  type TrackCSection14RouteId,
+  type TrackCSection14RouteInventoryItem,
+} from './routeInventory';
+export {
+  TRACK_C_COMPATIBILITY_PLUS_ACTIONS,
+  TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS,
+  type TrackCPlusActionAvailability,
+  type TrackCPlusActionAvailabilityMap,
+  type TrackCPlusActionDisposition,
+} from './plusDisposition';
+export {
+  TRACK_C_PRIMARY_TABS,
+  captureTrackCTransientOrigin,
+  createTrackCTabRouteMemory,
+  getTrackCCurrentTabRoute,
+  rememberTrackCTabRoute,
+  rememberTrackCTabScroll,
+  restoreTrackCTabBack,
+  restoreTrackCTransientOrigin,
+  selectTrackCPrimaryTab,
+  type TrackCPrimaryTab,
+  type TrackCTabNavigationDecision,
+  type TrackCTabNavigationReason,
+  type TrackCTabRouteMemory,
+  type TrackCTabRoutePosition,
+  type TrackCTabRouteStack,
+  type TrackCTransientOriginSnapshot,
+  type TrackCTransientSurface,
+} from './tabRouteMemory';

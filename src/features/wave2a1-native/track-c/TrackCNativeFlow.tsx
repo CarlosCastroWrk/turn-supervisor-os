@@ -20,6 +20,10 @@ import {
   type ReactNode,
 } from 'react';
 import type { ActivityLog, AppData } from '../../../types';
+import {
+  TRACK_C_COMPATIBILITY_PLUS_ACTIONS,
+  type TrackCPlusActionAvailabilityMap,
+} from '../../wave2a21-track-c/plusDisposition';
 import { appendPersonalNoteActivity } from './personalActivity';
 import {
   browserSessionDraftStorage,
@@ -39,7 +43,8 @@ import './track-c.css';
 
 type TrackCFlowScreen = 'menu' | 'note';
 
-interface TrackCNativeFlowProps {
+export interface TrackCNativeFlowProps {
+  actionAvailability?: TrackCPlusActionAvailabilityMap;
   data: AppData;
   draftStorage?: NoteDraftStorage | null;
   initialUnitId?: string;
@@ -111,6 +116,7 @@ const noteErrorCopy = {
 } as const;
 
 export function TrackCNativeFlow({
+  actionAvailability,
   data,
   draftStorage,
   initialUnitId,
@@ -130,6 +136,17 @@ export function TrackCNativeFlow({
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const photosInputRef = useRef<HTMLInputElement | null>(null);
   const filesInputRef = useRef<HTMLInputElement | null>(null);
+  const dispositionFor = useCallback(
+    (action: TrackCPlusAction) =>
+      actionAvailability?.[action]
+      ?? TRACK_C_COMPATIBILITY_PLUS_ACTIONS[action],
+    [actionAvailability],
+  );
+  const actionIsAvailable = useCallback(
+    (action: TrackCPlusAction) =>
+      dispositionFor(action).availability === 'available',
+    [dispositionFor],
+  );
 
   const activeUnits = useMemo(
     () =>
@@ -218,6 +235,14 @@ export function TrackCNativeFlow({
   };
 
   const selectPlusAction = (action: TrackCPlusAction) => {
+    const disposition = dispositionFor(action);
+    if (disposition.availability !== 'available') {
+      setStatus(
+        disposition.reason
+        ?? `${PLUS_ITEMS.find((item) => item.action === action)?.label ?? 'This action'} is unavailable.`,
+      );
+      return;
+    }
     if (action === 'note') {
       startNewNote();
       return;
@@ -266,7 +291,7 @@ export function TrackCNativeFlow({
       description={
         screen === 'note'
           ? 'Personal Activity only. No paper, approval, payroll, or official status changes.'
-          : 'Choose one direct action. Device media options use native pickers.'
+          : 'Choose an available direct action. Unavailable items are not connected to legacy screens.'
       }
       initialFocusRef={screen === 'note' ? textareaRef : undefined}
       onDismiss={dismiss}
@@ -291,55 +316,77 @@ export function TrackCNativeFlow({
           ) : null}
 
           <div className="tc-option-list" aria-label="Add options">
-            {PLUS_ITEMS.map((item) => (
-              <button
-                data-track-c-critical-target="true"
-                key={item.action}
-                onClick={() => selectPlusAction(item.action)}
-                type="button"
-              >
-                <span className="tc-option__icon">{item.icon}</span>
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
-                </span>
-                <ChevronRight aria-hidden="true" size={18} />
-              </button>
-            ))}
+            {PLUS_ITEMS.map((item) => {
+              const disposition = dispositionFor(item.action);
+              if (disposition.availability === 'hidden') return null;
+              const unavailable = disposition.availability === 'unavailable';
+              return (
+                <button
+                  className={unavailable ? 'is-unavailable' : undefined}
+                  data-action-availability={disposition.availability}
+                  data-track-c-critical-target="true"
+                  disabled={unavailable}
+                  key={item.action}
+                  onClick={() => selectPlusAction(item.action)}
+                  type="button"
+                >
+                  <span className="tc-option__icon">{item.icon}</span>
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>
+                      {unavailable
+                        ? disposition.reason ?? 'Unavailable in this candidate.'
+                        : item.description}
+                    </small>
+                  </span>
+                  {unavailable ? (
+                    <span className="tc-option__availability">Unavailable</span>
+                  ) : (
+                    <ChevronRight aria-hidden="true" size={18} />
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          <input
-            accept="image/*"
-            aria-hidden="true"
-            capture="environment"
-            className="tc-native-input"
-            data-track-c-file-input="camera"
-            onChange={(event) => selectedNativeFiles('camera', event)}
-            ref={cameraInputRef}
-            tabIndex={-1}
-            type="file"
-          />
-          <input
-            accept="image/*"
-            aria-hidden="true"
-            className="tc-native-input"
-            data-track-c-file-input="photos"
-            multiple
-            onChange={(event) => selectedNativeFiles('photos', event)}
-            ref={photosInputRef}
-            tabIndex={-1}
-            type="file"
-          />
-          <input
-            accept="image/*,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
-            aria-hidden="true"
-            className="tc-native-input"
-            data-track-c-file-input="files"
-            onChange={(event) => selectedNativeFiles('files', event)}
-            ref={filesInputRef}
-            tabIndex={-1}
-            type="file"
-          />
+          {actionIsAvailable('camera') ? (
+            <input
+              accept="image/*"
+              aria-hidden="true"
+              capture="environment"
+              className="tc-native-input"
+              data-track-c-file-input="camera"
+              onChange={(event) => selectedNativeFiles('camera', event)}
+              ref={cameraInputRef}
+              tabIndex={-1}
+              type="file"
+            />
+          ) : null}
+          {actionIsAvailable('photos') ? (
+            <input
+              accept="image/*"
+              aria-hidden="true"
+              className="tc-native-input"
+              data-track-c-file-input="photos"
+              multiple
+              onChange={(event) => selectedNativeFiles('photos', event)}
+              ref={photosInputRef}
+              tabIndex={-1}
+              type="file"
+            />
+          ) : null}
+          {actionIsAvailable('files') ? (
+            <input
+              accept="image/*,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx"
+              aria-hidden="true"
+              className="tc-native-input"
+              data-track-c-file-input="files"
+              onChange={(event) => selectedNativeFiles('files', event)}
+              ref={filesInputRef}
+              tabIndex={-1}
+              type="file"
+            />
+          ) : null}
         </>
       ) : (
         <div className="tc-note-form">

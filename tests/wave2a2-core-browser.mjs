@@ -116,8 +116,16 @@ try {
     await addDialog.waitFor();
     assert.equal(await page.getByRole('dialog').count(), 1);
     assert.equal(await addDialog.getByRole('button', { name: /^Note(?:\s|$)/u }).count(), 1);
-    assert.equal(await addDialog.getByRole('button', { name: /^Photos(?:\s|$)/u }).count(), 1);
-    assert.equal(await addDialog.getByRole('button', { name: /^Import Work(?:\s|$)/u }).count(), 1);
+    assert.equal(
+      await addDialog.getByRole('button', { name: /^Photos(?:\s|$)/u }).isDisabled(),
+      true,
+    );
+    assert.equal(
+      await addDialog.getByRole('button', { name: /^Import Work(?:\s|$)/u }).isDisabled(),
+      true,
+    );
+    assert.equal(await page.getByText('Field Copilot', { exact: true }).count(), 0);
+    assert.equal(await page.getByText('Create Assignment', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
     await addDialog.waitFor({ state: 'hidden' });
 
@@ -168,11 +176,12 @@ try {
     await page.getByText('Synthetic accepted-core regression note.', { exact: true }).waitFor();
 
     await page.getByRole('button', { name: 'Open central Plus menu' }).click();
-    await page.getByRole('dialog', { name: 'Add to Turn OS' })
-      .getByRole('button', { name: /^Import Work(?:\s|$)/u })
-      .click();
-    await page.getByRole('heading', { name: 'Import work', exact: true }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Create Assignment' }).count(), 1);
+    const importWork = page.getByRole('dialog', { name: 'Add to Turn OS' })
+      .getByRole('button', { name: /^Import Work(?:\s|$)/u });
+    assert.equal(await importWork.isDisabled(), true);
+    assert.equal(await page.getByText('Field Copilot', { exact: true }).count(), 0);
+    assert.equal(await page.getByText('Create Assignment', { exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
 
     await primaryNavigation(page)
       .getByRole('button', { name: 'More', exact: true })

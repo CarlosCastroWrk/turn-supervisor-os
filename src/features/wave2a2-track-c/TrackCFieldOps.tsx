@@ -200,6 +200,7 @@ export const TrackCFieldOps = ({
   return (
     <div
       className={`track-c-shell ${embedded ? 'is-embedded' : ''}`}
+      data-navigation-owner={embedded ? 'host' : 'track-c'}
       data-testid="track-c-field-ops"
       ref={shellRef}
       tabIndex={-1}
@@ -319,30 +320,32 @@ export const TrackCFieldOps = ({
           </section>
         </div>
       ) : null}
-      <nav
-        aria-hidden={mirrorTarget ? true : undefined}
-        aria-label="Track C field operations"
-        className="track-c-nav"
-        inert={mirrorTarget ? true : undefined}
-      >
-        {[
-          { view: 'board' as const, label: 'TurnBoard', Icon: ClipboardList },
-          { view: 'crews' as const, label: 'Crews', Icon: UsersRound },
-          { view: 'assign' as const, label: 'Assign', Icon: ListChecks },
-          { view: 'walk' as const, label: 'Walk', Icon: MapPinned },
-        ].map(({ view: nextView, label, Icon }) => (
-          <button
-            aria-current={view === nextView ? 'page' : undefined}
-            data-track-c-critical-target="true"
-            key={nextView}
-            onClick={() => navigate(nextView)}
-            type="button"
-          >
-            <Icon aria-hidden="true" size={20} />
-            <span>{label}</span>
-          </button>
-        ))}
-      </nav>
+      {embedded ? null : (
+        <nav
+          aria-hidden={mirrorTarget ? true : undefined}
+          aria-label="Track C field operations"
+          className="track-c-nav"
+          inert={mirrorTarget ? true : undefined}
+        >
+          {[
+            { view: 'board' as const, label: 'TurnBoard', Icon: ClipboardList },
+            { view: 'crews' as const, label: 'Crews', Icon: UsersRound },
+            { view: 'assign' as const, label: 'Assign', Icon: ListChecks },
+            { view: 'walk' as const, label: 'Walk', Icon: MapPinned },
+          ].map(({ view: nextView, label, Icon }) => (
+            <button
+              aria-current={view === nextView ? 'page' : undefined}
+              data-track-c-critical-target="true"
+              key={nextView}
+              onClick={() => navigate(nextView)}
+              type="button"
+            >
+              <Icon aria-hidden="true" size={20} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 };

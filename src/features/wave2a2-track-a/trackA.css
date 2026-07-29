@@ -396,9 +396,18 @@
 
 .w2a2-lockup {
   align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
   display: inline-flex;
   gap: 8px;
   grid-area: brand;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding: 4px;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .w2a2-lockup__mark {
@@ -548,9 +557,32 @@
 
 .w2a2-route-surface {
   animation: w2a2-route-enter 170ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  inline-size: 100%;
   min-block-size: 100%;
   min-inline-size: 0;
   overflow-x: clip;
+}
+
+.w2a2-shell.is-detail-mode .w2a1b-page,
+.w2a2-shell.is-detail-mode [data-turn-profile-scroll],
+.w2a2-shell.is-detail-mode [data-turn-privacy-scroll] {
+  block-size: 100%;
+  min-block-size: 0;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  scroll-padding-bottom: max(18px, env(safe-area-inset-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+.w2a2-shell input:not([type='checkbox']):not([type='radio']),
+.w2a2-shell select,
+.w2a2-shell textarea,
+.w2a2-overlay-boundary input:not([type='checkbox']):not([type='radio']),
+.w2a2-overlay-boundary select,
+.w2a2-overlay-boundary textarea {
+  font-size: max(16px, 1em);
 }
 
 @keyframes w2a2-route-enter {

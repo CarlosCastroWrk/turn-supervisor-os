@@ -111,20 +111,24 @@ try {
       [
         'NoteSave a personal Activity note',
         'BlockerOpen the existing blocker flow',
-        'CameraTake a photo with the device camera',
-        'PhotosChoose one or more photos',
-        'FilesChoose a file from the device',
-        'Paste TextOpen the existing text intake',
-        'Import WorkOpen the existing work import',
+        'CameraCamera intake is not included in this candidate.Unavailable',
+        'PhotosPhoto intake is not included in this candidate.Unavailable',
+        'FilesFile intake is not included in this candidate.Unavailable',
+        'Paste TextPaste Text intake is not included in this candidate.Unavailable',
+        'Import WorkThe Import upgrade is not included in this candidate.Unavailable',
       ],
     );
     assert.equal(
-      await page.locator('[data-track-c-file-input="camera"]').getAttribute('capture'),
-      'environment',
+      await page.locator('[data-track-c-file-input="camera"]').count(),
+      0,
     );
     assert.equal(
-      await page.locator('[data-track-c-file-input="photos"]').getAttribute('multiple'),
-      '',
+      await page.locator('[data-track-c-file-input="photos"]').count(),
+      0,
+    );
+    assert.equal(
+      await page.locator('.tc-option-list > button[data-action-availability="unavailable"]').count(),
+      5,
     );
     await assertNoHorizontalOverflow(page, `${target.name} menu`);
     await assertCriticalTargets(page, `${target.name} menu`);

@@ -52,6 +52,12 @@ const scrollRegionSelector = [
   '.w1r-more-list',
   '.w2a1-a-scroll-page',
   '.w2a1-a-detail-page__scroll',
+  '.w2a1b-page',
+  '.track-c-shell__main',
+  '.track-c-board',
+  '.track-c-crews',
+  '.track-c-assignment',
+  '.track-c-walk',
 ].join(',');
 
 const findPrimaryScrollRegion = (main: HTMLElement) => {
@@ -64,20 +70,33 @@ const findPrimaryScrollRegion = (main: HTMLElement) => {
 
 export interface Wave2A2UnifiedShellProps
   extends LaunchCommandCenterShellProps {
+  contentScrollRestoration?: {
+    key: string;
+    onScrollTopChange?: (scrollTop: number) => void;
+    restore: boolean;
+    scrollTop?: number;
+  };
   detailMode?: boolean;
+  onOpenHome?: () => void;
   restoreContentScroll?: boolean;
   theme: Pick<TurnThemeState, 'reducedMotion' | 'resolvedTheme'>;
 }
 
-function TurnOsLockup() {
+function TurnOsLockup({ onOpenHome }: { onOpenHome: () => void }) {
   return (
-    <span className="w2a2-lockup" aria-label="Turn OS, Supervisor">
+    <button
+      aria-label="Open Home — Turn OS Supervisor"
+      className="w2a2-lockup"
+      data-w2a21-home-control="true"
+      onClick={onOpenHome}
+      type="button"
+    >
       <span className="w2a2-lockup__mark" aria-hidden="true">TO</span>
       <span className="w2a2-lockup__name">
         <strong>Turn OS</strong>
         <small>Supervisor</small>
       </span>
-    </span>
+    </button>
   );
 }
 
@@ -88,12 +107,14 @@ export function Wave2A2UnifiedShell({
   contentContained = false,
   contentDialogOpen = false,
   contentFocusKey,
+  contentScrollRestoration,
   contentTitle,
   dateLabel,
   detailMode = false,
   intelligenceAvailable = false,
   notificationCount = 0,
   onNavigate,
+  onOpenHome,
   onOpenIntelligence,
   onOpenNotifications,
   onOpenPlus,
@@ -106,6 +127,11 @@ export function Wave2A2UnifiedShell({
   const pendingContentFocusKeyRef = useRef<string | null>(null);
   const previousContentFocusKeyRef = useRef<string | undefined>(undefined);
   const scrollPositionsRef = useRef(new Map<string, number>());
+  const contentScrollRestorationRef = useRef(contentScrollRestoration);
+  contentScrollRestorationRef.current = contentScrollRestoration;
+  const scrollKey = contentScrollRestoration?.key ?? contentFocusKey;
+  const shouldRestoreScroll =
+    contentScrollRestoration?.restore ?? restoreContentScroll;
   const setMainRef = (node: HTMLElement | null) => {
     mainRef.current = node;
   };
@@ -124,14 +150,18 @@ export function Wave2A2UnifiedShell({
     const rememberPosition = () => {
       if (scrollRegion) {
         lastKnownPosition = scrollRegion.scrollTop;
-        scrollPositions.set(contentFocusKey, lastKnownPosition);
+        scrollPositions.set(scrollKey, lastKnownPosition);
+        contentScrollRestorationRef.current
+          ?.onScrollTopChange?.(lastKnownPosition);
       }
     };
 
     const frame = window.requestAnimationFrame(() => {
       scrollRegion = findPrimaryScrollRegion(main);
-      scrollRegion.scrollTop = restoreContentScroll
-        ? scrollPositions.get(contentFocusKey) ?? 0
+      scrollRegion.scrollTop = shouldRestoreScroll
+        ? contentScrollRestorationRef.current?.scrollTop
+          ?? scrollPositions.get(scrollKey)
+          ?? 0
         : 0;
       lastKnownPosition = scrollRegion.scrollTop;
       scrollRegion.addEventListener('scroll', rememberPosition, { passive: true });
@@ -140,9 +170,15 @@ export function Wave2A2UnifiedShell({
     return () => {
       window.cancelAnimationFrame(frame);
       scrollRegion?.removeEventListener('scroll', rememberPosition);
-      scrollPositions.set(contentFocusKey, lastKnownPosition);
+      scrollPositions.set(scrollKey, lastKnownPosition);
+      contentScrollRestorationRef.current
+        ?.onScrollTopChange?.(lastKnownPosition);
     };
-  }, [contentFocusKey, restoreContentScroll]);
+  }, [
+    contentFocusKey,
+    scrollKey,
+    shouldRestoreScroll,
+  ]);
 
   useLayoutEffect(() => {
     const routeChanged =
@@ -199,7 +235,7 @@ export function Wave2A2UnifiedShell({
         className="w2a2-header"
         inert={contentDialogOpen || undefined}
       >
-        <TurnOsLockup />
+        <TurnOsLockup onOpenHome={onOpenHome ?? (() => onNavigate('home'))} />
         <div
           aria-label={`${propertyName}. ${dateLabel}.`}
           className="w2a2-header__context"

@@ -51,10 +51,22 @@
 
 .track-c-shell.is-embedded {
   block-size: 100%;
+  inline-size: 100%;
+  max-block-size: 100%;
   min-block-size: 0;
+  overflow-x: clip;
 }
 
 .track-c-shell.is-embedded .track-c-shell__header {
+  display: none;
+}
+
+.track-c-shell.is-embedded .track-c-shell__main {
+  margin-inline-start: 0;
+  padding-bottom: 0;
+}
+
+.track-c-shell.is-embedded .track-c-nav {
   display: none;
 }
 
@@ -66,8 +78,15 @@
 
 .track-c-shell button,
 .track-c-shell input,
-.track-c-shell select {
+.track-c-shell select,
+.track-c-shell textarea {
   font: inherit;
+}
+
+.track-c-shell input:not([type='checkbox']):not([type='radio']),
+.track-c-shell select,
+.track-c-shell textarea {
+  font-size: max(16px, 1em);
 }
 
 .track-c-shell button {
@@ -76,7 +95,8 @@
 
 .track-c-shell button:focus-visible,
 .track-c-shell input:focus-visible,
-.track-c-shell select:focus-visible {
+.track-c-shell select:focus-visible,
+.track-c-shell textarea:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--track-c-blue) 44%, transparent);
   outline-offset: 2px;
 }
@@ -140,6 +160,15 @@
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   -webkit-overflow-scrolling: touch;
+}
+
+.track-c-shell.is-embedded .track-c-board,
+.track-c-shell.is-embedded .track-c-crews,
+.track-c-shell.is-embedded .track-c-assignment,
+.track-c-shell.is-embedded .track-c-walk,
+.track-c-shell.is-embedded .track-c-detail {
+  max-inline-size: 100%;
+  scroll-padding-bottom: max(18px, env(safe-area-inset-bottom));
 }
 
 .track-c-view-heading {
@@ -1449,6 +1478,10 @@
     margin-left: 82px;
   }
 
+  .track-c-shell.is-embedded .track-c-shell__main {
+    margin-left: 0;
+  }
+
   .track-c-view-heading,
   .track-c-search,
   .track-c-form-stack,
@@ -1540,6 +1573,14 @@
   .track-c-sticky-action {
     bottom: 0;
     left: 82px;
+  }
+
+  .track-c-shell.is-embedded .track-c-sticky-action {
+    left: 0;
+  }
+
+  .track-c-shell.is-embedded .track-c-notice {
+    bottom: max(8px, env(safe-area-inset-bottom));
   }
 }
 

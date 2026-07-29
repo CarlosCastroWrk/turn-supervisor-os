@@ -168,6 +168,26 @@
   border-bottom: 0;
 }
 
+.tc-option-list > button.is-unavailable {
+  cursor: not-allowed;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  opacity: 1;
+}
+
+.tc-option-list > button.is-unavailable .tc-option__icon {
+  color: var(--tc-muted);
+}
+
+.tc-option__availability {
+  color: var(--tc-muted);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.2;
+  max-width: 74px;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
 .tc-resume {
   border: 1px solid color-mix(in srgb, var(--tc-blue) 42%, var(--tc-border));
   border-radius: 15px;
@@ -179,6 +199,7 @@
   display: grid;
   gap: 2px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .tc-option-list strong,

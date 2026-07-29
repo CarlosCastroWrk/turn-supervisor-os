@@ -19,6 +19,44 @@ const themeStyles = readFileSync(
   'utf8',
 );
 
+const lightThemeBlock = themeStyles.match(/^:root\s*\{(?<tokens>[\s\S]*?)^\}/mu)
+  ?.groups?.tokens;
+
+const readLightThemeHex = (token) => {
+  assert.ok(lightThemeBlock, 'Light theme tokens were unavailable.');
+  const value = lightThemeBlock.match(
+    new RegExp(`${token}:\\s*(#[\\da-f]{6})`, 'iu'),
+  )?.[1];
+  assert.ok(value, `${token} did not expose a six-digit hex color.`);
+  return value;
+};
+
+const hexChannels = (value) => [1, 3, 5]
+  .map((index) => Number.parseInt(value.slice(index, index + 2), 16));
+
+const relativeLuminance = (value) => hexChannels(value)
+  .map((channel) => channel / 255)
+  .map((channel) => (
+    channel <= 0.03928
+      ? channel / 12.92
+      : ((channel + 0.055) / 1.055) ** 2.4
+  ))
+  .reduce(
+    (sum, channel, index) =>
+      sum + channel * [0.2126, 0.7152, 0.0722][index],
+    0,
+  );
+
+const contrastRatio = (foreground, background) => {
+  const foregroundLuminance = relativeLuminance(foreground);
+  const backgroundLuminance = relativeLuminance(background);
+  return (
+    Math.max(foregroundLuminance, backgroundLuminance) + 0.05
+  ) / (
+    Math.min(foregroundLuminance, backgroundLuminance) + 0.05
+  );
+};
+
 test('theme resolution keeps System device-driven and forced modes deterministic', () => {
   assert.equal(resolveTurnTheme('system', false), 'light');
   assert.equal(resolveTurnTheme('system', true), 'dark');
@@ -69,6 +107,17 @@ test('Track A declares the complete semantic token contract', () => {
   }
   assert.match(themeStyles, /prefers-reduced-motion:\s*reduce/u);
   assert.match(themeStyles, /safe-area-inset-bottom/u);
+});
+
+test('light on-brand content meets AA contrast through the shared brand token', () => {
+  const ratio = contrastRatio(
+    readLightThemeHex('--turn-color-on-brand'),
+    readLightThemeHex('--turn-color-brand'),
+  );
+  assert.ok(
+    ratio >= 4.5,
+    `Light on-brand contrast was ${ratio.toFixed(4)}:1.`,
+  );
 });
 
 test('unified shell owns only the approved primary hierarchy', () => {

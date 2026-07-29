@@ -141,13 +141,32 @@ test('detail routes retain the shared shell without creating a second main landm
 
 test('overlay state cannot reset route scroll history', () => {
   const scrollEffectStart = shellSource.indexOf('const scrollPositions = scrollPositionsRef.current');
-  const focusEffectStart = shellSource.indexOf('if (backgroundInert) return undefined');
+  const focusEffectStart = shellSource.indexOf('const routeChanged =');
   assert.ok(scrollEffectStart >= 0 && focusEffectStart > scrollEffectStart);
   const scrollEffect = shellSource.slice(scrollEffectStart, focusEffectStart);
   assert.doesNotMatch(scrollEffect, /backgroundInert/u);
   assert.match(scrollEffect, /rememberPosition/u);
   assert.match(scrollEffect, /addEventListener\('scroll'/u);
   assert.match(shellSource, /\.w1r-unit-detail__body/u);
+});
+
+test('route focus cannot override focus restored after a same-route sheet closes', () => {
+  assert.match(
+    shellSource,
+    /previousContentFocusKeyRef\.current !== contentFocusKey/u,
+  );
+  assert.match(
+    shellSource,
+    /pendingContentFocusKeyRef\.current = contentFocusKey/u,
+  );
+  assert.match(
+    shellSource,
+    /pendingContentFocusKeyRef\.current !== contentFocusKey/u,
+  );
+  assert.match(
+    shellSource,
+    /pendingContentFocusKeyRef\.current = null/u,
+  );
 });
 
 test('host-owned overlays inherit the same theme without moving dialog ownership', () => {

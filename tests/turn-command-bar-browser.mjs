@@ -78,10 +78,14 @@ try {
     );
     await addDialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
     await addDialog.waitFor({ state: 'hidden' });
-    await page.waitForFunction(() => {
-      const main = document.getElementById('launch-command-center-main');
-      return document.activeElement === main && Boolean(main?.getClientRects().length);
-    });
+    await page.waitForFunction(
+      () => document.activeElement?.id === 'lcc-central-plus',
+    );
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.id),
+      'lcc-central-plus',
+      `${target.name} did not return focus to the invoking Plus control.`,
+    );
 
     await page.getByRole('button', { name: 'Open Search', exact: true }).click();
     const search = page.getByRole('searchbox');
@@ -115,6 +119,9 @@ try {
       `${target.name} Unit workspace restored the superseded command bar.`,
     );
     assert.equal(await page.getByRole('dialog').count(), 0, `${target.name} Unit selection opened Capture.`);
+    await page.waitForFunction(
+      () => document.activeElement?.id === 'w1r-unit-detail-title',
+    );
     await assertNoHorizontalOverflow(page, `${target.name} Unit search`);
 
     await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });

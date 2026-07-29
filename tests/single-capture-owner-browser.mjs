@@ -70,11 +70,27 @@ const assertNativePlus = async (page, expectedHash, label) => {
   assert.equal(await page.locator('.capture-workspace').count(), 0, `${label} opened legacy Capture from the primary Plus.`);
   await dialog.getByRole('button', { name: 'Close Add to Turn OS', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('dialog').count(), 0, `${label} left an Add dialog after one close.`);
   assert.equal(await currentHash(page), expectedHash, `${label} changed route while dismissing Add.`);
-  await page.waitForFunction(() => {
-    const main = document.getElementById('launch-command-center-main');
-    return document.activeElement === main && Boolean(main?.getClientRects().length);
-  });
+  await page.waitForFunction(
+    () => document.activeElement?.id === 'lcc-central-plus',
+  );
+  assert.equal(
+    await page.evaluate(() => document.activeElement?.id),
+    'lcc-central-plus',
+    `${label} did not restore focus to the invoking Plus control.`,
+  );
+
+  await page.keyboard.press('Enter');
+  await dialog.waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 1, `${label} stacked Add dialogs after keyboard reopen.`);
+  assert.equal(await currentHash(page), expectedHash, `${label} changed route while reopening Add.`);
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('dialog').count(), 0, `${label} left an Add dialog after Escape.`);
+  await page.waitForFunction(
+    () => document.activeElement?.id === 'lcc-central-plus',
+  );
 };
 
 const openLegacyCapture = async (page, label) => {

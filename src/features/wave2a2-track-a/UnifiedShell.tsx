@@ -103,6 +103,8 @@ export function Wave2A2UnifiedShell({
   theme,
 }: Wave2A2UnifiedShellProps) {
   const mainRef = useRef<HTMLElement | null>(null);
+  const pendingContentFocusKeyRef = useRef<string | null>(null);
+  const previousContentFocusKeyRef = useRef<string | undefined>(undefined);
   const scrollPositionsRef = useRef(new Map<string, number>());
   const setMainRef = (node: HTMLElement | null) => {
     mainRef.current = node;
@@ -143,11 +145,23 @@ export function Wave2A2UnifiedShell({
   }, [contentFocusKey, restoreContentScroll]);
 
   useLayoutEffect(() => {
-    if (backgroundInert) return undefined;
+    const routeChanged =
+      previousContentFocusKeyRef.current !== contentFocusKey;
+    previousContentFocusKeyRef.current = contentFocusKey;
+    if (routeChanged) {
+      pendingContentFocusKeyRef.current = contentFocusKey;
+    }
+    if (
+      backgroundInert
+      || pendingContentFocusKeyRef.current !== contentFocusKey
+    ) {
+      return undefined;
+    }
     const main = mainRef.current;
     if (!main) return undefined;
 
     const frame = window.requestAnimationFrame(() => {
+      pendingContentFocusKeyRef.current = null;
       const activeElement = document.activeElement;
       if (
         !activeElement

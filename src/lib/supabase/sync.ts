@@ -1016,16 +1016,100 @@ export const uploadLocalDataWithPhotos = async (
   };
 };
 
+const appendRequiredLocalRows = <T extends { id: string }>(
+  remoteRows: T[],
+  localRows: T[],
+  requiredIds: Set<string>,
+) => {
+  const remoteIds = new Set(remoteRows.map((row) => row.id));
+  return [
+    ...remoteRows,
+    ...localRows.filter((row) => requiredIds.has(row.id) && !remoteIds.has(row.id)),
+  ];
+};
+
+const localFieldParentScope = (local: AppData) => {
+  const projectIds = new Set<string>();
+  const unitIds = new Set<string>();
+  const crewIds = new Set<string>();
+  const buildingIds = new Set<string>();
+  const floorIds = new Set<string>();
+
+  (local.daySessions ?? []).forEach((session) => {
+    projectIds.add(session.projectId);
+    session.activePaintCrewIds.forEach((crewId) => crewIds.add(crewId));
+    session.activeCleanCrewIds.forEach((crewId) => crewIds.add(crewId));
+  });
+  (local.dailyReleaseBatches ?? []).forEach((batch) => {
+    projectIds.add(batch.projectId);
+    batch.items.forEach((item) => unitIds.add(item.unitId));
+  });
+  (local.todayTasks ?? []).forEach((task) => {
+    projectIds.add(task.projectId);
+    if (task.unitId) unitIds.add(task.unitId);
+  });
+  (local.fieldEvents ?? []).forEach((event) => {
+    projectIds.add(event.projectId);
+    if (event.unitId) unitIds.add(event.unitId);
+  });
+  (local.walkSessions ?? []).forEach((session) => projectIds.add(session.projectId));
+
+  local.units.forEach((unit) => {
+    if (!unitIds.has(unit.id)) return;
+    projectIds.add(unit.projectId);
+    if (unit.buildingId) buildingIds.add(unit.buildingId);
+    if (unit.floorId) floorIds.add(unit.floorId);
+  });
+  local.crewMembers.forEach((crew) => {
+    if (!crewIds.has(crew.id)) return;
+    if (crew.projectId) projectIds.add(crew.projectId);
+  });
+  local.floors.forEach((floor) => {
+    if (floorIds.has(floor.id) && floor.buildingId) buildingIds.add(floor.buildingId);
+  });
+  local.buildings.forEach((building) => {
+    if (buildingIds.has(building.id)) projectIds.add(building.projectId);
+  });
+
+  return { buildingIds, crewIds, floorIds, projectIds, unitIds };
+};
+
 export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppData => {
   const remoteWithLocalDemo = withLocalDemoRows(local, remote);
+  const required = localFieldParentScope(local);
+  const projects = appendRequiredLocalRows(
+    (remoteWithLocalDemo.projects ?? local.projects) as Project[],
+    local.projects,
+    required.projectIds,
+  );
+  const buildings = appendRequiredLocalRows(
+    (remoteWithLocalDemo.buildings ?? local.buildings) as AppData['buildings'],
+    local.buildings,
+    required.buildingIds,
+  );
+  const floors = appendRequiredLocalRows(
+    (remoteWithLocalDemo.floors ?? local.floors) as AppData['floors'],
+    local.floors,
+    required.floorIds,
+  );
+  const units = appendRequiredLocalRows(
+    (remoteWithLocalDemo.units ?? local.units) as Unit[],
+    local.units,
+    required.unitIds,
+  );
+  const crewMembers = appendRequiredLocalRows(
+    (remoteWithLocalDemo.crewMembers ?? local.crewMembers) as CrewMember[],
+    local.crewMembers,
+    required.crewIds,
+  );
 
   return normalizeAppData({
     ...local,
-    projects: (remoteWithLocalDemo.projects ?? local.projects) as Project[],
-    buildings: (remoteWithLocalDemo.buildings ?? local.buildings) as AppData['buildings'],
-    floors: (remoteWithLocalDemo.floors ?? local.floors) as AppData['floors'],
-    units: (remoteWithLocalDemo.units ?? local.units) as Unit[],
-    crewMembers: (remoteWithLocalDemo.crewMembers ?? local.crewMembers) as CrewMember[],
+    projects,
+    buildings,
+    floors,
+    units,
+    crewMembers,
     assignments: (remoteWithLocalDemo.assignments ?? local.assignments) as Assignment[],
     issues: (remoteWithLocalDemo.issues ?? local.issues) as Issue[],
     photoNotes: (remoteWithLocalDemo.photoNotes ?? local.photoNotes) as PhotoNote[],

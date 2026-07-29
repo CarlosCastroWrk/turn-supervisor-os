@@ -11,6 +11,7 @@ import {
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
 import { applyActivityLogRetention } from './activityRetention';
+import { parseJsonBackup } from './backups';
 import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
 import { createFieldDraftStore } from './fieldDraft';
@@ -32,6 +33,7 @@ export interface AppDataSaveStatus {
 
 const saveStatusListeners = new Set<() => void>();
 let appDataSaveStatus: AppDataSaveStatus = { state: 'saved', canRetry: false };
+let appDataLoadBlocked = false;
 
 const setAppDataSaveStatus = (state: AppDataSaveStatus['state'], canRetry: boolean) => {
   if (appDataSaveStatus.state === state && appDataSaveStatus.canRetry === canRetry) {
@@ -58,12 +60,22 @@ export const loadAppData = (): AppData => {
 
   try {
     if (!stored) {
+      appDataLoadBlocked = false;
+      setAppDataSaveStatus('saved', false);
       return normalizeAppData(seedData);
     }
 
-    return normalizeAppData({ ...seedData, ...JSON.parse(stored) } as AppData);
+    const parsed = parseJsonBackup(stored);
+    appDataLoadBlocked = false;
+    setAppDataSaveStatus('saved', false);
+    return parsed;
   } catch (error) {
-    console.warn('Failed to load local Turn Supervisor OS data. Falling back to seed data.', error);
+    appDataLoadBlocked = true;
+    setAppDataSaveStatus('failed', false);
+    console.warn(
+      'Failed to validate local Turn Supervisor OS data. Preserving the stored payload and blocking replacement writes.',
+      error,
+    );
     if (stored) {
       try {
         window.localStorage.setItem(CORRUPT_STORAGE_KEY, stored);
@@ -76,6 +88,10 @@ export const loadAppData = (): AppData => {
 };
 
 export const saveAppData = (data: AppData) => {
+  if (appDataLoadBlocked) {
+    console.warn('Turn Supervisor OS data was not saved because the existing local payload failed validation.');
+    return false;
+  }
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(applyActivityLogRetention(data)));
     return true;
@@ -86,6 +102,10 @@ export const saveAppData = (data: AppData) => {
 };
 
 const handleQueuedWriteState = (state: CoalescedWriteState) => {
+  if (appDataLoadBlocked) {
+    setAppDataSaveStatus('failed', false);
+    return;
+  }
   if (state === 'saved') {
     setAppDataSaveStatus('saved', false);
     return;
@@ -107,6 +127,9 @@ const appDataWriter: CoalescedWriter<AppData> = createCoalescedWriter(
 );
 
 export const retryPendingAppDataSave = () => {
+  if (appDataLoadBlocked) {
+    return false;
+  }
   if (!appDataWriter.hasPending()) {
     return false;
   }
@@ -142,6 +165,10 @@ export const clearAppData = async () => {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
     recordsCleared = !hasStoredAppData();
+    if (recordsCleared) {
+      appDataLoadBlocked = false;
+      setAppDataSaveStatus('saved', false);
+    }
   } catch (error) {
     console.warn('Failed to clear local Turn Supervisor OS records during device reset.', error);
   }

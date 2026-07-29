@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createCoalescedWriter, type CoalescedTimer } from '../src/lib/coalescedWriter.ts';
 import { seedData } from '../src/data/seed.ts';
-import { getAppDataSaveStatus, persistAppDataNow } from '../src/lib/storage.ts';
+import { getAppDataSaveStatus, loadAppData, persistAppDataNow } from '../src/lib/storage.ts';
 
 const fakeTimer = () => {
   let callback: (() => void) | undefined;
@@ -179,6 +179,61 @@ test('immediate persistence reports quota failure so a large import can fail clo
     });
     assert.equal(persistAppDataNow(structuredClone(seedData)), true);
     assert.deepEqual(getAppDataSaveStatus(), { state: 'saved', canRetry: false });
+  } finally {
+    console.warn = originalWarn;
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    }
+  }
+});
+
+test('malformed local field arrays fail safely on reopen without replacing stored data', () => {
+  const originalWindow = globalThis.window;
+  const originalWarn = console.warn;
+  const storageKey = 'turn-supervisor-os:v0.1';
+  const corruptStorageKey = `${storageKey}:corrupt`;
+  const localFieldKeys = [
+    'daySessions',
+    'dailyReleaseBatches',
+    'todayTasks',
+    'fieldEvents',
+    'walkSessions',
+  ] as const;
+  const storage = new Map<string, string>();
+
+  try {
+    console.warn = () => undefined;
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          removeItem: (key: string) => storage.delete(key),
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+      },
+    });
+
+    for (const key of localFieldKeys) {
+      const malformed = JSON.stringify({ ...structuredClone(seedData), [key]: { id: 'not-an-array' } });
+      storage.clear();
+      storage.set(storageKey, malformed);
+
+      const fallback = loadAppData();
+
+      assert.equal(fallback.activeProjectId, seedData.activeProjectId);
+      assert.equal(storage.get(storageKey), malformed);
+      assert.equal(storage.get(corruptStorageKey), malformed);
+      assert.deepEqual(getAppDataSaveStatus(), { state: 'failed', canRetry: false });
+      assert.equal(persistAppDataNow(structuredClone(seedData)), false);
+      assert.equal(storage.get(storageKey), malformed);
+
+      storage.set(storageKey, JSON.stringify(seedData));
+      assert.equal(loadAppData().activeProjectId, seedData.activeProjectId);
+      assert.deepEqual(getAppDataSaveStatus(), { state: 'saved', canRetry: false });
+    }
   } finally {
     console.warn = originalWarn;
     if (originalWindow === undefined) {

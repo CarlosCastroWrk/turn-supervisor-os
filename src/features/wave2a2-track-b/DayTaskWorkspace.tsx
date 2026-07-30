@@ -614,20 +614,30 @@ export function StartDayFlow({
 }
 
 interface EndDayFlowProps {
+  activeWalkSessionId?: string;
   events: readonly DaySessionEvent[];
   now: () => string;
   onCancel: () => void;
-  onClosed: (session: DaySession, event: DaySessionEvent) => void;
+  onClosed: (
+    session: DaySession,
+    event: DaySessionEvent,
+  ) => boolean | Promise<boolean> | void;
+  onOpenActiveWalk?: (
+    walkSessionId: string,
+    intent: 'return' | 'end',
+  ) => void;
   recordedBy: string;
   session: DaySession;
   task: TodayTask | null;
 }
 
 export function EndDayFlow({
+  activeWalkSessionId,
   events,
   now,
   onCancel,
   onClosed,
+  onOpenActiveWalk,
   recordedBy,
   session,
   task,
@@ -649,8 +659,15 @@ export function EndDayFlow({
       ? [`${summary.unresolvedSectionTradeIds.length} released section-trades remain unresolved.`]
       : [],
   );
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
-  const finish = () => {
+  const finish = async () => {
+    if (savingRef.current) return;
+    if (activeWalkSessionId) {
+      setErrors(['Finish or defer the active property walk before ending the day.']);
+      return;
+    }
     const result = closeDaySession(
       markDaySessionEnding(session),
       review,
@@ -660,12 +677,50 @@ export function EndDayFlow({
     );
     setErrors(result.errors);
     setWarnings(result.warnings);
-    if (result.session && result.closeEvent) onClosed(result.session, result.closeEvent);
+    if (!result.session || !result.closeEvent) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const persisted = await onClosed(result.session, result.closeEvent);
+      if (persisted === false) {
+        setErrors([
+          'The Day Session was not durably saved. Keep this screen open and retry.',
+        ]);
+        savingRef.current = false;
+        setSaving(false);
+      }
+    } catch {
+      setErrors([
+        'The Day Session was not durably saved. Keep this screen open and retry.',
+      ]);
+      savingRef.current = false;
+      setSaving(false);
+    }
   };
 
   return (
     <section className="w2a2b-flow-page" data-testid="track-b-end-day">
       <PageHeader onBack={onCancel} title="End Day" />
+      {activeWalkSessionId ? (
+        <section className="w2a2b-message is-error" role="alert">
+          <p>Finish or defer the active property walk before ending the day.</p>
+          <div className="w2a2b-flow-actions">
+            <button
+              onClick={() => onOpenActiveWalk?.(activeWalkSessionId, 'return')}
+              type="button"
+            >
+              Return to Active Walk
+            </button>
+            <button
+              onClick={() => onOpenActiveWalk?.(activeWalkSessionId, 'end')}
+              type="button"
+            >
+              End Walk
+            </button>
+            <button onClick={onCancel} type="button">Cancel End Day</button>
+          </div>
+        </section>
+      ) : null}
       <section className="w2a2b-review-card">
         <span className="w2a2b-eyebrow">Deterministic summary</span>
         <h2>{summary.releasedToday} released section-trades</h2>
@@ -776,11 +831,11 @@ export function EndDayFlow({
         <button
           className="w2a2b-primary-button"
           data-track-b-critical-target="true"
-          disabled={!review.explicitConfirmation}
-          onClick={finish}
+          disabled={Boolean(activeWalkSessionId) || !review.explicitConfirmation || saving}
+          onClick={() => void finish()}
           type="button"
         >
-          Close Day Session
+          {saving ? 'Saving Day Session…' : 'Close Day Session'}
         </button>
       </footer>
     </section>
@@ -1095,6 +1150,7 @@ function RecoveryPage({ currentDate, now, onChoice, session }: RecoveryPageProps
 
 export interface DayTaskWorkspaceProps {
   accountId: string;
+  activeWalkSessionId?: string;
   crews: readonly TrackBCrewOption[];
   currentDate: string;
   events?: readonly DaySessionEvent[];
@@ -1110,6 +1166,10 @@ export interface DayTaskWorkspaceProps {
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
   onOpenQueueId?: (queueId: TodayTaskQueueId) => void;
   onOpenTaskDetail?: () => void;
+  onOpenActiveWalk?: (
+    walkSessionId: string,
+    intent: 'return' | 'end',
+  ) => void;
   onRequestStartDay?: () => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
@@ -1132,6 +1192,7 @@ export interface DayTaskStateChange {
 
 export function DayTaskWorkspace({
   accountId,
+  activeWalkSessionId,
   crews,
   currentDate,
   events: initialEvents = [],
@@ -1145,6 +1206,7 @@ export function DayTaskWorkspace({
   onExternalAction,
   onOpenQueueId,
   onOpenTaskDetail,
+  onOpenActiveWalk,
   onRequestStartDay,
   propertyRoster,
   releases,
@@ -1224,21 +1286,25 @@ export function DayTaskWorkspace({
   if (view.id === 'end-day' && session) {
     return (
       <EndDayFlow
+        activeWalkSessionId={activeWalkSessionId}
         events={events}
         now={now}
         onCancel={() => setView({ id: 'home' })}
-        onClosed={(nextSession, event) => {
-          setSession(nextSession);
-          setEvents((current) => [...current, event]);
-          onDayStateChange?.({
+        onClosed={async (nextSession, event) => {
+          const persisted = await onDayStateChange?.({
             event,
             reason: 'day-closed',
             recordedAt: event.recordedAt,
             session: nextSession,
           });
+          if (persisted === false) return false;
+          setSession(nextSession);
+          setEvents((current) => [...current, event]);
           setReceipt('Day Session closed. Unresolved work was not changed.');
           setView({ id: 'home' });
+          return true;
         }}
+        onOpenActiveWalk={onOpenActiveWalk}
         recordedBy={startedBy}
         session={session}
         task={task}

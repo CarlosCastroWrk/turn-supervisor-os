@@ -177,6 +177,9 @@ export const projectTrackCAssignmentEligibility = (
   if (projection.activeCrewIds.length > 0) {
     reasons.push('A confirmed active crew is already responsible for this work.');
   }
+  if (projection.property === 'property-accepted') {
+    reasons.push('Property-accepted work cannot be assigned again.');
+  }
 
   return {
     eligible: reasons.length === 0,

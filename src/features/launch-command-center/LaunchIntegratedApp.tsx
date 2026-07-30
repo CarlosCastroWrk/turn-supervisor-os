@@ -97,6 +97,7 @@ import {
   applyTrackCStateChange,
   applyTrackCWalkDraftChange,
   appendManualReleaseBatchOnce,
+  appendManualReleaseBatchToActiveDay,
   currentLocalDate,
   projectDailyReleases,
   projectDayEvents,
@@ -177,6 +178,7 @@ import { SyncDiagnosticsView } from '../../views/SyncDiagnosticsView';
 import { TrainingQuestionsView } from '../../views/TrainingQuestionsView';
 import { UnitDetailView } from '../../views/UnitDetailView';
 import { UnitsView } from '../../views/UnitsView';
+import { RecoveryMode } from './RecoveryMode';
 import './launchHost.css';
 
 const LEGACY_CAPTURE_HISTORY_KEY = 'turnOsLegacyCapture';
@@ -313,14 +315,35 @@ const boardActivityKind = (
 };
 
 export function LaunchIntegratedApp() {
+  const persistence = usePersistentAppData();
+  if (persistence.recovery) {
+    return (
+      <RecoveryMode
+        onResetToDemo={persistence.resetToDemo}
+        onRestore={persistence.restoreDataNow}
+        recovery={persistence.recovery}
+      />
+    );
+  }
+  return <LaunchOperationalApp persistence={persistence} />;
+}
+
+function LaunchOperationalApp({
+  persistence,
+}: {
+  persistence: ReturnType<typeof usePersistentAppData>;
+}) {
   const {
     commitDataNow,
     data,
     setData,
     hasStoredData,
+    loadWarnings,
+    restoreDataNow,
     retrySave,
     saveStatus,
-  } = usePersistentAppData();
+    storagePersistence,
+  } = persistence;
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [route, setRoute] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
@@ -333,6 +356,7 @@ export function LaunchIntegratedApp() {
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
   const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
   const [homeMode, setHomeMode] = useState<HomeMode>('day');
+  const [manualReleaseStatus, setManualReleaseStatus] = useState('');
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -414,7 +438,7 @@ export function LaunchIntegratedApp() {
   const boardCaptureReturnFocusRef = useRef<BoardCaptureContext['returnFocus'] | null>(null);
   const launchCaptureReturnFocusIdRef = useRef<string | null>(null);
   const activityReturnFocusRef = useRef<HTMLButtonElement | null>(null);
-  const now = useMemo(() => new Date(), []);
+  const [now, setNow] = useState(() => new Date());
 
   const supabaseClient = getSupabaseClient();
   const authAdapter = useMemo(
@@ -429,6 +453,21 @@ export function LaunchIntegratedApp() {
     return () => {
       window.removeEventListener('online', updateConnectivity);
       window.removeEventListener('offline', updateConnectivity);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshClock = () => setNow(new Date());
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshClock();
+    };
+    window.addEventListener('pageshow', refreshClock);
+    window.addEventListener('focus', refreshClock);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.removeEventListener('pageshow', refreshClock);
+      window.removeEventListener('focus', refreshClock);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
   }, []);
 
@@ -1176,6 +1215,7 @@ export function LaunchIntegratedApp() {
   const handleQuickAction = useCallback((action: LaunchQuickActionId) => {
     if (action === 'import-work') {
       navigate('dashboard');
+      setManualReleaseStatus('');
       setHomeMode('manual-release');
       return;
     }
@@ -1610,12 +1650,53 @@ export function LaunchIntegratedApp() {
     </section>
   ) : null;
 
+  const storageDurabilityAlert = (
+    storagePersistence === 'best-effort' || storagePersistence === 'failed'
+  ) ? (
+    <section className="persistence-alert lcc-host-alert" role="status">
+      <AlertTriangle size={22} aria-hidden="true" />
+      <div>
+        <strong>Browser storage is best-effort on this device</strong>
+        <p>
+          Turn OS will keep saving locally, but the browser did not grant protected
+          persistent storage. Keep a current JSON backup.
+        </p>
+      </div>
+    </section>
+  ) : null;
+
+  const loadWarningAlert = loadWarnings.length > 0 ? (
+    <section className="persistence-alert lcc-host-alert" role="status">
+      <AlertTriangle size={22} aria-hidden="true" />
+      <div>
+        <strong>Saved lifecycle details need review</strong>
+        <p>
+          {loadWarnings.length} recoverable validation warning
+          {loadWarnings.length === 1 ? '' : 's'} loaded without replacing your records.
+          Export a backup before correcting them.
+        </p>
+      </div>
+    </section>
+  ) : null;
+
+  const manualReleaseAlert = manualReleaseStatus ? (
+    <section className="persistence-alert lcc-host-alert" role="status">
+      <div>
+        <strong>Midday release saved</strong>
+        <p>{manualReleaseStatus}</p>
+      </div>
+    </section>
+  ) : null;
+
   const hostAlerts = (
     <>
       {saveAlert}
       {cacheAlert}
       {repositoryAlert}
       {offlineContinuityAlert}
+      {storageDurabilityAlert}
+      {loadWarningAlert}
+      {manualReleaseAlert}
     </>
   );
 
@@ -1657,7 +1738,7 @@ export function LaunchIntegratedApp() {
       {route.view === 'export' ? (
         <ExportView
           data={data}
-          setData={setData}
+          restoreDataNow={restoreDataNow}
           syncAuthReady={sync.authReady}
           syncSignedIn={sync.signedIn}
         />
@@ -1820,7 +1901,11 @@ export function LaunchIntegratedApp() {
             }
             navigate('units');
           }}
-          onStateChange={(nextState) => {
+          onStateChange={(nextState, reason) => {
+            if (reason === 'walk-started' || reason === 'walk-ended') {
+              commitDataNow((current) => applyTrackCStateChange(current, nextState));
+              return;
+            }
             setData((current) => applyTrackCStateChange(current, nextState));
           }}
           routeState={trackCRouteState}
@@ -1957,17 +2042,30 @@ export function LaunchIntegratedApp() {
       ) : homeMode === 'manual-release' ? (
         <ManualReleaseReview
           actor="Los"
-          currentDate={currentDate}
+          currentDate={activeDaySession?.date ?? currentDate}
           onBack={() => setHomeMode('day')}
           onConfirm={(batch) => {
-            setData((current) => appendManualReleaseBatchOnce(current, batch));
+            const saved = commitDataNow((current) =>
+              appendManualReleaseBatchToActiveDay(current, batch));
+            if (!saved) return false;
+            setManualReleaseStatus(
+              `${batch.items.length} released section-trade${batch.items.length === 1 ? '' : 's'} saved to the active Day Session.`,
+            );
             setHomeMode('day');
+            return true;
           }}
           roster={propertyRoster}
+          unavailableReason={
+            activeDaySession
+              ? undefined
+              : 'Start the day before confirming released work.'
+          }
         />
       ) : (
         <DayTaskWorkspace
+          key={`${activeDaySession?.daySessionId ?? 'no-day'}:${currentDate}`}
           accountId={operationalScope.accountId}
+          activeWalkSessionId={trackCState.activeWalk?.id}
           crews={dayCrewOptions}
           currentDate={currentDate}
           events={dayEvents}
@@ -1976,7 +2074,7 @@ export function LaunchIntegratedApp() {
           initialSession={activeDaySession}
           initialTask={todayTask}
           onDayStateChange={(change) => {
-            if (change.reason === 'day-started') {
+            if (change.reason === 'day-started' || change.reason === 'day-closed') {
               return commitDataNow((current) =>
                 applyDayTaskStateChange(current, change));
             }
@@ -1993,6 +2091,11 @@ export function LaunchIntegratedApp() {
             'dashboard',
             undefined,
             { homeSummary: 'today-task' },
+          )}
+          onOpenActiveWalk={(walkSessionId) => navigate(
+            'units',
+            undefined,
+            { fieldWorkflow: 'walk', walkSessionId },
           )}
           onRequestStartDay={() => setHomeMode('start-day')}
           propertyRoster={propertyRoster}

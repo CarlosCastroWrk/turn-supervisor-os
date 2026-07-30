@@ -24,12 +24,17 @@ import type { AppData } from '../types';
 
 interface ExportViewProps {
   data: AppData;
-  setData: React.Dispatch<React.SetStateAction<AppData>>;
+  restoreDataNow: (data: AppData) => boolean;
   syncAuthReady: boolean;
   syncSignedIn: boolean;
 }
 
-export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: ExportViewProps) {
+export function ExportView({
+  data,
+  restoreDataNow,
+  syncAuthReady,
+  syncSignedIn,
+}: ExportViewProps) {
   const { notify } = useToast();
   const date = todayISO();
   const project = getActiveProject(data);
@@ -115,7 +120,11 @@ export function ExportView({ data, setData, syncAuthReady, syncSignedIn }: Expor
         throw new Error('Could not unlink the current account from this device cache. No backup data was restored. Check browser site-storage settings and try again.');
       }
       clearInFlightFieldDrafts();
-      setData(restored);
+      if (!restoreDataNow(restored)) {
+        throw new Error(
+          'The backup passed validation but failed durable browser-storage verification. No success receipt was created.',
+        );
+      }
       setRestoreMessage(`Restored ${restored.projects.length} project(s), ${restored.units.length} unit(s), and ${restored.issues.length} issue(s).`);
       setBackupTaken(true);
       notify(`Backup restored with ${restored.units.length} Unit${restored.units.length === 1 ? '' : 's'}.`, { tone: 'success' });

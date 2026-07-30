@@ -11,7 +11,12 @@ import {
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
 import { applyActivityLogRetention } from './activityRetention';
-import { parseJsonBackup } from './backups';
+import {
+  parseJsonBackup,
+  parseStoredAppData,
+  StoredAppDataValidationError,
+  type StoredAppDataValidationIssue,
+} from './backups';
 import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
 import { createFieldDraftStore } from './fieldDraft';
@@ -22,7 +27,8 @@ import {
 } from './supabase/cacheOwnership';
 import type { CoalescedWriter, CoalescedWriteState } from './coalescedWriter';
 
-const STORAGE_KEY = 'turn-supervisor-os:v0.1';
+export const APP_DATA_STORAGE_KEY = 'turn-supervisor-os:v0.1';
+const STORAGE_KEY = APP_DATA_STORAGE_KEY;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
 export const APP_DATA_SAVE_INTERVAL_MS = 500;
 
@@ -34,6 +40,27 @@ export interface AppDataSaveStatus {
 const saveStatusListeners = new Set<() => void>();
 let appDataSaveStatus: AppDataSaveStatus = { state: 'saved', canRetry: false };
 let appDataLoadBlocked = false;
+
+export interface AppDataRecoveryState {
+  readonly capturedAt: string;
+  readonly issues: readonly StoredAppDataValidationIssue[];
+  readonly originalKey: string;
+  readonly rawPayload: string;
+}
+
+export type BrowserStoragePersistence =
+  | 'checking'
+  | 'persistent'
+  | 'best-effort'
+  | 'unsupported'
+  | 'failed';
+
+interface AppDataLoadResult {
+  readonly data: AppData;
+  readonly hasStoredData: boolean;
+  readonly recovery: AppDataRecoveryState | null;
+  readonly warnings: readonly StoredAppDataValidationIssue[];
+}
 
 const setAppDataSaveStatus = (state: AppDataSaveStatus['state'], canRetry: boolean) => {
   if (appDataSaveStatus.state === state && appDataSaveStatus.canRetry === canRetry) {
@@ -53,22 +80,38 @@ export const subscribeToAppDataSaveStatus = (listener: () => void) => {
 export const useAppDataSaveStatus = () =>
   useSyncExternalStore(subscribeToAppDataSaveStatus, getAppDataSaveStatus, getAppDataSaveStatus);
 
-export const hasStoredAppData = () => Boolean(window.localStorage.getItem(STORAGE_KEY));
-
-export const loadAppData = (): AppData => {
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-
+export const hasStoredAppData = () => {
   try {
+    return Boolean(window.localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return false;
+  }
+};
+
+export const loadAppDataResult = (): AppDataLoadResult => {
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(STORAGE_KEY);
     if (!stored) {
       appDataLoadBlocked = false;
       setAppDataSaveStatus('saved', false);
-      return normalizeAppData(seedData);
+      return {
+        data: normalizeAppData(seedData),
+        hasStoredData: false,
+        recovery: null,
+        warnings: [],
+      };
     }
 
-    const parsed = parseJsonBackup(stored);
+    const parsed = parseStoredAppData(stored);
     appDataLoadBlocked = false;
     setAppDataSaveStatus('saved', false);
-    return parsed;
+    return {
+      data: parsed.data,
+      hasStoredData: true,
+      recovery: null,
+      warnings: parsed.warnings,
+    };
   } catch (error) {
     appDataLoadBlocked = true;
     setAppDataSaveStatus('failed', false);
@@ -76,16 +119,34 @@ export const loadAppData = (): AppData => {
       'Failed to validate local Turn Supervisor OS data. Preserving the stored payload and blocking replacement writes.',
       error,
     );
-    if (stored) {
+    if (stored !== null) {
       try {
         window.localStorage.setItem(CORRUPT_STORAGE_KEY, stored);
       } catch (preserveError) {
         console.warn('Failed to preserve corrupt Turn Supervisor OS data.', preserveError);
       }
     }
-    return normalizeAppData(seedData);
+    const issues = error instanceof StoredAppDataValidationError
+      ? error.issues
+      : [{
+          message: error instanceof Error ? error.message : 'Browser storage could not be read.',
+          path: 'browser storage',
+        }];
+    return {
+      data: normalizeAppData(seedData),
+      hasStoredData: Boolean(stored),
+      recovery: {
+        capturedAt: new Date().toISOString(),
+        issues,
+        originalKey: STORAGE_KEY,
+        rawPayload: stored ?? '',
+      },
+      warnings: [],
+    };
   }
 };
+
+export const loadAppData = (): AppData => loadAppDataResult().data;
 
 export const saveAppData = (data: AppData) => {
   if (appDataLoadBlocked) {
@@ -148,6 +209,28 @@ export const persistAppDataNow = (data: AppData) => {
   return false;
 };
 
+export const restoreAppDataNow = (data: AppData) => {
+  const retained = applyActivityLogRetention(data);
+  try {
+    const serialized = JSON.stringify(retained);
+    window.localStorage.setItem(STORAGE_KEY, serialized);
+    const readback = window.localStorage.getItem(STORAGE_KEY);
+    if (readback !== serialized) {
+      throw new Error('Saved data did not match browser-storage readback.');
+    }
+    parseJsonBackup(readback);
+    appDataWriter.cancel();
+    appDataLoadBlocked = false;
+    setAppDataSaveStatus('saved', false);
+    return true;
+  } catch (error) {
+    appDataLoadBlocked = true;
+    setAppDataSaveStatus('failed', false);
+    console.warn('Restored data could not be durably verified.', error);
+    return false;
+  }
+};
+
 export const prepareAppDataUpdate = (
   current: AppData,
   update: SetStateAction<AppData>,
@@ -190,6 +273,7 @@ export const clearAppData = async () => {
   let recordsCleared = false;
   try {
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(CORRUPT_STORAGE_KEY);
     recordsCleared = !hasStoredAppData();
     if (recordsCleared) {
       appDataLoadBlocked = false;
@@ -210,9 +294,17 @@ export const clearAppData = async () => {
 };
 
 export const usePersistentAppData = () => {
-  const [hasStoredData, setHasStoredData] = useState(() => hasStoredAppData());
-  const [data, setStoredData] = useState<AppData>(() => loadAppData());
+  const [initialLoad] = useState(() => loadAppDataResult());
+  const [hasStoredData, setHasStoredData] = useState(initialLoad.hasStoredData);
+  const [data, setStoredData] = useState<AppData>(initialLoad.data);
+  const [recovery, setRecovery] = useState<AppDataRecoveryState | null>(
+    initialLoad.recovery,
+  );
+  const [loadWarnings, setLoadWarnings] = useState(initialLoad.warnings);
+  const [storagePersistence, setStoragePersistence] =
+    useState<BrowserStoragePersistence>('checking');
   const dataRef = useRef(data);
+  const initiallyLoadedDataRef = useRef(data);
   const immediatelyPersistedDataRef = useRef<AppData | null>(null);
   const migrationInFlight = useRef(false);
   const attemptedLegacyPhotoIds = useRef(new Set<string>());
@@ -235,8 +327,53 @@ export const usePersistentAppData = () => {
     setHasStoredData(true);
     return true;
   }, []);
+  const restoreDataNow = useCallback((restoredData: AppData) => {
+    if (!restoreAppDataNow(restoredData)) return false;
+    dataRef.current = restoredData;
+    immediatelyPersistedDataRef.current = restoredData;
+    setStoredData(restoredData);
+    setHasStoredData(true);
+    setLoadWarnings([]);
+    setRecovery(null);
+    return true;
+  }, []);
+
+  const resetToDemo = useCallback(async () => {
+    if (!await clearAppData()) return false;
+    const demo = normalizeAppData(seedData);
+    if (!restoreAppDataNow(demo)) return false;
+    dataRef.current = demo;
+    immediatelyPersistedDataRef.current = demo;
+    setStoredData(demo);
+    setHasStoredData(true);
+    setLoadWarnings([]);
+    setRecovery(null);
+    return true;
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    const storageManager = navigator.storage;
+    if (!storageManager?.persist) {
+      setStoragePersistence('unsupported');
+      return;
+    }
+    void storageManager.persist()
+      .then((persistent) => {
+        if (!cancelled) {
+          setStoragePersistence(persistent ? 'persistent' : 'best-effort');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStoragePersistence('failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (recovery) return;
     if (migrationInFlight.current) {
       return;
     }
@@ -268,10 +405,14 @@ export const usePersistentAppData = () => {
       .finally(() => {
         migrationInFlight.current = false;
       });
-  }, [data.photoNotes, setData]);
+  }, [data.photoNotes, recovery, setData]);
 
   useEffect(() => {
+    if (recovery) return;
     dataRef.current = data;
+    if (loadWarnings.length > 0 && data === initiallyLoadedDataRef.current) {
+      return;
+    }
     if (immediatelyPersistedDataRef.current === data) {
       immediatelyPersistedDataRef.current = null;
       setHasStoredData(true);
@@ -280,7 +421,7 @@ export const usePersistentAppData = () => {
     immediatelyPersistedDataRef.current = null;
     appDataWriter.schedule(data);
     setHasStoredData(true);
-  }, [data]);
+  }, [data, loadWarnings.length, recovery]);
 
   useEffect(() => {
     const flushPendingData = () => {
@@ -311,9 +452,26 @@ export const usePersistentAppData = () => {
       data,
       setData,
       hasStoredData,
+      loadWarnings,
+      recovery,
+      resetToDemo,
+      restoreDataNow,
       retrySave,
       saveStatus,
+      storagePersistence,
     }),
-    [commitDataNow, data, hasStoredData, retrySave, saveStatus, setData],
+    [
+      commitDataNow,
+      data,
+      hasStoredData,
+      loadWarnings,
+      recovery,
+      resetToDemo,
+      restoreDataNow,
+      retrySave,
+      saveStatus,
+      setData,
+      storagePersistence,
+    ],
   );
 };

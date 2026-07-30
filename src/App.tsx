@@ -109,7 +109,14 @@ const clearLegacyCaptureHistoryState = () => {
 };
 
 export function LegacyAppSnapshot() {
-  const { data, setData, hasStoredData, retrySave, saveStatus } = usePersistentAppData();
+  const {
+    data,
+    setData,
+    hasStoredData,
+    restoreDataNow,
+    retrySave,
+    saveStatus,
+  } = usePersistentAppData();
   const sync = useSupabaseSync(data, setData, hasStoredData);
   const [route, setRoute] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
@@ -519,7 +526,7 @@ export function LegacyAppSnapshot() {
           {route.view === 'export' ? (
             <ExportView
               data={data}
-              setData={setData}
+              restoreDataNow={restoreDataNow}
               syncAuthReady={sync.authReady}
               syncSignedIn={sync.signedIn}
             />

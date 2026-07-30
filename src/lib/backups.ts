@@ -540,10 +540,9 @@ const appDataBackupShape: z.ZodRawShape = {
     configurableStatuses: z.array(knownText(UNIT_WORKFLOW_STATUSES, 'configurable Unit status')).optional(),
 };
 
-const appDataBackupSchema = z
-  .object(appDataBackupShape)
-  .passthrough()
-  .superRefine((rawData, context) => {
+const appDataStructureSchema = z.object(appDataBackupShape).passthrough();
+
+const appDataBackupSchema = appDataStructureSchema.superRefine((rawData, context) => {
     const data = rawData as unknown as BackupValidationData;
     let totalRecords = 0;
 
@@ -1030,7 +1029,7 @@ const appDataBackupSchema = z
       'property-correction-requested',
     ]);
     const activeFieldEventsForReleaseItemAt = (
-      daySessionId: string,
+      projectId: string,
       releaseItem: {
         section: AppData['dailyReleaseBatches'][number]['items'][number]['section'];
         trade: AppData['dailyReleaseBatches'][number]['items'][number]['trade'];
@@ -1040,7 +1039,7 @@ const appDataBackupSchema = z
     ) => {
       const eventsThroughCutoff = (data.fieldEvents ?? []).filter(
         (event) =>
-          event.daySessionId === daySessionId &&
+          event.projectId === projectId &&
           Date.parse(event.recordedAt) <= Date.parse(at),
       );
       const reversedEventIds = new Set(
@@ -1050,7 +1049,7 @@ const appDataBackupSchema = z
               return false;
             }
             const reversedEvent = fieldEventsById.get(event.reversesEventId);
-            return Boolean(reversedEvent && reversedEvent.daySessionId === daySessionId);
+            return Boolean(reversedEvent && reversedEvent.projectId === projectId);
           })
           .map((event) => event.reversesEventId as string),
       );
@@ -1151,17 +1150,31 @@ const appDataBackupSchema = z
           path: ['walkSessions', sessionIndex, 'selectedItemIds'],
         });
       }
-      const dayReleaseBatchIds = new Set(daySession?.releaseBatchIds ?? []);
+      const projectReleaseBatchIds = new Set(
+        (data.daySessions ?? [])
+          .filter((candidate) => candidate.projectId === session.projectId)
+          .flatMap((candidate) => candidate.releaseBatchIds),
+      );
       session.selectedItemIds.forEach((selectedItemId, selectedItemIndex) => {
         const releaseItem = releaseItemsById.get(selectedItemId);
+        const releaseBatch = releaseItem
+          ? releaseBatchesById.get(releaseItem.batchId)
+          : undefined;
+        const retainsConfirmationEvidence =
+          releaseBatch?.status === 'confirmed'
+          || (
+            releaseBatch?.status === 'superseded'
+            && Boolean(releaseBatch.confirmedBy && releaseBatch.confirmedAt)
+          );
         if (
           !releaseItem ||
           releaseItem.projectId !== session.projectId ||
-          !dayReleaseBatchIds.has(releaseItem.batchId)
+          !projectReleaseBatchIds.has(releaseItem.batchId) ||
+          !retainsConfirmationEvidence
         ) {
           context.addIssue({
             code: 'custom',
-            message: 'Walk selection must reference a release item from the same Day Session.',
+            message: 'Walk selection must reference confirmed project work released by a Day Session.',
             path: ['walkSessions', sessionIndex, 'selectedItemIds', selectedItemIndex],
           });
         }
@@ -1187,7 +1200,7 @@ const appDataBackupSchema = z
           const releaseItem = releaseItemsById.get(outcome.selectedItemId);
           if (releaseItem) {
             const activeEvents = activeFieldEventsForReleaseItemAt(
-              session.daySessionId,
+              session.projectId,
               releaseItem,
               session.startedAt,
             );
@@ -1199,7 +1212,7 @@ const appDataBackupSchema = z
             if (!latestLosInspectionPass) {
               context.addIssue({
                 code: 'custom',
-                message: 'Property acceptance requires a current Los inspection pass from the same Day Session.',
+                message: 'Property acceptance requires a current Los inspection pass for the project scope.',
                 path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
               });
             } else if (
@@ -1222,7 +1235,7 @@ const appDataBackupSchema = z
             const alreadyAcceptedByWalk = (data.walkSessions ?? []).some(
               (otherSession) =>
                 otherSession.id !== session.id &&
-                otherSession.daySessionId === session.daySessionId &&
+                otherSession.projectId === session.projectId &&
                 otherSession.status === 'closed' &&
                 otherSession.outcomes.some(
                   (otherOutcome) =>
@@ -1233,7 +1246,7 @@ const appDataBackupSchema = z
             if (alreadyAcceptedByEvent || alreadyAcceptedByWalk) {
               context.addIssue({
                 code: 'custom',
-                message: 'Property acceptance cannot be recorded again for scope already accepted in this Day Session.',
+                message: 'Property acceptance cannot be recorded again for scope already accepted in this project.',
                 path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
               });
             }
@@ -1273,6 +1286,119 @@ const validationMessage = (result: z.ZodError) => {
   return `That backup is not safe to restore (${path}: ${detail}). No local data was changed.`;
 };
 
+export interface StoredAppDataValidationIssue {
+  readonly message: string;
+  readonly path: string;
+}
+
+export class StoredAppDataValidationError extends Error {
+  readonly issues: readonly StoredAppDataValidationIssue[];
+
+  constructor(message: string, issues: readonly StoredAppDataValidationIssue[]) {
+    super(message);
+    this.name = 'StoredAppDataValidationError';
+    this.issues = issues;
+  }
+}
+
+const toStoredIssue = (issue: z.core.$ZodIssue): StoredAppDataValidationIssue => ({
+  message: issue.message,
+  path: issue.path.length ? issue.path.join('.') : 'data root',
+});
+
+const recoverableSemanticIssue = (issue: z.core.$ZodIssue) => {
+  if (issue.code !== 'custom') return false;
+  return [
+    /cannot be (?:earlier|later|recorded before)/iu,
+    /cannot (?:precede|start before|extend past)/iu,
+    /requires (?:endedAt|a confirmed release batch|one outcome)/iu,
+    /Only (?:a closed Day Session|one active)/iu,
+    /may (?:reference|select) each .+ only once/iu,
+    /may have only one current outcome/iu,
+    /cannot retain planned or in-progress Today Tasks/iu,
+    /cannot remain open after its Day Session closes/iu,
+    /cannot have endedAt/iu,
+    /date must match its Day Session date/iu,
+    /updatedAt cannot/iu,
+  ].some((pattern) => pattern.test(issue.message));
+};
+
+const validateEmbeddedPhotos = (
+  data: BackupValidationData,
+  toError: (index: number) => Error,
+) => {
+  for (const [index, photo] of (data.photoNotes ?? []).entries()) {
+    if (!photo.imageData) continue;
+    try {
+      const blob = dataUrlToBlob(photo.imageData);
+      if (!RESTORABLE_PHOTO_TYPES.has(blob.type.toLowerCase())) {
+        throw new Error('Unsupported restored photo type.');
+      }
+    } catch {
+      throw toError(index);
+    }
+  }
+};
+
+export const parseStoredAppData = (textValue: string): {
+  readonly data: AppData;
+  readonly warnings: readonly StoredAppDataValidationIssue[];
+} => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(textValue) as unknown;
+  } catch {
+    throw new StoredAppDataValidationError(
+      'Saved data is not valid JSON.',
+      [{ message: 'The preserved payload is not valid JSON.', path: 'data root' }],
+    );
+  }
+
+  const candidate = backupCandidate(parsed);
+  const structure = appDataStructureSchema.safeParse(candidate);
+  if (!structure.success) {
+    const issues = structure.error.issues.map(toStoredIssue);
+    throw new StoredAppDataValidationError(
+      'Saved data is missing required records or contains invalid record shapes.',
+      issues,
+    );
+  }
+
+  const fullValidation = appDataBackupSchema.safeParse(candidate);
+  const issues = fullValidation.success ? [] : fullValidation.error.issues;
+  const fatalIssues = issues.filter((issue) => !recoverableSemanticIssue(issue));
+  if (fatalIssues.length > 0) {
+    throw new StoredAppDataValidationError(
+      'Saved data failed ownership, identity, or authority validation.',
+      fatalIssues.map(toStoredIssue),
+    );
+  }
+
+  const validatedData = structure.data as unknown as BackupValidationData;
+  validateEmbeddedPhotos(
+    validatedData,
+    (index) => new StoredAppDataValidationError(
+      'Saved photo data is invalid or unsupported.',
+      [{
+        message: 'Embedded photo data is invalid, unsupported, or too large.',
+        path: `photoNotes.${index}.imageData`,
+      }],
+    ),
+  );
+  const normalized = normalizeAppData(validatedData as AppData);
+  if (!normalized.projects.some((project) => project.id === normalized.activeProjectId)) {
+    throw new StoredAppDataValidationError(
+      'Saved data does not contain a usable active project.',
+      [{ message: 'The active project does not exist in the project collection.', path: 'activeProjectId' }],
+    );
+  }
+
+  return {
+    data: normalized,
+    warnings: issues.map(toStoredIssue),
+  };
+};
+
 export const parseJsonBackup = (text: string): AppData => {
   let parsed: unknown;
   try {
@@ -1287,21 +1413,12 @@ export const parseJsonBackup = (text: string): AppData => {
   }
 
   const validatedData = result.data as unknown as BackupValidationData;
-  for (const [index, photo] of (validatedData.photoNotes ?? []).entries()) {
-    if (!photo.imageData) {
-      continue;
-    }
-    try {
-      const blob = dataUrlToBlob(photo.imageData);
-      if (!RESTORABLE_PHOTO_TYPES.has(blob.type.toLowerCase())) {
-        throw new Error('Unsupported restored photo type.');
-      }
-    } catch {
-      throw new Error(
-        `That backup is not safe to restore (photoNotes.${index}.imageData is invalid, unsupported, or too large). No local data was changed.`,
-      );
-    }
-  }
+  validateEmbeddedPhotos(
+    validatedData,
+    (index) => new Error(
+      `That backup is not safe to restore (photoNotes.${index}.imageData is invalid, unsupported, or too large). No local data was changed.`,
+    ),
+  );
 
   const normalized = normalizeAppData(validatedData as AppData);
   if (!normalized.projects.some((project) => project.id === normalized.activeProjectId)) {

@@ -69,6 +69,10 @@ const maintenanceRestrictionPattern = /\b(maintenance|repair)\b/iu;
 const unique = <T,>(values: readonly T[]) => [...new Set(values)];
 const byRecordedAt = <T extends { recordedAt: string }>(left: T, right: T) =>
   left.recordedAt.localeCompare(right.recordedAt);
+const byRecordedAtAndId = <T extends { id: string; recordedAt: string }>(
+  left: T,
+  right: T,
+) => byRecordedAt(left, right) || left.id.localeCompare(right.id);
 
 const sectionLabel = (section: FieldSection) =>
   section === 'common' ? 'Common' : section;
@@ -598,15 +602,99 @@ export function appendManualReleaseBatchOnce(
   };
 }
 
-const selectedReleaseBatches = (data: AppData) => {
-  const activeSession = data.daySessions.find((session) =>
+const ACTIVE_DAY_SESSION_STATUSES = new Set(['active', 'ending', 'reopened']);
+
+export function appendManualReleaseBatchToActiveDay(
+  data: AppData,
+  batch: AppDailyReleaseBatch,
+): AppData {
+  const activeSessions = data.daySessions.filter((session) =>
     session.projectId === data.activeProjectId
-    && ['active', 'ending', 'reopened'].includes(session.status));
-  const selectedIds = new Set(activeSession?.releaseBatchIds ?? []);
+    && ACTIVE_DAY_SESSION_STATUSES.has(session.status));
+  if (activeSessions.length !== 1) {
+    throw new Error('Start the day before confirming released work.');
+  }
+  const activeSession = activeSessions[0];
+  if (
+    batch.projectId !== data.activeProjectId
+    || batch.date !== activeSession.date
+    || batch.status !== 'confirmed'
+    || batch.items.length === 0
+  ) {
+    throw new Error('Released work must match the active project and Day Session.');
+  }
+
+  const roster = projectPropertyRoster(data);
+  const rosterUnits = new Map(roster.units.map((unit) => [unit.id, unit]));
+  for (const item of batch.items) {
+    const unit = rosterUnits.get(item.unitId);
+    const section = unit?.applicableSections.find((candidate) =>
+      candidate.id === item.section);
+    const trade = item.trade === 'paint' ? 'Paint' : 'Clean';
+    if (!unit || !section?.trades.includes(trade)) {
+      throw new Error('Manual release selection is not present in the existing roster.');
+    }
+  }
+
+  const existingBatch = data.dailyReleaseBatches.find((candidate) =>
+    candidate.id === batch.id);
+  if (existingBatch && JSON.stringify(existingBatch) !== JSON.stringify(batch)) {
+    throw new Error('This release retry conflicts with an existing saved batch.');
+  }
+
+  const recordedAt = batch.confirmedAt ?? batch.updatedAt;
+  const releaseBatchIds = activeSession.releaseBatchIds.includes(batch.id)
+    ? activeSession.releaseBatchIds
+    : [...activeSession.releaseBatchIds, batch.id];
+  const event: FieldEvent = {
+    actorId: batch.confirmedBy ?? activeSession.startedBy,
+    actorType: 'los',
+    boundary: 'personal-record',
+    daySessionId: activeSession.id,
+    eventType: 'daily-release-confirmed',
+    id: `${batch.id}:daily-release-confirmed`,
+    projectId: data.activeProjectId,
+    recordedAt,
+    recordedBy: batch.confirmedBy ?? activeSession.startedBy,
+    sourceId: batch.id,
+    sourceType: 'manual-release',
+    summary: `${batch.items.length} released section-trade${batch.items.length === 1 ? '' : 's'} confirmed for the active personal Day Session.`,
+  };
+
+  return {
+    ...data,
+    dailyReleaseBatches: existingBatch
+      ? data.dailyReleaseBatches
+      : [...data.dailyReleaseBatches, batch],
+    daySessions: upsertById(data.daySessions, {
+      ...activeSession,
+      releaseBatchIds,
+      updatedAt: recordedAt,
+    }),
+    fieldEvents: upsertById(data.fieldEvents, event),
+  };
+}
+
+const selectedReleaseBatches = (data: AppData) => {
+  const projectSessions = data.daySessions.filter((session) =>
+    session.projectId === data.activeProjectId);
+  const activeSession = projectSessions.find((session) =>
+    ACTIVE_DAY_SESSION_STATUSES.has(session.status));
+  const projectSelectedIds = new Set(
+    projectSessions.flatMap((session) => session.releaseBatchIds),
+  );
+  const projectBatches = data.dailyReleaseBatches.filter((batch) =>
+    batch.projectId === data.activeProjectId
+    && projectSelectedIds.has(batch.id)
+    && batch.status === 'confirmed')
+    .sort((left, right) =>
+      (left.confirmedAt ?? left.updatedAt).localeCompare(
+        right.confirmedAt ?? right.updatedAt,
+      )
+      || left.id.localeCompare(right.id));
   return {
     activeSession,
-    batches: data.dailyReleaseBatches.filter((batch) =>
-      selectedIds.has(batch.id) && batch.status === 'confirmed'),
+    projectBatches,
   };
 };
 
@@ -802,14 +890,20 @@ const reviewedSelectionFromState = (
 export function projectTrackCState(data: AppData): TrackCState {
   const project = projectForData(data);
   const roster = projectPropertyRoster(data);
-  const { activeSession, batches } = selectedReleaseBatches(data);
+  const { activeSession, projectBatches: batches } = selectedReleaseBatches(data);
   const releaseItems = releaseItemMaps(batches);
+  const projectDaySessionIds = new Set(
+    data.daySessions
+      .filter((session) => session.projectId === data.activeProjectId)
+      .map((session) => session.id),
+  );
   const events = data.fieldEvents
     .filter((event) =>
       event.projectId === data.activeProjectId
-      && event.daySessionId === activeSession?.id)
+      && Boolean(event.daySessionId && projectDaySessionIds.has(event.daySessionId)))
     .map(toTrackCEvent)
-    .filter((event): event is TrackCConfirmedEvent => Boolean(event));
+    .filter((event): event is TrackCConfirmedEvent => Boolean(event))
+    .sort(byRecordedAtAndId);
   const stateWithoutWalks: TrackCState = {
     completedWalks: [],
     crews: data.crewMembers
@@ -851,7 +945,7 @@ export function projectTrackCState(data: AppData): TrackCState {
             sourceConfidence: item ? uncertain ? 'uncertain' : 'confirmed' : 'confirmed',
             sourceLabel: item
               ? `${batch?.sourceLabel ?? 'Confirmed release'} · personal copy`
-              : 'Not included in the active confirmed release',
+              : 'Not included in a confirmed project Day Session release',
             trade,
             unitId: unit.id,
           };
@@ -860,7 +954,9 @@ export function projectTrackCState(data: AppData): TrackCState {
   };
   const walks = data.walkSessions
     .filter((walk) =>
-      walk.projectId === data.activeProjectId && walk.daySessionId === activeSession?.id)
+      walk.projectId === data.activeProjectId)
+    .sort((left, right) =>
+      left.startedAt.localeCompare(right.startedAt) || left.id.localeCompare(right.id))
     .map((walk): TrackCWalkSession | undefined => {
       const selectedTargets = walk.selectedItemIds
         .map((itemId) => releaseItems.byId.get(itemId))
@@ -955,12 +1051,12 @@ const persistWalk = (
   const releaseItems = releaseItemMaps(releases);
   const selectedItemIds = walk.selectedTargets.map((target) => {
     const item = releaseItems.byTarget.get(trackCWorkKey(target));
-    if (!item) throw new Error('Walk target is not in the active confirmed release.');
+    if (!item) throw new Error('Walk target is not in confirmed project Day Session work.');
     return item.id;
   });
   const outcomes = walk.status === 'active' ? [] : (walk.outcomes ?? []).map((outcome) => {
     const item = releaseItems.byTarget.get(trackCWorkKey(outcome.target));
-    if (!item) throw new Error('Walk outcome is not in the active confirmed release.');
+    if (!item) throw new Error('Walk outcome is not in confirmed project Day Session work.');
     return { outcome: outcome.outcome, selectedItemId: item.id };
   });
   const existing = data.walkSessions.find((candidate) => candidate.id === walk.id);
@@ -973,7 +1069,7 @@ const persistWalk = (
     : undefined;
   return {
     createdAt: existing?.createdAt ?? walk.startedAt,
-    daySessionId: activeSessionId,
+    daySessionId: existing?.daySessionId ?? activeSessionId,
     endedAt: walk.endedAt,
     id: walk.id,
     note: serializeStoredTrackCWalkState({
@@ -1000,7 +1096,7 @@ export function applyTrackCWalkDraftChange(
   data: AppData,
   draft: TrackCWalkDraft | undefined,
 ): AppData {
-  const { activeSession, batches } = selectedReleaseBatches(data);
+  const { activeSession, projectBatches: batches } = selectedReleaseBatches(data);
   if (!activeSession) return data;
   const activeWalk = data.walkSessions.find((walk) =>
     walk.projectId === data.activeProjectId
@@ -1054,7 +1150,7 @@ export function applyTrackCStateChange(
   data: AppData,
   nextState: TrackCState,
 ): AppData {
-  const { activeSession, batches } = selectedReleaseBatches(data);
+  const { activeSession, projectBatches: batches } = selectedReleaseBatches(data);
   if (!activeSession) {
     throw new Error('Field Operations requires one active personal Day Session.');
   }

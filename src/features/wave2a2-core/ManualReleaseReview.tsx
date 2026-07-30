@@ -17,8 +17,9 @@ interface ManualReleaseReviewProps {
   actor: string;
   currentDate: string;
   onBack: () => void;
-  onConfirm: (batch: DailyReleaseBatch) => void;
+  onConfirm: (batch: DailyReleaseBatch) => boolean | Promise<boolean>;
   roster: PropertyRoster;
+  unavailableReason?: string;
 }
 
 const MAX_VISIBLE_UNITS = 80;
@@ -35,6 +36,7 @@ export function ManualReleaseReview({
   onBack,
   onConfirm,
   roster,
+  unavailableReason,
 }: ManualReleaseReviewProps) {
   const [query, setQuery] = useState('');
   const [propertyContact, setPropertyContact] = useState('');
@@ -45,6 +47,7 @@ export function ManualReleaseReview({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
+  const pendingBatchRef = useRef<DailyReleaseBatch | undefined>(undefined);
 
   const matchingUnits = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -71,11 +74,16 @@ export function ManualReleaseReview({
       else next.set(key, selection);
       return next;
     });
+    pendingBatchRef.current = undefined;
     setError('');
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (submittingRef.current) return;
+    if (unavailableReason) {
+      setError(unavailableReason);
+      return;
+    }
     if (!propertyContact.trim()) {
       setError('Record the property contact who supplied or confirmed this release.');
       return;
@@ -87,17 +95,20 @@ export function ManualReleaseReview({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const recordedAt = new Date().toISOString();
-      const batch = createManualReleaseBatch({
+      const batch = pendingBatchRef.current ?? createManualReleaseBatch({
         actor,
         date: currentDate,
         id: createId('manual-release'),
         propertyContact,
-        recordedAt,
+        recordedAt: new Date().toISOString(),
         roster,
         selections: [...selected.values()],
       });
-      onConfirm(batch);
+      pendingBatchRef.current = batch;
+      const saved = await onConfirm(batch);
+      if (!saved) {
+        throw new Error('Released work was not durably saved. Retry or edit the release.');
+      }
     } catch (caught) {
       submittingRef.current = false;
       setSubmitting(false);
@@ -134,12 +145,17 @@ export function ManualReleaseReview({
           </p>
         </section>
 
+        {unavailableReason ? (
+          <p className="w2a2-core-error" role="alert">{unavailableReason}</p>
+        ) : null}
+
         <label className="w2a2-core-field">
           <span>Property contact</span>
           <input
             autoComplete="off"
             onChange={(event) => {
               setPropertyContact(event.target.value);
+              pendingBatchRef.current = undefined;
               setError('');
             }}
             placeholder="Who confirmed today’s release?"
@@ -229,11 +245,15 @@ export function ManualReleaseReview({
 
         <button
           className="w2a2-core-primary"
-          disabled={selected.size === 0 || submitting}
-          onClick={submit}
+          disabled={Boolean(unavailableReason) || selected.size === 0 || submitting}
+          onClick={() => void submit()}
           type="button"
         >
-          {submitting ? 'Confirming…' : 'Confirm personal release'}
+          {submitting
+            ? 'Confirming…'
+            : pendingBatchRef.current
+              ? 'Retry personal release'
+              : 'Confirm personal release'}
         </button>
         <p className="w2a2-core-caption">
           This creates no payroll, approval, property acceptance, or official paper mark.

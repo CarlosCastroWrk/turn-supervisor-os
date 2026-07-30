@@ -5,6 +5,7 @@ import {
 } from '../wave2a2-core/appDataAdapters';
 import {
   calculateTodayTaskProgress,
+  getTodayTaskQueueCounts,
 } from '../wave2a2-track-b/model';
 import {
   projectTrackCUnitWork,
@@ -210,7 +211,7 @@ export function buildCanonicalFieldProjection(
     releasedWork,
     todayTask: {
       progress: calculateTodayTaskProgress(input.todayTask),
-      queueCounts,
+      queueCounts: getTodayTaskQueueCounts(input.todayTask),
       task: input.todayTask,
     },
     trackCState: input.trackCState,

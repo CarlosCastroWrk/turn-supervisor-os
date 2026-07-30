@@ -2,6 +2,7 @@ import type { AppData, DraftAction } from '../types';
 import { getProjectDraftActions } from './projectScope';
 
 export type UnitTimelineSource =
+  | 'field_event'
   | 'unit_activity'
   | 'unit_notes'
   | 'photo'
@@ -30,8 +31,9 @@ const sourcePriority: Record<UnitTimelineSource, number> = {
   photo: 0,
   issue: 1,
   draft_action: 2,
-  unit_activity: 3,
-  unit_notes: 4,
+  field_event: 3,
+  unit_activity: 4,
+  unit_notes: 5,
 };
 
 const payloadString = (draft: DraftAction, key: string) => {
@@ -64,6 +66,26 @@ export const projectUnitTimeline = (data: AppData, unitId: string): UnitTimeline
       label: activity.action || 'Unit activity',
       wording: activity.note || 'No additional wording was recorded.',
       saveLabel: 'Personal app record',
+      action: { kind: 'none' },
+    }));
+
+  const fieldEventItems: UnitTimelineItem[] = data.fieldEvents
+    .filter(
+      (event) =>
+        event.projectId === unit.projectId &&
+        event.unitId === unit.id,
+    )
+    .map((event) => ({
+      id: `field_event:${event.id}`,
+      source: 'field_event',
+      timestamp: event.recordedAt,
+      label: event.eventType
+        .split('-')
+        .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+        .join(' '),
+      wording: event.summary || 'No field-event wording was recorded.',
+      sourceStatus: event.boundary,
+      saveLabel: 'Confirmed personal field event',
       action: { kind: 'none' },
     }));
 
@@ -128,7 +150,14 @@ export const projectUnitTimeline = (data: AppData, unitId: string): UnitTimeline
         : { kind: 'none' },
     }));
 
-  return [...activityItems, ...noteItems, ...photoItems, ...issueItems, ...draftItems].sort((a, b) => {
+  return [
+    ...activityItems,
+    ...fieldEventItems,
+    ...noteItems,
+    ...photoItems,
+    ...issueItems,
+    ...draftItems,
+  ].sort((a, b) => {
     const aTimestamp = timestampValue(a.timestamp);
     const bTimestamp = timestampValue(b.timestamp);
     if (aTimestamp !== bTimestamp) {

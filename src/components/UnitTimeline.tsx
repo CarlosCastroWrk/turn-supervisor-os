@@ -26,14 +26,15 @@ const filterLabels: Record<TimelineFilter, string> = {
 };
 
 const filterSources: Record<TimelineFilter, Set<UnitTimelineSource>> = {
-  all: new Set(['unit_activity', 'unit_notes', 'photo', 'issue', 'draft_action']),
-  notes: new Set(['unit_activity', 'unit_notes']),
+  all: new Set(['field_event', 'unit_activity', 'unit_notes', 'photo', 'issue', 'draft_action']),
+  notes: new Set(['field_event', 'unit_activity', 'unit_notes']),
   photos: new Set(['photo']),
   issues: new Set(['issue']),
   drafts: new Set(['draft_action']),
 };
 
 const sourceLabels: Record<UnitTimelineSource, string> = {
+  field_event: 'Field event',
   unit_activity: 'Unit activity',
   unit_notes: 'Unit notes',
   photo: 'Photo',
@@ -42,6 +43,7 @@ const sourceLabels: Record<UnitTimelineSource, string> = {
 };
 
 const sourceIcons: Record<UnitTimelineSource, React.ElementType> = {
+  field_event: ClipboardCheck,
   unit_activity: Clock3,
   unit_notes: FileText,
   photo: Camera,

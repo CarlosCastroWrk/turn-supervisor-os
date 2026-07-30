@@ -18,7 +18,9 @@ import {
   trackCUnitForTarget,
 } from './projections';
 import {
+  projectPhase2TrackBAssignmentUnits,
   projectPhase2TrackBCrewDetail,
+  type Phase2TrackBCallbackHistoryRecord,
   type Phase2TrackBCrewDetail,
 } from './phase2-track-b/contracts';
 import './phase2-track-b/phase2TrackB.css';
@@ -48,7 +50,6 @@ const CrewWorkList = ({
     { label: 'Crew-reported complete', work: detail.crewCompleteWork },
     { label: 'Los passed', work: detail.losPassedWork },
     { label: 'Open callbacks', work: detail.openCallbackWork },
-    { label: 'Resolved callbacks', work: detail.resolvedCallbackWork },
     { label: 'Property accepted', work: detail.propertyAcceptedWork },
   ];
   return (
@@ -82,6 +83,60 @@ const CrewWorkList = ({
     </div>
   );
 };
+
+const CrewCallbackHistory = ({
+  history,
+  state,
+}: {
+  history: readonly Phase2TrackBCallbackHistoryRecord[];
+  state: TrackCState;
+}) => (
+  <section
+    aria-label="Historical callbacks"
+    className="phase2-track-b-callback-history"
+  >
+    <header>
+      <h2>Callback history</h2>
+      <span>{history.length}</span>
+    </header>
+    <p>
+      Historical responsibility at callback open. Current assignment is shown
+      separately above.
+    </p>
+    {history.length > 0 ? (
+      <ol>
+        {history.map((record) => {
+          const unit = trackCUnitForTarget(state, record.target);
+          return (
+            <li key={record.callbackId}>
+              <strong>
+                Unit {unit?.unitNumber ?? record.target.unitId} ·{' '}
+                {record.target.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
+                {trackCSectionLabel(record.target.section)}
+              </strong>
+              <span>
+                {record.state === 'resolved' ? 'Resolved' : 'Open'} · Then:{' '}
+                {record.responsibleCrewLabel}
+              </span>
+              <small>{record.openingNote}</small>
+              {record.resolutionNote ? (
+                <small>
+                  Resolution: {record.resolutionNote}
+                  {record.resolvedAt
+                    ? ` · ${new Date(record.resolvedAt).toLocaleString()}`
+                    : ''}
+                </small>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    ) : (
+      <p>No confirmed callback history for this crew.</p>
+    )}
+  </section>
+);
+
 const CrewDetail = ({
   state,
   crewId,
@@ -109,6 +164,14 @@ const CrewDetail = ({
 
   if (!detail) return null;
   const Icon = detail.crew.trade === 'paint' ? Paintbrush : Droplets;
+  const hasEligibleReleasedWork = projectPhase2TrackBAssignmentUnits(
+    state,
+    detail.crew.trade,
+  ).some((option) => option.eligible);
+  const noReleasedWorkMessage = `No released ${
+    detail.crew.trade === 'paint' ? 'Paint' : 'Clean'
+  } work is available.`;
+  const assignmentHelpId = `track-c-crew-${detail.crew.id}-assignment-help`;
 
   return (
     <article className="track-c-detail track-c-crew-detail">
@@ -156,7 +219,11 @@ const CrewDetail = ({
         ) : null}
         {onAssign ? (
           <button
+            aria-describedby={
+              hasEligibleReleasedWork ? undefined : assignmentHelpId
+            }
             data-track-c-critical-target="true"
+            disabled={!hasEligibleReleasedWork}
             onClick={onAssign}
             type="button"
           >
@@ -165,6 +232,14 @@ const CrewDetail = ({
           </button>
         ) : null}
       </div>
+      {onAssign && !hasEligibleReleasedWork ? (
+        <p
+          className="phase2-track-b-assignment-unavailable"
+          id={assignmentHelpId}
+        >
+          {noReleasedWorkMessage}
+        </p>
+      ) : null}
       <section className="track-c-stat-grid" aria-label="Confirmed crew event stats">
         {[
           ['Assigned Units', detail.currentAssignedUnitIds.length],
@@ -186,6 +261,7 @@ const CrewDetail = ({
         eligibility is calculated.
       </p>
       <CrewWorkList detail={detail} state={state} />
+      <CrewCallbackHistory history={detail.callbackHistory} state={state} />
       <section className="track-c-recent-activity">
         <header>
           <Icon aria-hidden="true" size={18} />

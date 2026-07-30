@@ -130,6 +130,14 @@ export const parseAppHash = (hash: string): AppRoute => {
     };
   }
 
+  if (viewOrResource === 'assignments' && recordId) {
+    return {
+      crewId: recordId,
+      view: 'assignments',
+      unitStatusFilter: 'All',
+    };
+  }
+
   if (viewOrResource === 'walk') {
     return {
       fieldWorkflow: 'walk',
@@ -198,6 +206,10 @@ export const buildAppHash = (route: AppRoute) => {
     return `#/crews/${encodePathPart(route.crewId)}`;
   }
 
+  if (route.view === 'assignments' && route.crewId) {
+    return `#/assignments/${encodePathPart(route.crewId)}`;
+  }
+
   if (route.view === 'units' && route.unitStatusFilter !== 'All') {
     const params = new URLSearchParams({ status: route.unitStatusFilter });
     return `#/units?${params.toString()}`;
@@ -241,6 +253,14 @@ export const routeForNavigation = (
   }
 
   if (view === 'crews' && options?.crewId) {
+    return {
+      crewId: options.crewId,
+      view,
+      unitStatusFilter: 'All',
+    };
+  }
+
+  if (view === 'assignments' && options?.crewId) {
     return {
       crewId: options.crewId,
       view,

@@ -75,6 +75,18 @@ test('buildAppHash keeps ordinary top-level navigation compact', () => {
   assert.equal(buildAppHash(routeForNavigation('notifications')), '#/notifications');
 });
 
+test('assignment routes preserve the explicitly selected crew through reload', () => {
+  const route = routeForNavigation('assignments', undefined, {
+    crewId: 'crew paint/one',
+  });
+  assert.equal(buildAppHash(route), '#/assignments/crew%20paint%2Fone');
+  assert.deepEqual(parseAppHash('#/assignments/crew%20paint%2Fone'), {
+    crewId: 'crew paint/one',
+    view: 'assignments',
+    unitStatusFilter: 'All',
+  });
+});
+
 test('Home summary destinations are exact, shareable filters without changing the primary Home route', () => {
   const route = routeForNavigation('dashboard', undefined, { homeSummary: 'ready-to-walk' });
 

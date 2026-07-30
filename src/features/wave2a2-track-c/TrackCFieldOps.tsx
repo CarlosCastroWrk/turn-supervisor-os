@@ -301,6 +301,11 @@ export const TrackCFieldOps = ({
               onNavigate?.({ crewId, view: 'crews' });
               setLocalSelectedCrewId(crewId);
             }}
+            onAssignCrew={(crewId) => {
+              onNavigate?.({ crewId, view: 'assign' });
+              setLocalSelectedCrewId(crewId);
+              setLocalView('assign');
+            }}
             selectedCrewId={selectedCrewId}
             state={state}
           />
@@ -313,6 +318,7 @@ export const TrackCFieldOps = ({
             onAdditionalScopeCommit={onAdditionalScopeCommit}
             onOpenChangeOrder={onOpenChangeOrder}
             onStateChange={commitState}
+            initialCrewId={selectedCrewId}
             state={state}
           />
         ) : null}

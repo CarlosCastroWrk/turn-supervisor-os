@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createSyntheticTrackCState } from '../src/features/wave2a2-track-c/fixtures.ts';
+import {
+  createSyntheticTrackCState,
+  createTrackCScaleState,
+} from '../src/features/wave2a2-track-c/fixtures.ts';
 import type {
   TrackCConfirmedEvent,
   TrackCState,
@@ -8,12 +11,14 @@ import type {
 } from '../src/features/wave2a2-track-c/model.ts';
 import {
   confirmPhase2TrackBAssignmentProposal,
+  commitPhase2AdditionalScopeRecord,
   createPhase2AdditionalScopeRecord,
   createPhase2TrackBAssignmentProposal,
   phase2AdditionalScopeBlocksBaseCompletion,
   projectPhase2AdditionalScopeActionBlockers,
   projectPhase2AdditionalScopeCompletion,
   projectPhase2TrackBAssignmentUnits,
+  projectPhase2TrackBCallbackHistory,
   projectPhase2TrackBCrewDetail,
 } from '../src/features/wave2a2-track-c/phase2-track-b/contracts.ts';
 
@@ -272,6 +277,7 @@ test('additional scope preserves source and uncertainty without pricing, approva
     unitId: 'unit-707',
     category: 'full-paint',
     description: 'Full paint requested after the original release.',
+    tradeClassification: 'paint',
     sections: ['common', 'A'],
     sourceContact: 'Synthetic property contact — wording preserved',
     sourceConfidence: 'uncertain',
@@ -351,7 +357,7 @@ test('required unfinished Additional Scope blocks only matching Los completion a
     unitId: 'unit-301',
     category: 'full-paint',
     description: 'Synthetic required full paint.',
-    trade: 'paint',
+    tradeClassification: 'paint',
     sections: ['B', 'C'],
     sourceContact: 'Synthetic property contact',
     sourceConfidence: 'confirmed',
@@ -433,6 +439,7 @@ test('required unfinished Additional Scope blocks only matching Los completion a
     ...required.value,
     id: 'scope-required-unit-wide',
     sections: [],
+    tradeClassification: 'trade-neutral' as const,
     trade: undefined,
   };
   assert.deepEqual(
@@ -466,7 +473,7 @@ const confirmedEvent = (
   payrollChanged: false,
 });
 
-test('Crew Detail derives assigned Units, open/resolved callbacks, inspection, acceptance, and activity from confirmed events only', () => {
+test('callback history remains attributed to the original crew after clear and reassignment', () => {
   const initial = createSyntheticTrackCState();
   const target: TrackCWorkTarget = {
     unitId: 'unit-707',
@@ -490,6 +497,14 @@ test('Crew Detail derives assigned Units, open/resolved callbacks, inspection, a
         confirmedEvent(`${index + 20}`, eventType, target),
       ),
       {
+        ...confirmedEvent('27', 'assignment-cleared', target),
+        crewId: 'crew-bluebird-paint',
+      },
+      {
+        ...confirmedEvent('28', 'assignment-confirmed', target),
+        crewId: 'crew-atlas-paint',
+      },
+      {
         ...confirmedEvent('99', 'callback-opened', {
           ...target,
           section: 'B',
@@ -504,13 +519,15 @@ test('Crew Detail derives assigned Units, open/resolved callbacks, inspection, a
   );
 
   assert.ok(detail);
-  assert.equal(detail.currentAssignedUnitIds.includes('unit-707'), true);
+  assert.equal(detail.currentAssignedUnitIds.includes('unit-707'), false);
   assert.equal(
-    detail.resolvedCallbackWork.some(
-      (work) =>
-        work.unitId === 'unit-707' &&
-        work.trade === 'paint' &&
-        work.section === 'A',
+    detail.callbackHistory.some(
+      (record) =>
+        record.target.unitId === 'unit-707' &&
+        record.target.trade === 'paint' &&
+        record.target.section === 'A' &&
+        record.state === 'resolved' &&
+        record.responsibleCrewIdAtOpen === 'crew-bluebird-paint',
     ),
     true,
   );
@@ -527,4 +544,90 @@ test('Crew Detail derives assigned Units, open/resolved callbacks, inspection, a
     detail.recentActivity.every((event) => event.payrollChanged === false),
     true,
   );
+
+  const atlasDetail = projectPhase2TrackBCrewDetail(state, 'crew-atlas-paint');
+  assert.ok(atlasDetail);
+  assert.equal(atlasDetail.currentAssignedUnitIds.includes('unit-707'), true);
+  assert.equal(atlasDetail.callbackHistory.length, 0);
+
+  const history = projectPhase2TrackBCallbackHistory(state).filter(
+    (record) =>
+      record.target.unitId === target.unitId &&
+      record.target.trade === target.trade &&
+      record.target.section === target.section,
+  );
+  assert.equal(history.length, 1);
+  assert.equal(history[0]?.assignmentEventIdAtOpen, '20');
+  assert.equal(history[0]?.responsibleCrewLabel, 'Bluebird Paint');
+});
+
+test('Additional Scope category and trade compatibility fails closed at draft and final commit boundaries', async () => {
+  const state = createSyntheticTrackCState();
+  const base = {
+    id: 'scope-compatibility',
+    unitId: 'unit-707',
+    description: 'Synthetic additional scope.',
+    sections: ['A'] as const,
+    sourceContact: 'Synthetic property contact',
+    sourceConfidence: 'confirmed' as const,
+    occurredAt: '2026-07-29T15:30:00.000Z',
+    recordedAt: '2026-07-29T15:31:00.000Z',
+    requiredForBaseCompletion: false,
+    changeOrderCandidate: 'no' as const,
+    status: 'recorded' as const,
+  };
+  const incompatible = [
+    ['full-paint', 'clean'],
+    ['doors', 'clean'],
+    ['bathtub-clean', 'paint'],
+    ['drywall-repair', 'paint'],
+  ] as const;
+  for (const [category, tradeClassification] of incompatible) {
+    const result = createPhase2AdditionalScopeRecord(state, {
+      ...base,
+      category,
+      tradeClassification,
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /incompatible/iu);
+  }
+
+  const valid = createPhase2AdditionalScopeRecord(state, {
+    ...base,
+    category: 'doors',
+    tradeClassification: 'paint',
+  });
+  assert.equal(valid.ok, true);
+  if (!valid.ok) return;
+
+  let commitCalls = 0;
+  const tampered = {
+    ...valid.value,
+    tradeClassification: 'clean' as const,
+    trade: 'clean' as const,
+  };
+  const finalResult = await commitPhase2AdditionalScopeRecord(
+    state,
+    tampered,
+    async () => {
+      commitCalls += 1;
+      return {
+        ok: true,
+        receipt: {
+          recordId: tampered.id,
+          committedAt: '2026-07-29T15:32:00.000Z',
+          durable: true,
+        },
+      };
+    },
+  );
+  assert.equal(finalResult.ok, false);
+  assert.equal(commitCalls, 0);
+});
+
+test('500-Unit assignment eligibility remains deterministic and duplicate-free', () => {
+  const state = createTrackCScaleState(500);
+  const paint = projectPhase2TrackBAssignmentUnits(state, 'paint');
+  assert.equal(paint.length, 500);
+  assert.equal(new Set(paint.map((option) => option.unit.id)).size, 500);
 });

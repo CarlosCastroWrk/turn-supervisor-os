@@ -4,20 +4,24 @@ import {
   TRACK_C_SECTIONS,
   type TrackCSection,
   type TrackCState,
-  type TrackCTrade,
   trackCSectionLabel,
 } from '../model';
 import {
   PHASE2_ADDITIONAL_SCOPE_CATEGORIES,
   PHASE2_ADDITIONAL_SCOPE_STATUSES,
+  commitPhase2AdditionalScopeRecord,
   createPhase2AdditionalScopeRecord,
   phase2AdditionalScopeBlocksBaseCompletion,
   phase2AdditionalScopeCategoryLabel,
+  phase2AdditionalScopeDefaultTradeClassification,
   phase2AdditionalScopeStatusLabel,
+  phase2AdditionalScopeTradeLabel,
+  phase2AdditionalScopeTradeOptions,
   type Phase2AdditionalScopeCommit,
   type Phase2AdditionalScopeCategory,
   type Phase2AdditionalScopeRecord,
   type Phase2AdditionalScopeStatus,
+  type Phase2AdditionalScopeTradeClassification,
   type Phase2ChangeOrderCandidate,
   type Phase2ScopeSourceConfidence,
 } from './contracts';
@@ -35,14 +39,6 @@ interface AdditionalScopeMessage {
   readonly kind: 'error' | 'success';
   readonly text: string;
 }
-
-const defaultTrade = (
-  category: Phase2AdditionalScopeCategory,
-): TrackCTrade | '' => {
-  if (category === 'full-paint') return 'paint';
-  if (category === 'bathtub-clean') return 'clean';
-  return '';
-};
 
 const localDateTime = (value: string) => {
   const date = new Date(value);
@@ -64,7 +60,9 @@ export const AdditionalScopePanel = ({
   const [category, setCategory] =
     useState<Phase2AdditionalScopeCategory>('full-paint');
   const [description, setDescription] = useState('');
-  const [trade, setTrade] = useState<TrackCTrade | ''>('paint');
+  const [tradeClassification, setTradeClassification] = useState<
+    Phase2AdditionalScopeTradeClassification | ''
+  >('paint');
   const [sections, setSections] = useState<readonly TrackCSection[]>([]);
   const [sourceContact, setSourceContact] = useState('');
   const [sourceConfidence, setSourceConfidence] =
@@ -83,6 +81,10 @@ export const AdditionalScopePanel = ({
   const selectedUnit = useMemo(
     () => state.units.find((unit) => unit.id === unitId),
     [state.units, unitId],
+  );
+  const compatibleTradeOptions = useMemo(
+    () => phase2AdditionalScopeTradeOptions(category),
+    [category],
   );
 
   const toggleSection = (section: TrackCSection) => {
@@ -110,7 +112,8 @@ export const AdditionalScopePanel = ({
       unitId,
       category,
       description,
-      trade: trade || undefined,
+      tradeClassification:
+        tradeClassification as Phase2AdditionalScopeTradeClassification,
       sections,
       sourceContact,
       sourceConfidence,
@@ -128,7 +131,11 @@ export const AdditionalScopePanel = ({
     saveInFlightRef.current = true;
     setSaving(true);
     try {
-      const committed = await onCommit(result.value);
+      const committed = await commitPhase2AdditionalScopeRecord(
+        state,
+        result.value,
+        onCommit,
+      );
       if (!committed.ok) {
         setMessage({
           kind: 'error',
@@ -150,7 +157,7 @@ export const AdditionalScopePanel = ({
 
       setCategory('full-paint');
       setDescription('');
-      setTrade('paint');
+      setTradeClassification('paint');
       setSections([]);
       setSourceContact('');
       setSourceConfidence('uncertain');
@@ -254,7 +261,10 @@ export const AdditionalScopePanel = ({
                 const nextCategory = event.target
                   .value as Phase2AdditionalScopeCategory;
                 setCategory(nextCategory);
-                setTrade(defaultTrade(nextCategory));
+                setTradeClassification(
+                  phase2AdditionalScopeDefaultTradeClassification(nextCategory) ??
+                    '',
+                );
               }}
               value={category}
             >
@@ -277,15 +287,23 @@ export const AdditionalScopePanel = ({
           </label>
 
           <label className="track-c-field">
-            <span>Trade, when relevant</span>
+            <span>Trade classification</span>
             <select
               onChange={(event) =>
-                setTrade(event.target.value as TrackCTrade | '')}
-              value={trade}
+                setTradeClassification(
+                  event.target
+                    .value as Phase2AdditionalScopeTradeClassification | '',
+                )}
+              value={tradeClassification}
             >
-              <option value="">Not set</option>
-              <option value="paint">Paint</option>
-              <option value="clean">Clean</option>
+              {compatibleTradeOptions.length > 1 ? (
+                <option value="">Choose a classification</option>
+              ) : null}
+              {compatibleTradeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {phase2AdditionalScopeTradeLabel(option)}
+                </option>
+              ))}
             </select>
           </label>
 
@@ -427,6 +445,10 @@ export const AdditionalScopePanel = ({
                 </header>
                 <p>{record.description}</p>
                 <small>
+                  {phase2AdditionalScopeTradeLabel(
+                    record.tradeClassification,
+                  )}{' '}
+                  ·{' '}
                   {record.sourceConfidence === 'confirmed'
                     ? 'Confirmed source'
                     : 'Source uncertain'}{' '}

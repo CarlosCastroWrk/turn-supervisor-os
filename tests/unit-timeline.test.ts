@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
+import { parseJsonBackup } from '../src/lib/backups.ts';
+import { buildJsonBackup } from '../src/lib/exporters.ts';
 import { projectUnitTimeline } from '../src/lib/unitTimeline.ts';
 
 test('Unit timeline joins only source-grounded active-project records', () => {
@@ -37,6 +39,37 @@ test('Unit timeline joins only source-grounded active-project records', () => {
       action: 'Wrong project activity',
       note: 'Must stay out',
       createdAt: '2026-07-20T12:10:00.000Z',
+    },
+  );
+  data.fieldEvents.push(
+    {
+      id: 'field_callback_resolved',
+      projectId: data.activeProjectId,
+      unitId: unit.id,
+      section: 'A',
+      trade: 'paint',
+      actorType: 'supervisor',
+      actorId: 'los',
+      reportedBy: 'crew_bluebird',
+      recordedAt: '2026-07-20T12:07:00.000Z',
+      recordedBy: 'Los',
+      sourceType: 'personal-confirmation',
+      eventType: 'callback-resolved',
+      summary: 'Synthetic callback resolved by the original crew.',
+      boundary: 'personal-record',
+    },
+    {
+      id: 'field_callback_other_project',
+      projectId: 'project_other',
+      unitId: unit.id,
+      actorType: 'supervisor',
+      actorId: 'los',
+      recordedAt: '2026-07-20T12:08:00.000Z',
+      recordedBy: 'Los',
+      sourceType: 'personal-confirmation',
+      eventType: 'callback-resolved',
+      summary: 'Must stay out',
+      boundary: 'personal-record',
     },
   );
   data.photoNotes.push({
@@ -106,13 +139,16 @@ test('Unit timeline joins only source-grounded active-project records', () => {
 
   const items = projectUnitTimeline(data, unit.id);
 
-  assert.equal(items[0].id, 'photo:photo_timeline');
+  assert.equal(items[0].id, 'field_event:field_callback_resolved');
   assert.equal(items.at(-1)?.id, 'unit_activity:activity_unit_invalid_time');
   assert.equal(items.filter((item) => item.source === 'unit_notes').length, 1);
   assert.ok(items.some((item) => item.id === 'draft_action:draft_timeline_by_id'));
   assert.ok(items.some((item) => item.id === 'draft_action:draft_timeline_by_number'));
   assert.ok(!items.some((item) => item.id === 'unit_activity:activity_other_project'));
   assert.ok(!items.some((item) => item.id === 'unit_activity:activity_duplicate_issue'));
+  assert.ok(
+    !items.some((item) => item.id === 'field_event:field_callback_other_project'),
+  );
   assert.equal(
     items.find((item) => item.id === 'photo:photo_timeline')?.saveLabel,
     'Photo file available on this device',
@@ -122,6 +158,23 @@ test('Unit timeline joins only source-grounded active-project records', () => {
     { kind: 'open_review', draftId: 'draft_timeline_by_id' },
   );
   assert.ok(items.every((item) => !/synced/i.test(item.saveLabel ?? '')));
+
+  const backupData = {
+    ...data,
+    fieldEvents: data.fieldEvents.filter(
+      (event) => event.id !== 'field_callback_other_project',
+    ),
+  };
+  const restored = parseJsonBackup(buildJsonBackup(backupData));
+  assert.deepEqual(
+    restored.fieldEvents.find(
+      (event) => event.id === 'field_callback_resolved',
+    ),
+    backupData.fieldEvents.find(
+      (event) => event.id === 'field_callback_resolved',
+    ),
+    'Confirmed callback history evidence must survive backup and restore.',
+  );
 });
 
 test('Unit timeline returns no cross-project or unknown Unit history', () => {

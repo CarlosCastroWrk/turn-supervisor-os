@@ -70,3 +70,6 @@ export {
   createSyntheticTrackCState,
   createTrackCScaleState,
 } from './fixtures';
+export {
+  projectPhase2TrackBCallbackHistory,
+} from './phase2-track-b/contracts';

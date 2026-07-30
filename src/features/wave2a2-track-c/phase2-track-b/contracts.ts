@@ -1,6 +1,5 @@
 import {
   TRACK_C_SECTIONS,
-  TRACK_C_TRADES,
   type TrackCBulkAssignmentProposal,
   type TrackCCrewDetail,
   type TrackCSection,
@@ -9,6 +8,7 @@ import {
   type TrackCUnit,
   type TrackCWorkProjection,
   type TrackCWorkTarget,
+  trackCWorkKey,
 } from '../model';
 import {
   confirmTrackCBulkAssignmentProposal,
@@ -18,7 +18,6 @@ import {
 import {
   projectTrackCAssignmentEligibility,
   projectTrackCCrewDetail,
-  projectTrackCUnitWork,
   projectTrackCWork,
 } from '../projections';
 
@@ -192,8 +191,153 @@ export const confirmPhase2TrackBAssignmentProposal = (
 
 export interface Phase2TrackBCrewDetail extends TrackCCrewDetail {
   readonly currentAssignedUnitIds: readonly string[];
-  readonly resolvedCallbackWork: readonly TrackCWorkProjection[];
+  readonly callbackHistory: readonly Phase2TrackBCallbackHistoryRecord[];
 }
+
+export interface Phase2TrackBCallbackHistoryRecord {
+  readonly callbackId: string;
+  readonly target: TrackCWorkTarget;
+  readonly assignmentEventIdAtOpen?: string;
+  readonly responsibleCrewIdAtOpen?: string;
+  readonly responsibleCrewLabel: string;
+  readonly responsibleCrewReference:
+    | 'current-roster'
+    | 'stable-id-fallback'
+    | 'not-recorded';
+  readonly openedAt: string;
+  readonly openedBy: string;
+  readonly openingNote: string;
+  readonly sourceLabel: string;
+  readonly correctionReportedAt?: string;
+  readonly correctionReportedBy?: string;
+  readonly correctionNote?: string;
+  readonly resolvedAt?: string;
+  readonly resolvedBy?: string;
+  readonly resolutionNote?: string;
+  readonly state: 'open' | 'resolved';
+}
+
+interface MutableCallbackHistoryRecord {
+  callbackId: string;
+  target: TrackCWorkTarget;
+  assignmentEventIdAtOpen?: string;
+  responsibleCrewIdAtOpen?: string;
+  responsibleCrewLabel: string;
+  responsibleCrewReference:
+    | 'current-roster'
+    | 'stable-id-fallback'
+    | 'not-recorded';
+  openedAt: string;
+  openedBy: string;
+  openingNote: string;
+  sourceLabel: string;
+  correctionReportedAt?: string;
+  correctionReportedBy?: string;
+  correctionNote?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolutionNote?: string;
+  state: 'open' | 'resolved';
+}
+
+export const projectPhase2TrackBCallbackHistory = (
+  state: TrackCState,
+): readonly Phase2TrackBCallbackHistoryRecord[] => {
+  const activeAssignmentByTarget = new Map<
+    string,
+    TrackCState['events'][number]
+  >();
+  const openCallbackByTarget = new Map<
+    string,
+    MutableCallbackHistoryRecord
+  >();
+  const history: MutableCallbackHistoryRecord[] = [];
+
+  state.events
+    .filter((event) => event.confirmation === 'confirmed')
+    .forEach((event) => {
+      const targetKey = trackCWorkKey(event.target);
+      if (event.eventType === 'assignment-confirmed' && event.crewId) {
+        activeAssignmentByTarget.set(targetKey, event);
+        return;
+      }
+      if (event.eventType === 'assignment-cleared') {
+        const activeAssignment = activeAssignmentByTarget.get(targetKey);
+        if (!event.crewId || activeAssignment?.crewId === event.crewId) {
+          activeAssignmentByTarget.delete(targetKey);
+        }
+        return;
+      }
+      if (
+        event.eventType !== 'callback-opened' &&
+        event.eventType !== 'property-correction-requested' &&
+        event.eventType !== 'callback-correction-reported' &&
+        event.eventType !== 'callback-resolved'
+      ) {
+        return;
+      }
+
+      if (
+        event.eventType === 'callback-opened' ||
+        event.eventType === 'property-correction-requested'
+      ) {
+        const rosterCrew = event.crewId
+          ? state.crews.find((crew) => crew.id === event.crewId)
+          : undefined;
+        const activeAssignment = activeAssignmentByTarget.get(targetKey);
+        const record: MutableCallbackHistoryRecord = {
+          callbackId: event.id,
+          target: event.target,
+          assignmentEventIdAtOpen:
+            activeAssignment?.crewId === event.crewId
+              ? activeAssignment?.id
+              : undefined,
+          responsibleCrewIdAtOpen: event.crewId,
+          responsibleCrewLabel:
+            rosterCrew?.name ??
+            (event.crewId ? `Former crew (${event.crewId})` : 'Crew not recorded'),
+          responsibleCrewReference: rosterCrew
+            ? 'current-roster'
+            : event.crewId
+              ? 'stable-id-fallback'
+              : 'not-recorded',
+          openedAt: event.recordedAt,
+          openedBy: event.recordedBy,
+          openingNote: event.summary,
+          sourceLabel: event.sourceLabel,
+          state: 'open',
+        };
+        history.push(record);
+        openCallbackByTarget.set(targetKey, record);
+        return;
+      }
+
+      const openCallback = openCallbackByTarget.get(targetKey);
+      if (!openCallback) return;
+      if (
+        event.crewId &&
+        openCallback.responsibleCrewIdAtOpen &&
+        event.crewId !== openCallback.responsibleCrewIdAtOpen
+      ) {
+        return;
+      }
+      if (event.eventType === 'callback-correction-reported') {
+        openCallback.correctionReportedAt = event.recordedAt;
+        openCallback.correctionReportedBy = event.recordedBy;
+        openCallback.correctionNote = event.summary;
+        return;
+      }
+      openCallback.resolvedAt = event.recordedAt;
+      openCallback.resolvedBy = event.recordedBy;
+      openCallback.resolutionNote = event.summary;
+      openCallback.state = 'resolved';
+      openCallbackByTarget.delete(targetKey);
+    });
+
+  return history
+    .map((record) => ({ ...record }))
+    .sort((left, right) => right.openedAt.localeCompare(left.openedAt));
+};
 
 export const projectPhase2TrackBCrewDetail = (
   state: TrackCState,
@@ -202,18 +346,27 @@ export const projectPhase2TrackBCrewDetail = (
   const detail = projectTrackCCrewDetail(state, crewId);
   if (!detail) return undefined;
 
-  const crewWork = state.units
-    .flatMap((unit) => projectTrackCUnitWork(state, unit.id))
-    .filter((work) => work.activeCrewIds.includes(crewId));
+  const callbackHistory = projectPhase2TrackBCallbackHistory(state).filter(
+    (record) => record.responsibleCrewIdAtOpen === crewId,
+  );
 
   return {
     ...detail,
+    stats: {
+      ...detail.stats,
+      openCallbacks: callbackHistory.filter((record) => record.state === 'open')
+        .length,
+      resolvedCallbacks: callbackHistory.filter(
+        (record) => record.state === 'resolved',
+      ).length,
+    },
+    recentActivity: detail.recentActivity.filter(
+      (event) => event.crewId === crewId,
+    ),
     currentAssignedUnitIds: unique(
       detail.currentWork.map((work) => work.unitId),
     ),
-    resolvedCallbackWork: crewWork.filter(
-      (work) => work.callbackResolvedCount > 0,
-    ),
+    callbackHistory,
   };
 };
 
@@ -238,12 +391,16 @@ export type Phase2AdditionalScopeStatus =
   (typeof PHASE2_ADDITIONAL_SCOPE_STATUSES)[number];
 export type Phase2ChangeOrderCandidate = 'yes' | 'no' | 'uncertain';
 export type Phase2ScopeSourceConfidence = 'confirmed' | 'uncertain';
+export type Phase2AdditionalScopeTradeClassification =
+  | TrackCTrade
+  | 'trade-neutral';
 
 export interface Phase2AdditionalScopeRecord {
   readonly id: string;
   readonly unitId: string;
   readonly category: Phase2AdditionalScopeCategory;
   readonly description: string;
+  readonly tradeClassification: Phase2AdditionalScopeTradeClassification;
   readonly trade?: TrackCTrade;
   readonly sections: readonly TrackCSection[];
   readonly sourceContact: string;
@@ -264,7 +421,7 @@ export interface Phase2AdditionalScopeInput {
   readonly unitId: string;
   readonly category: Phase2AdditionalScopeCategory;
   readonly description: string;
-  readonly trade?: TrackCTrade;
+  readonly tradeClassification: Phase2AdditionalScopeTradeClassification;
   readonly sections?: readonly TrackCSection[];
   readonly sourceContact: string;
   readonly sourceConfidence: Phase2ScopeSourceConfidence;
@@ -296,11 +453,51 @@ export type Phase2AdditionalScopeCommit = (
   record: Phase2AdditionalScopeRecord,
 ) => Promise<Phase2AdditionalScopeCommitResult>;
 
-const defaultTradeForCategory = (
+const tradeClassificationsByCategory: Readonly<
+  Record<
+    Phase2AdditionalScopeCategory,
+    readonly Phase2AdditionalScopeTradeClassification[]
+  >
+> = {
+  'full-paint': ['paint'],
+  doors: ['paint'],
+  'drywall-repair': ['trade-neutral'],
+  'bathtub-clean': ['clean'],
+  other: ['trade-neutral', 'paint', 'clean'],
+};
+
+export const phase2AdditionalScopeTradeOptions = (
   category: Phase2AdditionalScopeCategory,
-): TrackCTrade | undefined => {
-  if (category === 'full-paint') return 'paint';
-  if (category === 'bathtub-clean') return 'clean';
+): readonly Phase2AdditionalScopeTradeClassification[] =>
+  tradeClassificationsByCategory[category] ?? [];
+
+export const phase2AdditionalScopeDefaultTradeClassification = (
+  category: Phase2AdditionalScopeCategory,
+): Phase2AdditionalScopeTradeClassification | undefined => {
+  const options = phase2AdditionalScopeTradeOptions(category);
+  return options.length === 1 ? options[0] : undefined;
+};
+
+export const phase2AdditionalScopeTradeLabel = (
+  trade: Phase2AdditionalScopeTradeClassification,
+) =>
+  trade === 'paint'
+    ? 'Paint'
+    : trade === 'clean'
+      ? 'Clean'
+      : 'Trade-neutral / other scope';
+
+export const validatePhase2AdditionalScopeTrade = (
+  category: Phase2AdditionalScopeCategory,
+  tradeClassification: Phase2AdditionalScopeTradeClassification,
+): Phase2AdditionalScopeResult | undefined => {
+  const compatible = phase2AdditionalScopeTradeOptions(category);
+  if (!compatible.includes(tradeClassification)) {
+    return {
+      ok: false,
+      error: `${phase2AdditionalScopeCategoryLabel(category)} is incompatible with ${phase2AdditionalScopeTradeLabel(tradeClassification)}. Review the category and trade classification before saving.`,
+    };
+  }
   return undefined;
 };
 
@@ -318,6 +515,17 @@ export const createPhase2AdditionalScopeRecord = (
   if (!input.description.trim()) {
     return { ok: false, error: 'Describe the additional scope.' };
   }
+  if (!input.tradeClassification) {
+    return {
+      ok: false,
+      error: 'Choose Paint, Clean, or trade-neutral classification.',
+    };
+  }
+  const tradeError = validatePhase2AdditionalScopeTrade(
+    input.category,
+    input.tradeClassification,
+  );
+  if (tradeError) return tradeError;
   if (!input.sourceContact.trim()) {
     return {
       ok: false,
@@ -326,12 +534,6 @@ export const createPhase2AdditionalScopeRecord = (
   }
   if (!Number.isFinite(Date.parse(input.occurredAt))) {
     return { ok: false, error: 'Record a valid date and time.' };
-  }
-  if (
-    input.trade &&
-    !TRACK_C_TRADES.includes(input.trade)
-  ) {
-    return { ok: false, error: 'Additional scope may use Paint or Clean only.' };
   }
   if (!PHASE2_ADDITIONAL_SCOPE_STATUSES.includes(input.status)) {
     return { ok: false, error: 'Choose a supported personal status.' };
@@ -358,7 +560,11 @@ export const createPhase2AdditionalScopeRecord = (
       unitId: input.unitId,
       category: input.category,
       description: input.description,
-      trade: input.trade ?? defaultTradeForCategory(input.category),
+      tradeClassification: input.tradeClassification,
+      trade:
+        input.tradeClassification === 'trade-neutral'
+          ? undefined
+          : input.tradeClassification,
       sections,
       sourceContact: input.sourceContact,
       sourceConfidence: input.sourceConfidence,
@@ -373,6 +579,39 @@ export const createPhase2AdditionalScopeRecord = (
       officialFormSubmitted: false,
     },
   };
+};
+
+export const commitPhase2AdditionalScopeRecord = async (
+  state: TrackCState,
+  record: Phase2AdditionalScopeRecord,
+  commit: Phase2AdditionalScopeCommit,
+): Promise<Phase2AdditionalScopeCommitResult> => {
+  const validated = createPhase2AdditionalScopeRecord(state, {
+    id: record.id,
+    unitId: record.unitId,
+    category: record.category,
+    description: record.description,
+    tradeClassification: record.tradeClassification,
+    sections: record.sections,
+    sourceContact: record.sourceContact,
+    sourceConfidence: record.sourceConfidence,
+    occurredAt: record.occurredAt,
+    recordedAt: record.recordedAt,
+    requiredForBaseCompletion: record.requiredForBaseCompletion,
+    changeOrderCandidate: record.changeOrderCandidate,
+    status: record.status,
+  });
+  if (!validated.ok) {
+    return validated;
+  }
+  if (validated.value.trade !== record.trade) {
+    return {
+      ok: false,
+      error:
+        'The reviewed category and stored trade no longer match. Review the draft before saving.',
+    };
+  }
+  return commit(validated.value);
 };
 
 export const phase2AdditionalScopeBlocksBaseCompletion = (

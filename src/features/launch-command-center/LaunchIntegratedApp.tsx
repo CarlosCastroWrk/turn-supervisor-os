@@ -79,6 +79,7 @@ import {
   type TrackBCrewOption,
 } from '../wave2a2-track-b';
 import {
+  projectPhase2TrackBCallbackHistory,
   TrackCFieldOps,
   type TrackCRouteState,
 } from '../wave2a2-track-c';
@@ -500,7 +501,9 @@ export function LaunchIntegratedApp() {
         walkSessionId: route.walkSessionId,
       };
     }
-    if (route.view === 'assignments') return { view: 'assign' };
+    if (route.view === 'assignments') {
+      return { crewId: route.crewId, view: 'assign' };
+    }
     if (route.view === 'crews') {
       return { crewId: route.crewId, view: 'crews' };
     }
@@ -528,7 +531,7 @@ export function LaunchIntegratedApp() {
       return 'This Unit is not present in the active personal project.';
     }
     if (
-      route.view === 'crews'
+      (route.view === 'crews' || route.view === 'assignments')
       && route.crewId
       && !activeFieldState.crews.some((crew) => crew.id === route.crewId)
     ) {
@@ -730,7 +733,9 @@ export function LaunchIntegratedApp() {
       return {
         activityCount: canonical.counts.activity,
         callbacksFound: canonical.counts.callbacks,
-        callbacksResolved: 0,
+        callbacksResolved: projectPhase2TrackBCallbackHistory(
+          canonical.trackCState,
+        ).filter((record) => record.state === 'resolved').length,
         readyToWalk: canonical.counts.ready,
         sectionsInspected: canonical.todayTask.progress.actual,
         unitsTouched: canonical.counts.unitsTouched,
@@ -1565,7 +1570,9 @@ export function LaunchIntegratedApp() {
           onDialogOpenChange={setTrackCDialogOpen}
           onNavigate={(nextRoute) => {
             if (nextRoute.view === 'assign') {
-              navigate('assignments');
+              navigate('assignments', undefined, {
+                crewId: nextRoute.crewId,
+              });
               return;
             }
             if (nextRoute.view === 'crews') {

@@ -249,6 +249,17 @@ try {
     0,
     'Additional scope must not create section F.',
   );
+  await scopeForm.getByLabel('Category').selectOption('bathtub-clean');
+  assert.equal(
+    await scopeForm.getByLabel('Trade classification').inputValue(),
+    'clean',
+  );
+  await scopeForm.getByLabel('Category').selectOption('doors');
+  assert.equal(
+    await scopeForm.getByLabel('Trade classification').inputValue(),
+    'paint',
+  );
+  await scopeForm.getByLabel('Category').selectOption('full-paint');
   await scopeForm
     .getByLabel('Unit')
     .selectOption('unit-301');
@@ -298,7 +309,7 @@ try {
     'Synthetic property contact',
   );
   assert.equal(
-    await scopeForm.getByLabel('Trade, when relevant').inputValue(),
+    await scopeForm.getByLabel('Trade classification').inputValue(),
     'paint',
   );
   assert.equal(await scopeForm.getByLabel('Source certainty').inputValue(), 'confirmed');
@@ -500,7 +511,7 @@ try {
   await page.getByRole('heading', { name: 'Bluebird Paint' }).waitFor();
   assert.equal(await page.getByText('512-555-0101').count(), 1);
   assert.equal(
-    await page.getByText('Resolved callbacks', { exact: true }).count() >= 1,
+    await page.getByRole('heading', { name: 'Callback history' }).count() >= 1,
     true,
   );
   assert.equal(
@@ -524,6 +535,55 @@ try {
   await assertCriticalTargets(page, 'interactive flow');
   assert.deepEqual(findings, [], `interactive: ${findings.join('\n')}`);
   await context.close();
+
+  const hostContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'dark',
+  });
+  const hostPage = await hostContext.newPage();
+  const hostFindings = runtimeFindings(hostPage);
+  await hostPage.goto(`${baseUrl}/#/crews/crew_painter`, {
+    waitUntil: 'networkidle',
+  });
+  await hostPage.getByRole('heading', { name: 'Painter Team Lead' }).waitFor();
+  const hostAssignButton = hostPage.getByRole('button', {
+    name: 'Assign work',
+  });
+  assert.equal(
+    await hostAssignButton.isDisabled(),
+    true,
+    'The actual host must render the Assign action but disable it without eligible released work.',
+  );
+  await hostPage
+    .getByText('No released Paint work is available.', { exact: true })
+    .waitFor();
+  await hostPage.goto(`${baseUrl}/#/assignments/crew_painter`, {
+    waitUntil: 'networkidle',
+  });
+  await hostPage.getByRole('heading', { name: 'Assign work' }).waitFor();
+  assert.equal(
+    hostPage.url(),
+    `${baseUrl}/#/assignments/crew_painter`,
+    'The actual host must preserve crew context in the durable route.',
+  );
+  assert.equal(
+    await hostPage.getByLabel('Compatible crew').inputValue(),
+    'crew_painter',
+  );
+  await hostPage.reload({ waitUntil: 'networkidle' });
+  assert.equal(
+    await hostPage.getByLabel('Compatible crew').inputValue(),
+    'crew_painter',
+    'Refresh must preserve the selected crew.',
+  );
+  assert.equal(
+    await hostPage.getByRole('dialog').count(),
+    0,
+    'Assignment must not introduce a second dialog owner.',
+  );
+  await assertNoHorizontalOverflow(hostPage, 'actual host assignment');
+  assert.deepEqual(hostFindings, [], `actual host: ${hostFindings.join('\n')}`);
+  await hostContext.close();
 
   const unavailableContext = await browser.newContext({
     viewport: { width: 390, height: 844 },

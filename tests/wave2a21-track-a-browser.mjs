@@ -36,7 +36,7 @@ const assertNoHorizontalOverflow = async (page, label) => {
 };
 
 const assertStep = async (page, current, label) => {
-  const copy = page.getByText(`Step ${current} of 5. The paper TurnBoard remains authoritative.`);
+  const copy = page.getByText(`Step ${current} of 5 · Paper remains authoritative.`);
   await copy.waitFor();
   assert.equal(await copy.count(), 1, `${label} rendered the wrong controlled step.`);
 };
@@ -131,26 +131,28 @@ try {
   assert.equal(await page.getByLabel('Default daily contact').isChecked(), true);
   assert.equal(await page.getByLabel('Default work start').inputValue(), '08:00');
   assert.equal(await page.getByLabel('Default work end').inputValue(), '18:00');
-  assert.equal(await page.getByLabel('Default walkthrough time (optional)').inputValue(), '12:00');
-  await page.getByLabel('Default walkthrough time (optional)').fill('');
+  const defaultWalkthrough = page.getByLabel('Default walkthrough time');
+  assert.equal(await defaultWalkthrough.inputValue(), '12:00');
+  await defaultWalkthrough.fill('');
+  assert.equal(
+    await page.getByRole('button', { name: 'Continue', exact: true }).isDisabled(),
+    true,
+  );
+  await defaultWalkthrough.fill('12:00');
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await assertStep(page, 3, 'Property roster navigation');
-  console.log('Track A browser gate: Property roster.');
-  assert.equal(await page.getByText('Unit 101', { exact: true }).count(), 1);
-  assert.equal(await page.getByText('Unit 202', { exact: true }).count(), 1);
-  await page.getByText(
-    'Advanced file and image import is not included in this candidate.',
-    { exact: true },
-  ).waitFor();
-
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await assertStep(page, 4, 'crews and permissions navigation');
+  await assertStep(page, 3, 'crews and permissions navigation');
   console.log('Track A browser gate: crews and permissions.');
-  assert.equal(await page.getByLabel('Paint Crew Alpha', { exact: true }).isChecked(), true);
-  assert.equal(await page.getByLabel('Paint Crew Today', { exact: true }).isChecked(), false);
-  assert.equal(await page.getByLabel('Clean Crew Beta', { exact: true }).isChecked(), true);
-  await page.getByLabel('Paint Crew Today', { exact: true }).check();
+  assert.deepEqual(
+    await page.getByLabel('Crew name', { exact: true }).evaluateAll(
+      (inputs) => inputs.map((input) => input.value),
+    ),
+    ['Paint Crew Alpha', 'Paint Crew Today', 'Clean Crew Beta'],
+  );
+  assert.equal(
+    await page.getByLabel('Active for this project', { exact: true }).nth(0).isChecked(),
+    true,
+  );
   assert.equal(
     await page.getByLabel('Personal photo rule').inputValue(),
     'not-confirmed',
@@ -178,6 +180,16 @@ try {
   assert.match(personalDataBoundaryCopy ?? '', /synthetic or explicitly approved data only/u);
   assert.match(personalDataBoundaryCopy ?? '', /do not request or grant property/u);
   assert.match(personalDataBoundaryCopy ?? '', /photo permission/u);
+
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await assertStep(page, 4, 'Property roster navigation');
+  console.log('Track A browser gate: Property roster.');
+  assert.equal(await page.getByText('Unit 101', { exact: true }).count(), 1);
+  assert.equal(await page.getByText('Unit 202', { exact: true }).count(), 1);
+  await page.getByText(
+    'Exact identifiers are preserved. Image, PDF, and spreadsheet extraction are not included.',
+    { exact: true },
+  ).waitFor();
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await assertStep(page, 5, 'review navigation');
@@ -239,13 +251,14 @@ try {
 
   await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
   console.log('Track A browser gate: Daily Release.');
-  assert.equal(
-    await startDay.getByRole('checkbox', { name: /Unit 101/u }).isChecked(),
-    false,
-  );
+  const knownUnitsSummary = startDay.locator('summary')
+    .filter({ hasText: 'Review known Units' });
+  assert.match(await knownUnitsSummary.textContent() ?? '', /0 selected/u);
   await startDay.getByRole('button', { name: 'Continue', exact: true }).click();
   await startDay.getByText(/Select at least one Unit/u).waitFor();
-  await startDay.getByRole('checkbox', { name: /Unit 101/u }).check();
+  await startDay.getByLabel('Exact Unit numbers', { exact: true }).fill('101');
+  await startDay.getByRole('button', { name: 'Add exact Units', exact: true }).click();
+  assert.match(await knownUnitsSummary.textContent() ?? '', /1 selected/u);
   await startDay.getByLabel('Both', { exact: true }).check();
   assert.equal(await startDay.getByLabel('Both', { exact: true }).isChecked(), true);
   await startDay.locator('summary').filter({ hasText: 'Exceptions' }).click();
@@ -309,10 +322,7 @@ try {
   );
   await startDay.getByRole('button', { name: 'Back', exact: true }).click();
   await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
-  assert.equal(
-    await startDay.getByRole('checkbox', { name: /Unit 101/u }).isChecked(),
-    true,
-  );
+  assert.match(await knownUnitsSummary.textContent() ?? '', /1 selected/u);
   assert.equal(
     await bedroomBException.inputValue(),
     'access-issue',

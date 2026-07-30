@@ -1110,6 +1110,7 @@ export interface DayTaskWorkspaceProps {
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
   onOpenQueueId?: (queueId: TodayTaskQueueId) => void;
   onOpenTaskDetail?: () => void;
+  onRequestStartDay?: () => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
@@ -1144,6 +1145,7 @@ export function DayTaskWorkspace({
   onExternalAction,
   onOpenQueueId,
   onOpenTaskDetail,
+  onRequestStartDay,
   propertyRoster,
   releases,
   queueCounts,
@@ -1283,7 +1285,13 @@ export function DayTaskWorkspace({
           setView({ id: 'queue', queue });
         }}
         onOpenTaskDetail={onOpenTaskDetail}
-        onStartDay={() => setView({ id: 'start-day' })}
+        onStartDay={() => {
+          if (onRequestStartDay) {
+            onRequestStartDay();
+            return;
+          }
+          setView({ id: 'start-day' });
+        }}
         propertyName={propertyRoster.propertyName}
         rosterCount={propertyRoster.units.length}
         scopeErrors={isOpenDay(session) ? taskProjection.errors : []}

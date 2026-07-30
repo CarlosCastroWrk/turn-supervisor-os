@@ -128,9 +128,8 @@ export const AssignmentView = ({
         <ClipboardCheck aria-hidden="true" size={20} />
       </header>
       <p className="track-c-boundary-copy">
-        Personal Alpha fallback: Crew Detail enhancements and Advanced Additional
-        Scope are unavailable in this release. Review and confirm every personal
-        assignment here; paper and payroll remain unchanged.
+        Assign one compatible crew to released Unit and trade work. Review every
+        personal assignment before saving; paper and payroll remain unchanged.
       </p>
       <div className="track-c-form-stack">
         <fieldset className="track-c-segmented">

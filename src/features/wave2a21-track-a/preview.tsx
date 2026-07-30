@@ -302,6 +302,7 @@ export function TrackABehaviorHarness() {
               };
             })}
             onDraftChange={setDraft}
+            onExit={() => setScreen('today')}
             onRemoveContact={(contactId) => setDraft((current) => ({
               ...current,
               contacts: current.contacts.filter((contact) => contact.id !== contactId),

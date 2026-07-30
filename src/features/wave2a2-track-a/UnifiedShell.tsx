@@ -70,6 +70,7 @@ const findPrimaryScrollRegion = (main: HTMLElement) => {
 
 export interface Wave2A2UnifiedShellProps
   extends LaunchCommandCenterShellProps {
+  contentOwnsMain?: boolean;
   contentScrollRestoration?: {
     key: string;
     onScrollTopChange?: (scrollTop: number) => void;
@@ -108,6 +109,7 @@ export function Wave2A2UnifiedShell({
   contentContained = false,
   contentDialogOpen = false,
   contentFocusKey,
+  contentOwnsMain = false,
   contentScrollRestoration,
   contentTitle,
   dateLabel,
@@ -358,7 +360,7 @@ export function Wave2A2UnifiedShell({
           })}
         </nav>
 
-        {detailMode ? (
+        {contentOwnsMain ? (
           <div
             className={`w2a2-shell__main ${contentContained ? 'is-contained' : ''}`}
             data-route-key={contentFocusKey}

@@ -17,6 +17,7 @@ import { BoardView } from './BoardView';
 import { CrewView } from './CrewView';
 import type {
   TrackCState,
+  TrackCTrade,
   TrackCWorkTarget,
 } from './model';
 import {
@@ -133,6 +134,69 @@ export const TrackCFieldOps = ({
     }
     setNotice('Personal section record saved. Paper and payroll remain unchanged.');
     commitState(result.value, `section-${action}`);
+  };
+
+  const recordTradeComplete = (
+    unitId: string,
+    trade: TrackCTrade,
+  ) => {
+    const eligibleTargets = state.units
+      .find((unit) => unit.id === unitId)
+      ?.workFacts
+      .filter((fact) => fact.trade === trade && fact.release === 'released')
+      .map((fact) => ({
+        section: fact.section,
+        trade: fact.trade,
+        unitId: fact.unitId,
+      }))
+      .filter((target) => {
+        const unit = state.units.find((candidate) => candidate.id === unitId);
+        const fact = unit?.workFacts.find(
+          (candidate) =>
+            candidate.trade === target.trade &&
+            candidate.section === target.section,
+        );
+        if (!fact) return false;
+        const targetEvents = state.events.filter(
+          (event) =>
+            event.target.unitId === target.unitId &&
+            event.target.trade === target.trade &&
+            event.target.section === target.section,
+        );
+        const latestExecutionEvent = [...targetEvents].reverse().find((event) =>
+          event.eventType === 'assignment-confirmed' ||
+          event.eventType === 'assignment-cleared' ||
+          event.eventType === 'work-started' ||
+          event.eventType === 'crew-reported-complete');
+        return latestExecutionEvent?.eventType !== 'crew-reported-complete';
+      }) ?? [];
+
+    if (eligibleTargets.length === 0) {
+      setNotice('No assigned released sections are waiting for a crew completion report.');
+      return;
+    }
+
+    let nextState = state;
+    for (const target of eligibleTargets) {
+      const result = applyTrackCSectionAction(nextState, {
+        eventId: createId(`track-c-${trade}-complete-${target.section}`),
+        action: 'record-crew-complete',
+        target,
+        recordedAt: now(),
+        recordedBy: 'Los',
+      });
+      if (!result.ok) {
+        setNotice(result.error.message);
+        return;
+      }
+      nextState = result.value;
+    }
+    setNotice(
+      `${trade === 'paint' ? 'Paint' : 'Clean'} crew completion saved for ${
+        eligibleTargets.length
+      } section${eligibleTargets.length === 1 ? '' : 's'}. Los inspection remains separate.`,
+    );
+    commitState(nextState, `trade-${trade}-crew-complete`);
   };
 
   const requestMirror = useCallback((target: TrackCWorkTarget) => {
@@ -264,6 +328,7 @@ export const TrackCFieldOps = ({
             }}
             onRequestMirror={requestMirror}
             onSectionAction={runSectionAction}
+            onTradeComplete={recordTradeComplete}
             selectedUnitId={selectedUnitId}
             state={state}
           />

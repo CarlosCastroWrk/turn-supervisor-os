@@ -51,6 +51,7 @@ const assertBoardNavigation = async (page, label) => {
 };
 
 const server = await createServer({
+  cacheDir: '/private/tmp/personal-alpha-02-board-first-browser/node_modules/.vite',
   root: process.cwd(),
   logLevel: 'error',
   server: { host, port, strictPort: true },
@@ -70,10 +71,10 @@ try {
     const page = await context.newPage();
     const findings = attachRuntimeChecks(page);
 
-    await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/#/units`, { waitUntil: 'domcontentloaded' });
     await page.getByTestId('track-c-field-ops').waitFor();
-    await page.getByRole('heading', { name: 'TurnBoard companion', exact: true }).waitFor();
-    await page.getByText('Compact Paint/Clean field projection', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+    await page.getByText('Paper TurnBoard is official', { exact: true }).waitFor();
     await assertBoardNavigation(page, `${target.name} TurnBoard`);
     assert.equal(await page.getByTestId('track-c-unit-row').count(), 6);
     assert.equal(await page.getByPlaceholder('Search Units or crews').count(), 1);
@@ -107,7 +108,7 @@ try {
     await assertNoHorizontalOverflow(page, `${target.name} Unit 101`);
 
     await page.getByRole('button', { name: 'Back to compact TurnBoard', exact: true }).click();
-    await page.getByRole('heading', { name: 'TurnBoard companion', exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
     assert.equal(await page.getByTestId('track-c-unit-row').count(), 6);
 
     await page.getByRole('navigation', { name: 'Primary' })

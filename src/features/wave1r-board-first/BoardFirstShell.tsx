@@ -503,18 +503,14 @@ function ActivitySurface({
   onOpenUnit: (unitId: string, trigger: HTMLButtonElement) => void;
   sourceMode: BoardFirstSourceMode;
 }) {
-  const noteCount = activity.filter((item) => item.kind === 'note').length;
-  const transcriptCount = activity.filter((item) => item.kind === 'transcript').length;
   return (
     <section className="w1r-secondary-surface" aria-labelledby="w1r-activity-title">
       <div className="w1r-surface-heading">
         <div>
           <h1 id="w1r-activity-title">Activity</h1>
-          <p>
-            Notes, transcripts, and source-grounded {sourceMode === 'synthetic' ? 'synthetic' : 'personal'} events
-          </p>
+          <p>Human-readable personal field history</p>
         </div>
-        <span>{noteCount} notes · {transcriptCount} transcripts</span>
+        <span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span>
       </div>
       <ActivityList
         activity={activity}

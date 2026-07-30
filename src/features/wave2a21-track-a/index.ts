@@ -6,6 +6,7 @@ export * from './FastStartDayFlow';
 export * from './phase2Workflow';
 export * from './projections';
 export * from './projectSetup';
+export * from './projectSetupDraft';
 export * from './startDayDefaults';
 export * from './contracts';
 export * from './ProfilePrivacyScrollRegion';

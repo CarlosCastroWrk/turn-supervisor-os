@@ -44,7 +44,11 @@ const canonicalQueueForWork = (
   if (
     projection.release === 'released'
     && projection.responsibleCrewId
-    && (projection.execution === 'assigned' || projection.execution === 'working')
+    && (
+      projection.execution === 'assigned'
+      || projection.execution === 'working'
+      || projection.execution === 'crew-reported-complete'
+    )
   ) {
     return 'working';
   }
@@ -55,13 +59,6 @@ const waitingReasonsForWork = (
   projection: CanonicalWorkRecord['projection'],
 ) => {
   const reasons: string[] = [];
-  if (projection.release !== 'released') {
-    reasons.push(
-      projection.release === 'unreleased'
-        ? 'Not in the confirmed release'
-        : 'Release evidence needs review',
-    );
-  }
   if (projection.sourceConfidence !== 'confirmed') {
     reasons.push('Assignment-source evidence needs review');
   }
@@ -70,14 +67,6 @@ const waitingReasonsForWork = (
   }
   if (projection.assignmentConflict) {
     reasons.push('Assignment responsibility conflicts');
-  } else if (!projection.responsibleCrewId) {
-    reasons.push('No confirmed responsible crew');
-  }
-  if (projection.inspection === 'needs-los-inspection') {
-    reasons.push('Ready for Los inspection');
-  }
-  if (projection.inspection === 'reinspection-pending') {
-    reasons.push('Reinspection is pending');
   }
   return [...new Set(reasons)];
 };

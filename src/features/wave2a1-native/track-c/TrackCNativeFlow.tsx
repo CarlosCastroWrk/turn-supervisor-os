@@ -101,9 +101,9 @@ const PLUS_ITEMS: readonly PlusItem[] = [
   },
   {
     action: 'import-work',
-    description: 'Open the existing work import',
+    description: 'Record another manual Daily Release batch',
     icon: <FolderUp aria-hidden="true" size={20} />,
-    label: 'Import Work',
+    label: 'Add Release Batch',
   },
 ];
 

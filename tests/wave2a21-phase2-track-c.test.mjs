@@ -24,6 +24,46 @@ const target = (unitNumber, trade, section) => ({
   section,
 });
 
+const makePackageReady = (state, unitNumber, trade, crewId) => {
+  const unitId = `unit-${unitNumber}`;
+  const releasedTargets = state.units
+    .find((unit) => unit.id === unitId)
+    ?.workFacts.filter(
+      (fact) => fact.trade === trade && fact.release === 'released',
+    )
+    .map((fact) => target(unitNumber, trade, fact.section)) ?? [];
+  const events = releasedTargets.flatMap((workTarget, targetIndex) =>
+    ['assignment-confirmed', 'crew-reported-complete', 'los-passed'].map(
+      (eventType, eventIndex) => ({
+        id: `phase2-ready-${unitNumber}-${trade}-${targetIndex}-${eventIndex}`,
+        eventType,
+        confirmation: 'confirmed',
+        target: workTarget,
+        crewId,
+        recordedAt: `2026-07-29T15:${String(
+          targetIndex * 3 + eventIndex,
+        ).padStart(2, '0')}:00.000Z`,
+        recordedBy: 'Synthetic Los',
+        sourceType: 'personal-confirmation',
+        sourceLabel: 'Synthetic complete Unit+Trade package',
+        summary: 'Synthetic package readiness event.',
+        personalRecordOnly: true,
+        officialPaperChanged: false,
+        payrollChanged: false,
+      }),
+    ),
+  );
+  return { ...state, events: [...state.events, ...events] };
+};
+
+const packageTargets = (state, unitNumber, trade) => {
+  const candidate = projectTrackCWalkCandidates(state).find(
+    (item) => item.unitNumber === unitNumber && item.trade === trade,
+  );
+  assert.ok(candidate, `Unit ${unitNumber} ${trade} must be ready to walk.`);
+  return candidate.targets;
+};
+
 const startWalk = (state, selectedTargets, walkSessionId = 'phase2-walk') => {
   const result = startTrackCWalk(state, {
     walkSessionId,
@@ -38,11 +78,13 @@ const startWalk = (state, selectedTargets, walkSessionId = 'phase2-walk') => {
 };
 
 test('active Walk draft is serializable, session-bound, and restorable with exact notes and stage', () => {
-  const initial = createSyntheticTrackCState();
-  const selectedTargets = [
-    target('301', 'paint', 'common'),
-    target('301', 'paint', 'A'),
-  ];
+  const initial = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const selectedTargets = packageTargets(initial, '301', 'paint');
   const started = startWalk(initial, selectedTargets);
   const session = started.activeWalk;
   assert.ok(session);
@@ -67,6 +109,14 @@ test('active Walk draft is serializable, session-bound, and restorable with exac
     },
     '2026-07-29T16:03:00.000Z',
   );
+  for (const selectedTarget of selectedTargets.slice(2)) {
+    draft = updateTrackCWalkDraft(
+      draft,
+      selectedTarget,
+      { outcome: 'accepted' },
+      '2026-07-29T16:03:30.000Z',
+    );
+  }
   draft = setTrackCWalkDraftStage(
     draft,
     'end-review',
@@ -83,11 +133,11 @@ test('active Walk draft is serializable, session-bound, and restorable with exac
   assert.deepEqual(restored.outcomes, draft.outcomes);
   assert.equal(isTrackCWalkDraftComplete(session, restored), true);
   assert.deepEqual(summarizeTrackCWalkDraft(restored), {
-    accepted: 1,
+    accepted: selectedTargets.length - 1,
     correctionsRequested: 1,
     deferred: 0,
     notWalked: 0,
-    notes: restored.outcomes,
+    notes: restored.outcomes.filter((outcome) => Boolean(outcome.note)),
     openCallbacks: 1,
   });
 
@@ -105,91 +155,125 @@ test('active Walk draft is serializable, session-bound, and restorable with exac
 });
 
 test('Deferred and Not walked remain eligible for a later repeat Walk', () => {
-  const initial = createSyntheticTrackCState();
-  const deferredTarget = target('301', 'paint', 'common');
-  const notWalkedTarget = target('301', 'paint', 'A');
-  const started = startWalk(initial, [deferredTarget, notWalkedTarget]);
+  const paintReady = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const initial = makePackageReady(
+    paintReady,
+    '606',
+    'clean',
+    'crew-bright-clean',
+  );
+  const deferredTargets = packageTargets(initial, '301', 'paint');
+  const notWalkedTargets = packageTargets(initial, '606', 'clean');
+  const started = startWalk(initial, [
+    ...deferredTargets,
+    ...notWalkedTargets,
+  ]);
   const ended = endTrackCWalk(started, {
     endedAt: '2026-07-29T16:10:00.000Z',
     recordedBy: 'Los',
     eventIdPrefix: 'phase2-repeat-outcome',
     outcomes: [
-      {
-        target: deferredTarget,
+      ...deferredTargets.map((target) => ({
+        target,
         outcome: 'deferred',
         note: 'Property contact asked to return later.',
-      },
-      { target: notWalkedTarget, outcome: 'not-walked' },
+      })),
+      ...notWalkedTargets.map((target) => ({
+        target,
+        outcome: 'not-walked',
+      })),
     ],
   });
   assert.equal(ended.ok, true);
   assert.equal(
-    projectTrackCWork(ended.value, deferredTarget)?.property,
+    projectTrackCWork(ended.value, deferredTargets[0])?.property,
     'pending-property-walk',
   );
   assert.equal(
-    projectTrackCWork(ended.value, notWalkedTarget)?.property,
+    projectTrackCWork(ended.value, notWalkedTargets[0])?.property,
     'pending-property-walk',
   );
   const candidateKeys = projectTrackCWalkCandidates(ended.value).map(
-    (candidate) =>
-      `${candidate.target.unitId}:${candidate.target.trade}:${candidate.target.section}`,
+    (candidate) => `${candidate.target.unitId}:${candidate.target.trade}`,
   );
-  assert.ok(candidateKeys.includes('unit-301:paint:common'));
-  assert.ok(candidateKeys.includes('unit-301:paint:A'));
+  assert.ok(candidateKeys.includes('unit-301:paint'));
+  assert.ok(candidateKeys.includes('unit-606:clean'));
 
   const repeated = startWalk(
     ended.value,
-    [deferredTarget, notWalkedTarget],
+    [...deferredTargets, ...notWalkedTargets],
     'phase2-repeat-walk',
   );
   assert.equal(repeated.activeWalk?.id, 'phase2-repeat-walk');
 });
 
 test('Paint and Clean outcomes stay independent through End Walk', () => {
-  const initial = createSyntheticTrackCState();
-  const paintTarget = target('301', 'paint', 'common');
-  const cleanTarget = target('606', 'clean', 'common');
-  const started = startWalk(initial, [paintTarget, cleanTarget]);
+  const paintReady = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const initial = makePackageReady(
+    paintReady,
+    '606',
+    'clean',
+    'crew-bright-clean',
+  );
+  const paintTargets = packageTargets(initial, '301', 'paint');
+  const cleanTargets = packageTargets(initial, '606', 'clean');
+  const started = startWalk(initial, [...paintTargets, ...cleanTargets]);
   const ended = endTrackCWalk(started, {
     endedAt: '2026-07-29T16:10:00.000Z',
     recordedBy: 'Los',
     eventIdPrefix: 'phase2-trade-outcome',
     outcomes: [
-      { target: paintTarget, outcome: 'accepted' },
-      { target: cleanTarget, outcome: 'deferred' },
+      ...paintTargets.map((target) => ({ target, outcome: 'accepted' })),
+      ...cleanTargets.map((target) => ({ target, outcome: 'deferred' })),
     ],
   });
   assert.equal(ended.ok, true);
   assert.equal(
-    projectTrackCWork(ended.value, paintTarget)?.property,
+    projectTrackCWork(ended.value, paintTargets[0])?.property,
     'property-accepted',
   );
   assert.equal(
-    projectTrackCWork(ended.value, cleanTarget)?.property,
+    projectTrackCWork(ended.value, cleanTargets[0])?.property,
     'pending-property-walk',
   );
 });
 
 test('Correction requested creates a callback and preserves the responsible crew', () => {
-  const initial = createSyntheticTrackCState();
-  const correctionTarget = target('301', 'paint', 'common');
+  const initial = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const paintTargets = packageTargets(initial, '301', 'paint');
+  const correctionTarget = paintTargets[0];
   const responsibleCrewId = projectTrackCWork(
     initial,
     correctionTarget,
   )?.responsibleCrewId;
-  const started = startWalk(initial, [correctionTarget]);
+  const started = startWalk(initial, paintTargets);
   const ended = endTrackCWalk(started, {
     endedAt: '2026-07-29T16:10:00.000Z',
     recordedBy: 'Los',
     eventIdPrefix: 'phase2-correction-outcome',
-    outcomes: [
-      {
+    outcomes: paintTargets.map((target, index) =>
+      index === 0
+        ? {
         target: correctionTarget,
         outcome: 'correction-requested',
         note: 'Paint touch-up required.',
-      },
-    ],
+          }
+        : { target, outcome: 'accepted' }),
   });
   assert.equal(ended.ok, true);
   const correction = projectTrackCWork(ended.value, correctionTarget);

@@ -31,6 +31,46 @@ const target = (unitNumber, trade, section) => ({
   section,
 });
 
+const makePackageReady = (state, unitNumber, trade, crewId) => {
+  const unitId = `unit-${unitNumber}`;
+  const releasedTargets = state.units
+    .find((unit) => unit.id === unitId)
+    ?.workFacts.filter(
+      (fact) => fact.trade === trade && fact.release === 'released',
+    )
+    .map((fact) => target(unitNumber, trade, fact.section)) ?? [];
+  const events = releasedTargets.flatMap((workTarget, targetIndex) =>
+    ['assignment-confirmed', 'crew-reported-complete', 'los-passed'].map(
+      (eventType, eventIndex) => ({
+        id: `ready-${unitNumber}-${trade}-${targetIndex}-${eventIndex}`,
+        eventType,
+        confirmation: 'confirmed',
+        target: workTarget,
+        crewId,
+        recordedAt: `2026-07-28T22:${String(
+          targetIndex * 3 + eventIndex,
+        ).padStart(2, '0')}:00.000Z`,
+        recordedBy: 'Synthetic Los',
+        sourceType: 'personal-confirmation',
+        sourceLabel: 'Synthetic complete Unit+Trade package',
+        summary: 'Synthetic package readiness event.',
+        personalRecordOnly: true,
+        officialPaperChanged: false,
+        payrollChanged: false,
+      }),
+    ),
+  );
+  return { ...state, events: [...state.events, ...events] };
+};
+
+const packageTargets = (state, unitNumber, trade) => {
+  const candidate = projectTrackCWalkCandidates(state).find(
+    (item) => item.unitNumber === unitNumber && item.trade === trade,
+  );
+  assert.ok(candidate, `Unit ${unitNumber} ${trade} must be ready to walk.`);
+  return candidate.targets;
+};
+
 const proposalInput = (overrides = {}) => ({
   proposalId: 'proposal-test',
   trade: 'paint',
@@ -497,34 +537,64 @@ test('crew-complete evidence remains recordable when access blocks Los inspectio
 });
 
 test('walk candidates require Los pass, pending property walk, and no blockers', () => {
-  const candidates = projectTrackCWalkCandidates(createSyntheticTrackCState());
-  const keys = candidates.map((candidate) =>
-    `${candidate.unitNumber}:${candidate.target.trade}:${candidate.target.section}`
+  const partial = createSyntheticTrackCState();
+  assert.equal(
+    projectTrackCWalkCandidates(partial).some(
+      (candidate) =>
+        candidate.unitNumber === '301' && candidate.trade === 'paint',
+    ),
+    false,
+    'Partial Los-passed sections must not create a walk candidate.',
   );
-  assert.ok(keys.includes('301:paint:common'));
-  assert.ok(keys.includes('606:clean:A'));
-  assert.equal(keys.includes('301:paint:B'), false);
-  assert.equal(keys.includes('401:paint:A'), false);
-  assert.equal(keys.includes('410:paint:A'), false);
+
+  const ready = makePackageReady(
+    partial,
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const candidate = projectTrackCWalkCandidates(ready).find(
+    (item) => item.unitNumber === '301' && item.trade === 'paint',
+  );
+  assert.ok(candidate);
+  assert.deepEqual(
+    candidate.targets.map((item) => item.section),
+    ['common', 'A', 'B', 'C'],
+  );
+  assert.equal(candidate.sectionCount, 4);
+  assert.equal(
+    projectTrackCWalkCandidates(ready).some(
+      (item) => item.unitNumber === '401' && item.trade === 'paint',
+    ),
+    false,
+  );
 });
 
 test('End Walk atomically rejects callback, access, assignment, or prior-acceptance changes on any reviewed target', () => {
-  const firstTarget = target('301', 'paint', 'common');
-  const staleTarget = target('301', 'paint', 'A');
   const startWalk = () => {
-    const initial = createSyntheticTrackCState();
+    const initial = makePackageReady(
+      createSyntheticTrackCState(),
+      '301',
+      'paint',
+      'crew-bluebird-paint',
+    );
+    const selectedTargets = packageTargets(initial, '301', 'paint');
     const started = startTrackCWalk(initial, {
       walkSessionId: 'walk-stale-review',
       propertyContact: 'Synthetic property contact',
-      selectedTargets: [firstTarget, staleTarget],
+      selectedTargets,
       startedAt: '2026-07-28T21:00:00.000Z',
       startedBy: 'Los',
       confirmedLosInspection: true,
     });
     assert.equal(started.ok, true);
-    return started.value;
+    return {
+      firstTarget: selectedTargets[0],
+      staleTarget: selectedTargets[1],
+      state: started.value,
+    };
   };
-  const confirmedEvent = (overrides) => ({
+  const confirmedEvent = (staleTarget, overrides) => ({
     id: 'stale-walk-event',
     eventType: 'assignment-confirmed',
     confirmation: 'confirmed',
@@ -541,10 +611,11 @@ test('End Walk atomically rejects callback, access, assignment, or prior-accepta
     ...overrides,
   });
 
-  const callbackState = applyTrackCSectionAction(startWalk(), {
+  const callbackStart = startWalk();
+  const callbackState = applyTrackCSectionAction(callbackStart.state, {
     eventId: 'stale-walk-callback',
     action: 'open-callback',
-    target: staleTarget,
+    target: callbackStart.staleTarget,
     recordedAt: '2026-07-28T21:05:00.000Z',
     recordedBy: 'Los',
   });
@@ -553,7 +624,7 @@ test('End Walk atomically rejects callback, access, assignment, or prior-accepta
   const reworkState = applyTrackCSectionAction(callbackState.value, {
     eventId: 'stale-walk-rework',
     action: 'record-correction-ready',
-    target: staleTarget,
+    target: callbackStart.staleTarget,
     recordedAt: '2026-07-28T21:06:00.000Z',
     recordedBy: 'Los',
   });
@@ -561,15 +632,15 @@ test('End Walk atomically rejects callback, access, assignment, or prior-accepta
 
   const accessStart = startWalk();
   const accessState = {
-    ...accessStart,
-    units: accessStart.units.map((unit) =>
-      unit.id !== staleTarget.unitId
+    ...accessStart.state,
+    units: accessStart.state.units.map((unit) =>
+      unit.id !== accessStart.staleTarget.unitId
         ? unit
         : {
             ...unit,
             workFacts: unit.workFacts.map((fact) =>
-              fact.trade === staleTarget.trade &&
-              fact.section === staleTarget.section
+              fact.trade === accessStart.staleTarget.trade &&
+              fact.section === accessStart.staleTarget.section
                 ? {
                     ...fact,
                     access: 'access-blocked',
@@ -582,18 +653,20 @@ test('End Walk atomically rejects callback, access, assignment, or prior-accepta
   };
   const assignmentStart = startWalk();
   const assignmentState = {
-    ...assignmentStart,
+    ...assignmentStart.state,
     events: [
-      ...assignmentStart.events,
-      confirmedEvent({ id: 'stale-walk-assignment' }),
+      ...assignmentStart.state.events,
+      confirmedEvent(assignmentStart.staleTarget, {
+        id: 'stale-walk-assignment',
+      }),
     ],
   };
   const acceptanceStart = startWalk();
   const priorAcceptanceState = {
-    ...acceptanceStart,
+    ...acceptanceStart.state,
     events: [
-      ...acceptanceStart.events,
-      confirmedEvent({
+      ...acceptanceStart.state.events,
+      confirmedEvent(acceptanceStart.staleTarget, {
         id: 'stale-walk-acceptance',
         eventType: 'property-accepted',
         crewId: 'crew-bluebird-paint',
@@ -601,21 +674,21 @@ test('End Walk atomically rejects callback, access, assignment, or prior-accepta
     ],
   };
 
-  for (const [label, state] of [
-    ['callback', callbackState.value],
-    ['rework', reworkState.value],
-    ['access', accessState],
-    ['assignment', assignmentState],
-    ['prior acceptance', priorAcceptanceState],
+  for (const [label, state, firstTarget] of [
+    ['callback', callbackState.value, callbackStart.firstTarget],
+    ['rework', reworkState.value, callbackStart.firstTarget],
+    ['access', accessState, accessStart.firstTarget],
+    ['assignment', assignmentState, assignmentStart.firstTarget],
+    ['prior acceptance', priorAcceptanceState, acceptanceStart.firstTarget],
   ]) {
     const result = endTrackCWalk(state, {
       endedAt: '2026-07-28T21:10:00.000Z',
       recordedBy: 'Los',
       eventIdPrefix: `rejected-${label.replaceAll(' ', '-')}`,
-      outcomes: [
-        { target: firstTarget, outcome: 'accepted' },
-        { target: staleTarget, outcome: 'accepted' },
-      ],
+      outcomes: state.activeWalk.selectedTargets.map((target) => ({
+        target,
+        outcome: 'accepted',
+      })),
     });
     assert.equal(result.ok, false, `${label} change must reject End Walk.`);
     assert.equal(result.error.code, 'not-walk-candidate');
@@ -637,15 +710,28 @@ test('End Walk atomically rejects callback, access, assignment, or prior-accepta
 });
 
 test('walk correction preserves crew while acceptance and personal paper mirror remain separate explicit events', () => {
-  const initial = createSyntheticTrackCState();
-  const correctionTarget = target('301', 'paint', 'common');
-  const acceptedTarget = target('301', 'paint', 'A');
+  const paintReady = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const initial = makePackageReady(
+    paintReady,
+    '606',
+    'clean',
+    'crew-bright-clean',
+  );
+  const paintTargets = packageTargets(initial, '301', 'paint');
+  const cleanTargets = packageTargets(initial, '606', 'clean');
+  const correctionTarget = paintTargets[0];
+  const acceptedTarget = cleanTargets[0];
   const responsibleCrew = projectTrackCWork(initial, correctionTarget)?.responsibleCrewId;
 
   const started = startTrackCWalk(initial, {
     walkSessionId: 'walk-test',
     propertyContact: 'Synthetic property contact',
-    selectedTargets: [correctionTarget, acceptedTarget],
+    selectedTargets: [...paintTargets, ...cleanTargets],
     startedAt: '2026-07-28T21:00:00.000Z',
     startedBy: 'Los',
     confirmedLosInspection: true,
@@ -657,8 +743,11 @@ test('walk correction preserves crew while acceptance and personal paper mirror 
     recordedBy: 'Los',
     eventIdPrefix: 'walk-outcome',
     outcomes: [
-      { target: correctionTarget, outcome: 'correction-requested' },
-      { target: acceptedTarget, outcome: 'accepted' },
+      ...paintTargets.map((target, index) => ({
+        target,
+        outcome: index === 0 ? 'correction-requested' : 'accepted',
+      })),
+      ...cleanTargets.map((target) => ({ target, outcome: 'accepted' })),
     ],
   });
   assert.equal(ended.ok, true);
@@ -668,6 +757,11 @@ test('walk correction preserves crew while acceptance and personal paper mirror 
   assert.equal(correction?.responsibleCrewId, responsibleCrew);
   assert.equal(correction?.callbackOpen, true);
   assert.equal(correction?.property, 'not-ready');
+  assert.equal(
+    projectTrackCWork(ended.value, paintTargets[1])?.property,
+    'pending-property-walk',
+    'A correction must keep the entire Paint package from becoming accepted.',
+  );
   assert.equal(accepted?.property, 'property-accepted');
   assert.equal(accepted?.personalPdsMirror, false);
 

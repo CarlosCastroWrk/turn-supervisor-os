@@ -1183,7 +1183,7 @@ const appDataBackupSchema = z
           });
         }
         seenOutcomeIds.add(outcome.selectedItemId);
-        if (outcome.outcome === 'accepted') {
+        if (session.status === 'closed' && outcome.outcome === 'accepted') {
           const releaseItem = releaseItemsById.get(outcome.selectedItemId);
           if (releaseItem) {
             const activeEvents = activeFieldEventsForReleaseItemAt(
@@ -1191,25 +1191,27 @@ const appDataBackupSchema = z
               releaseItem,
               session.startedAt,
             );
-            const latestLosPass = activeEvents
-              .filter((event) => event.eventType === 'los-passed')
+            const latestLosInspectionPass = activeEvents
+              .filter((event) =>
+                event.eventType === 'los-passed'
+                || event.eventType === 'callback-resolved')
               .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))[0];
-            if (!latestLosPass) {
+            if (!latestLosInspectionPass) {
               context.addIssue({
                 code: 'custom',
-                message: 'Property acceptance requires a current Los-pass event from the same Day Session.',
+                message: 'Property acceptance requires a current Los inspection pass from the same Day Session.',
                 path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
               });
             } else if (
               activeEvents.some(
                 (event) =>
                   blockingFieldEventTypes.has(event.eventType) &&
-                  event.recordedAt >= latestLosPass.recordedAt,
+                  event.recordedAt >= latestLosInspectionPass.recordedAt,
               )
             ) {
               context.addIssue({
                 code: 'custom',
-                message: 'Property acceptance requires the selected scope to be unblocked after Los pass.',
+                message: 'Property acceptance requires the selected scope to be unblocked after Los inspection.',
                 path: ['walkSessions', sessionIndex, 'outcomes', outcomeIndex, 'outcome'],
               });
             }

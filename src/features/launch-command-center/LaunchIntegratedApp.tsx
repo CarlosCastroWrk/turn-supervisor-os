@@ -74,7 +74,11 @@ import {
   useTurnTheme,
 } from '../wave2a2-track-a';
 import {
+  createTodayTask,
+  createTodayTaskGoal,
   DayTaskWorkspace,
+  startDaySession,
+  type StartDayReview,
   type StartDayPrefill,
   type TrackBCrewOption,
 } from '../wave2a2-track-b';
@@ -109,11 +113,19 @@ import {
   prepareProjectActivation,
   ProfilePrivacyScrollRegion,
   ProjectSetupFlow,
+  FastStartDayFlow,
+  createConfirmedDailyReleaseBatch,
+  createProjectSetupDraftStore,
+  formatWalkthroughScheduleWording,
+  formatWorkingHoursWording,
   resolveStartDayValues,
   TodayTaskDetail,
   type CanonicalFieldProjection,
+  type FastStartDaySubmission,
   type ProjectActivationDraft,
+  type ProjectRosterUnitOption,
   type StartDayResolvedValues,
+  type TrackACrewOption,
 } from '../wave2a21-track-a';
 import {
   TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS,
@@ -148,7 +160,12 @@ import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useSupabaseSync } from '../../lib/supabase/sync';
 import type { TurnCommandSourceRequest } from '../../lib/turnCommand';
-import type { ActivityLog, AppData, AppView } from '../../types';
+import type {
+  ActivityLog,
+  AppData,
+  AppView,
+  FieldSection,
+} from '../../types';
 import { SyncPanel } from '../../components/SyncPanel';
 import { AssignmentsView } from '../../views/AssignmentsView';
 import { CopilotView, type CopilotViewHandle } from '../../views/CopilotView';
@@ -174,6 +191,22 @@ type CrewEditorState =
 
 type MoreDetailPage = 'crews' | 'forms' | 'profile' | 'privacy' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
+
+const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
+  'common',
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+]);
+
+const toFastStartDaySection = (section: string): FieldSection => {
+  if (!FAST_START_DAY_SECTIONS.has(section as FieldSection)) {
+    throw new Error(`Unsupported Property roster section: ${section}.`);
+  }
+  return section as FieldSection;
+};
 
 const TRACK_C_TAB_ROOTS = {
   activity: '#/activity',
@@ -311,8 +344,24 @@ export function LaunchIntegratedApp() {
   const [moreStatus, setMoreStatus] = useState(
     'Personal workspace · paper remains authoritative',
   );
-  const [setupStep, setSetupStep] = useState(0);
+  const setupDraftStore = useMemo(
+    () => typeof window === 'undefined'
+      ? undefined
+      : createProjectSetupDraftStore(window.localStorage),
+    [],
+  );
+  const setupDraftOwnerKey = sync.userId
+    ?? sync.lastAuthenticatedUserId
+    ?? getLocalCacheOwner()
+    ?? 'local-unconfigured-device';
+  const [initialSetupDraftRecord] = useState(
+    () => setupDraftStore?.read(setupDraftOwnerKey),
+  );
+  const [setupStep, setSetupStep] = useState(
+    () => initialSetupDraftRecord?.step ?? 0,
+  );
   const [setupDraft, setSetupDraft] = useState<ProjectActivationDraft | null>(() => {
+    if (initialSetupDraftRecord) return initialSetupDraftRecord.draft;
     try {
       return createProjectActivationDraft(data, nowISO(), 'Los');
     } catch {
@@ -322,9 +371,24 @@ export function LaunchIntegratedApp() {
   const [setupErrors, setSetupErrors] = useState<readonly string[]>([]);
   const [setupBusy, setSetupBusy] = useState(false);
   const [setupStatus, setSetupStatus] = useState(
-    'Review and activate this personal project before field use.',
+    initialSetupDraftRecord
+      ? 'Your unfinished setup draft was restored from this device.'
+      : 'Review and activate this personal project before field use.',
   );
   const setupActivationInFlightRef = useRef(false);
+  const setupActivationCommittedRef = useRef(false);
+  const saveSetupDraft = useCallback((
+    draft: ProjectActivationDraft,
+    step: number,
+  ) => {
+    const saved = setupDraftStore?.write(setupDraftOwnerKey, draft, step) ?? false;
+    setSetupStatus(
+      saved
+        ? 'Draft saved on this device.'
+        : 'Draft remains open, but this browser could not autosave it.',
+    );
+    return saved;
+  }, [setupDraftOwnerKey, setupDraftStore]);
   const tabRouteMemoryRef = useRef((() => {
     const initialTab = trackCTabForRoute(route.view);
     const initialMemory = createTrackCTabRouteMemory(TRACK_C_TAB_ROOTS, initialTab);
@@ -707,6 +771,27 @@ export function LaunchIntegratedApp() {
       trade: crew.trade,
     })),
     [crewRecords],
+  );
+  const fastStartDayCrewOptions = useMemo<TrackACrewOption[]>(
+    () => crewRecords.map((crew) => ({
+      active: crew.activeToday,
+      id: crew.id,
+      name: crew.name,
+      trade: crew.trade === 'Paint' ? 'paint' : 'clean',
+    })),
+    [crewRecords],
+  );
+  const fastStartDayRosterUnits = useMemo<ProjectRosterUnitOption[]>(
+    () => propertyRoster.units.map((unit) => ({
+      applicableSections: unit.applicableSections.map((section) =>
+        toFastStartDaySection(section.id)),
+      building: unit.building,
+      floor: unit.floor,
+      id: unit.id,
+      unitNumber: unit.unitNumber,
+      unitType: unit.unitType,
+    })),
+    [propertyRoster.units],
   );
   const selectedActivityView = useMemo<PersonalActivityViewModel | null>(() => {
     if (!selectedActivity) return null;
@@ -1105,6 +1190,125 @@ export function LaunchIntegratedApp() {
     navigate('reports');
   }, [navigate]);
 
+  const startFastDay = useCallback((
+    submission: FastStartDaySubmission,
+  ) => {
+    const recordedAt = nowISO();
+    const releaseBatchId = createId('release');
+    const daySessionId = createId('day-session');
+    let preparationError = '';
+    let persisted = false;
+    try {
+      persisted = commitDataNow((current) => {
+        if (current.activeProjectId !== submission.projectId) {
+          throw new Error(
+            'The active personal project changed. Review Start Day again before saving.',
+          );
+        }
+        const currentRoster = projectPropertyRoster(current);
+        const currentRosterUnits: ProjectRosterUnitOption[] =
+          currentRoster.units.map((unit) => ({
+            applicableSections: unit.applicableSections.map((section) =>
+              toFastStartDaySection(section.id)),
+            building: unit.building,
+            floor: unit.floor,
+            id: unit.id,
+            unitNumber: unit.unitNumber,
+            unitType: unit.unitType,
+          }));
+        const releaseBatch = createConfirmedDailyReleaseBatch(
+          submission.release,
+          currentRosterUnits,
+          {
+            batchId: releaseBatchId,
+            confirmedAt: recordedAt,
+            confirmedBy: 'Los',
+          },
+        );
+        const withRelease = appendManualReleaseBatchOnce(current, releaseBatch);
+        const selectedRelease = projectDailyReleases(withRelease).filter(
+          (release) => release.id === releaseBatchId,
+        );
+        const task = createTodayTask(
+          currentRoster,
+          selectedRelease,
+          submission.date,
+          daySessionId,
+        );
+        if (!task) {
+          throw new Error(
+            'The confirmed Daily Release did not produce Today’s Task.',
+          );
+        }
+        const review: StartDayReview = {
+          accountId: operationalScope.accountId,
+          activeCrewIdsByTrade: {
+            Clean: submission.activeCrewIdsByTrade.clean,
+            Paint: submission.activeCrewIdsByTrade.paint,
+          },
+          assignmentEvidenceReviewNote:
+            `Los reviewed an exact manual release for ${submission.release.selectedUnitIds.length} Units and ${submission.release.items.length} section-trades.`,
+          crewReviewConfirmed: {
+            Clean: true,
+            Paint: true,
+          },
+          date: submission.date,
+          daySessionId,
+          explicitConfirmation: true,
+          goal: createTodayTaskGoal(task),
+          keyStatus: submission.keyStatus,
+          morningNote: submission.morningNote,
+          propertyContact: submission.propertyContact.name,
+          propertyId: submission.projectId,
+          releaseBatchIds: [releaseBatchId],
+          startedBy: 'Los',
+          walkthroughScheduleWording:
+            formatWalkthroughScheduleWording(
+              submission.schedule.walkthroughTime,
+            ),
+          workingHoursWording: formatWorkingHoursWording(
+            submission.schedule.workStartTime,
+            submission.schedule.workEndTime,
+          ),
+        };
+        const started = startDaySession(
+          review,
+          selectedRelease,
+          currentRoster,
+          projectDaySessions(current, operationalScope.accountId),
+          recordedAt,
+        );
+        if (!started.session || !started.startEvent || started.errors.length > 0) {
+          throw new Error(
+            started.errors[0]
+            ?? 'Start Day validation failed before anything was saved.',
+          );
+        }
+        return applyDayTaskStateChange(withRelease, {
+          event: started.startEvent,
+          reason: 'day-started',
+          recordedAt,
+          session: started.session,
+        });
+      });
+    } catch (error) {
+      preparationError = error instanceof Error
+        ? error.message
+        : 'Start Day could not be prepared.';
+    }
+    if (!persisted) {
+      if (preparationError) {
+        console.warn(`Start Day was not saved: ${preparationError}`);
+      }
+      return false;
+    }
+    setHomeMode('day');
+    return true;
+  }, [
+    commitDataNow,
+    operationalScope.accountId,
+  ]);
+
   const openNativePlus = useCallback(() => {
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
     setPlusOpen(true);
@@ -1133,7 +1337,8 @@ export function LaunchIntegratedApp() {
       return;
     }
     if (action === 'import-work') {
-      navigate('assignments');
+      navigate('dashboard');
+      setHomeMode('manual-release');
       return;
     }
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
@@ -1195,10 +1400,17 @@ export function LaunchIntegratedApp() {
     }
     if (destination === 'setup') {
       try {
-        setSetupDraft(createProjectActivationDraft(data, nowISO(), 'Los'));
+        if (!setupDraft || setupActivationCommittedRef.current) {
+          const nextDraft = createProjectActivationDraft(data, nowISO(), 'Los');
+          setSetupDraft(nextDraft);
+          setSetupStep(0);
+          saveSetupDraft(nextDraft, 0);
+          setupActivationCommittedRef.current = false;
+          setSetupStatus('Review all five steps before activating this personal project.');
+        } else {
+          setSetupStatus('Your unfinished setup draft is restored.');
+        }
         setSetupErrors([]);
-        setSetupStep(0);
-        setSetupStatus('Review all five steps before activating this personal project.');
       } catch (error) {
         setSetupDraft(null);
         setSetupErrors([
@@ -1224,7 +1436,7 @@ export function LaunchIntegratedApp() {
       return;
     }
     navigate('export');
-  }, [data, navigate]);
+  }, [data, navigate, saveSetupDraft, setupDraft]);
 
   const activateProject = useCallback(async () => {
     if (!setupDraft || setupActivationInFlightRef.current) return;
@@ -1240,6 +1452,7 @@ export function LaunchIntegratedApp() {
       'Los',
     );
     setSetupDraft(attemptDraft);
+    saveSetupDraft(attemptDraft, setupStep);
     const prepared = prepareProjectActivation(
       adaptAppDataForTrackA(data),
       attemptDraft,
@@ -1260,6 +1473,7 @@ export function LaunchIntegratedApp() {
 
     if (!result.ok) {
       setSetupDraft(result.retry.draft);
+      saveSetupDraft(result.retry.draft, setupStep);
       setSetupErrors(result.errors);
       setSetupStatus('The setup remains available to retry. No activation receipt was created.');
       setupActivationInFlightRef.current = false;
@@ -1268,19 +1482,31 @@ export function LaunchIntegratedApp() {
     }
 
     setData(result.data as AppData);
+    setupDraftStore?.clear(setupDraftOwnerKey);
     setSetupStatus('Personal project activated and saved on this device.');
+    setupActivationCommittedRef.current = true;
     setupActivationInFlightRef.current = false;
     setSetupBusy(false);
     navigate('dashboard');
-  }, [data, navigate, setData, setupDraft]);
+  }, [
+    data,
+    navigate,
+    saveSetupDraft,
+    setData,
+    setupDraft,
+    setupDraftOwnerKey,
+    setupDraftStore,
+    setupStep,
+  ]);
 
   const requestSignOut = useCallback(() => {
     if (!sync.enabled) {
       setMoreStatus('This device is in local-only mode, so there is no Turn OS account session to end.');
       return;
     }
+    setupDraftStore?.clear(setupDraftOwnerKey);
     void sync.signOut();
-  }, [sync]);
+  }, [setupDraftOwnerKey, setupDraftStore, sync]);
 
   const navigateBoardHost = useCallback((request: BoardFirstHostNavigationRequest) => {
     const destinationView = {
@@ -1700,6 +1926,34 @@ export function LaunchIntegratedApp() {
           onBack={() => navigate('dashboard')}
           onOpenRecord={(record: NativeHomeRecord) => openDestination(record.destinationId)}
         />
+      ) : homeMode === 'start-day' ? (
+        activeProject?.fieldConfiguration ? (
+          <FastStartDayFlow
+            configuration={activeProject.fieldConfiguration}
+            contacts={activeProjectContacts}
+            crewOptions={fastStartDayCrewOptions}
+            currentDate={currentDate}
+            onCancel={() => setHomeMode('day')}
+            onStartDay={startFastDay}
+            projectId={activeProject.id}
+            propertyName={propertyRoster.propertyName}
+            rosterUnits={fastStartDayRosterUnits}
+          />
+        ) : (
+          <NativeDetailShell
+            description="Activate Project Setup before recording a Day Session."
+            onBack={() => setHomeMode('day')}
+            statusLabel="Nothing was changed"
+            title="Start Day unavailable"
+          >
+            <div className="lcc-host-alert lcc-host-alert--error" role="alert">
+              <AlertTriangle aria-hidden="true" size={18} />
+              <span>
+                The active personal project does not have a confirmed field configuration.
+              </span>
+            </div>
+          </NativeDetailShell>
+        )
       ) : homeMode === 'manual-release' ? (
         <ManualReleaseReview
           actor="Los"
@@ -1718,7 +1972,7 @@ export function LaunchIntegratedApp() {
           currentDate={currentDate}
           events={dayEvents}
           existingSessions={daySessions}
-          initialView={homeMode === 'start-day' ? 'start-day' : 'home'}
+          initialView="home"
           initialSession={activeDaySession}
           initialTask={todayTask}
           onDayStateChange={(change) => {
@@ -1740,6 +1994,7 @@ export function LaunchIntegratedApp() {
             undefined,
             { homeSummary: 'today-task' },
           )}
+          onRequestStartDay={() => setHomeMode('start-day')}
           propertyRoster={propertyRoster}
           releases={dailyReleases}
           queueCounts={canonicalProjectionResult.projection?.todayTask.queueCounts}
@@ -1916,17 +2171,32 @@ export function LaunchIntegratedApp() {
           onActivate={() => {
             void activateProject();
           }}
-          onAddContact={() => setSetupDraft((current) => current
-            ? addProjectContact(current, createId('property-contact'), nowISO())
-            : current)}
+          onAddContact={() => {
+            if (!setupDraft) return;
+            const nextDraft = addProjectContact(
+              setupDraft,
+              createId('property-contact'),
+              nowISO(),
+            );
+            setSetupDraft(nextDraft);
+            saveSetupDraft(nextDraft, setupStep);
+          }}
           onDraftChange={(draft) => {
             setSetupDraft(draft);
+            saveSetupDraft(draft, setupStep);
             setSetupErrors([]);
           }}
-          onRemoveContact={(contactId) => setSetupDraft((current) => current
-            ? removeProjectContact(current, contactId)
-            : current)}
-          onStepChange={setSetupStep}
+          onExit={() => navigate('more')}
+          onRemoveContact={(contactId) => {
+            if (!setupDraft) return;
+            const nextDraft = removeProjectContact(setupDraft, contactId);
+            setSetupDraft(nextDraft);
+            saveSetupDraft(nextDraft, setupStep);
+          }}
+          onStepChange={(nextStep) => {
+            setSetupStep(nextStep);
+            if (setupDraft) saveSetupDraft(setupDraft, nextStep);
+          }}
         />
       ) : (
         <NativeDetailShell
@@ -1969,6 +2239,12 @@ export function LaunchIntegratedApp() {
 
   const shellDetailMode = route.view === 'search'
     || route.view === 'notifications'
+    || route.view === 'setup'
+    || route.view === 'unitDetail'
+    || route.view === 'assignments'
+    || route.fieldWorkflow === 'walk'
+    || (route.view === 'dashboard' && homeMode !== 'day')
+    || (route.view === 'crews' && Boolean(route.crewId))
     || Boolean(moreDetailPage)
     || Boolean(crewEditor);
 
@@ -1987,6 +2263,7 @@ export function LaunchIntegratedApp() {
           || moreDetailPage === 'privacy'
         }
         contentDialogOpen={boardDialogOpen || trackCDialogOpen}
+        contentOwnsMain={route.view === 'search' || route.view === 'notifications'}
         contentTitle={contentTitle}
         contentScrollRestoration={{
           key: currentRouteKey,

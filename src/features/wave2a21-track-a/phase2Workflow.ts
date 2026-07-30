@@ -60,6 +60,17 @@ export interface DailyReleaseDraft {
   readonly tradeChoice: DailyReleaseTradeChoice;
 }
 
+export type ExactUnitSelectionResult =
+  | {
+      readonly ok: true;
+      readonly unitIds: readonly string[];
+      readonly unitNumbers: readonly string[];
+    }
+  | {
+      readonly ok: false;
+      readonly errors: readonly string[];
+    };
+
 export interface PreparedDailyReleaseItem {
   readonly exception?: DailyReleaseExceptionKind;
   readonly restriction?: string;
@@ -254,6 +265,58 @@ export const createDailyReleaseDraft = (
   selectedUnitIds: [],
   tradeChoice,
 });
+
+export function resolveExactUnitNumberSelection(
+  source: string,
+  rosterUnits: readonly ProjectRosterUnitOption[],
+): ExactUnitSelectionResult {
+  const unitNumbers = source
+    .split(/[\s,]+/u)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (unitNumbers.length === 0) {
+    return {
+      errors: ['Enter one or more exact Unit numbers separated by commas, spaces, or new lines.'],
+      ok: false,
+    };
+  }
+
+  const duplicateInput = unique(
+    unitNumbers.filter((unitNumber, index) =>
+      unitNumbers.indexOf(unitNumber) !== index),
+  );
+  const rosterByUnitNumber = new Map<string, ProjectRosterUnitOption[]>();
+  for (const unit of rosterUnits) {
+    const matches = rosterByUnitNumber.get(unit.unitNumber) ?? [];
+    matches.push(unit);
+    rosterByUnitNumber.set(unit.unitNumber, matches);
+  }
+  const unmatched = unique(unitNumbers.filter((unitNumber) =>
+    !rosterByUnitNumber.has(unitNumber)),
+  );
+  const ambiguous = unique(unitNumbers.filter((unitNumber) =>
+    (rosterByUnitNumber.get(unitNumber)?.length ?? 0) > 1),
+  );
+  const errors: string[] = [];
+  if (duplicateInput.length > 0) {
+    errors.push(`Duplicate Unit numbers: ${duplicateInput.join(', ')}.`);
+  }
+  if (unmatched.length > 0) {
+    errors.push(`Not in the current Property roster: ${unmatched.join(', ')}.`);
+  }
+  if (ambiguous.length > 0) {
+    errors.push(`Unit numbers are not unique in the current Property roster: ${ambiguous.join(', ')}.`);
+  }
+  if (errors.length > 0) return { errors, ok: false };
+
+  const exactUnitNumbers = unique(unitNumbers);
+  return {
+    ok: true,
+    unitIds: exactUnitNumbers.map((unitNumber) =>
+      rosterByUnitNumber.get(unitNumber)![0].id),
+    unitNumbers: exactUnitNumbers,
+  };
+}
 
 export function createFastStartDayDraft(input: {
   readonly configuration: ProjectConfiguration;

@@ -46,7 +46,11 @@ const assertNoHorizontalOverflow = async (page, label) => {
   );
 };
 
-const assertLaunchShell = async (page, label) => {
+const assertLaunchShell = async (
+  page,
+  label,
+  { navigationVisible = true } = {},
+) => {
   assert.equal(
     await page.locator('[data-testid="launch-command-center-shell"]').count(),
     1,
@@ -54,10 +58,20 @@ const assertLaunchShell = async (page, label) => {
   );
   assert.equal(await page.locator('.app-shell').count(), 0, `${label} exposed the legacy app shell.`);
   assert.equal(await page.getByRole('main').count(), 1, `${label} did not expose one main landmark.`);
-  assert.deepEqual(
-    await page.getByRole('navigation', { name: 'Primary' }).getByRole('button').allTextContents(),
-    ['Home', 'TurnBoard', 'Plus', 'Activity', 'More'],
-  );
+  const navigation = page.getByRole('navigation', { name: 'Primary' });
+  if (navigationVisible) {
+    assert.deepEqual(
+      await navigation.getByRole('button').allTextContents(),
+      ['Home', 'TurnBoard', 'Plus', 'Activity', 'More'],
+    );
+  } else {
+    assert.equal(await navigation.count(), 0, `${label} exposed root navigation in a focused flow.`);
+    assert.equal(
+      await page.locator('nav[aria-label="Primary"]').getAttribute('hidden'),
+      '',
+      `${label} did not hide root navigation.`,
+    );
+  }
 };
 
 const assertVisibleFormControlsAtLeast16 = async (page, label) => {
@@ -130,7 +144,7 @@ try {
       .getByRole('button', { name: 'TurnBoard', exact: true })
       .click();
     await page
-      .getByRole('heading', { name: 'TurnBoard companion', exact: true })
+      .getByRole('heading', { name: 'TurnBoard', exact: true })
       .waitFor();
     await assertLaunchShell(page, `${target.name} TurnBoard`);
     await assertNoHorizontalOverflow(page, `${target.name} TurnBoard`);
@@ -280,7 +294,7 @@ try {
 
   await page.goto(`${baseUrl}/#/assignments`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Assign Crews', exact: true }).waitFor();
-  await assertLaunchShell(page, 'Assign Crews');
+  await assertLaunchShell(page, 'Assign Crews', { navigationVisible: false });
   await assertNoHorizontalOverflow(page, 'Assign Crews');
   assert.equal(
     await page.locator('.lcc-unified-tool-content .page-title:visible').count(),

@@ -4,6 +4,8 @@ import type {
   ProjectConfiguration,
   PropertyContact,
   TrackAProject,
+  TrackASetupCrew,
+  TrackASetupUnit,
 } from '../wave2a21-track-a';
 
 const projectContacts = (
@@ -25,6 +27,51 @@ const defaultCrewIds = (
     && crew.active
     && crew.trade === trade)
   .map((crew) => crew.id);
+
+const personalProjectId = (activatedAt: string) =>
+  `project-personal-${activatedAt.replace(/[^0-9A-Za-z]/g, '')}`;
+
+const existingSetupCrews = (
+  data: Readonly<AppData>,
+  projectId: string,
+): readonly TrackASetupCrew[] => data.crewMembers
+  .filter((crew) =>
+    crew.projectId === projectId
+    && (crew.trade === 'Painter' || crew.trade === 'Cleaner'))
+  .map((crew) => ({
+    active: crew.active,
+    id: crew.id,
+    name: crew.name,
+    phone: crew.phone || undefined,
+    projectId,
+    trade: crew.trade === 'Painter' ? 'paint' : 'clean',
+  }));
+
+const existingSetupUnits = (
+  data: Readonly<AppData>,
+  projectId: string,
+): readonly TrackASetupUnit[] => {
+  const buildingNames = new Map(
+    data.buildings
+      .filter((building) => building.projectId === projectId)
+      .map((building) => [building.id, building.name]),
+  );
+  const floorNames = new Map(
+    data.floors
+      .filter((floor) => buildingNames.has(floor.buildingId))
+      .map((floor) => [floor.id, floor.name]),
+  );
+  return data.units
+    .filter((unit) => unit.projectId === projectId)
+    .map((unit) => ({
+      building: buildingNames.get(unit.buildingId) ?? 'Building',
+      floor: floorNames.get(unit.floorId) ?? 'Floor',
+      id: unit.id,
+      projectId,
+      unitNumber: unit.unitNumber,
+      unitType: Math.min(5, Math.max(1, unit.bedCount)) as 1 | 2 | 3 | 4 | 5,
+    }));
+};
 
 const safePermissions: ProjectConfiguration['permissions'] = {
   officialApprovals: false,
@@ -58,14 +105,37 @@ export function createProjectActivationDraft(
     throw new Error('The active personal project is unavailable.');
   }
 
-  const existingConfiguration = project.fieldConfiguration;
-  const existingContacts = projectContacts(data, project.id);
+  const startsFromDemo = project.mode === 'demo';
+  const projectId = startsFromDemo ? personalProjectId(activatedAt) : project.id;
+  const draftProject: TrackAProject = startsFromDemo
+    ? {
+        aiBudgetUsd: project.aiBudgetUsd,
+        createdAt: activatedAt,
+        endDate: '',
+        estimatedBeds: 0,
+        estimatedBuildings: 0,
+        estimatedCommonAreas: 0,
+        estimatedUnits: 0,
+        id: projectId,
+        location: '',
+        mode: 'real',
+        name: '',
+        notes: '',
+        projectManagerName: '',
+        propertyName: '',
+        startDate: '',
+        supervisorName: activatedBy,
+        updatedAt: activatedAt,
+      }
+    : structuredClone(project) as TrackAProject;
+  const existingConfiguration = startsFromDemo ? undefined : project.fieldConfiguration;
+  const existingContacts = startsFromDemo ? [] : projectContacts(data, projectId);
   const fallbackContact: PropertyContact = {
     createdAt: activatedAt,
-    id: `property-contact:${project.id}:primary`,
+    id: `property-contact:${projectId}:primary`,
     isPrimary: true,
-    name: project.projectManagerName?.trim() ?? '',
-    projectId: project.id,
+    name: draftProject.projectManagerName?.trim() ?? '',
+    projectId,
     title: 'Property contact',
     updatedAt: activatedAt,
   };
@@ -86,15 +156,15 @@ export function createProjectActivationDraft(
         activatedAt,
         activatedBy,
         defaultCrewIdsByTrade: {
-          clean: defaultCrewIds(data, project.id, 'Cleaner'),
-          paint: defaultCrewIds(data, project.id, 'Painter'),
+          clean: startsFromDemo ? [] : defaultCrewIds(data, projectId, 'Cleaner'),
+          paint: startsFromDemo ? [] : defaultCrewIds(data, projectId, 'Painter'),
         },
         defaultPropertyContactId,
         defaultWalkthroughScheduleWording: '',
         defaultWorkingHoursWording: '',
         enabledTrades: { clean: true, paint: true },
         permissions: safePermissions,
-        projectId: project.id,
+        projectId,
         role: 'turn-supervisor',
         status: 'active',
         version: 1,
@@ -104,7 +174,9 @@ export function createProjectActivationDraft(
     configuration,
     confirmOverwrite: false,
     contacts,
-    project: structuredClone(project) as TrackAProject,
+    crews: startsFromDemo ? [] : existingSetupCrews(data, projectId),
+    project: draftProject,
+    units: startsFromDemo ? [] : existingSetupUnits(data, projectId),
   };
 }
 

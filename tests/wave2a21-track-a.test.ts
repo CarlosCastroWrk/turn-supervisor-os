@@ -56,6 +56,9 @@ import {
   clampProjectSetupStep,
 } from '../src/features/wave2a21-track-a/projectSetup.ts';
 import {
+  createProjectSetupDraftStore,
+} from '../src/features/wave2a21-track-a/projectSetupDraft.ts';
+import {
   FAST_START_DAY_STEPS,
   availableDailyReleaseTradeChoices,
   clampFastStartDayStep,
@@ -66,6 +69,7 @@ import {
   defaultActiveCrewIds,
   prepareDailyReleasePlan,
   prepareFastStartDaySubmission,
+  resolveExactUnitNumberSelection,
   resolveProjectDefaultSchedule,
   setDailyReleaseException,
   setDailyReleaseUnitSelected,
@@ -412,10 +416,10 @@ test('Project Setup uses five authorized groups and stores native time controls 
     PROJECT_SETUP_STEPS.map((step) => step.label),
     [
       'Property',
-      'Contacts and schedule',
-      'Property roster',
-      'Crews and permissions',
-      'Review and activate',
+      'Contacts',
+      'Crews',
+      'Units',
+      'Review',
     ],
   );
   const source = createConfiguration();
@@ -494,6 +498,38 @@ test('Project Setup uses five authorized groups and stores native time controls 
   }
 });
 
+test('Project Setup autosave is owner-scoped, step-restorable, and fails closed for malformed data', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  const store = createProjectSetupDraftStore(storage);
+  const draft = createDraft({
+    project: { ...createProject(), propertyName: 'Moon Tower' },
+  });
+
+  assert.equal(store.write('account-los', draft, 3), true);
+  assert.deepEqual(store.read('account-los'), {
+    draft,
+    step: 3,
+    version: 1,
+  });
+  assert.equal(store.read('account-other'), undefined);
+
+  const key = [...values.keys()].find((candidate) =>
+    candidate.includes('account-los'));
+  assert.ok(key);
+  values.set(key, '{"version":1,"draft":{"project":null},"step":99}');
+  assert.equal(store.read('account-los'), undefined);
+  assert.equal(values.has(key), false);
+});
+
 test('Daily Release starts empty, defaults applicable sections only after Unit selection, and requires explicit review', () => {
   const initial = createDailyReleaseDraft('Both');
   assert.deepEqual(initial.selectedUnitIds, []);
@@ -550,6 +586,52 @@ test('Daily Release starts empty, defaults applicable sections only after Unit s
     2,
   );
   assert.deepEqual(initial, createDailyReleaseDraft('Both'));
+});
+
+test('exact Unit-number selection fails as one batch for duplicates, unknowns, or ambiguous roster matches', () => {
+  assert.deepEqual(
+    resolveExactUnitNumberSelection('101, 202', rosterUnits),
+    {
+      ok: true,
+      unitIds: ['unit-101', 'unit-202'],
+      unitNumbers: ['101', '202'],
+    },
+  );
+  assert.deepEqual(
+    resolveExactUnitNumberSelection('101\n202', rosterUnits),
+    {
+      ok: true,
+      unitIds: ['unit-101', 'unit-202'],
+      unitNumbers: ['101', '202'],
+    },
+  );
+
+  const duplicate = resolveExactUnitNumberSelection('101 101', rosterUnits);
+  assert.equal(duplicate.ok, false);
+  if (!duplicate.ok) {
+    assert.match(duplicate.errors.join(' '), /Duplicate Unit numbers: 101/u);
+  }
+
+  const unknown = resolveExactUnitNumberSelection('101, 999', rosterUnits);
+  assert.equal(unknown.ok, false);
+  if (!unknown.ok) {
+    assert.match(unknown.errors.join(' '), /Not in the current Property roster: 999/u);
+  }
+
+  const ambiguous = resolveExactUnitNumberSelection('101', [
+    ...rosterUnits,
+    { ...rosterUnits[0], id: 'unit-101-building-b' },
+  ]);
+  assert.equal(ambiguous.ok, false);
+  if (!ambiguous.ok) {
+    assert.match(
+      ambiguous.errors.join(' '),
+      /Unit numbers are not unique in the current Property roster: 101/u,
+    );
+  }
+
+  const empty = resolveExactUnitNumberSelection('  , \n ', rosterUnits);
+  assert.equal(empty.ok, false);
 });
 
 test('Daily Release respects enabled Paint/Clean scope and rejects stale roster confirmation', () => {
@@ -1366,8 +1448,8 @@ test('the five-step setup clamp fails closed to a renderable controlled step', (
     [
       'property',
       'contacts-schedule',
-      'property-roster',
       'crews-permissions',
+      'property-roster',
       'review-activate',
     ],
   );

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type {
   DailyReleaseDraft,
   DailyReleaseExceptionKind,
@@ -7,6 +8,7 @@ import {
   DAILY_RELEASE_EXCEPTION_KINDS,
   DAILY_RELEASE_EXCEPTION_LABELS,
   DAILY_RELEASE_TRADE_CHOICES,
+  resolveExactUnitNumberSelection,
   setDailyReleaseException,
   setDailyReleaseUnitSelected,
 } from './phase2Workflow';
@@ -30,8 +32,27 @@ export function DailyReleaseSelector({
   onChange,
   rosterUnits,
 }: DailyReleaseSelectorProps) {
+  const [exactUnitInput, setExactUnitInput] = useState('');
+  const [exactUnitErrors, setExactUnitErrors] = useState<readonly string[]>([]);
   const selectedUnits = rosterUnits.filter((unit) =>
     draft.selectedUnitIds.includes(unit.id));
+  const addExactUnits = () => {
+    const result = resolveExactUnitNumberSelection(exactUnitInput, rosterUnits);
+    if (!result.ok) {
+      setExactUnitErrors(result.errors);
+      return;
+    }
+    setExactUnitErrors([]);
+    onChange({
+      ...draft,
+      explicitConfirmation: false,
+      selectedUnitIds: [...new Set([
+        ...draft.selectedUnitIds,
+        ...result.unitIds,
+      ])],
+    });
+    setExactUnitInput('');
+  };
 
   return (
     <div className="w2a21a-release" data-daily-release-selector="true">
@@ -69,28 +90,67 @@ export function DailyReleaseSelector({
             <p>Return to Project Setup and review the Property roster.</p>
           </div>
         ) : (
-          <div className="w2a21a-release__unit-list">
-            {rosterUnits.map((unit) => (
-              <label className="w2a21a-release__unit" key={unit.id}>
-                <input
-                  checked={draft.selectedUnitIds.includes(unit.id)}
-                  onChange={(event) => onChange(setDailyReleaseUnitSelected(
-                    draft,
-                    unit.id,
-                    event.target.checked,
-                  ))}
-                  type="checkbox"
+          <div className="w2a21a-release__selection">
+            <section className="w2a21a-release__exact">
+              <label>
+                Exact Unit numbers
+                <textarea
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  onChange={(event) => {
+                    setExactUnitInput(event.target.value);
+                    setExactUnitErrors([]);
+                  }}
+                  placeholder="101, 102, 103"
+                  spellCheck={false}
+                  value={exactUnitInput}
                 />
-                <span>
-                  <strong>Unit {unit.unitNumber}</strong>
-                  <small>
-                    {unit.unitType} · {unit.applicableSections.length} applicable {
-                      unit.applicableSections.length === 1 ? 'section' : 'sections'
-                    }
-                  </small>
-                </span>
               </label>
-            ))}
+              <button
+                disabled={!exactUnitInput.trim()}
+                onClick={addExactUnits}
+                type="button"
+              >
+                Add exact Units
+              </button>
+              <p>
+                Exact roster matches only. Any duplicate, unknown, or ambiguous Unit stops the whole add.
+              </p>
+              {exactUnitErrors.length > 0 ? (
+                <div className="w2a21a-setup__errors" role="alert">
+                  <strong>No Units were added.</strong>
+                  <ul>{exactUnitErrors.map((error) => <li key={error}>{error}</li>)}</ul>
+                </div>
+              ) : null}
+            </section>
+            <details className="w2a21a-release__known">
+              <summary>
+                Review known Units <span>{draft.selectedUnitIds.length} selected</span>
+              </summary>
+              <div className="w2a21a-release__unit-list">
+                {rosterUnits.map((unit) => (
+                  <label className="w2a21a-release__unit" key={unit.id}>
+                    <input
+                      checked={draft.selectedUnitIds.includes(unit.id)}
+                      onChange={(event) => onChange(setDailyReleaseUnitSelected(
+                        draft,
+                        unit.id,
+                        event.target.checked,
+                      ))}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>Unit {unit.unitNumber}</strong>
+                      <small>
+                        {unit.unitType} · {unit.applicableSections.length} applicable {
+                          unit.applicableSections.length === 1 ? 'section' : 'sections'
+                        }
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </details>
           </div>
         )}
       </fieldset>

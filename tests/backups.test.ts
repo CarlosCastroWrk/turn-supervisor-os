@@ -533,7 +533,7 @@ test('Field Event reversal history cannot cross Day Session boundaries', () => {
   assert.doesNotThrow(() => parseJsonBackup(JSON.stringify(sameSessionReversal)));
 });
 
-test('property-accepted walk outcomes require current same-session Los-pass evidence', () => {
+test('property-accepted walk outcomes require current same-session Los inspection evidence', () => {
   const missingLosPass = withLocalFieldState();
   missingLosPass.fieldEvents = [];
 
@@ -548,12 +548,30 @@ test('property-accepted walk outcomes require current same-session Los-pass evid
 
   assert.throws(
     () => parseJsonBackup(JSON.stringify(missingLosPass)),
-    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los-pass event from the same Day Session/,
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los inspection pass from the same Day Session/,
   );
   assert.throws(
     () => parseJsonBackup(JSON.stringify(crossSessionLosPass)),
-    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los-pass event from the same Day Session/,
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los inspection pass from the same Day Session/,
   );
+});
+
+test('active Walk outcomes remain recoverable drafts and callback reinspection can support closure', () => {
+  const activeDraft = withLocalFieldState();
+  activeDraft.walkSessions[0] = {
+    ...activeDraft.walkSessions[0],
+    endedAt: undefined,
+    status: 'active',
+  };
+  assert.doesNotThrow(() => parseJsonBackup(JSON.stringify(activeDraft)));
+
+  const passedAfterCallback = withLocalFieldState();
+  passedAfterCallback.fieldEvents = [{
+    ...passedAfterCallback.fieldEvents[0],
+    eventType: 'callback-resolved',
+    summary: 'Los passed reinspection after the correction.',
+  }];
+  assert.doesNotThrow(() => parseJsonBackup(JSON.stringify(passedAfterCallback)));
 });
 
 test('property-accepted walk outcomes reject blocked or already-accepted scope', () => {
@@ -595,7 +613,7 @@ test('property-accepted walk outcomes reject blocked or already-accepted scope',
 
   assert.throws(
     () => parseJsonBackup(JSON.stringify(blockedAfterLosPass)),
-    /walkSessions\.0\.outcomes\.0\.outcome.*requires the selected scope to be unblocked after Los pass/,
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires the selected scope to be unblocked after Los inspection/,
   );
   assert.throws(
     () => parseJsonBackup(JSON.stringify(alreadyAccepted)),

@@ -873,6 +873,23 @@ export function projectTrackCState(data: AppData): TrackCState {
       if (selectedTargets.length !== walk.selectedItemIds.length) return undefined;
       const storedWalkState = parseStoredTrackCWalkState(walk.note);
       const storedOutcomes = keyedStoredWalkOutcomes(storedWalkState?.outcomes);
+      const persistedOutcomes = walk.status === 'active' && storedWalkState?.outcomes
+        ? storedWalkState.outcomes
+        : walk.outcomes.map((outcome) => {
+            const item = releaseItems.byId.get(outcome.selectedItemId);
+            if (!item) return undefined;
+            const target = {
+              section: item.section,
+              trade: item.trade,
+              unitId: item.unitId,
+            };
+            const note = storedOutcomes.get(trackCWorkKey(target))?.note;
+            return {
+              outcome: outcome.outcome,
+              target,
+              ...(note ? { note } : {}),
+            };
+          }).filter((outcome): outcome is TrackCWalkOutcomeRecord => Boolean(outcome));
       const reviewedSelections = storedWalkState?.reviewedSelections
         ?? selectedTargets
           .map((target) => reviewedSelectionFromState(stateWithoutWalks, target))
@@ -881,21 +898,7 @@ export function projectTrackCState(data: AppData): TrackCState {
       return {
         endedAt: walk.endedAt,
         id: walk.id,
-        outcomes: walk.outcomes.map((outcome) => {
-          const item = releaseItems.byId.get(outcome.selectedItemId);
-          if (!item) return undefined;
-          const target = {
-            section: item.section,
-            trade: item.trade,
-            unitId: item.unitId,
-          };
-          const note = storedOutcomes.get(trackCWorkKey(target))?.note;
-          return {
-            outcome: outcome.outcome,
-            target,
-            ...(note ? { note } : {}),
-          };
-        }).filter((outcome): outcome is TrackCWalkOutcomeRecord => Boolean(outcome)),
+        outcomes: persistedOutcomes,
         propertyContact: walk.propertyContact,
         reviewedSelections,
         selectedTargets,
@@ -955,7 +958,7 @@ const persistWalk = (
     if (!item) throw new Error('Walk target is not in the active confirmed release.');
     return item.id;
   });
-  const outcomes = (walk.outcomes ?? []).map((outcome) => {
+  const outcomes = walk.status === 'active' ? [] : (walk.outcomes ?? []).map((outcome) => {
     const item = releaseItems.byTarget.get(trackCWorkKey(outcome.target));
     if (!item) throw new Error('Walk outcome is not in the active confirmed release.');
     return { outcome: outcome.outcome, selectedItemId: item.id };
@@ -1031,15 +1034,13 @@ export function applyTrackCWalkDraftChange(
       outcomes: draftOutcomes,
       ...(draft ? { draft } : {}),
     }),
-    outcomes: outcomes.filter(
-      (outcome): outcome is NonNullable<typeof outcome> => Boolean(outcome),
-    ),
+    outcomes: [],
     updatedAt: draft?.updatedAt ?? activeWalk.updatedAt,
   };
   if (
     nextWalk.note === activeWalk.note
     && nextWalk.updatedAt === activeWalk.updatedAt
-    && JSON.stringify(nextWalk.outcomes) === JSON.stringify(activeWalk.outcomes)
+    && activeWalk.outcomes.length === 0
   ) {
     return data;
   }

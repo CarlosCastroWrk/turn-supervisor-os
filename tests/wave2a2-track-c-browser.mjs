@@ -194,7 +194,7 @@ try {
     const findings = attachRuntimeChecks(page);
 
     await page.goto(`${baseUrl}${previewPath}`, { waitUntil: 'networkidle' });
-    await page.getByRole('heading', { name: 'TurnBoard companion' }).waitFor();
+    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
     assert.equal(await page.locator('[data-testid="track-c-unit-row"]').count(), 8);
     assert.equal(
       await page.locator('[data-unit-id="unit-301"] strong').first().textContent(),
@@ -244,7 +244,7 @@ try {
     waitUntil: 'networkidle',
   });
   await scalePage
-    .getByRole('heading', { name: 'TurnBoard companion' })
+    .getByRole('heading', { name: 'TurnBoard', exact: true })
     .waitFor();
   const scaleRenderMs = performance.now() - scaleRenderStartedAt;
   assert.equal(
@@ -477,6 +477,39 @@ try {
   await proposal.getByRole('button', { name: 'Confirm personal assignment' }).click();
   await page.getByText(/3 personal assignment records saved/).waitFor();
 
+  await page.getByRole('button', { name: 'Clean', exact: true }).click();
+  await page.getByLabel('Compatible crew').selectOption('crew-cedar-clean');
+  await page.getByRole('button', { name: 'Review personal proposal' }).click();
+  await proposal.waitFor();
+  assert.equal(await proposal.getByText(/3 eligible/).count(), 1);
+  await proposal.getByRole('button', { name: 'Confirm personal assignment' }).click();
+  await page.getByText(/3 personal assignment records saved/).waitFor();
+
+  await navigation.getByRole('button', { name: 'TurnBoard' }).click();
+  await page.getByRole('button', { name: 'Open Unit 707' }).click();
+  await unitDetail.getByRole('heading', { name: 'Unit 707' }).waitFor();
+  for (const [tradeClass, tradeLabel] of [
+    ['is-paint', 'Paint'],
+    ['is-clean', 'Clean'],
+  ]) {
+    const panel = unitDetail.locator(`.track-c-trade-panel.${tradeClass}`);
+    await panel.getByRole('button', {
+      name: `Crew reports ${tradeLabel} complete`,
+      exact: true,
+    }).click();
+    const rows = panel.locator('.track-c-section-row');
+    assert.equal(await rows.count(), 3);
+    for (let index = 0; index < 3; index += 1) {
+      const row = rows.nth(index);
+      await row.locator('.track-c-section-row__trigger').press('Enter');
+      await row.getByRole('button', {
+        name: 'Record Los pass',
+        exact: true,
+      }).click();
+    }
+  }
+  await unitDetail.getByRole('button', { name: 'Back to compact TurnBoard' }).click();
+
   await navigation.getByRole('button', { name: 'Walk' }).click();
   await page
     .getByLabel('Property Contact')
@@ -518,7 +551,7 @@ try {
     .getByLabel('Optional note')
     .fill('Touch-up requested behind the door.');
   await navigation.getByRole('button', { name: 'TurnBoard' }).click();
-  await page.getByRole('heading', { name: 'TurnBoard companion' }).waitFor();
+  await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
   await navigation.getByRole('button', { name: 'Walk' }).click();
   await page.getByRole('heading', { name: 'Active Walk' }).waitFor();
   assert.match(page.url(), /#\/walk\/track-c-walk[_-]/u);
@@ -564,7 +597,7 @@ try {
   );
   assert.equal(
     await page.getByText('Accepted during the walkthrough.').count(),
-    1,
+    3,
   );
   await page
     .getByRole('button', { name: 'Open official Turn Sign-Off' })
@@ -577,7 +610,12 @@ try {
   await page.getByRole('heading', { name: 'Active Walk' }).waitFor();
   await page.getByRole('button', { name: 'Review End Walk' }).click();
   await page.getByRole('button', { name: 'End Walk', exact: true }).click();
-  await page.getByRole('heading', { name: 'Latest walk' }).waitFor();
+  const latestWalkHeading = page.getByRole('heading', { name: 'Latest walk' });
+  try {
+    await latestWalkHeading.waitFor({ timeout: 2_000 });
+  } catch {
+    assert.fail(`End Walk failed. Rendered page:\n${await page.locator('body').innerText()}`);
+  }
   assert.equal(
     await page.evaluate(() =>
       window.__trackCPreview?.walkLifecycleEvents.at(-1)?.type),

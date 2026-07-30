@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import type { FieldEvent } from '../../types';
+import type {
+  Building,
+  CrewMember,
+  FieldEvent,
+  Floor,
+  Unit,
+} from '../../types';
 import type {
   PreparedProjectActivation,
   ProjectActivationDraft,
@@ -9,6 +15,8 @@ import type {
   PropertyContact,
   TrackAAppData,
   TrackAProject,
+  TrackASetupCrew,
+  TrackASetupUnit,
 } from './contracts';
 import { PROPERTY_CONTACT_ROLES } from './contracts';
 import { resolveProjectDefaultSchedule } from './phase2Workflow';
@@ -28,9 +36,12 @@ const stableJson = (value: unknown) => JSON.stringify(value, (_key, candidate) =
 const activationFingerprint = (
   project: TrackAProject,
   contacts: readonly PropertyContact[],
+  crews: readonly TrackASetupCrew[],
+  units: readonly TrackASetupUnit[],
 ) => stableJson({
   configuration: project.fieldConfiguration,
   contacts: [...contacts].sort((left, right) => left.id.localeCompare(right.id)),
+  crews: [...crews].sort((left, right) => left.id.localeCompare(right.id)),
   project: {
     aiBudgetUsd: project.aiBudgetUsd,
     endDate: project.endDate,
@@ -48,6 +59,7 @@ const activationFingerprint = (
     startDate: project.startDate,
     supervisorName: project.supervisorName,
   },
+  units: [...units].sort((left, right) => left.id.localeCompare(right.id)),
 });
 
 const validateProject = (project: TrackAProject): readonly string[] => {
@@ -149,6 +161,204 @@ const validateContacts = (draft: ProjectActivationDraft): readonly string[] => {
   return errors;
 };
 
+const validateCrews = (draft: ProjectActivationDraft): readonly string[] => {
+  if (draft.crews === undefined) return [];
+  const crews = draft.crews ?? [];
+  const errors: string[] = [];
+  if (!unique(crews.map((crew) => crew.id))) {
+    errors.push('Crew IDs must be unique.');
+  }
+  for (const crew of crews) {
+    if (crew.projectId !== draft.project.id) {
+      errors.push(`Crew ${crew.id || '(missing ID)'} belongs to another project.`);
+    }
+    if (!nonEmpty(crew.id) || !nonEmpty(crew.name)) {
+      errors.push('Every crew requires an ID and name.');
+    }
+  }
+  for (const trade of ['paint', 'clean'] as const) {
+    if (
+      draft.configuration.enabledTrades[trade]
+      && !crews.some((crew) => crew.active && crew.trade === trade)
+    ) {
+      errors.push(`At least one active ${trade === 'paint' ? 'Paint' : 'Clean'} crew is required.`);
+    }
+    const configuredIds = draft.configuration.defaultCrewIdsByTrade[trade];
+    if (configuredIds.some((crewId) =>
+      !crews.some((crew) =>
+        crew.id === crewId && crew.active && crew.trade === trade))) {
+      errors.push(`Default ${trade === 'paint' ? 'Paint' : 'Clean'} crews must match active setup crews.`);
+    }
+  }
+  return errors;
+};
+
+const validateUnits = (draft: ProjectActivationDraft): readonly string[] => {
+  if (draft.units === undefined) return [];
+  const units = draft.units ?? [];
+  const errors: string[] = [];
+  if (units.length === 0) {
+    return ['At least one Unit is required in the property roster.'];
+  }
+  if (!unique(units.map((unit) => unit.id))) {
+    errors.push('Unit IDs must be unique.');
+  }
+  if (!unique(units.map((unit) => unit.unitNumber.trim().toLocaleLowerCase()))) {
+    errors.push('Unit numbers must be unique within this personal project.');
+  }
+  for (const unit of units) {
+    if (unit.projectId !== draft.project.id) {
+      errors.push(`Unit ${unit.id || '(missing ID)'} belongs to another project.`);
+    }
+    if (
+      !nonEmpty(unit.id)
+      || !nonEmpty(unit.unitNumber)
+      || !nonEmpty(unit.building)
+      || !nonEmpty(unit.floor)
+    ) {
+      errors.push('Every Unit requires an ID, number, building, and floor.');
+    }
+    if (![1, 2, 3, 4, 5].includes(unit.unitType)) {
+      errors.push(`Unit ${unit.unitNumber || '(missing number)'} has an unsupported Unit type.`);
+    }
+  }
+  return errors;
+};
+
+const setupCrewsFromData = (
+  data: Readonly<TrackAAppData>,
+  projectId: string,
+): readonly TrackASetupCrew[] => data.crewMembers
+  .filter((crew) =>
+    crew.projectId === projectId
+    && (crew.trade === 'Painter' || crew.trade === 'Cleaner'))
+  .map((crew) => ({
+    active: crew.active,
+    id: crew.id,
+    name: crew.name,
+    phone: crew.phone || undefined,
+    projectId,
+    trade: crew.trade === 'Painter' ? 'paint' : 'clean',
+  }));
+
+const setupUnitsFromData = (
+  data: Readonly<TrackAAppData>,
+  projectId: string,
+): readonly TrackASetupUnit[] => {
+  const buildingNames = new Map(
+    data.buildings
+      .filter((building) => building.projectId === projectId)
+      .map((building) => [building.id, building.name]),
+  );
+  const floorNames = new Map(
+    data.floors
+      .filter((floor) => buildingNames.has(floor.buildingId))
+      .map((floor) => [floor.id, floor.name]),
+  );
+  return data.units
+    .filter((unit) => unit.projectId === projectId)
+    .map((unit) => ({
+      building: buildingNames.get(unit.buildingId) ?? 'Building',
+      floor: floorNames.get(unit.floorId) ?? 'Floor',
+      id: unit.id,
+      projectId,
+      unitNumber: unit.unitNumber,
+      unitType: Math.min(5, Math.max(1, unit.bedCount)) as 1 | 2 | 3 | 4 | 5,
+    }));
+};
+
+const stableEntityPart = (value: string) =>
+  encodeURIComponent(value.trim().toLocaleLowerCase());
+
+const candidateSetupRecords = (
+  draft: ProjectActivationDraft,
+): {
+  readonly buildings: readonly Building[];
+  readonly crews: readonly CrewMember[];
+  readonly floors: readonly Floor[];
+  readonly units: readonly Unit[];
+} => {
+  const recordedAt = draft.configuration.activatedAt;
+  const buildingByName = new Map<string, Building>();
+  const floorByKey = new Map<string, Floor>();
+  for (const setupUnit of draft.units ?? []) {
+    const buildingKey = setupUnit.building.trim().toLocaleLowerCase();
+    if (!buildingByName.has(buildingKey)) {
+      buildingByName.set(buildingKey, {
+        createdAt: recordedAt,
+        id: `${draft.project.id}:building:${stableEntityPart(setupUnit.building)}`,
+        name: setupUnit.building.trim(),
+        notes: '',
+        projectId: draft.project.id,
+        updatedAt: recordedAt,
+      });
+    }
+    const building = buildingByName.get(buildingKey);
+    if (!building) continue;
+    const floorKey = `${building.id}:${setupUnit.floor.trim().toLocaleLowerCase()}`;
+    if (!floorByKey.has(floorKey)) {
+      floorByKey.set(floorKey, {
+        buildingId: building.id,
+        createdAt: recordedAt,
+        id: `${building.id}:floor:${stableEntityPart(setupUnit.floor)}`,
+        name: setupUnit.floor.trim(),
+        notes: '',
+        updatedAt: recordedAt,
+      });
+    }
+  }
+  const units = (draft.units ?? []).map((setupUnit): Unit => {
+    const building = buildingByName.get(setupUnit.building.trim().toLocaleLowerCase());
+    const floor = building
+      ? floorByKey.get(`${building.id}:${setupUnit.floor.trim().toLocaleLowerCase()}`)
+      : undefined;
+    if (!building || !floor) {
+      throw new Error(`Unit ${setupUnit.unitNumber} could not resolve its building and floor.`);
+    }
+    return {
+      assignedCrewIds: [],
+      bathroomCount: setupUnit.unitType,
+      bedCount: setupUnit.unitType,
+      buildingId: building.id,
+      cleanStatus: 'Not Started',
+      createdAt: recordedAt,
+      floorId: floor.id,
+      flooringStatus: 'Not Applicable',
+      hasCommonArea: true,
+      id: setupUnit.id,
+      inspectionStatus: 'Not Started',
+      notes: '',
+      overallStatus: 'Not Started',
+      paintStatus: 'Not Started',
+      projectId: draft.project.id,
+      repairStatus: 'Not Applicable',
+      trashStatus: 'Not Applicable',
+      unitNumber: setupUnit.unitNumber.trim(),
+      updatedAt: recordedAt,
+    };
+  });
+  const crews = (draft.crews ?? []).map((crew): CrewMember => ({
+    active: crew.active,
+    assignedLocation: '',
+    company: '',
+    createdAt: recordedAt,
+    id: crew.id,
+    language: '',
+    name: crew.name.trim(),
+    notes: '',
+    phone: crew.phone?.trim() ?? '',
+    projectId: draft.project.id,
+    trade: crew.trade === 'paint' ? 'Painter' : 'Cleaner',
+    updatedAt: recordedAt,
+  }));
+  return {
+    buildings: [...buildingByName.values()],
+    crews,
+    floors: [...floorByKey.values()],
+    units,
+  };
+};
+
 const projectActivationEvent = (draft: ProjectActivationDraft): FieldEvent => ({
   actorId: draft.configuration.activatedBy,
   actorType: 'los',
@@ -194,6 +404,24 @@ export function prepareProjectActivation(
       errors: contactErrors,
     };
   }
+  const crewErrors = validateCrews(draft);
+  if (crewErrors.length > 0) {
+    return {
+      ok: false,
+      stage: 'preparation',
+      code: 'invalid-configuration',
+      errors: crewErrors,
+    };
+  }
+  const unitErrors = validateUnits(draft);
+  if (unitErrors.length > 0) {
+    return {
+      ok: false,
+      stage: 'preparation',
+      code: 'invalid-project',
+      errors: unitErrors,
+    };
+  }
 
   const matchingProjects = data.projects.filter((project) => project.id === draft.project.id);
   if (matchingProjects.length > 1) {
@@ -215,9 +443,33 @@ export function prepareProjectActivation(
     updatedAt: draft.configuration.activatedAt,
   };
   const candidateContacts = draft.contacts.map((contact) => structuredClone(contact));
+  let setupRecords: ReturnType<typeof candidateSetupRecords>;
+  try {
+    setupRecords = candidateSetupRecords(draft);
+  } catch (error) {
+    return {
+      ok: false,
+      stage: 'preparation',
+      code: 'invalid-project',
+      errors: [
+        error instanceof Error
+          ? error.message
+          : 'The property roster could not be prepared safely.',
+      ],
+    };
+  }
   const alreadyMatches = existingProject
-    ? activationFingerprint(existingProject, currentContacts)
-      === activationFingerprint(candidateProject, candidateContacts)
+    ? activationFingerprint(
+        existingProject,
+        currentContacts,
+        draft.crews === undefined ? [] : setupCrewsFromData(data, draft.project.id),
+        draft.units === undefined ? [] : setupUnitsFromData(data, draft.project.id),
+      ) === activationFingerprint(
+        candidateProject,
+        candidateContacts,
+        draft.crews ?? [],
+        draft.units ?? [],
+      )
     : false;
 
   if (existingProject && !alreadyMatches && !draft.confirmOverwrite) {
@@ -264,6 +516,10 @@ export function prepareProjectActivation(
   const retainedContacts = (next.propertyContacts ?? []).filter(
     (contact) => contact.projectId !== draft.project.id,
   );
+  const setupCrewIds = new Set(setupRecords.crews.map((crew) => crew.id));
+  const setupBuildingIds = new Set(setupRecords.buildings.map((building) => building.id));
+  const setupFloorIds = new Set(setupRecords.floors.map((floor) => floor.id));
+  const setupUnitIds = new Set(setupRecords.units.map((unit) => unit.id));
   return {
     ok: true,
     stage: 'prepared',
@@ -271,9 +527,25 @@ export function prepareProjectActivation(
     data: {
       ...next,
       activeProjectId: draft.project.id,
+      buildings: [
+        ...next.buildings.filter((building) => !setupBuildingIds.has(building.id)),
+        ...setupRecords.buildings,
+      ],
+      crewMembers: [
+        ...next.crewMembers.filter((crew) => !setupCrewIds.has(crew.id)),
+        ...setupRecords.crews,
+      ],
       fieldEvents: eventExists ? next.fieldEvents : [...next.fieldEvents, event],
+      floors: [
+        ...next.floors.filter((floor) => !setupFloorIds.has(floor.id)),
+        ...setupRecords.floors,
+      ],
       projects: nextProjects,
       propertyContacts: [...retainedContacts, ...candidateContacts],
+      units: [
+        ...next.units.filter((unit) => !setupUnitIds.has(unit.id)),
+        ...setupRecords.units,
+      ],
     },
     event,
     retry,

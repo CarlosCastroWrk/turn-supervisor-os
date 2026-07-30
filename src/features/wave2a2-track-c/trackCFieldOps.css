@@ -264,8 +264,8 @@
   display: grid;
   gap: 3px 8px;
   grid-template-columns: minmax(0, 1fr) auto 18px;
-  min-height: 116px;
-  padding: 8px 10px 8px 14px;
+  min-height: 92px;
+  padding: 7px 10px 7px 14px;
   position: relative;
   text-align: left;
   width: 100%;
@@ -315,7 +315,7 @@
   font-size: 11px;
   gap: 5px;
   grid-template-columns: 16px 34px minmax(76px, 1fr) auto;
-  min-height: 20px;
+  min-height: 18px;
   min-width: 0;
 }
 
@@ -376,7 +376,7 @@
 .track-c-unit-row__chevron {
   color: var(--track-c-muted);
   grid-column: 3;
-  grid-row: 1 / 5;
+  grid-row: 1 / 4;
 }
 
 .track-c-detail__header {
@@ -427,38 +427,12 @@
   padding: 0;
 }
 
-.track-c-applicable-strip {
-  align-items: center;
-  display: flex;
-  flex: 0 0 auto;
-  gap: 5px;
-  overflow-x: auto;
-  padding: 8px 12px 5px;
-}
-
-.track-c-applicable-strip span {
-  color: var(--track-c-muted);
-  font-size: 10px;
-  font-weight: 700;
-  margin-right: 2px;
-  text-transform: uppercase;
-}
-
-.track-c-applicable-strip strong {
-  background: var(--track-c-surface);
-  border: 1px solid var(--track-c-border);
-  border-radius: 999px;
-  font-size: 10px;
-  padding: 4px 7px;
-  white-space: nowrap;
-}
-
 .track-c-detail__truth {
   color: var(--track-c-muted);
   flex: 0 0 auto;
   font-size: 11px;
   line-height: 1.45;
-  margin: 2px 12px 9px;
+  margin: 8px 12px 9px;
 }
 
 .track-c-trade-panel {
@@ -485,39 +459,64 @@
 }
 
 .track-c-trade-panel > header h2 {
-  flex: 1 1 auto;
   font-size: 15px;
   margin: 0;
 }
 
-.track-c-trade-panel > header span {
+.track-c-trade-panel__identity {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.track-c-trade-panel__identity span,
+.track-c-trade-panel > header small {
   color: var(--track-c-muted);
   font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-c-trade-complete {
+  background: var(--track-c-blue-soft);
+  border: 0;
+  border-bottom: 1px solid var(--track-c-border);
+  color: var(--track-c-blue);
+  font-size: 11px;
+  font-weight: 800;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+  width: 100%;
 }
 
 .track-c-section-list {
   display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
+  padding: 8px;
 }
 
 .track-c-section-row {
-  border-bottom: 1px solid var(--track-c-border);
-}
-
-.track-c-section-row:last-child {
-  border-bottom: 0;
+  min-width: 0;
 }
 
 .track-c-section-row__trigger {
   align-items: center;
   background: var(--track-c-surface);
-  border: 0;
+  border: 1px solid var(--track-c-border);
+  border-radius: 12px;
   color: var(--track-c-text);
   display: grid;
-  gap: 8px;
-  grid-template-columns: 43px minmax(0, 1fr) 18px;
-  min-height: 58px;
-  padding: 6px 10px;
-  text-align: left;
+  gap: 3px;
+  grid-template-rows: auto auto;
+  justify-items: center;
+  min-height: 54px;
+  min-width: 0;
+  padding: 5px 3px;
+  position: relative;
+  text-align: center;
   width: 100%;
 }
 
@@ -528,31 +527,25 @@
 .track-c-section-row__section {
   align-items: center;
   background: var(--track-c-blue-soft);
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--track-c-blue);
   display: inline-flex;
-  font-size: 12px;
-  font-weight: 850;
-  height: 36px;
-  justify-content: center;
-  min-width: 36px;
-  padding: 0 6px;
-}
-
-.track-c-section-row__trigger > span:nth-child(2) {
-  display: grid;
-  min-width: 0;
-}
-
-.track-c-section-row__trigger strong {
-  font-size: 12px;
-  line-height: 1.25;
-}
-
-.track-c-section-row__trigger small {
-  color: var(--track-c-muted);
   font-size: 10px;
-  margin-top: 2px;
+  font-weight: 850;
+  height: 25px;
+  justify-content: center;
+  max-width: 100%;
+  min-width: 32px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+.track-c-section-row__state {
+  color: var(--track-c-muted);
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1.1;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -560,7 +553,36 @@
 
 .track-c-section-row__trigger > svg {
   color: var(--track-c-muted);
+  height: 12px;
+  position: absolute;
+  right: 3px;
+  top: 4px;
   transition: transform 160ms ease;
+  width: 12px;
+}
+
+.track-c-section-row.is-open {
+  grid-column: 1 / -1;
+}
+
+.track-c-section-row.is-open .track-c-section-row__trigger {
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) 14px;
+  grid-template-rows: auto;
+  justify-items: start;
+  min-height: 44px;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.track-c-section-row.is-open .track-c-section-row__state {
+  font-size: 10px;
+}
+
+.track-c-section-row.is-open .track-c-section-row__trigger > svg {
+  height: 14px;
+  position: static;
+  width: 14px;
 }
 
 .track-c-section-row.is-open .track-c-section-row__trigger > svg {
@@ -571,6 +593,12 @@
   background: var(--track-c-surface-muted);
   border-top: 1px solid var(--track-c-border);
   padding: 9px 10px 11px;
+}
+
+.track-c-section-row__detail-status {
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0 0 8px;
 }
 
 .track-c-section-row__warning {
@@ -1229,6 +1257,42 @@
   font-size: 9px;
 }
 
+.track-c-correction-sections {
+  border: 0;
+  border-top: 1px solid var(--track-c-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  padding: 9px;
+}
+
+.track-c-correction-sections legend {
+  color: var(--track-c-muted);
+  font-size: 10px;
+  font-weight: 750;
+  padding: 8px 9px 0;
+}
+
+.track-c-correction-sections label {
+  align-items: center;
+  background: var(--track-c-surface-muted);
+  border: 1px solid var(--track-c-border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 750;
+  gap: 5px;
+  min-height: 36px;
+  padding: 5px 9px;
+}
+
+.track-c-correction-sections input {
+  block-size: 18px;
+  inline-size: 18px;
+  margin: 0;
+}
+
 .track-c-outcome-grid {
   display: grid;
   gap: 6px;
@@ -1485,8 +1549,7 @@
   .track-c-view-heading,
   .track-c-search,
   .track-c-form-stack,
-  .track-c-detail__truth,
-  .track-c-applicable-strip {
+  .track-c-detail__truth {
     margin-left: auto;
     margin-right: auto;
     max-width: 980px;

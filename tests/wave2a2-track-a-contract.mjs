@@ -10,6 +10,13 @@ const shellSource = readFileSync(
   new URL('../src/features/wave2a2-track-a/UnifiedShell.tsx', import.meta.url),
   'utf8',
 );
+const hostSource = readFileSync(
+  new URL(
+    '../src/features/launch-command-center/LaunchIntegratedApp.tsx',
+    import.meta.url,
+  ),
+  'utf8',
+);
 const overlaySource = readFileSync(
   new URL('../src/features/wave2a2-track-a/OverlayBoundary.tsx', import.meta.url),
   'utf8',
@@ -132,11 +139,16 @@ test('unified shell owns only the approved primary hierarchy', () => {
   assert.match(shellSource, /Intelligence unavailable until a later reviewed release/u);
 });
 
-test('detail routes retain the shared shell without creating a second main landmark', () => {
+test('focused routes keep one main while pages that own main remain singular', () => {
   assert.match(shellSource, /detailMode\?: boolean/u);
+  assert.match(shellSource, /contentOwnsMain\?: boolean/u);
   assert.match(shellSource, /hidden=\{detailMode\}/u);
-  assert.match(shellSource, /detailMode \? \(\s*<div/u);
+  assert.match(shellSource, /contentOwnsMain \? \(\s*<div/u);
   assert.match(shellSource, /:\s*\(\s*<main/u);
+  assert.match(
+    hostSource,
+    /contentOwnsMain=\{route\.view === 'search' \|\| route\.view === 'notifications'\}/u,
+  );
 });
 
 test('overlay state cannot reset route scroll history', () => {

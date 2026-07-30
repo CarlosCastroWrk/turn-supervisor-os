@@ -8,6 +8,9 @@ import {
   removeProjectContact,
 } from '../src/features/wave2a21-field-activation/model.ts';
 import {
+  prepareProjectActivation,
+} from '../src/features/wave2a21-track-a/activation.ts';
+import {
   applyTrackCWalkDraftChange,
   projectTrackCState,
   projectTrackCWalkDraft,
@@ -29,8 +32,17 @@ import type { AppData } from '../src/types.ts';
 const NOW = '2026-07-29T15:00:00.000Z';
 const LATER = '2026-07-29T15:05:00.000Z';
 
-const createConfiguredData = () => {
+const createRealSeedData = () => {
   const data = structuredClone(seedData) as AppData;
+  data.projects = data.projects.map((project) =>
+    project.id === data.activeProjectId
+      ? { ...project, mode: 'real' as const }
+      : project);
+  return data;
+};
+
+const createConfiguredData = () => {
+  const data = createRealSeedData();
   const initialDraft = createProjectActivationDraft(data, NOW, 'Los');
   const draft = {
     ...initialDraft,
@@ -53,7 +65,7 @@ const createConfiguredData = () => {
 };
 
 test('host activation draft keeps the personal authority boundary and one primary contact', () => {
-  const data = structuredClone(seedData) as AppData;
+  const data = createRealSeedData();
   const draft = createProjectActivationDraft(data, NOW, 'Los');
 
   assert.deepEqual(draft.configuration.enabledTrades, {
@@ -89,6 +101,108 @@ test('host activation draft keeps the personal authority boundary and one primar
   assert.equal(
     draft.configuration.defaultPropertyContactId,
     draft.contacts.find((contact) => contact.isPrimary)?.id,
+  );
+});
+
+test('starting Setup from Demo creates an isolated real-project draft without sample crews or Units', () => {
+  const data = structuredClone(seedData) as AppData;
+  const draft = createProjectActivationDraft(data, NOW, 'Los');
+
+  assert.notEqual(draft.project.id, data.activeProjectId);
+  assert.equal(draft.project.mode, 'real');
+  assert.equal(draft.project.propertyName, '');
+  assert.deepEqual(draft.crews, []);
+  assert.deepEqual(draft.units, []);
+  assert.deepEqual(draft.configuration.defaultCrewIdsByTrade, {
+    clean: [],
+    paint: [],
+  });
+  assert.ok(draft.contacts.every((contact) => contact.projectId === draft.project.id));
+  assert.equal(
+    data.units.some((unit) => unit.projectId === draft.project.id),
+    false,
+    'sample Units must remain attached only to the Demo project',
+  );
+});
+
+test('isolated activation persists only the new personal roster and crews under the new active project', () => {
+  const source = structuredClone(seedData) as AppData;
+  const initial = createProjectActivationDraft(source, NOW, 'Los');
+  const contactId = initial.configuration.defaultPropertyContactId;
+  const draft = {
+    ...initial,
+    configuration: {
+      ...initial.configuration,
+      defaultCrewIdsByTrade: {
+        clean: ['crew-moon-clean'],
+        paint: ['crew-moon-paint'],
+      },
+      defaultWalkthroughScheduleWording: '12:00',
+      defaultWorkingHoursWording: '08:00–18:00',
+    },
+    contacts: initial.contacts.map((contact) => ({
+      ...contact,
+      activeForProject: true,
+      isPrimary: contact.id === contactId,
+      name: 'Synthetic Property Contact',
+      role: 'Property Manager' as const,
+      title: 'Property Manager',
+    })),
+    crews: [
+      {
+        active: true,
+        id: 'crew-moon-paint',
+        name: 'Synthetic Paint',
+        projectId: initial.project.id,
+        trade: 'paint' as const,
+      },
+      {
+        active: true,
+        id: 'crew-moon-clean',
+        name: 'Synthetic Clean',
+        projectId: initial.project.id,
+        trade: 'clean' as const,
+      },
+    ],
+    project: {
+      ...initial.project,
+      endDate: '2026-08-15',
+      location: 'Synthetic Austin property',
+      name: 'Moon Tower',
+      propertyName: 'Moon Tower',
+      startDate: '2026-08-01',
+    },
+    units: [{
+      building: 'Building A',
+      floor: 'Floor 1',
+      id: `unit:${initial.project.id}:101`,
+      projectId: initial.project.id,
+      unitNumber: '101',
+      unitType: 3 as const,
+    }],
+  };
+
+  const prepared = prepareProjectActivation(source, draft);
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal(prepared.data.activeProjectId, draft.project.id);
+  assert.deepEqual(
+    prepared.data.units
+      .filter((unit) => unit.projectId === draft.project.id)
+      .map((unit) => unit.unitNumber),
+    ['101'],
+  );
+  assert.deepEqual(
+    prepared.data.crewMembers
+      .filter((crew) => crew.projectId === draft.project.id)
+      .map((crew) => crew.name)
+      .sort(),
+    ['Synthetic Clean', 'Synthetic Paint'],
+  );
+  assert.equal(
+    prepared.data.fieldEvents.some((event) =>
+      event.projectId === draft.project.id && event.summary.includes('sample')),
+    false,
   );
 });
 
@@ -266,9 +380,10 @@ test('actual-host Walk draft envelope preserves exact notes and review stage wit
     projectTrackCState(persisted).activeWalk?.outcomes,
     draft.outcomes,
   );
-  assert.equal(
-    persisted.walkSessions[0]?.outcomes[0]?.outcome,
-    'correction-requested',
+  assert.deepEqual(
+    persisted.walkSessions[0]?.outcomes,
+    [],
+    'active Walk outcomes must remain draft evidence until End Walk succeeds',
   );
   const reloaded = parseJsonBackup(JSON.stringify(persisted));
   assert.deepEqual(projectTrackCWalkDraft(reloaded), draft);

@@ -15,8 +15,10 @@ const viewports = [
 ];
 
 const origins = [
-  { name: 'Review', hash: '#/review' },
-  { name: 'Legacy Unit 202', hash: '#/units/unit_202' },
+  { name: 'Home', hash: '#/dashboard' },
+  { name: 'TurnBoard', hash: '#/units' },
+  { name: 'Activity', hash: '#/activity' },
+  { name: 'More', hash: '#/more' },
 ];
 
 const attachRuntimeChecks = (page) => {

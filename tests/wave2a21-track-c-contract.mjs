@@ -30,6 +30,10 @@ const plusSource = readFileSync(
   new URL('../src/features/wave2a1-native/track-c/TrackCNativeFlow.tsx', import.meta.url),
   'utf8',
 );
+const hostSource = readFileSync(
+  new URL('../src/features/launch-command-center/LaunchIntegratedApp.tsx', import.meta.url),
+  'utf8',
+);
 const fieldOpsSource = readFileSync(
   new URL('../src/features/wave2a2-track-c/TrackCFieldOps.tsx', import.meta.url),
   'utf8',
@@ -177,15 +181,21 @@ test('embedded Field Operations delegates navigation to the unified host', () =>
   assert.match(fieldOpsStyles, /display:\s*none/u);
 });
 
-test('primary Plus disposition keeps Note native and blocks unaccepted legacy handoffs', () => {
+test('primary Plus keeps Note and manual Release available while blocking unaccepted intake', () => {
   assert.equal(TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS.note.availability, 'available');
-  for (const action of ['camera', 'photos', 'files', 'paste-text', 'import-work']) {
+  assert.equal(
+    TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS['import-work'].availability,
+    'available',
+  );
+  for (const action of ['camera', 'photos', 'files', 'paste-text']) {
     assert.equal(
       TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS[action].availability,
       'unavailable',
       `${action} must not enter a legacy primary route.`,
     );
   }
+  assert.match(plusSource, /label:\s*'Add Release Batch'/u);
+  assert.match(hostSource, /setHomeMode\('manual-release'\)/u);
   assert.match(plusSource, /actionAvailability\?\.\[action\]/u);
   assert.match(plusSource, /disabled=\{unavailable\}/u);
   assert.match(plusSource, /Unavailable in this candidate/u);

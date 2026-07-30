@@ -283,10 +283,13 @@ export interface TrackCAssignmentReceipt {
 
 export interface TrackCWalkCandidate {
   readonly target: TrackCWorkTarget;
+  readonly targets: readonly TrackCWorkTarget[];
   readonly unitNumber: string;
   readonly unitType: string;
   readonly locationLabel: string;
   readonly crewId: string;
+  readonly trade: TrackCTrade;
+  readonly sectionCount: number;
 }
 
 export interface TrackCOperationError {
@@ -315,7 +318,7 @@ export const trackCSectionLabel = (section: TrackCSection) =>
   section === 'common' ? 'Common' : section;
 
 export const DEFAULT_TRACK_C_TERMINOLOGY: TrackCTerminology = Object.freeze({
-  boardName: 'TurnBoard companion',
+  boardName: 'TurnBoard',
   propertyAcceptanceLabel: 'Property accepted',
   personalMirrorLabel: 'PDS Approved paper mirror',
   paperReminder: 'Update the authoritative paper TurnBoard.',

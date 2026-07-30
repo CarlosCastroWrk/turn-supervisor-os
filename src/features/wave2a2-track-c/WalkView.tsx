@@ -11,8 +11,11 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
+  type TrackCSection,
   type TrackCState,
+  type TrackCTrade,
   type TrackCWalkOutcome,
+  type TrackCWalkOutcomeRecord,
   type TrackCWalkSession,
   type TrackCWorkTarget,
   trackCSectionLabel,
@@ -96,6 +99,64 @@ const walkItemLabel = (
   } · ${trackCSectionLabel(target.section)}`;
 };
 
+const walkPackageKey = (
+  target: Pick<TrackCWorkTarget, 'trade' | 'unitId'>,
+) => `${target.unitId}:${target.trade}`;
+
+interface WalkPackage {
+  readonly key: string;
+  readonly trade: TrackCTrade;
+  readonly unitId: string;
+  readonly targets: readonly TrackCWorkTarget[];
+}
+
+const groupWalkTargets = (
+  targets: readonly TrackCWorkTarget[],
+): readonly WalkPackage[] => {
+  const packages = new Map<string, TrackCWorkTarget[]>();
+  for (const target of targets) {
+    const key = walkPackageKey(target);
+    packages.set(key, [...(packages.get(key) ?? []), target]);
+  }
+  return [...packages.entries()].map(([key, packageTargets]) => ({
+    key,
+    trade: packageTargets[0].trade,
+    unitId: packageTargets[0].unitId,
+    targets: packageTargets,
+  }));
+};
+
+const walkPackageLabel = (
+  state: TrackCState,
+  item: WalkPackage,
+): string => {
+  const unit = trackCUnitForTarget(state, item.targets[0]);
+  return `Unit ${unit?.unitNumber ?? 'Unknown'} · ${
+    item.trade === 'paint' ? 'Paint' : 'Clean'
+  }`;
+};
+
+const packageOutcome = (
+  draft: TrackCWalkDraft,
+  item: WalkPackage,
+): TrackCWalkOutcome | 'mixed' | undefined => {
+  const outcomes = item.targets
+    .map((target) => draft.outcomes.find(
+      (outcome) => trackCWorkKey(outcome.target) === trackCWorkKey(target),
+    )?.outcome)
+    .filter((outcome): outcome is TrackCWalkOutcome => Boolean(outcome));
+  if (outcomes.length !== item.targets.length) return undefined;
+  if (outcomes.every((outcome) => outcome === outcomes[0])) return outcomes[0];
+  if (outcomes.every((outcome) =>
+    outcome === 'accepted' || outcome === 'correction-requested')) {
+    return 'correction-requested';
+  }
+  return 'mixed';
+};
+
+const packageSections = (item: WalkPackage) =>
+  item.targets.map((target) => trackCSectionLabel(target.section)).join(', ');
+
 interface ActiveWalkProps {
   readonly activeWalk: TrackCWalkSession;
   readonly createId: (prefix: string) => string;
@@ -118,6 +179,21 @@ const ActiveWalk = ({
   const [message, setMessage] = useState<string>();
   const allRecorded = isTrackCWalkDraftComplete(activeWalk, draft);
   const summary = summarizeTrackCWalkDraft(draft);
+  const walkPackages = useMemo(
+    () => groupWalkTargets(activeWalk.selectedTargets),
+    [activeWalk.selectedTargets],
+  );
+  const packageSummary = useMemo(() => {
+    const outcomes = walkPackages.map((item) => packageOutcome(draft, item));
+    return {
+      accepted: outcomes.filter((outcome) => outcome === 'accepted').length,
+      correctionsRequested: outcomes.filter(
+        (outcome) => outcome === 'correction-requested',
+      ).length,
+      deferred: outcomes.filter((outcome) => outcome === 'deferred').length,
+      notWalked: outcomes.filter((outcome) => outcome === 'not-walked').length,
+    };
+  }, [draft, walkPackages]);
 
   const commitDraft = (nextDraft: TrackCWalkDraft) => {
     onStateChange(
@@ -136,6 +212,60 @@ const ActiveWalk = ({
   const continueWalk = () => {
     setMessage(undefined);
     commitDraft(setTrackCWalkDraftStage(draft, 'active', now()));
+  };
+
+  const updatePackage = (
+    item: WalkPackage,
+    update: {
+      readonly outcome?: TrackCWalkOutcome;
+      readonly note?: string;
+    },
+  ) => {
+    const updatedAt = now();
+    const nextDraft = item.targets.reduce(
+      (current, target) => updateTrackCWalkDraft(
+        current,
+        target,
+        update,
+        updatedAt,
+      ),
+      draft,
+    );
+    commitDraft(nextDraft);
+  };
+
+  const toggleCorrectionSection = (
+    item: WalkPackage,
+    section: TrackCSection,
+  ) => {
+    const target = item.targets.find((candidate) => candidate.section === section);
+    if (!target) return;
+    const record = draft.outcomes.find(
+      (outcome) => trackCWorkKey(outcome.target) === trackCWorkKey(target),
+    );
+    const correctionCount = item.targets.filter((candidate) =>
+      draft.outcomes.some(
+        (outcome) =>
+          trackCWorkKey(outcome.target) === trackCWorkKey(candidate) &&
+          outcome.outcome === 'correction-requested',
+      )).length;
+    if (record?.outcome === 'correction-requested' && correctionCount === 1) {
+      setMessage('Keep at least one affected section selected for this correction.');
+      return;
+    }
+    setMessage(undefined);
+    commitDraft(updateTrackCWalkDraft(
+      draft,
+      target,
+      {
+        outcome:
+          record?.outcome === 'correction-requested'
+            ? 'accepted'
+            : 'correction-requested',
+        note: record?.note,
+      },
+      now(),
+    ));
   };
 
   const endWalk = () => {
@@ -173,7 +303,7 @@ const ActiveWalk = ({
             <h1 id="track-c-end-walk-heading">Review End Walk</h1>
             <p>With {activeWalk.propertyContact}</p>
           </div>
-          <span>{activeWalk.selectedTargets.length} items</span>
+          <span>{walkPackages.length} Unit+Trade jobs</span>
         </header>
         <div className="track-c-walk-review__body">
           <section
@@ -181,19 +311,19 @@ const ActiveWalk = ({
             className="track-c-walk-review__summary"
           >
             <div>
-              <strong>{summary.accepted}</strong>
+              <strong>{packageSummary.accepted}</strong>
               <span>Accepted</span>
             </div>
             <div>
-              <strong>{summary.correctionsRequested}</strong>
+              <strong>{packageSummary.correctionsRequested}</strong>
               <span>Corrections</span>
             </div>
             <div>
-              <strong>{summary.deferred}</strong>
+              <strong>{packageSummary.deferred}</strong>
               <span>Deferred</span>
             </div>
             <div>
-              <strong>{summary.notWalked}</strong>
+              <strong>{packageSummary.notWalked}</strong>
               <span>Not walked</span>
             </div>
           </section>
@@ -281,74 +411,90 @@ const ActiveWalk = ({
           <p>With {activeWalk.propertyContact}</p>
         </div>
         <span>
-          {draft.outcomes.length}/{activeWalk.selectedTargets.length}
+          {walkPackages.filter((item) => packageOutcome(draft, item)).length}/
+          {walkPackages.length}
         </span>
       </header>
       <p className="track-c-walk__instruction">
-        Record one exact result for each section and trade. No Unit-wide approval.
+        Record one result per Unit+Trade package. A correction still identifies
+        the affected sections.
       </p>
       <div className="track-c-walk-items">
-        {activeWalk.selectedTargets.map((target) => {
-          const projection = projectTrackCWork(state, target);
-          const key = trackCWorkKey(target);
-          const recorded = draft.outcomes.find(
-            (outcome) => trackCWorkKey(outcome.target) === key,
-          );
+        {walkPackages.map((item) => {
+          const projection = projectTrackCWork(state, item.targets[0]);
+          const recordedOutcome = packageOutcome(draft, item);
+          const packageRecords = item.targets
+            .map((target) => draft.outcomes.find(
+              (outcome) =>
+                trackCWorkKey(outcome.target) === trackCWorkKey(target),
+            ))
+            .filter(
+              (outcome): outcome is TrackCWalkOutcomeRecord => Boolean(outcome),
+            );
+          const note =
+            packageRecords.find((record) => record.note?.trim())?.note ?? '';
           return (
-            <section key={key}>
+            <section key={item.key}>
               <header>
                 <div>
-                  <strong>{walkItemLabel(state, target)}</strong>
+                  <strong>{walkPackageLabel(state, item)}</strong>
                   <span>
-                    Responsible crew:{' '}
+                    {packageSections(item)} · Responsible crew:{' '}
                     {trackCCrewName(state, projection?.responsibleCrewId)}
                   </span>
                 </div>
               </header>
               <div className="track-c-outcome-grid">
-                {OUTCOMES.map((item) => (
+                {OUTCOMES.map((choice) => (
                   <button
-                    aria-pressed={recorded?.outcome === item.outcome}
+                    aria-pressed={recordedOutcome === choice.outcome}
                     data-track-c-critical-target="true"
-                    key={item.outcome}
+                    key={choice.outcome}
                     onClick={() =>
-                      commitDraft(
-                        updateTrackCWalkDraft(
-                          draft,
-                          target,
-                          { outcome: item.outcome },
-                          now(),
-                        ),
-                      )}
+                      updatePackage(item, { outcome: choice.outcome })
+                    }
                     type="button"
                   >
-                    {item.label}
+                    {choice.label}
                   </button>
                 ))}
               </div>
+              {recordedOutcome === 'correction-requested' ? (
+                <fieldset className="track-c-correction-sections">
+                  <legend>Affected sections</legend>
+                  {item.targets.map((target) => {
+                    const record = packageRecords.find(
+                      (outcome) =>
+                        trackCWorkKey(outcome.target) === trackCWorkKey(target),
+                    );
+                    return (
+                      <label key={trackCWorkKey(target)}>
+                        <input
+                          checked={record?.outcome === 'correction-requested'}
+                          onChange={() =>
+                            toggleCorrectionSection(item, target.section)}
+                          type="checkbox"
+                        />
+                        <span>{trackCSectionLabel(target.section)}</span>
+                      </label>
+                    );
+                  })}
+                </fieldset>
+              ) : null}
               <label className="track-c-walk-note">
                 <span>Optional note</span>
                 <textarea
-                  disabled={!recorded}
+                  disabled={!recordedOutcome}
                   onChange={(event) =>
-                    commitDraft(
-                      updateTrackCWalkDraft(
-                        draft,
-                        target,
-                        {
-                          outcome: recorded?.outcome,
-                          note: event.target.value,
-                        },
-                        now(),
-                      ),
-                    )}
+                    updatePackage(item, { note: event.target.value })
+                  }
                   placeholder={
-                    recorded
+                    recordedOutcome
                       ? 'Reason or follow-up'
                       : 'Select an outcome first'
                   }
                   rows={2}
-                  value={recorded?.note ?? ''}
+                  value={note}
                 />
               </label>
             </section>
@@ -409,7 +555,7 @@ export const WalkView = ({
   }
 
   const candidateByKey = new Map(
-    candidates.map((candidate) => [trackCWorkKey(candidate.target), candidate]),
+    candidates.map((candidate) => [walkPackageKey(candidate.target), candidate]),
   );
   const selectedCandidates = selectedKeys
     .map((key) => candidateByKey.get(key))
@@ -428,9 +574,53 @@ export const WalkView = ({
         const projection = projectTrackCWork(state, outcome.target);
         return projection && !projection.personalPdsMirror;
       }) ?? [];
+  const latestWalkSummary = latestWalk ? (
+    <section className="track-c-walk-summary">
+      <header>
+        <h2>Latest walk</h2>
+        <span>{latestWalk.propertyContact}</span>
+      </header>
+      <div className="track-c-stat-grid">
+        {OUTCOMES.map((item) => (
+          <div key={item.outcome}>
+            <strong>
+              {latestWalk.outcomes?.filter(
+                (outcome) => outcome.outcome === item.outcome,
+              ).length ?? 0}
+            </strong>
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+      <p className="track-c-boundary-copy">
+        Accepted items are personal records only. Corrections preserve the
+        responsible crew and require reinspection.
+      </p>
+      {eligibleMirrors.length > 0 ? (
+        <div className="track-c-mirror-list">
+          <h3>Eligible personal paper mirrors</h3>
+          {eligibleMirrors.map((outcome) => (
+            <button
+              data-track-c-critical-target="true"
+              key={trackCWorkKey(outcome.target)}
+              onClick={() => onRequestMirror(outcome.target)}
+              type="button"
+            >
+              <Check aria-hidden="true" size={17} />
+              {walkItemLabel(state, outcome.target)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <p className="track-c-paper-reminder">
+        <TimerReset aria-hidden="true" size={17} />
+        {state.terminology.paperReminder}
+      </p>
+    </section>
+  ) : null;
 
   const toggleCandidate = (target: TrackCWorkTarget) => {
-    const key = trackCWorkKey(target);
+    const key = walkPackageKey(target);
     setSelectedKeys((current) =>
       current.includes(key)
         ? current.filter((candidate) => candidate !== key)
@@ -441,8 +631,8 @@ export const WalkView = ({
   const start = () => {
     if (!selectedContact) return;
     const startedAt = now();
-    const selectedTargets = selectedCandidates.map(
-      (candidate) => candidate.target,
+    const selectedTargets = selectedCandidates.flatMap(
+      (candidate) => candidate.targets,
     );
     const walkSessionId = createId('track-c-walk');
     const result = startTrackCWalk(state, {
@@ -473,33 +663,36 @@ export const WalkView = ({
 
   if (candidates.length === 0) {
     return (
-      <section
-        aria-labelledby="track-c-walk-zero-heading"
-        className="track-c-walk track-c-walk-zero"
-      >
-        <ClipboardCheck aria-hidden="true" size={30} />
-        <h1 id="track-c-walk-zero-heading">No work is ready to walk.</h1>
-        <p>
-          Work appears here after Los passes the relevant Paint or Clean
-          inspection.
-        </p>
-        <div className="track-c-walk-zero__actions">
-          <button
-            data-track-c-critical-target="true"
-            onClick={integration?.onReturnToBoard}
-            type="button"
-          >
-            Return to TurnBoard
-          </button>
-          <button
-            data-track-c-critical-target="true"
-            onClick={integration?.onViewWorkNeedingInspection}
-            type="button"
-          >
-            View work needing inspection
-          </button>
-        </div>
-      </section>
+      <>
+        <section
+          aria-labelledby="track-c-walk-zero-heading"
+          className="track-c-walk track-c-walk-zero"
+        >
+          <ClipboardCheck aria-hidden="true" size={30} />
+          <h1 id="track-c-walk-zero-heading">No work is ready to walk.</h1>
+          <p>
+            Work appears here after Los passes the relevant Paint or Clean
+            inspection.
+          </p>
+          <div className="track-c-walk-zero__actions">
+            <button
+              data-track-c-critical-target="true"
+              onClick={integration?.onReturnToBoard}
+              type="button"
+            >
+              Return to TurnBoard
+            </button>
+            <button
+              data-track-c-critical-target="true"
+              onClick={integration?.onViewWorkNeedingInspection}
+              type="button"
+            >
+              View work needing inspection
+            </button>
+          </div>
+        </section>
+        {latestWalkSummary}
+      </>
     );
   }
 
@@ -535,9 +728,9 @@ export const WalkView = ({
         <header className="track-c-view-heading">
           <div>
             <h1 id="track-c-review-walk-heading">Review Walk</h1>
-            <p>Confirm the exact contact, trade, and sections</p>
+            <p>Confirm the contact and Unit+Trade packages</p>
           </div>
-          <span>{selectedCandidates.length} items</span>
+          <span>{selectedCandidates.length} Unit+Trade jobs</span>
         </header>
         <div className="track-c-start-review__body">
           <section>
@@ -549,19 +742,23 @@ export const WalkView = ({
             <h2>Selected work</h2>
             <ul>
               {selectedCandidates.map((candidate) => (
-                <li key={trackCWorkKey(candidate.target)}>
-                  <strong>{walkItemLabel(state, candidate.target)}</strong>
+                <li key={walkPackageKey(candidate.target)}>
+                  <strong>
+                    Unit {candidate.unitNumber} ·{' '}
+                    {candidate.trade === 'paint' ? 'Paint' : 'Clean'}
+                  </strong>
                   <span>
-                    {trackCCrewName(state, candidate.crewId)} ·{' '}
-                    {candidate.locationLabel}
+                    {candidate.sectionCount} released section
+                    {candidate.sectionCount === 1 ? '' : 's'} ·{' '}
+                    {trackCCrewName(state, candidate.crewId)}
                   </span>
                 </li>
               ))}
             </ul>
           </section>
           <p className="track-c-boundary-copy">
-            Los inspected each selected item. Property acceptance remains a
-            separate per-section, per-trade walk outcome.
+            Every released section in each selected Unit+Trade package passed
+            Los inspection. Property acceptance remains a separate walk outcome.
           </p>
           {message ? (
             <div className="track-c-receipt is-error" role="alert">
@@ -599,7 +796,7 @@ export const WalkView = ({
       <header className="track-c-view-heading">
         <div>
           <h1 id="track-c-walk-heading">Start Walk</h1>
-          <p>Los-passed, pending, and unblocked only</p>
+          <p>Complete Unit+Trade packages only</p>
         </div>
         <span>{candidates.length} ready</span>
       </header>
@@ -624,9 +821,9 @@ export const WalkView = ({
           </span>
         </label>
         <fieldset className="track-c-choice-list track-c-walk-candidates">
-          <legend>Select exact work</legend>
+          <legend>Select Unit+Trade jobs</legend>
           {candidates.map((candidate) => {
-            const key = trackCWorkKey(candidate.target);
+            const key = walkPackageKey(candidate.target);
             return (
               <label key={key}>
                 <input
@@ -635,10 +832,14 @@ export const WalkView = ({
                   type="checkbox"
                 />
                 <span>
-                  <strong>{walkItemLabel(state, candidate.target)}</strong>
+                  <strong>
+                    Unit {candidate.unitNumber} ·{' '}
+                    {candidate.trade === 'paint' ? 'Paint' : 'Clean'}
+                  </strong>
                   <small>
-                    {trackCCrewName(state, candidate.crewId)} ·{' '}
-                    {candidate.locationLabel}
+                    {candidate.sectionCount} released section
+                    {candidate.sectionCount === 1 ? '' : 's'} ·{' '}
+                    {trackCCrewName(state, candidate.crewId)}
                   </small>
                 </span>
               </label>
@@ -652,7 +853,7 @@ export const WalkView = ({
             type="checkbox"
           />
           <span>
-            <strong>I inspected every selected item</strong>
+            <strong>I inspected every released section in these jobs</strong>
             <small>
               Property acceptance remains separate until the walk outcome.
             </small>
@@ -673,50 +874,7 @@ export const WalkView = ({
           Review Walk
         </button>
       </div>
-      {latestWalk ? (
-        <section className="track-c-walk-summary">
-          <header>
-            <h2>Latest walk</h2>
-            <span>{latestWalk.propertyContact}</span>
-          </header>
-          <div className="track-c-stat-grid">
-            {OUTCOMES.map((item) => (
-              <div key={item.outcome}>
-                <strong>
-                  {latestWalk.outcomes?.filter(
-                    (outcome) => outcome.outcome === item.outcome,
-                  ).length ?? 0}
-                </strong>
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </div>
-          <p className="track-c-boundary-copy">
-            Accepted items are personal records only. Corrections preserve the
-            responsible crew and require reinspection.
-          </p>
-          {eligibleMirrors.length > 0 ? (
-            <div className="track-c-mirror-list">
-              <h3>Eligible personal paper mirrors</h3>
-              {eligibleMirrors.map((outcome) => (
-                <button
-                  data-track-c-critical-target="true"
-                  key={trackCWorkKey(outcome.target)}
-                  onClick={() => onRequestMirror(outcome.target)}
-                  type="button"
-                >
-                  <Check aria-hidden="true" size={17} />
-                  {walkItemLabel(state, outcome.target)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <p className="track-c-paper-reminder">
-            <TimerReset aria-hidden="true" size={17} />
-            {state.terminology.paperReminder}
-          </p>
-        </section>
-      ) : null}
+      {latestWalkSummary}
       {message ? (
         <div className="track-c-receipt is-error" role="alert">
           <RotateCcw aria-hidden="true" size={18} />

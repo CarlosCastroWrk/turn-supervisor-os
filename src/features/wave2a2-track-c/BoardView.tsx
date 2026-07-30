@@ -21,6 +21,7 @@ import {
 import type { TrackCSectionAction } from './operations';
 import {
   projectTrackCUnitWork,
+  projectTrackCTradeProgress,
   searchTrackCCompactUnits,
   trackCCrewName,
 } from './projections';
@@ -33,6 +34,10 @@ interface BoardViewProps {
   readonly onSectionAction: (
     target: TrackCWorkTarget,
     action: TrackCSectionAction,
+  ) => void;
+  readonly onTradeComplete: (
+    unitId: string,
+    trade: TrackCTrade,
   ) => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
 }
@@ -55,9 +60,33 @@ const executionLabel = (work: TrackCWorkProjection) => {
   if (work.execution === 'crew-reported-complete') return 'Crew reported complete';
   if (work.execution === 'working') return 'Working';
   if (work.execution === 'assigned') return 'Assigned';
-  if (work.release === 'released') return 'Released · unassigned';
+  if (work.release === 'released') return 'Needs crew';
   if (work.release === 'unreleased') return 'Unreleased';
   return 'Source review required';
+};
+
+const compactSectionStatus = (work: TrackCWorkProjection) => {
+  if (work.assignmentConflict) return 'Conflict';
+  if (work.callbackOpen) {
+    return work.inspection === 'reinspection-pending'
+      ? 'Reinspect'
+      : 'Callback';
+  }
+  if (work.property === 'property-accepted') return 'Accepted';
+  if (work.inspection === 'los-passed') return 'Passed';
+  if (
+    work.inspection === 'needs-los-inspection' ||
+    work.execution === 'crew-reported-complete'
+  ) {
+    return 'Inspect';
+  }
+  if (work.execution === 'working') return 'Working';
+  if (work.execution === 'assigned') return 'Assigned';
+  if (work.release === 'released') {
+    return work.access === 'clear' ? 'Needs crew' : 'Waiting';
+  }
+  if (work.release === 'unreleased') return 'Unreleased';
+  return 'Review';
 };
 
 const layerCopy = (state: TrackCState, work: TrackCWorkProjection) => {
@@ -150,7 +179,11 @@ const CompactTrade = ({
     <div className="track-c-unit-row__trade">
       <Icon aria-hidden="true" size={15} strokeWidth={2.2} />
       <span>{tradeLabel(progress.trade)}</span>
-      <strong>{names.length === 0 ? 'Unassigned' : names.join(', ')}</strong>
+      <strong>
+        {names.length === 0
+          ? progress.released > 0 ? 'Needs crew' : 'Unreleased'
+          : names.join(', ')}
+      </strong>
       <small>{progress.conciseLabel}</small>
     </div>
   );
@@ -182,14 +215,16 @@ const CompactUnitRow = ({
       <CompactTrade progress={unit.paint} state={state} />
       <CompactTrade progress={unit.clean} state={state} />
     </div>
-    <span className={`track-c-signal is-${unit.signal}`}>
-      {unit.signal === 'needs-me' ? (
-        <CircleAlert aria-hidden="true" size={14} />
-      ) : unit.signal === 'waiting' ? (
-        <ShieldAlert aria-hidden="true" size={14} />
-      ) : null}
-      {unit.signalLabel}
-    </span>
+    {unit.signal !== 'none' ? (
+      <span className={`track-c-signal is-${unit.signal}`}>
+        {unit.signal === 'needs-me' ? (
+          <CircleAlert aria-hidden="true" size={14} />
+        ) : (
+          <ShieldAlert aria-hidden="true" size={14} />
+        )}
+        {unit.signalLabel}
+      </span>
+    ) : null}
     <ChevronRight aria-hidden="true" className="track-c-unit-row__chevron" size={18} />
   </button>
 );
@@ -218,6 +253,7 @@ const WorkSection = ({
   return (
     <div className={`track-c-section-row ${isSelected ? 'is-open' : ''}`}>
       <button
+        aria-label={`${trackCSectionLabel(work.section)}: ${executionLabel(work)}`}
         aria-expanded={isSelected}
         className="track-c-section-row__trigger"
         data-track-c-critical-target="true"
@@ -227,18 +263,16 @@ const WorkSection = ({
         <span className="track-c-section-row__section">
           {trackCSectionLabel(work.section)}
         </span>
-        <span>
-          <strong>{executionLabel(work)}</strong>
-          <small>
-            {work.restrictionLabel ??
-              trackCCrewName(state, work.responsibleCrewId) ??
-              'No confirmed responsible crew'}
-          </small>
+        <span className="track-c-section-row__state">
+          {compactSectionStatus(work)}
         </span>
         <ChevronRight aria-hidden="true" size={17} />
       </button>
       {isSelected ? (
         <div className="track-c-section-row__detail">
+          <p className="track-c-section-row__detail-status">
+            {executionLabel(work)}
+          </p>
           {blocked ? (
             <p className="track-c-section-row__warning">
               <ShieldAlert aria-hidden="true" size={16} />
@@ -298,12 +332,14 @@ const UnitDetail = ({
   unitId,
   onClose,
   onSectionAction,
+  onTradeComplete,
   onRequestMirror,
 }: {
   state: TrackCState;
   unitId: string;
   onClose: () => void;
   onSectionAction: BoardViewProps['onSectionAction'];
+  onTradeComplete: BoardViewProps['onTradeComplete'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -337,19 +373,27 @@ const UnitDetail = ({
           <p>{unit.unitType} · {unit.locationLabel}</p>
         </div>
       </header>
-      <div className="track-c-applicable-strip">
-        <span>Applicable</span>
-        {unit.applicableSections.map((section) => (
-          <strong key={section}>{trackCSectionLabel(section)}</strong>
-        ))}
-      </div>
       <p className="track-c-detail__truth">
-        Release, crew report, Los inspection, property acceptance, and paper mirror
-        remain separate.
+        Crew completion, Los inspection, and property acceptance stay separate.
       </p>
       {TRACK_C_TRADES.map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);
+        const progress = projectTrackCTradeProgress(state, unitId, trade);
+        const crewNames = progress.crewIds
+          .map((crewId) => trackCCrewName(state, crewId))
+          .filter((name): name is string => Boolean(name));
+        const canRecordTradeComplete =
+          tradeWork.some((item) =>
+            item.release === 'released' &&
+            ['assigned', 'working'].includes(item.execution)) &&
+          tradeWork.every((item) =>
+            item.release !== 'released' ||
+            item.assignmentConflict ||
+            item.activeCrewIds.length !== 1 ||
+            ['assigned', 'working', 'crew-reported-complete'].includes(
+              item.execution,
+            ));
         return (
           <section
             aria-labelledby={`track-c-${trade}-heading`}
@@ -358,9 +402,26 @@ const UnitDetail = ({
           >
             <header>
               <Icon aria-hidden="true" size={18} />
-              <h2 id={`track-c-${trade}-heading`}>{tradeLabel(trade)}</h2>
-              <span>{tradeWork.length} sections</span>
+              <div className="track-c-trade-panel__identity">
+                <h2 id={`track-c-${trade}-heading`}>{tradeLabel(trade)}</h2>
+                <span>
+                  {crewNames.length === 0
+                    ? progress.released > 0 ? 'Needs crew' : 'Unreleased'
+                    : crewNames.join(', ')}
+                </span>
+              </div>
+              <small>{progress.conciseLabel}</small>
             </header>
+            {canRecordTradeComplete ? (
+              <button
+                className="track-c-trade-complete"
+                data-track-c-critical-target="true"
+                onClick={() => onTradeComplete(unitId, trade)}
+                type="button"
+              >
+                Crew reports {tradeLabel(trade)} complete
+              </button>
+            ) : null}
             <div className="track-c-section-list">
               {tradeWork.map((item) => {
                 const key = trackCWorkKey(item);
@@ -404,6 +465,7 @@ export const BoardView = ({
   onOpenUnit,
   onCloseUnit,
   onSectionAction,
+  onTradeComplete,
   onRequestMirror,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
@@ -418,6 +480,7 @@ export const BoardView = ({
         onClose={onCloseUnit}
         onRequestMirror={onRequestMirror}
         onSectionAction={onSectionAction}
+        onTradeComplete={onTradeComplete}
         state={state}
         unitId={selectedUnitId}
       />
@@ -429,7 +492,7 @@ export const BoardView = ({
       <header className="track-c-view-heading">
         <div>
           <h1 id="track-c-board-heading">{state.terminology.boardName}</h1>
-          <p>Compact Paint/Clean field projection</p>
+          <p>Paper TurnBoard is official</p>
         </div>
         <span>{units.length} Units</span>
       </header>

@@ -299,16 +299,15 @@ const unitSignal = (
 
   const waiting = projections.filter(
     (item) =>
-      item.release !== 'released' ||
       item.access !== 'clear' ||
       item.sourceConfidence !== 'confirmed' ||
-      (item.release === 'released' && item.activeCrewIds.length === 0),
+      item.assignmentConflict,
   );
   if (waiting.length > 0) {
     return {
       signal: 'waiting',
       signalCount: waiting.length,
-      signalLabel: `Waiting · ${waiting.length}`,
+      signalLabel: `Blocked · ${waiting.length} section${waiting.length === 1 ? '' : 's'}`,
     };
   }
   return { signal: 'none', signalCount: 0, signalLabel: 'On track' };
@@ -458,29 +457,45 @@ export const projectTrackCWalkCandidates = (
   state: TrackCState,
 ): readonly TrackCWalkCandidate[] =>
   state.units.flatMap((unit) =>
-    projectTrackCUnitWork(state, unit.id)
-      .filter(
-        (item) =>
-          item.release === 'released' &&
-          item.access === 'clear' &&
-          item.sourceConfidence === 'confirmed' &&
-          !item.assignmentConflict &&
-          item.responsibleCrewId &&
-          item.inspection === 'los-passed' &&
-          item.property === 'pending-property-walk' &&
-          !item.callbackOpen,
-      )
-      .map((item) => ({
-        target: {
-          unitId: item.unitId,
-          trade: item.trade,
-          section: item.section,
-        },
+    TRACK_C_TRADES.flatMap((trade) => {
+      const released = projectTrackCUnitWork(state, unit.id).filter(
+        (item) => item.trade === trade && item.release === 'released',
+      );
+      if (released.length === 0) return [];
+
+      const crewIds = [
+        ...new Set(released.flatMap((item) => item.activeCrewIds)),
+      ];
+      const packageReady =
+        crewIds.length === 1 &&
+        released.every(
+          (item) =>
+            item.access === 'clear' &&
+            item.sourceConfidence === 'confirmed' &&
+            !item.assignmentConflict &&
+            item.responsibleCrewId === crewIds[0] &&
+            item.inspection === 'los-passed' &&
+            item.property === 'pending-property-walk' &&
+            !item.callbackOpen,
+        );
+      if (!packageReady) return [];
+
+      const targets = released.map((item) => ({
+        unitId: item.unitId,
+        trade: item.trade,
+        section: item.section,
+      }));
+      return [{
+        target: targets[0],
+        targets,
         unitNumber: unit.unitNumber,
         unitType: unit.unitType,
         locationLabel: unit.locationLabel,
-        crewId: item.responsibleCrewId as string,
-      })),
+        crewId: crewIds[0],
+        trade,
+        sectionCount: targets.length,
+      }];
+    }),
   );
 
 export const trackCCrewName = (

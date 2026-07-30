@@ -99,6 +99,24 @@ export interface TrackACrewOption {
   readonly trade: 'paint' | 'clean';
 }
 
+export interface TrackASetupCrew {
+  readonly active: boolean;
+  readonly id: string;
+  readonly name: string;
+  readonly phone?: string;
+  readonly projectId: string;
+  readonly trade: 'paint' | 'clean';
+}
+
+export interface TrackASetupUnit {
+  readonly building: string;
+  readonly floor: string;
+  readonly id: string;
+  readonly projectId: string;
+  readonly unitNumber: string;
+  readonly unitType: 1 | 2 | 3 | 4 | 5;
+}
+
 /** @deprecated Use ProjectConfiguration. Kept as a feature-local compatibility alias. */
 export type ProjectFieldConfiguration = ProjectConfiguration;
 
@@ -115,6 +133,8 @@ export interface ProjectActivationDraft {
   readonly project: TrackAProject;
   readonly configuration: ProjectFieldConfiguration;
   readonly contacts: readonly PropertyContact[];
+  readonly crews?: readonly TrackASetupCrew[];
+  readonly units?: readonly TrackASetupUnit[];
   readonly confirmOverwrite: boolean;
 }
 

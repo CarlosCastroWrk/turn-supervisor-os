@@ -24,8 +24,7 @@ export const TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS: Readonly<
     reason: 'File intake is not included in this candidate.',
   },
   'import-work': {
-    availability: 'unavailable',
-    reason: 'The Import upgrade is not included in this candidate.',
+    availability: 'available',
   },
   note: { availability: 'available' },
   'paste-text': {

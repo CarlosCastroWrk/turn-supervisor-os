@@ -581,6 +581,10 @@ export interface TrackCStartWalkInput {
   readonly confirmedLosInspection: boolean;
 }
 
+const walkPackageKey = (
+  target: Pick<TrackCWorkTarget, 'trade' | 'unitId'>,
+) => `${target.unitId}:${target.trade}`;
+
 export const startTrackCWalk = (
   state: TrackCState,
   input: TrackCStartWalkInput,
@@ -597,23 +601,28 @@ export const startTrackCWalk = (
   if (!input.propertyContact.trim()) {
     return error('confirmation-required', 'A property walkthrough contact is required.');
   }
-  const candidateKeys = new Set(
-    projectTrackCWalkCandidates(state).map((candidate) =>
-      trackCWorkKey(candidate.target)
-    ),
-  );
-  const selectedTargets = [
+  const candidates = projectTrackCWalkCandidates(state);
+  const requestedTargets = [
     ...new Map(
       input.selectedTargets.map((target) => [trackCWorkKey(target), target]),
     ).values(),
   ];
+  const requestedKeys = new Set(requestedTargets.map(trackCWorkKey));
+  const selectedCandidates = candidates.filter((candidate) =>
+    candidate.targets.some((target) => requestedKeys.has(trackCWorkKey(target))),
+  );
+  const selectedTargets = selectedCandidates.flatMap(
+    (candidate) => candidate.targets,
+  );
+  const selectedKeys = new Set(selectedTargets.map(trackCWorkKey));
   if (
-    selectedTargets.length === 0 ||
-    selectedTargets.some((target) => !candidateKeys.has(trackCWorkKey(target)))
+    requestedTargets.length === 0 ||
+    requestedKeys.size !== selectedKeys.size ||
+    requestedTargets.some((target) => !selectedKeys.has(trackCWorkKey(target)))
   ) {
     return error(
       'not-walk-candidate',
-      'Every selected item must be Los-passed, unblocked, pending property walk, and not accepted.',
+      'Select the complete Los-passed Unit+Trade package. Partial section walks are not allowed.',
     );
   }
   const reviewedSelections: TrackCWalkSelectionReview[] = [];
@@ -737,9 +746,38 @@ export const endTrackCWalk = (
   const outcomes = activeWalk.selectedTargets.map(
     (target) => outcomeByKey.get(trackCWorkKey(target)) as TrackCWalkOutcomeRecord,
   );
+  const packageOutcomes = new Map<string, TrackCWalkOutcomeRecord[]>();
+  for (const outcome of outcomes) {
+    const key = walkPackageKey(outcome.target);
+    packageOutcomes.set(key, [...(packageOutcomes.get(key) ?? []), outcome]);
+  }
+  for (const packageRecords of packageOutcomes.values()) {
+    const packageStates = new Set(
+      packageRecords.map((outcome) => outcome.outcome),
+    );
+    const correctionPackage = packageStates.has('correction-requested');
+    const coherentCorrection =
+      correctionPackage &&
+      [...packageStates].every(
+        (outcome) =>
+          outcome === 'accepted' || outcome === 'correction-requested',
+      );
+    if (
+      (!correctionPackage && packageStates.size !== 1) ||
+      (correctionPackage && !coherentCorrection)
+    ) {
+      return error(
+        'incomplete-walk',
+        'Record one coherent outcome for the complete Unit+Trade package. Corrections may identify affected sections.',
+      );
+    }
+  }
   const events = outcomes.map((outcome, index) => {
     const projection = currentByKey.get(trackCWorkKey(outcome.target));
     const crewId = projection?.responsibleCrewId;
+    const packageHasCorrection = packageOutcomes
+      .get(walkPackageKey(outcome.target))
+      ?.some((record) => record.outcome === 'correction-requested');
     const common = {
       id: `${input.eventIdPrefix}-${index + 1}`,
       target: outcome.target,
@@ -752,6 +790,15 @@ export const endTrackCWalk = (
     };
     switch (outcome.outcome) {
       case 'accepted':
+        if (packageHasCorrection) {
+          return confirmedEvent({
+            ...common,
+            eventType: 'walk-deferred',
+            summary:
+              outcome.note ??
+              'This section remains Los-passed while the Unit+Trade package returns for correction.',
+          });
+        }
         return confirmedEvent({
           ...common,
           eventType: 'property-accepted',

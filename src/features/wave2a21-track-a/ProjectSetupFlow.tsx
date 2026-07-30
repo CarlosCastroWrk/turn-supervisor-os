@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import { useMemo, useState, type ChangeEvent } from 'react';
 import type {
   BrowserPermissionState,
   ProjectActivationDraft,
@@ -7,6 +7,8 @@ import type {
   PropertyContact,
   PropertyContactRole,
   TrackACrewOption,
+  TrackASetupCrew,
+  TrackASetupUnit,
 } from './contracts';
 import { PROPERTY_CONTACT_ROLES } from './contracts';
 import {
@@ -31,6 +33,7 @@ export interface ProjectSetupFlowProps {
   readonly onActivate: () => void;
   readonly onAddContact: () => void;
   readonly onDraftChange: (draft: ProjectActivationDraft) => void;
+  readonly onExit: () => void;
   readonly onRemoveContact: (contactId: string) => void;
   readonly onStepChange: (step: number) => void;
   readonly rosterUnits?: readonly ProjectRosterUnitOption[];
@@ -48,8 +51,15 @@ const contactRole = (contact: PropertyContact): PropertyContactRole => (
   ?? 'Other'
 );
 
-const sectionLabel = (section: ProjectRosterUnitOption['applicableSections'][number]) =>
-  section === 'common' ? 'Common' : section;
+const unitTypeSections = (unitType: TrackASetupUnit['unitType']) => (
+  ['Common', 'A', 'B', 'C', 'D', 'E'].slice(0, unitType + 1)
+);
+
+const setupUnitType = (value: string | number): TrackASetupUnit['unitType'] => {
+  const parsed = Number(value);
+  return Math.min(5, Math.max(1, Number.isFinite(parsed) ? parsed : 3)) as
+    TrackASetupUnit['unitType'];
+};
 
 const permissionCopy: Readonly<Record<BrowserPermissionState, string>> = {
   denied: 'Denied by this browser or device',
@@ -69,12 +79,39 @@ export function ProjectSetupFlow({
   onActivate,
   onAddContact,
   onDraftChange,
+  onExit,
   onRemoveContact,
   onStepChange,
   rosterUnits = [],
 }: ProjectSetupFlowProps) {
   const step = clampProjectSetupStep(currentStep);
   const schedule = resolveProjectDefaultSchedule(draft.configuration);
+  const [unitPaste, setUnitPaste] = useState('');
+  const [unitBuilding, setUnitBuilding] = useState('');
+  const [unitFloor, setUnitFloor] = useState('');
+  const [unitType, setUnitType] = useState<TrackASetupUnit['unitType']>(3);
+  const [rosterMessage, setRosterMessage] = useState('');
+  const setupCrews = useMemo<readonly TrackASetupCrew[]>(
+    () => draft.crews ?? crewOptions.map((crew) => ({
+      active: crew.active !== false,
+      id: crew.id,
+      name: crew.name,
+      projectId: draft.project.id,
+      trade: crew.trade,
+    })),
+    [crewOptions, draft.crews, draft.project.id],
+  );
+  const setupUnits = useMemo<readonly TrackASetupUnit[]>(
+    () => draft.units ?? rosterUnits.map((unit) => ({
+      building: unit.building ?? 'Building',
+      floor: unit.floor ?? 'Floor',
+      id: unit.id,
+      projectId: draft.project.id,
+      unitNumber: unit.unitNumber,
+      unitType: setupUnitType(unit.unitType),
+    })),
+    [draft.project.id, draft.units, rosterUnits],
+  );
 
   const setProject = (
     field: 'endDate' | 'location' | 'propertyName' | 'startDate' | 'supervisorName',
@@ -141,18 +178,87 @@ export function ProjectSetupFlow({
       })),
     });
   };
-  const setCrewEnabled = (crew: ProjectSetupCrewOption, checked: boolean) => {
-    const current = draft.configuration.defaultCrewIdsByTrade[crew.trade];
-    const nextIds = checked
-      ? [...new Set([...current, crew.id])]
-      : current.filter((crewId) => crewId !== crew.id);
-    setConfiguration({
-      ...draft.configuration,
-      defaultCrewIdsByTrade: {
-        ...draft.configuration.defaultCrewIdsByTrade,
-        [crew.trade]: nextIds,
+  const setSetupCrews = (crews: readonly TrackASetupCrew[]) => {
+    onDraftChange({
+      ...draft,
+      configuration: {
+        ...draft.configuration,
+        defaultCrewIdsByTrade: {
+          clean: crews
+            .filter((crew) => crew.active && crew.trade === 'clean')
+            .map((crew) => crew.id),
+          paint: crews
+            .filter((crew) => crew.active && crew.trade === 'paint')
+            .map((crew) => crew.id),
+        },
       },
+      crews,
     });
+  };
+  const updateSetupCrew = (
+    crewId: string,
+    update: (crew: TrackASetupCrew) => TrackASetupCrew,
+  ) => {
+    setSetupCrews(setupCrews.map((crew) => crew.id === crewId ? update(crew) : crew));
+  };
+  const addSetupCrew = (trade: TrackASetupCrew['trade']) => {
+    const id = `crew:${draft.project.id}:${trade}:${Date.now()}:${setupCrews.length}`;
+    setSetupCrews([
+      ...setupCrews,
+      {
+        active: true,
+        id,
+        name: '',
+        projectId: draft.project.id,
+        trade,
+      },
+    ]);
+  };
+  const setSetupUnits = (units: readonly TrackASetupUnit[]) => {
+    onDraftChange({ ...draft, units });
+  };
+  const addRosterUnits = () => {
+    const parsed = unitPaste
+      .split(/[\s,]+/u)
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const invalid = parsed.filter((value) => !/^[A-Za-z0-9-]+$/u.test(value));
+    const existingNumbers = new Set(
+      setupUnits.map((unit) => unit.unitNumber.toLocaleLowerCase()),
+    );
+    const uniqueNumbers = [...new Set(parsed.map((value) => value.toLocaleLowerCase()))]
+      .map((normalized) => parsed.find(
+        (value) => value.toLocaleLowerCase() === normalized,
+      ))
+      .filter((value): value is string => Boolean(value))
+      .filter((value) => !existingNumbers.has(value.toLocaleLowerCase()));
+    if (!unitBuilding.trim() || !unitFloor.trim()) {
+      setRosterMessage('Enter a building and floor before adding Units.');
+      return;
+    }
+    if (invalid.length > 0) {
+      setRosterMessage(`Review unsupported Unit identifiers: ${invalid.join(', ')}`);
+      return;
+    }
+    if (uniqueNumbers.length === 0) {
+      setRosterMessage('No new Unit identifiers were found.');
+      return;
+    }
+    setSetupUnits([
+      ...setupUnits,
+      ...uniqueNumbers.map((unitNumber): TrackASetupUnit => ({
+        building: unitBuilding.trim(),
+        floor: unitFloor.trim(),
+        id: `unit:${draft.project.id}:${encodeURIComponent(unitNumber.toLocaleLowerCase())}`,
+        projectId: draft.project.id,
+        unitNumber,
+        unitType,
+      })),
+    ]);
+    setUnitPaste('');
+    setRosterMessage(
+      `${uniqueNumbers.length} ${uniqueNumbers.length === 1 ? 'Unit' : 'Units'} added to the personal roster draft.`,
+    );
   };
   const activeContacts = draft.contacts.filter(
     (contact) => contact.activeForProject !== false,
@@ -161,6 +267,39 @@ export function ProjectSetupFlow({
     ...draft.configuration.defaultCrewIdsByTrade.paint,
     ...draft.configuration.defaultCrewIdsByTrade.clean,
   ]);
+  const stepComplete = [
+    Boolean(
+      draft.project.propertyName.trim()
+      && draft.project.location.trim()
+      && draft.project.startDate
+      && draft.project.endDate
+      && draft.project.startDate <= draft.project.endDate
+      && draft.project.supervisorName.trim()
+      && (
+        draft.configuration.enabledTrades.paint
+        || draft.configuration.enabledTrades.clean
+      )
+    ),
+    Boolean(
+      activeContacts.some((contact) =>
+        contact.isPrimary && contact.name.trim() && contact.title.trim())
+      && schedule.workStartTime
+      && schedule.workEndTime
+      && schedule.walkthroughTime
+    ),
+    Boolean(
+      (!draft.configuration.enabledTrades.paint || setupCrews.some((crew) =>
+        crew.active && crew.trade === 'paint' && crew.name.trim()))
+      && (!draft.configuration.enabledTrades.clean || setupCrews.some((crew) =>
+        crew.active && crew.trade === 'clean' && crew.name.trim()))
+    ),
+    setupUnits.length > 0,
+    true,
+  ] as const;
+  const firstIncompleteStep = stepComplete.findIndex((complete) => !complete);
+  const furthestAvailableStep = firstIncompleteStep < 0
+    ? PROJECT_SETUP_STEPS.length - 1
+    : firstIncompleteStep;
 
   return (
     <section
@@ -169,16 +308,20 @@ export function ProjectSetupFlow({
       data-track-a-project-setup="true"
     >
       <header className="w2a21a-setup__header">
-        <p>Personal Turn OS setup</p>
-        <h1 id="w2a21a-setup-title">Set up project</h1>
-        <p>
-          Step {step + 1} of {PROJECT_SETUP_STEPS.length}. The paper TurnBoard remains authoritative.
-        </p>
+        <div className="w2a21a-setup__title-row">
+          <div>
+            <p>Personal Turn OS setup</p>
+            <h1 id="w2a21a-setup-title">Set up project</h1>
+          </div>
+          <button onClick={onExit} type="button">Close</button>
+        </div>
+        <p>Step {step + 1} of {PROJECT_SETUP_STEPS.length} · Paper remains authoritative.</p>
         <ol aria-label="Project setup progress" className="w2a21a-setup__steps">
           {PROJECT_SETUP_STEPS.map((item, index) => (
             <li aria-current={index === step ? 'step' : undefined} key={item.id}>
               <button
                 aria-label={`Go to step ${index + 1}: ${item.label}`}
+                disabled={index > furthestAvailableStep}
                 onClick={() => onStepChange(index)}
                 type="button"
               >
@@ -407,7 +550,7 @@ export function ProjectSetupFlow({
                 </label>
               </div>
               <label>
-                Default walkthrough time (optional)
+                Default walkthrough time
                 <input
                   onChange={(event) => setSchedule('walkthroughTime', event.target.value)}
                   type="time"
@@ -421,30 +564,86 @@ export function ProjectSetupFlow({
           </div>
         ) : null}
 
-        {step === 2 ? (
+        {step === 3 ? (
           <fieldset>
             <legend>Property roster</legend>
             <p className="w2a21a-setup__supporting">
-              Review the known Units already attached to this personal project. This is not today’s release.
+              Add the property roster once. This does not release work for today.
             </p>
-            <div className="w2a21a-setup__roster-summary">
-              <strong>{rosterUnits.length}</strong>
-              <span>known {rosterUnits.length === 1 ? 'Unit' : 'Units'}</span>
+            <div className="w2a21a-setup__roster-entry">
+              <label>
+                Unit identifiers
+                <textarea
+                  onChange={(event) => setUnitPaste(event.target.value)}
+                  placeholder="101 102 103 or one per line"
+                  value={unitPaste}
+                />
+              </label>
+              <div className="w2a21a-setup__columns">
+                <label>
+                  Building
+                  <input
+                    onChange={(event) => setUnitBuilding(event.target.value)}
+                    placeholder="Building A"
+                    value={unitBuilding}
+                  />
+                </label>
+                <label>
+                  Floor
+                  <input
+                    onChange={(event) => setUnitFloor(event.target.value)}
+                    placeholder="Floor 1"
+                    value={unitFloor}
+                  />
+                </label>
+              </div>
+              <label>
+                Unit type
+                <select
+                  onChange={(event) => setUnitType(setupUnitType(event.target.value))}
+                  value={unitType}
+                >
+                  {[1, 2, 3, 4, 5].map((count) => (
+                    <option key={count} value={count}>
+                      {count}BR · {unitTypeSections(setupUnitType(count)).join(', ')}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button onClick={addRosterUnits} type="button">Add Units</button>
+              {rosterMessage ? (
+                <p aria-live="polite" className="w2a21a-setup__supporting">
+                  {rosterMessage}
+                </p>
+              ) : null}
             </div>
-            {rosterUnits.length > 0 ? (
+            <div className="w2a21a-setup__roster-summary">
+              <strong>{setupUnits.length}</strong>
+              <span>known {setupUnits.length === 1 ? 'Unit' : 'Units'}</span>
+            </div>
+            {setupUnits.length > 0 ? (
               <ul className="w2a21a-setup__roster">
-                {rosterUnits.map((unit) => (
+                {setupUnits.map((unit) => (
                   <li key={unit.id}>
                     <span>
                       <strong>Unit {unit.unitNumber}</strong>
                       <small>
-                        {unit.unitType}
-                        {unit.building ? ` · ${unit.building}` : ''}
-                        {unit.floor ? ` · ${unit.floor}` : ''}
+                        {unit.unitType}BR · {unit.building} · {unit.floor}
                       </small>
                     </span>
-                    <span aria-label={`Applicable sections for Unit ${unit.unitNumber}`}>
-                      {unit.applicableSections.map(sectionLabel).join(', ') || 'No applicable sections'}
+                    <span>
+                      <span aria-label={`Applicable sections for Unit ${unit.unitNumber}`}>
+                        {unitTypeSections(unit.unitType).join(', ')}
+                      </span>
+                      <button
+                        aria-label={`Remove Unit ${unit.unitNumber}`}
+                        onClick={() => setSetupUnits(
+                          setupUnits.filter((candidate) => candidate.id !== unit.id),
+                        )}
+                        type="button"
+                      >
+                        Remove
+                      </button>
                     </span>
                   </li>
                 ))}
@@ -452,37 +651,73 @@ export function ProjectSetupFlow({
             ) : (
               <div className="w2a21a-setup__empty">
                 <strong>No known Units are available to review.</strong>
-                <p>Add Units through an already accepted manual roster flow before activation.</p>
+                <p>Paste or type the Unit identifiers above.</p>
               </div>
             )}
             <div className="w2a21a-setup__notice" role="note">
-              Advanced file and image import is not included in this candidate.
+              Exact identifiers are preserved. Image, PDF, and spreadsheet extraction are not included.
             </div>
           </fieldset>
         ) : null}
 
-        {step === 3 ? (
+        {step === 2 ? (
           <div className="w2a21a-setup__group-stack">
             <fieldset>
               <legend>Crews</legend>
               {(['paint', 'clean'] as const).map((trade) => {
-                const matchingCrews = crewOptions.filter((crew) => crew.trade === trade);
+                const matchingCrews = setupCrews.filter((crew) => crew.trade === trade);
                 return (
                   <div className="w2a21a-setup__crew-group" key={trade}>
                     <h2>{trade === 'paint' ? 'Paint crews' : 'Clean crews'}</h2>
                     {matchingCrews.length === 0 ? (
                       <p>No {trade} crews are saved yet.</p>
                     ) : matchingCrews.map((crew) => (
-                      <label className="w2a21a-setup__check" key={crew.id}>
-                        <input
-                          checked={draft.configuration.defaultCrewIdsByTrade[trade].includes(crew.id)}
-                          disabled={crew.active === false}
-                          onChange={(event) => setCrewEnabled(crew, event.target.checked)}
-                          type="checkbox"
-                        />
-                        {crew.name}{crew.active === false ? ' · Inactive' : ''}
-                      </label>
+                      <div className="w2a21a-setup__contact" key={crew.id}>
+                        <label>
+                          Crew name
+                          <input
+                            onChange={(event) => updateSetupCrew(crew.id, (current) => ({
+                              ...current,
+                              name: event.target.value,
+                            }))}
+                            value={crew.name}
+                          />
+                        </label>
+                        <label>
+                          Phone (optional)
+                          <input
+                            inputMode="tel"
+                            onChange={(event) => updateSetupCrew(crew.id, (current) => ({
+                              ...current,
+                              phone: event.target.value,
+                            }))}
+                            value={crew.phone ?? ''}
+                          />
+                        </label>
+                        <label className="w2a21a-setup__check">
+                          <input
+                            checked={crew.active}
+                            onChange={(event) => updateSetupCrew(crew.id, (current) => ({
+                              ...current,
+                              active: event.target.checked,
+                            }))}
+                            type="checkbox"
+                          />
+                          Active for this project
+                        </label>
+                        <button
+                          onClick={() => setSetupCrews(
+                            setupCrews.filter((candidate) => candidate.id !== crew.id),
+                          )}
+                          type="button"
+                        >
+                          Remove crew
+                        </button>
+                      </div>
                     ))}
+                    <button onClick={() => addSetupCrew(trade)} type="button">
+                      Add {trade === 'paint' ? 'Paint' : 'Clean'} crew
+                    </button>
                   </div>
                 );
               })}
@@ -568,14 +803,14 @@ export function ProjectSetupFlow({
             <div className="w2a21a-setup__review-section">
               <div>
                 <h2>Property roster</h2>
-                <button onClick={() => onStepChange(2)} type="button">Review roster</button>
+                <button onClick={() => onStepChange(3)} type="button">Review roster</button>
               </div>
-              <p>{rosterUnits.length} known {rosterUnits.length === 1 ? 'Unit' : 'Units'}.</p>
+              <p>{setupUnits.length} known {setupUnits.length === 1 ? 'Unit' : 'Units'}.</p>
             </div>
             <div className="w2a21a-setup__review-section">
               <div>
                 <h2>Crews and permissions</h2>
-                <button onClick={() => onStepChange(3)} type="button">Edit crews and permissions</button>
+                <button onClick={() => onStepChange(2)} type="button">Edit crews and permissions</button>
               </div>
               <p>
                 {configuredCrews.size} default {configuredCrews.size === 1 ? 'crew' : 'crews'}
@@ -641,6 +876,7 @@ export function ProjectSetupFlow({
         {step < PROJECT_SETUP_STEPS.length - 1 ? (
           <button
             className="w2a21a-setup__primary"
+            disabled={!stepComplete[step]}
             onClick={() => onStepChange(step + 1)}
             type="button"
           >

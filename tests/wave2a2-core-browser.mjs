@@ -121,15 +121,14 @@ try {
       true,
     );
     assert.equal(
-      await addDialog.getByRole('button', { name: /^Import Work(?:\s|$)/u }).isDisabled(),
+      await addDialog.getByRole('button', { name: /^Add Release Batch(?:\s|$)/u }).isEnabled(),
       true,
     );
+    assert.equal(await addDialog.getByText('Import Work', { exact: true }).count(), 0);
     assert.equal(await page.getByText('Field Copilot', { exact: true }).count(), 0);
     assert.equal(await page.getByText('Create Assignment', { exact: true }).count(), 0);
-    await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();
-    await addDialog.waitFor({ state: 'hidden' });
 
-    await page.getByRole('button', { name: /Import today.s released work/u }).click();
+    await addDialog.getByRole('button', { name: /^Add Release Batch(?:\s|$)/u }).click();
     await page.getByRole('heading', { name: 'Manual release review', exact: true }).waitFor();
     await page.getByLabel('Property contact').fill('Synthetic property contact');
     const unit101 = page.locator('.w2a2-core-release__unit').filter({ hasText: 'Unit 101' });
@@ -176,9 +175,15 @@ try {
     await page.getByText('Synthetic accepted-core regression note.', { exact: true }).waitFor();
 
     await page.getByRole('button', { name: 'Open central Plus menu' }).click();
-    const importWork = page.getByRole('dialog', { name: 'Add to Turn OS' })
-      .getByRole('button', { name: /^Import Work(?:\s|$)/u });
-    assert.equal(await importWork.isDisabled(), true);
+    const releaseBatch = page.getByRole('dialog', { name: 'Add to Turn OS' })
+      .getByRole('button', { name: /^Add Release Batch(?:\s|$)/u });
+    assert.equal(await releaseBatch.isEnabled(), true);
+    assert.equal(
+      await page.getByRole('dialog', { name: 'Add to Turn OS' })
+        .getByText('Import Work', { exact: true })
+        .count(),
+      0,
+    );
     assert.equal(await page.getByText('Field Copilot', { exact: true }).count(), 0);
     assert.equal(await page.getByText('Create Assignment', { exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Close Add to Turn OS' }).click();

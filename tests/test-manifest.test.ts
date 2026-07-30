@@ -4,17 +4,27 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const repoRoot = process.cwd();
-const testPathPattern = /\btests\/[A-Za-z0-9._-]+\.test\.ts\b/g;
+const testPathPattern =
+  /\btests\/[A-Za-z0-9._-]+(?:\.test\.ts|\.test\.mjs|contract\.mjs)\b/g;
 
 test('the standard deterministic suite includes every committed test manifest entry', async () => {
   const packageJson = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   ) as { scripts?: Record<string, string> };
-  const standardSuite = packageJson.scripts?.['test:sync'] ?? '';
+  const standardSuite = [
+    packageJson.scripts?.['test:sync'] ?? '',
+    packageJson.scripts?.['test:supervisor-loop'] ?? '',
+  ].join(' ');
   const listedTests = standardSuite.match(testPathPattern) ?? [];
   const committedTests = execFileSync(
     'git',
-    ['ls-files', '--', 'tests/*.test.ts'],
+    [
+      'ls-files',
+      '--',
+      'tests/*.test.ts',
+      'tests/*.test.mjs',
+      'tests/*contract.mjs',
+    ],
     { cwd: repoRoot, encoding: 'utf8' },
   )
     .split('\n')
@@ -29,11 +39,11 @@ test('the standard deterministic suite includes every committed test manifest en
   assert.deepEqual(
     duplicateEntries,
     [],
-    `test:sync lists duplicate deterministic tests: ${duplicateEntries.join(', ')}`,
+    `standard deterministic suites list duplicate tests: ${duplicateEntries.join(', ')}`,
   );
   assert.deepEqual(
     omittedTests,
     [],
-    `test:sync omits committed deterministic tests: ${omittedTests.join(', ')}`,
+    `standard deterministic suites omit committed tests: ${omittedTests.join(', ')}`,
   );
 });

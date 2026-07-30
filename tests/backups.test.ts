@@ -533,7 +533,7 @@ test('Field Event reversal history cannot cross Day Session boundaries', () => {
   assert.doesNotThrow(() => parseJsonBackup(JSON.stringify(sameSessionReversal)));
 });
 
-test('property-accepted walk outcomes require current same-session Los inspection evidence', () => {
+test('property-accepted walk outcomes require current project-scope Los inspection evidence', () => {
   const missingLosPass = withLocalFieldState();
   missingLosPass.fieldEvents = [];
 
@@ -548,11 +548,11 @@ test('property-accepted walk outcomes require current same-session Los inspectio
 
   assert.throws(
     () => parseJsonBackup(JSON.stringify(missingLosPass)),
-    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los inspection pass from the same Day Session/,
+    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los inspection pass for the project scope/,
   );
-  assert.throws(
+  assert.doesNotThrow(
     () => parseJsonBackup(JSON.stringify(crossSessionLosPass)),
-    /walkSessions\.0\.outcomes\.0\.outcome.*requires a current Los inspection pass from the same Day Session/,
+    'a current same-project Los pass may support a later Day Session Walk',
   );
 });
 
@@ -683,7 +683,7 @@ test('Walk Sessions stay scoped to one Day Session and close with complete outco
 
   assert.throws(
     () => parseJsonBackup(JSON.stringify(unknownSelection)),
-    /walkSessions\.0\.selectedItemIds\.0.*must reference a release item from the same Day Session/,
+    /walkSessions\.0\.selectedItemIds\.0.*must reference confirmed project work released by a Day Session/,
   );
   assert.throws(
     () => parseJsonBackup(JSON.stringify(duplicateSelection)),

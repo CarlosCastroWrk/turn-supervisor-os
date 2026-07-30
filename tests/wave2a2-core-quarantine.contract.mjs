@@ -57,8 +57,12 @@ test('manual release is an explicit roster-only fallback with no extraction or h
   assert.match(manualRelease, /does not read a file, photo, paper mark, or official system/u);
   assert.match(manualRelease, /Paper remains authoritative/u);
   assert.match(manualRelease, /submittingRef\.current/u);
-  assert.match(host, /appendManualReleaseBatchOnce\(current, batch\)/u);
-  assert.match(adapters, /dailyReleaseBatches\.some/u);
+  assert.match(
+    host,
+    /commitDataNow\(\(current\) =>\s+appendManualReleaseBatchToActiveDay\(current, batch\)/u,
+  );
+  assert.match(adapters, /appendManualReleaseBatchToActiveDay/u);
+  assert.match(adapters, /fieldEvents: upsertById\(data\.fieldEvents, event\)/u);
   assert.doesNotMatch(
     combined,
     /wave2a2-track-d|SourceFirstImport|source-first import|extraction succeeded|OCR succeeded|AI extracted|partial import saved/u,

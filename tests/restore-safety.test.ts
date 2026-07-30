@@ -19,7 +19,7 @@ test('backup restore invalidates cache ownership before replacing local records'
   const source = readFileSync(new URL('../src/views/ExportView.tsx', import.meta.url), 'utf8');
   const restoreStart = source.indexOf('const restoreBackup');
   const ownerClear = source.indexOf('clearLocalCacheOwner()', restoreStart);
-  const dataReplacement = source.indexOf('setData(restored)', restoreStart);
+  const dataReplacement = source.indexOf('restoreDataNow(restored)', restoreStart);
 
   assert.ok(restoreStart >= 0);
   assert.ok(ownerClear > restoreStart);

@@ -2063,7 +2063,7 @@ function LaunchOperationalApp({
         />
       ) : (
         <DayTaskWorkspace
-          key={`${activeDaySession?.daySessionId ?? 'no-day'}:${currentDate}`}
+          key={currentDate}
           accountId={operationalScope.accountId}
           activeWalkSessionId={trackCState.activeWalk?.id}
           crews={dayCrewOptions}

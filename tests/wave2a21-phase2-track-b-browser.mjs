@@ -8,6 +8,7 @@ const port = 4397;
 const baseUrl = `http://${host}:${port}`;
 const previewPath =
   '/src/features/wave2a2-track-c/phase2-track-b/preview.html';
+const storageKey = 'turn-supervisor-os:v0.1';
 const dependencyRoot = process.env.PDS_DEPENDENCY_ROOT ?? process.cwd();
 const playwrightRoot = process.env.PDS_PLAYWRIGHT_ROOT ?? dependencyRoot;
 const viteRoot = process.env.PDS_VITE_ROOT ?? dependencyRoot;
@@ -19,9 +20,15 @@ const playwrightEntry = resolve(
   dirname(playwrightRequire.resolve('playwright')),
   'index.mjs',
 );
+const viteEntry = resolve(
+  dirname(viteRequire.resolve('vite/package.json')),
+  'dist',
+  'node',
+  'index.js',
+);
 const { chromium } = await import(pathToFileURL(playwrightEntry).href);
 const { createServer } = await import(
-  pathToFileURL(viteRequire.resolve('vite')).href
+  pathToFileURL(viteEntry).href
 );
 
 const server = await createServer({
@@ -110,6 +117,258 @@ const assertCriticalTargets = async (page, label) => {
       `${label} target ${index} measured ${box.width}x${box.height}.`,
     );
   }
+};
+
+const primaryNavigation = (page) =>
+  page.getByRole('navigation', { name: 'Primary' });
+
+const waitForLocalPersistence = (page) => page.waitForTimeout(750);
+
+const activateSyntheticHostProject = async (page) => {
+  await page.addInitScript(() => {
+    const initializationKey = 'wave2a21-phase2-track-b-actual-host-initialized';
+    if (window.sessionStorage.getItem(initializationKey) === 'true') return;
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    window.sessionStorage.setItem(initializationKey, 'true');
+  });
+
+  await page.goto(baseUrl, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  await primaryNavigation(page)
+    .getByRole('button', { name: 'More', exact: true })
+    .click();
+  await page.getByRole('button', { name: /^Setup/u }).click();
+  await page.getByRole('heading', { name: 'Activate project', exact: true }).waitFor();
+
+  await page.getByLabel('Project name', { exact: true }).fill('Synthetic host assignment proof');
+  await page.getByLabel('Property name', { exact: true }).fill('Synthetic Moon Tower');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Working hours', exact: true })
+    .fill('Synthetic occupied-area window: 10 AM–5 PM.');
+  await page.getByRole('textbox', { name: 'Daily walkthrough', exact: true })
+    .fill('Synthetic daily walkthrough at noon.');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel('Name', { exact: true }).fill('Synthetic Property Contact');
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByLabel(
+    'Replace the saved personal setup for this existing project.',
+    { exact: true },
+  ).check();
+  await page.getByRole('button', {
+    name: 'Activate personal project',
+    exact: true,
+  }).click();
+  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+
+  const fixture = await page.evaluate((key) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    const activeProjectId = data?.activeProjectId;
+    const unit = data?.units?.find((candidate) => candidate.projectId === activeProjectId);
+    const paintCrew = data?.crewMembers?.find((candidate) =>
+      (!candidate.projectId || candidate.projectId === activeProjectId)
+      && candidate.trade === 'Painter');
+    const cleanCrew = data?.crewMembers?.find((candidate) =>
+      (!candidate.projectId || candidate.projectId === activeProjectId)
+      && candidate.trade === 'Cleaner');
+    return unit && paintCrew && cleanCrew
+      ? {
+          cleanCrewId: cleanCrew.id,
+          cleanCrewName: cleanCrew.name,
+          paintCrewId: paintCrew.id,
+          paintCrewName: paintCrew.name,
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+        }
+      : null;
+  }, storageKey);
+  assert.ok(fixture, 'actual-host synthetic roster did not expose Paint, Clean, and Unit fixtures.');
+
+  await page.getByRole('button', { name: /^Import today’s released work/u })
+    .first()
+    .click();
+  const manualRelease = page.getByTestId('manual-release-review');
+  await manualRelease.waitFor();
+  const inputs = manualRelease.locator('input');
+  await inputs.nth(0).fill('Synthetic Property Contact');
+  await inputs.nth(1).fill(fixture.unitNumber);
+  const selectedUnit = manualRelease
+    .locator('.w2a2-core-release__unit')
+    .filter({ hasText: `Unit ${fixture.unitNumber}` });
+  await selectedUnit.waitFor();
+  const paintCommon = selectedUnit
+    .locator('.w2a2-core-release__sections label')
+    .filter({ hasText: 'Common' })
+    .filter({ hasText: 'Paint' });
+  const cleanCommon = selectedUnit
+    .locator('.w2a2-core-release__sections label')
+    .filter({ hasText: 'Common' })
+    .filter({ hasText: 'Clean' });
+  assert.equal(await paintCommon.count(), 1, 'expected exactly one synthetic Common Paint release option.');
+  assert.equal(await cleanCommon.count(), 1, 'expected exactly one synthetic Common Clean release option.');
+  await paintCommon.locator('input').check();
+  await cleanCommon.locator('input').check();
+  await manualRelease.locator('.w2a2-core-confirm input').check();
+  await manualRelease.getByRole('button', {
+    name: 'Confirm personal release',
+    exact: true,
+  }).click();
+  await page.getByTestId('track-b-home').waitFor();
+  await waitForLocalPersistence(page);
+
+  const release = await page.evaluate(({ key, unitId }) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    const batch = [...(data?.dailyReleaseBatches ?? [])]
+      .filter((candidate) => candidate.projectId === data.activeProjectId && candidate.status === 'confirmed')
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+    const items = batch?.items?.filter((item) => item.unitId === unitId) ?? [];
+    return batch
+      ? {
+          clean: items.filter((item) => item.trade === 'clean' && item.section === 'common').length,
+          date: batch.date,
+          paint: items.filter((item) => item.trade === 'paint' && item.section === 'common').length,
+          releaseId: batch.id,
+        }
+      : null;
+  }, { key: storageKey, unitId: fixture.unitId });
+  assert.deepEqual(release?.paint, 1, 'actual host did not durably retain one released Paint target.');
+  assert.deepEqual(release?.clean, 1, 'actual host did not durably retain one released Clean target.');
+
+  await page.getByRole('button', { name: 'Start Day', exact: true }).first().click();
+  await page.getByTestId('track-b-start-day').waitFor();
+  for (let step = 1; step <= 7; step += 1) {
+    await page.getByText(`Step ${step} of 8`, { exact: true }).waitFor();
+    if (step === 4) {
+      await page.getByTestId('track-b-start-day').locator('textarea').first().fill(
+        'Synthetic evidence reviewed for the actual-host assignment proof.',
+      );
+    }
+    if (step === 6) {
+      const wordingFields = page.getByTestId('track-b-start-day').locator('textarea');
+      await wordingFields.nth(0).fill('Synthetic occupied-area window: 10 AM–5 PM.');
+      await wordingFields.nth(1).fill('Synthetic daily walkthrough at noon.');
+    }
+    if (step === 7) {
+      await page.getByTestId('track-b-start-day').locator('textarea').first().fill(
+        'Synthetic Start Day review for Paint and Clean assignment proof.',
+      );
+    }
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  }
+  await page.getByText('I reviewed the Start Day details.', { exact: true }).click();
+  await page.getByRole('button', { name: 'Start Day', exact: true }).click();
+  await page.getByTestId('track-b-home').waitFor();
+  await page.getByText('Active', { exact: true }).waitFor();
+  await waitForLocalPersistence(page);
+  return fixture;
+};
+
+const assignmentEventSummary = async (page, fixture, trade) =>
+  page.evaluate(({ key, trade: expectedTrade, unitId }) => {
+    const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+    const assignments = (data?.fieldEvents ?? []).filter((event) =>
+      event.projectId === data.activeProjectId
+      && event.eventType === 'assignment-confirmed'
+      && event.unitId === unitId
+      && event.trade === expectedTrade);
+    return {
+      assignmentCount: assignments.length,
+      assignmentIds: assignments.map((event) => event.id),
+      activityEquivalentCount: assignments.length,
+    };
+  }, { key: storageKey, trade, unitId: fixture.unitId });
+
+const proveActualHostAssignment = async (page, fixture, input) => {
+  const { crewId, crewName, trade } = input;
+  const tradeLabel = trade === 'paint' ? 'Paint' : 'Clean';
+  const oppositeTradeLabel = trade === 'paint' ? 'Clean' : 'Paint';
+  const crewRoute = `${baseUrl}/#/crews/${encodeURIComponent(crewId)}`;
+  const assignmentRoute = `${baseUrl}/#/assignments/${encodeURIComponent(crewId)}`;
+
+  // This is the real host route, not the Track B preview or a component harness.
+  await page.goto(crewRoute, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: crewName, exact: true }).waitFor();
+  assert.equal(
+    await page.getByLabel('Confirmed crew event stats').count(),
+    1,
+    `${tradeLabel} must open Crew Detail before its edit flow.`,
+  );
+  const assign = page.getByRole('button', { name: 'Assign work', exact: true });
+  assert.equal(await assign.isDisabled(), false, `${tradeLabel} Assign work should be enabled only after the real release.`);
+  await assign.click();
+  await page.getByRole('heading', { name: 'Assign work', exact: true }).waitFor();
+  assert.equal(page.url(), assignmentRoute, `${tradeLabel} assignment must use its durable host route.`);
+  assert.equal(await page.getByLabel('Compatible crew').inputValue(), crewId);
+  assert.equal(
+    await page.getByRole('button', { name: tradeLabel, exact: true }).getAttribute('aria-pressed'),
+    'true',
+    `${tradeLabel} crew must retain its compatible trade.`,
+  );
+  assert.equal(
+    await page.getByRole('button', { name: oppositeTradeLabel, exact: true }).getAttribute('aria-pressed'),
+    'false',
+    `${tradeLabel} crew must not silently enter ${oppositeTradeLabel} assignment mode.`,
+  );
+  const eligibleUnits = page.locator('.phase2-track-b-unit-list > label');
+  assert.equal(await eligibleUnits.count(), 1, `only the confirmed released ${tradeLabel} Unit may be offered.`);
+  const eligibleUnit = eligibleUnits.filter({ hasText: `Unit ${fixture.unitNumber}` });
+  assert.equal(await eligibleUnit.count(), 1);
+  await eligibleUnit.locator('input').check();
+  await page.getByRole('button', { name: 'Review personal proposal', exact: true }).click();
+  const review = page.getByRole('region', { name: 'Assignment proposal review' });
+  await review.waitFor();
+  assert.equal(await review.getByText(`Unit ${fixture.unitNumber}`, { exact: true }).count(), 1);
+  await review.getByRole('button', { name: 'Confirm personal assignment', exact: true })
+    .evaluate((button) => {
+      button.click();
+      button.click();
+    });
+  await page.getByText(/1 Unit assigned across 1 released section\./iu).waitFor();
+  await waitForLocalPersistence(page);
+  const persisted = await assignmentEventSummary(page, fixture, trade);
+  assert.equal(
+    persisted.assignmentCount,
+    1,
+    `${tradeLabel} must persist exactly one assignment after rapid double confirmation.`,
+  );
+  assert.equal(
+    persisted.activityEquivalentCount,
+    1,
+    `${tradeLabel} must produce exactly one canonical Activity event after rapid double confirmation.`,
+  );
+  assert.equal(persisted.assignmentIds.length, 1);
+
+  await page.goBack({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: crewName, exact: true }).waitFor();
+  await page.getByText('Assigned Units', { exact: true }).waitFor();
+  await page.getByText(`Unit ${fixture.unitNumber}`, { exact: true }).waitFor();
+  await page.getByText(`${tradeLabel} · Common`, { exact: true }).waitFor();
+
+  await page.goForward({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Assign work', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Compatible crew').inputValue(), crewId);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Assign work', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('Compatible crew').inputValue(), crewId);
+  assert.deepEqual(await assignmentEventSummary(page, fixture, trade), persisted);
+
+  await page.goto(`${baseUrl}/#/units`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: `Open Unit ${fixture.unitNumber}` }).click();
+  await page.getByText(crewName, { exact: true }).waitFor();
+  await page.getByText('Assigned', { exact: true }).waitFor();
+
+  await primaryNavigation(page)
+    .getByRole('button', { name: 'Activity', exact: true })
+    .click();
+  await page.getByText('Crew assignment confirmed', { exact: true }).first().waitFor();
+
+  await page.getByRole('button', { name: 'Open Search', exact: true }).click();
+  const search = page.getByPlaceholder('Search Units, crews, or activity');
+  await search.fill(crewName);
+  await page.getByText(crewName, { exact: true }).first().click();
+  await page.getByRole('heading', { name: crewName, exact: true }).waitFor();
+  return persisted;
 };
 
 let browser;
@@ -557,6 +816,21 @@ try {
   await hostPage
     .getByText('No released Paint work is available.', { exact: true })
     .waitFor();
+  await hostPage.goto(`${baseUrl}/#/crews/crew_cleaner`, {
+    waitUntil: 'networkidle',
+  });
+  await hostPage.getByRole('heading', { name: 'Cleaner Team Lead' }).waitFor();
+  const hostCleanAssignButton = hostPage.getByRole('button', {
+    name: 'Assign work',
+  });
+  assert.equal(
+    await hostCleanAssignButton.isDisabled(),
+    true,
+    'The actual host must render the Clean Assign action but disable it without eligible released work.',
+  );
+  await hostPage
+    .getByText('No released Clean work is available.', { exact: true })
+    .waitFor();
   await hostPage.goto(`${baseUrl}/#/assignments/crew_painter`, {
     waitUntil: 'networkidle',
   });
@@ -584,6 +858,50 @@ try {
   await assertNoHorizontalOverflow(hostPage, 'actual host assignment');
   assert.deepEqual(hostFindings, [], `actual host: ${hostFindings.join('\n')}`);
   await hostContext.close();
+
+  const actualHostContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    colorScheme: 'dark',
+  });
+  const actualHostPage = await actualHostContext.newPage();
+  actualHostPage.setDefaultTimeout(30_000);
+  const actualHostFindings = runtimeFindings(actualHostPage);
+  const actualHostFixture = await activateSyntheticHostProject(actualHostPage);
+  const paintAssignment = await proveActualHostAssignment(
+    actualHostPage,
+    actualHostFixture,
+    {
+      crewId: actualHostFixture.paintCrewId,
+      crewName: actualHostFixture.paintCrewName,
+      trade: 'paint',
+    },
+  );
+  const cleanAssignment = await proveActualHostAssignment(
+    actualHostPage,
+    actualHostFixture,
+    {
+      crewId: actualHostFixture.cleanCrewId,
+      crewName: actualHostFixture.cleanCrewName,
+      trade: 'clean',
+    },
+  );
+  assert.deepEqual(
+    await assignmentEventSummary(actualHostPage, actualHostFixture, 'paint'),
+    paintAssignment,
+    'Clean work must not alter the confirmed Paint assignment.',
+  );
+  assert.deepEqual(
+    await assignmentEventSummary(actualHostPage, actualHostFixture, 'clean'),
+    cleanAssignment,
+    'Clean work must retain exactly one confirmed assignment after reload.',
+  );
+  await assertNoHorizontalOverflow(actualHostPage, 'actual host Paint and Clean assignment proof');
+  assert.deepEqual(
+    actualHostFindings,
+    [],
+    `actual host Paint/Clean: ${actualHostFindings.join('\n')}`,
+  );
+  await actualHostContext.close();
 
   const unavailableContext = await browser.newContext({
     viewport: { width: 390, height: 844 },

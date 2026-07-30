@@ -375,6 +375,239 @@ try {
   await page.getByTestId('track-b-home').waitFor();
   await page.getByText('Active', { exact: true }).waitFor();
 
+  const walkData = await page.evaluate((key) => {
+    const serialized = window.localStorage.getItem(key);
+    return serialized ? JSON.parse(serialized) : null;
+  }, storageKey);
+  assert.ok(walkData, 'actual-host Walk source data was unavailable');
+  const walkSession = walkData.daySessions.find((candidate) =>
+    candidate.projectId === walkData.activeProjectId
+    && ['active', 'ending', 'reopened'].includes(candidate.status));
+  const walkRelease = walkData.dailyReleaseBatches.find((candidate) =>
+    walkSession?.releaseBatchIds.includes(candidate.id)
+    && candidate.status === 'confirmed');
+  const walkItem = walkRelease?.items?.[0];
+  const walkCrew = walkData.crewMembers.find((candidate) =>
+    (!candidate.projectId || candidate.projectId === walkData.activeProjectId)
+    && candidate.active
+    && (
+      (walkItem?.trade === 'paint' && candidate.trade === 'Painter')
+      || (walkItem?.trade === 'clean' && candidate.trade === 'Cleaner')
+    ));
+  const walkContact = walkData.propertyContacts.find((candidate) =>
+    candidate.projectId === walkData.activeProjectId && candidate.isPrimary)
+    ?? walkData.propertyContacts.find((candidate) =>
+      candidate.projectId === walkData.activeProjectId);
+  assert.ok(
+    walkSession && walkItem && walkCrew && walkContact,
+    'actual-host Walk fixtures were not available',
+  );
+
+  const walkEvent = (
+    id,
+    eventType,
+    recordedAt,
+    recordedBy,
+    actorType,
+    actorId,
+    sourceType,
+    summary,
+  ) => ({
+    actorId,
+    actorType,
+    boundary: 'personal-record',
+    daySessionId: walkSession.id,
+    eventType,
+    id,
+    projectId: walkData.activeProjectId,
+    recordedAt,
+    recordedBy,
+    reportedBy: walkCrew.id,
+    section: walkItem.section,
+    sourceId: walkItem.id,
+    sourceType,
+    summary,
+    trade: walkItem.trade,
+    unitId: walkItem.unitId,
+  });
+  const eventPrefix = 'personal-alpha-walk-host';
+  const eventBase = Date.parse(walkSession.startedAt);
+  walkData.fieldEvents = [
+    ...walkData.fieldEvents.filter((candidate) =>
+      !candidate.id.startsWith(eventPrefix)),
+    walkEvent(
+      `${eventPrefix}:assignment`,
+      'assignment-confirmed',
+      new Date(eventBase + 100).toISOString(),
+      'Los',
+      'los',
+      'Los',
+      'personal-confirmation',
+      'Synthetic released assignment for actual-host Walk proof.',
+    ),
+    walkEvent(
+      `${eventPrefix}:crew-complete`,
+      'crew-reported-complete',
+      new Date(eventBase + 200).toISOString(),
+      walkCrew.name,
+      'crew',
+      walkCrew.id,
+      'crew-report',
+      'Synthetic crew completion for actual-host Walk proof.',
+    ),
+    walkEvent(
+      `${eventPrefix}:los-pass`,
+      'los-passed',
+      new Date(eventBase + 300).toISOString(),
+      'Los',
+      'los',
+      'Los',
+      'personal-confirmation',
+      'Synthetic Los inspection for actual-host Walk proof.',
+    ),
+  ];
+  walkData.walkSessions = walkData.walkSessions.filter((candidate) =>
+    candidate.daySessionId !== walkSession.id);
+
+  const walkContext = await browser.newContext({
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    viewport: { height: 844, width: 390 },
+  });
+  const walkPage = await walkContext.newPage();
+  walkPage.setDefaultTimeout(30_000);
+  walkPage.on('console', (message) => {
+    if (message.type() === 'error') findings.push(`walk console: ${message.text()}`);
+  });
+  walkPage.on('pageerror', (error) =>
+    findings.push(`walk pageerror: ${error.message}`));
+  await walkPage.addInitScript(({ data, key }) => {
+    if (!window.localStorage.getItem(key)) {
+      window.localStorage.setItem(key, JSON.stringify(data));
+    }
+  }, { data: walkData, key: storageKey });
+  await walkPage.goto(`${baseUrl}/#/walk`, { waitUntil: 'networkidle' });
+
+  const startWalkHeading = walkPage.getByRole('heading', {
+    name: 'Start Walk',
+    exact: true,
+  });
+  await Promise.race([
+    startWalkHeading.waitFor(),
+    walkPage.getByRole('heading', {
+      name: 'No work is ready to walk.',
+      exact: true,
+    }).waitFor(),
+    walkPage.getByRole('heading', {
+      name: 'Add a Property Contact first.',
+      exact: true,
+    }).waitFor(),
+  ]);
+  assert.equal(
+    await startWalkHeading.count(),
+    1,
+    `actual-host Walk did not expose eligible work:\n${
+      await walkPage.getByTestId('track-c-field-ops').innerText()
+    }`,
+  );
+  await walkPage.locator('.track-c-field select')
+    .selectOption(walkContact.id);
+  await walkPage.locator('.track-c-walk-candidates input[type="checkbox"]')
+    .first()
+    .check();
+  await walkPage.getByRole('checkbox', {
+    name: /I inspected every selected item/u,
+  }).check();
+  await walkPage.getByRole('button', { name: 'Review Walk', exact: true }).click();
+  await walkPage.getByRole('heading', { name: 'Review Walk', exact: true }).waitFor();
+  await walkPage.getByRole('button', { name: 'Start Walk', exact: true }).click();
+  await walkPage.getByRole('heading', { name: 'Active Walk', exact: true }).waitFor();
+  assert.match(new URL(walkPage.url()).hash, /^#\/walk\/[^/]+$/u);
+
+  await walkPage.getByRole('button', { name: 'Accepted', exact: true }).click();
+  const walkNote = 'Synthetic walk note survives exact host reload.';
+  await walkPage.locator('.track-c-walk-note textarea').fill(walkNote);
+  await walkPage.getByRole('button', { name: 'Review End Walk', exact: true }).click();
+  try {
+    await walkPage.getByRole('heading', {
+      name: 'Review End Walk',
+      exact: true,
+    }).waitFor({ timeout: 10_000 });
+  } catch (error) {
+    const persisted = await walkPage.evaluate((key) =>
+      window.localStorage.getItem(key), storageKey);
+    throw new Error(
+      `actual-host Walk did not enter end review:\n${
+        await walkPage.getByTestId('track-c-field-ops').innerText()
+      }\nPersisted AppData:\n${persisted ?? 'missing'}`,
+      { cause: error },
+    );
+  }
+  await walkPage.waitForFunction(
+    ({ key, note }) => {
+      const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+      const walk = data?.walkSessions?.find((candidate) =>
+        candidate.status === 'active');
+      return (
+        walk?.note?.includes(note)
+        && walk.note.includes('"stage":"end-review"')
+        && walk.outcomes?.length === 1
+      );
+    },
+    { key: storageKey, note: walkNote },
+  );
+
+  await walkPage.reload({ waitUntil: 'networkidle' });
+  try {
+    await walkPage.getByRole('heading', {
+      name: 'Review End Walk',
+      exact: true,
+    }).waitFor({ timeout: 10_000 });
+  } catch (error) {
+    const persisted = await walkPage.evaluate((key) =>
+      window.localStorage.getItem(key), storageKey);
+    throw new Error(
+      `actual-host Walk did not restore end review after reload at ${
+        walkPage.url()
+      }:\n${
+        await walkPage.locator('body').innerText()
+      }\nPersisted AppData after reload:\n${persisted ?? 'missing'}`,
+      { cause: error },
+    );
+  }
+  await walkPage.getByText(walkNote, { exact: true }).waitFor();
+  await walkPage.getByRole('button', { name: 'Continue Walk', exact: true }).click();
+  await walkPage.getByRole('heading', { name: 'Active Walk', exact: true }).waitFor();
+  assert.equal(
+    await walkPage.locator('.track-c-walk-note textarea').inputValue(),
+    walkNote,
+  );
+  await walkPage.getByRole('button', { name: 'Review End Walk', exact: true }).click();
+  await walkPage.getByRole('button', { name: 'End Walk', exact: true }).click();
+  await walkPage.getByRole('heading', {
+    name: 'No work is ready to walk.',
+    exact: true,
+  }).waitFor();
+  await walkPage.waitForFunction(
+    ({ key, note }) => {
+      const data = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+      const walk = data?.walkSessions?.find((candidate) =>
+        candidate.status === 'closed');
+      return (
+        walk?.note?.includes(note)
+        && walk.outcomes?.length === 1
+        && walk.outcomes[0]?.outcome === 'accepted'
+      );
+    },
+    { key: storageKey, note: walkNote },
+  );
+  await walkPage.reload({ waitUntil: 'networkidle' });
+  await walkPage.getByRole('heading', {
+    name: 'No work is ready to walk.',
+    exact: true,
+  }).waitFor();
+  await walkContext.close();
+
   await page.getByRole('button', { name: 'Open central Plus menu' }).click();
   const plus = page.getByRole('dialog', { name: 'Add to Turn OS' });
   await plus.waitFor();

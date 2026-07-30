@@ -7,6 +7,11 @@ import {
   prepareDraftForActivationAttempt,
   removeProjectContact,
 } from '../src/features/wave2a21-field-activation/model.ts';
+import {
+  applyTrackCWalkDraftChange,
+  projectTrackCState,
+  projectTrackCWalkDraft,
+} from '../src/features/wave2a2-core/appDataAdapters.ts';
 import { START_DAY_STEPS } from '../src/features/wave2a2-track-b/model.ts';
 import { parseJsonBackup } from '../src/lib/backups.ts';
 import { buildJsonBackup } from '../src/lib/exporters.ts';
@@ -167,4 +172,116 @@ test('Today’s Task route round-trips and Start Day remains exactly eight liste
     'Morning note',
     'Review and Start Day',
   ]);
+});
+
+test('actual-host Walk draft envelope preserves exact notes and review stage without a schema change', () => {
+  const data = structuredClone(seedData) as AppData;
+  const projectId = data.activeProjectId;
+  const target = {
+    section: 'common' as const,
+    trade: 'paint' as const,
+    unitId: 'unit_101',
+  };
+  const reviewedSelection = {
+    access: 'clear' as const,
+    assignmentConflict: false,
+    callbackOpen: false,
+    confirmedEventCount: 3,
+    inspection: 'los-passed' as const,
+    property: 'pending-property-walk' as const,
+    release: 'released' as const,
+    responsibleCrewId: 'crew_painter',
+    sourceConfidence: 'confirmed' as const,
+    target,
+  };
+  const activeData: AppData = {
+    ...data,
+    dailyReleaseBatches: [{
+      confirmedAt: NOW,
+      confirmedBy: 'Los',
+      createdAt: NOW,
+      date: '2026-08-01',
+      id: 'release-walk-draft',
+      items: [{
+        id: 'release-walk-draft:item:1',
+        section: 'common',
+        sourceExcerpt: 'Synthetic exact Walk draft test.',
+        trade: 'paint',
+        unitId: 'unit_101',
+      }],
+      projectId,
+      propertyContact: 'Synthetic Property Contact',
+      sourceLabel: 'Synthetic exact Walk draft test',
+      sourceType: 'manual',
+      status: 'confirmed',
+      uncertainties: [],
+      updatedAt: NOW,
+    }],
+    daySessions: [{
+      activeCleanCrewIds: [],
+      activePaintCrewIds: ['crew_painter'],
+      createdAt: NOW,
+      date: '2026-08-01',
+      id: 'day-walk-draft',
+      keyStatus: 'yes',
+      morningNote: '',
+      projectId,
+      propertyContact: 'Synthetic Property Contact',
+      releaseBatchIds: ['release-walk-draft'],
+      startedAt: NOW,
+      startedBy: 'Los',
+      status: 'active',
+      updatedAt: NOW,
+    }],
+    walkSessions: [{
+      createdAt: NOW,
+      daySessionId: 'day-walk-draft',
+      id: 'walk-draft',
+      note: `turn-os-track-c-review-v1:${JSON.stringify([reviewedSelection])}`,
+      outcomes: [],
+      projectId,
+      propertyContact: 'Synthetic Property Contact',
+      selectedItemIds: ['release-walk-draft:item:1'],
+      startedAt: NOW,
+      startedBy: 'Los',
+      status: 'active',
+      updatedAt: NOW,
+    }],
+  };
+  const draft = {
+    outcomes: [{
+      note: 'Touch up behind the door — preserve this exact wording.',
+      outcome: 'correction-requested' as const,
+      target,
+    }],
+    stage: 'end-review' as const,
+    updatedAt: LATER,
+    version: 1 as const,
+    walkSessionId: 'walk-draft',
+  };
+
+  const persisted = applyTrackCWalkDraftChange(activeData, draft);
+  assert.deepEqual(projectTrackCWalkDraft(persisted), draft);
+  assert.deepEqual(
+    projectTrackCState(persisted).activeWalk?.outcomes,
+    draft.outcomes,
+  );
+  assert.equal(
+    persisted.walkSessions[0]?.outcomes[0]?.outcome,
+    'correction-requested',
+  );
+  const reloaded = parseJsonBackup(JSON.stringify(persisted));
+  assert.deepEqual(projectTrackCWalkDraft(reloaded), draft);
+  assert.deepEqual(
+    projectTrackCState(reloaded).activeWalk?.outcomes,
+    draft.outcomes,
+  );
+
+  const clearedDraft = applyTrackCWalkDraftChange(persisted, undefined);
+  assert.equal(projectTrackCWalkDraft(clearedDraft), undefined);
+  assert.deepEqual(
+    projectTrackCState(clearedDraft).activeWalk?.outcomes,
+    draft.outcomes,
+    'clearing transient review state must not erase the recorded outcome or note',
+  );
 });

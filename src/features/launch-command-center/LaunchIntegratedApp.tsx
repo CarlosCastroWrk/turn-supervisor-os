@@ -91,6 +91,7 @@ import {
 import {
   applyDayTaskStateChange,
   applyTrackCStateChange,
+  applyTrackCWalkDraftChange,
   appendManualReleaseBatchOnce,
   currentLocalDate,
   projectDailyReleases,
@@ -99,6 +100,7 @@ import {
   projectPropertyRoster,
   projectTodayTask,
   projectTrackCState,
+  projectTrackCWalkDraft,
 } from '../wave2a2-core/appDataAdapters';
 import {
   adaptAppDataForTrackA,
@@ -417,6 +419,10 @@ export function LaunchIntegratedApp() {
     [activeDaySession, data],
   );
   const trackCState = useMemo(() => projectTrackCState(data), [data]);
+  const trackCWalkDraft = useMemo(
+    () => projectTrackCWalkDraft(data),
+    [data],
+  );
   const activeProject = useMemo(
     () => data.projects.find((project) => project.id === data.activeProjectId),
     [data.activeProjectId, data.projects],
@@ -1592,6 +1598,19 @@ export function LaunchIntegratedApp() {
             setData((current) => applyTrackCStateChange(current, nextState));
           }}
           routeState={trackCRouteState}
+          walkIntegration={{
+            contacts: activeProjectContacts.map((contact) => ({
+              id: contact.id,
+              isPrimary: contact.isPrimary,
+              name: contact.name,
+              role: contact.title,
+            })),
+            ...(trackCWalkDraft ? { restoredDraft: trackCWalkDraft } : {}),
+            onDraftChange: (draft) => {
+              setData((current) =>
+                applyTrackCWalkDraftChange(current, draft));
+            },
+          }}
         />
       )}
     </div>

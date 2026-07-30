@@ -34,6 +34,7 @@ import {
   type TrackCWalkSelectionReview,
 } from '../wave2a2-track-c/model';
 import { projectTrackCWork } from '../wave2a2-track-c/projections';
+import type { TrackCWalkDraft } from '../wave2a2-track-c/phase2WalkWorkflow';
 
 const CONTEXT_EVENT_TYPES = {
   assignmentEvidence: 'day-assignment-evidence-reviewed',
@@ -59,6 +60,7 @@ const TRACK_C_EVENT_TYPES = new Set<TrackCEventType>([
 ]);
 
 const WALK_REVIEW_NOTE_PREFIX = 'turn-os-track-c-review-v1:';
+const WALK_STATE_NOTE_PREFIX = 'turn-os-track-c-walk-v2:';
 const hardRestrictionPattern =
   /\b(do not enter|occupied|renewal|access|key|blocked|maintenance|repair)\b/iu;
 const occupiedRestrictionPattern = /\b(do not enter|occupied|renewal)\b/iu;
@@ -662,17 +664,110 @@ const toTrackCEvent = (event: FieldEvent): TrackCConfirmedEvent | undefined => {
   };
 };
 
-const parseReviewedSelections = (
+interface StoredTrackCWalkState {
+  readonly version: 2;
+  readonly reviewedSelections: readonly TrackCWalkSelectionReview[];
+  readonly outcomes: readonly TrackCWalkOutcomeRecord[];
+  readonly draft?: TrackCWalkDraft;
+}
+
+const isStoredTrackCWalkDraft = (value: unknown): value is TrackCWalkDraft => {
+  if (!value || typeof value !== 'object') return false;
+  const draft = value as Partial<TrackCWalkDraft>;
+  return (
+    draft.version === 1
+    && typeof draft.walkSessionId === 'string'
+    && (draft.stage === 'active' || draft.stage === 'end-review')
+    && Array.isArray(draft.outcomes)
+    && typeof draft.updatedAt === 'string'
+  );
+};
+
+const parseStoredTrackCWalkState = (
   note: string | undefined,
-): readonly TrackCWalkSelectionReview[] | undefined => {
-  if (!note?.startsWith(WALK_REVIEW_NOTE_PREFIX)) return undefined;
+): Partial<StoredTrackCWalkState> | undefined => {
+  if (!note) return undefined;
   try {
-    const value = JSON.parse(note.slice(WALK_REVIEW_NOTE_PREFIX.length)) as unknown;
-    return Array.isArray(value) ? value as readonly TrackCWalkSelectionReview[] : undefined;
+    if (note.startsWith(WALK_STATE_NOTE_PREFIX)) {
+      const value = JSON.parse(
+        note.slice(WALK_STATE_NOTE_PREFIX.length),
+      ) as Partial<StoredTrackCWalkState>;
+      if (!value || typeof value !== 'object' || value.version !== 2) {
+        return undefined;
+      }
+      return {
+        version: 2,
+        ...(Array.isArray(value.reviewedSelections)
+          ? { reviewedSelections: value.reviewedSelections }
+          : {}),
+        ...(Array.isArray(value.outcomes)
+          ? { outcomes: value.outcomes }
+          : {}),
+        ...(isStoredTrackCWalkDraft(value.draft)
+          ? { draft: value.draft }
+          : {}),
+      };
+    }
+    if (note.startsWith(WALK_REVIEW_NOTE_PREFIX)) {
+      const value = JSON.parse(
+        note.slice(WALK_REVIEW_NOTE_PREFIX.length),
+      ) as unknown;
+      return Array.isArray(value)
+        ? {
+            version: 2,
+            reviewedSelections: value as readonly TrackCWalkSelectionReview[],
+          }
+        : undefined;
+    }
   } catch {
     return undefined;
   }
+  return undefined;
 };
+
+const serializeStoredTrackCWalkState = (input: {
+  readonly reviewedSelections: readonly TrackCWalkSelectionReview[];
+  readonly outcomes: readonly TrackCWalkOutcomeRecord[];
+  readonly draft?: TrackCWalkDraft;
+}) => `${WALK_STATE_NOTE_PREFIX}${JSON.stringify({
+  version: 2,
+  reviewedSelections: input.reviewedSelections,
+  outcomes: input.outcomes,
+  ...(input.draft ? { draft: input.draft } : {}),
+})}`;
+
+const keyedStoredWalkOutcomes = (
+  outcomes: readonly TrackCWalkOutcomeRecord[] | undefined,
+) => {
+  const records = new Map<string, TrackCWalkOutcomeRecord>();
+  for (const outcome of outcomes ?? []) {
+    const target = outcome?.target;
+    if (
+      !target
+      || typeof target.unitId !== 'string'
+      || !TRACK_C_TRADES.includes(target.trade)
+      || !TRACK_C_SECTIONS.includes(target.section)
+    ) {
+      continue;
+    }
+    records.set(trackCWorkKey(target), outcome);
+  }
+  return records;
+};
+
+export function projectTrackCWalkDraft(
+  data: AppData,
+): TrackCWalkDraft | undefined {
+  const { activeSession } = selectedReleaseBatches(data);
+  if (!activeSession) return undefined;
+  const activeWalk = data.walkSessions.find((walk) =>
+    walk.projectId === data.activeProjectId
+    && walk.daySessionId === activeSession.id
+    && walk.status === 'active');
+  if (!activeWalk) return undefined;
+  const draft = parseStoredTrackCWalkState(activeWalk.note)?.draft;
+  return draft?.walkSessionId === activeWalk.id ? draft : undefined;
+}
 
 const releaseItemMaps = (batches: readonly AppDailyReleaseBatch[]) => {
   const byId = new Map<string, DailyReleaseItem>();
@@ -776,7 +871,9 @@ export function projectTrackCState(data: AppData): TrackCState {
           unitId: item.unitId,
         }));
       if (selectedTargets.length !== walk.selectedItemIds.length) return undefined;
-      const reviewedSelections = parseReviewedSelections(walk.note)
+      const storedWalkState = parseStoredTrackCWalkState(walk.note);
+      const storedOutcomes = keyedStoredWalkOutcomes(storedWalkState?.outcomes);
+      const reviewedSelections = storedWalkState?.reviewedSelections
         ?? selectedTargets
           .map((target) => reviewedSelectionFromState(stateWithoutWalks, target))
           .filter((review): review is TrackCWalkSelectionReview => Boolean(review));
@@ -786,16 +883,18 @@ export function projectTrackCState(data: AppData): TrackCState {
         id: walk.id,
         outcomes: walk.outcomes.map((outcome) => {
           const item = releaseItems.byId.get(outcome.selectedItemId);
-          return item
-            ? {
-                outcome: outcome.outcome,
-                target: {
-                  section: item.section,
-                  trade: item.trade,
-                  unitId: item.unitId,
-                },
-              }
-            : undefined;
+          if (!item) return undefined;
+          const target = {
+            section: item.section,
+            trade: item.trade,
+            unitId: item.unitId,
+          };
+          const note = storedOutcomes.get(trackCWorkKey(target))?.note;
+          return {
+            outcome: outcome.outcome,
+            target,
+            ...(note ? { note } : {}),
+          };
         }).filter((outcome): outcome is TrackCWalkOutcomeRecord => Boolean(outcome)),
         propertyContact: walk.propertyContact,
         reviewedSelections,
@@ -862,12 +961,23 @@ const persistWalk = (
     return { outcome: outcome.outcome, selectedItemId: item.id };
   });
   const existing = data.walkSessions.find((candidate) => candidate.id === walk.id);
+  const existingDraft = parseStoredTrackCWalkState(existing?.note)?.draft;
+  const persistedDraft = (
+    walk.status === 'active'
+    && existingDraft?.walkSessionId === walk.id
+  )
+    ? existingDraft
+    : undefined;
   return {
     createdAt: existing?.createdAt ?? walk.startedAt,
     daySessionId: activeSessionId,
     endedAt: walk.endedAt,
     id: walk.id,
-    note: `${WALK_REVIEW_NOTE_PREFIX}${JSON.stringify(walk.reviewedSelections)}`,
+    note: serializeStoredTrackCWalkState({
+      reviewedSelections: walk.reviewedSelections,
+      outcomes: walk.outcomes ?? [],
+      ...(persistedDraft ? { draft: persistedDraft } : {}),
+    }),
     outcomes,
     projectId: data.activeProjectId,
     propertyContact: walk.propertyContact,
@@ -875,9 +985,69 @@ const persistWalk = (
     startedAt: walk.startedAt,
     startedBy: walk.startedBy,
     status: walk.status === 'completed' ? 'closed' : 'active',
-    updatedAt: walk.endedAt ?? walk.startedAt,
+    updatedAt:
+      walk.endedAt
+      ?? persistedDraft?.updatedAt
+      ?? existing?.updatedAt
+      ?? walk.startedAt,
   };
 };
+
+export function applyTrackCWalkDraftChange(
+  data: AppData,
+  draft: TrackCWalkDraft | undefined,
+): AppData {
+  const { activeSession, batches } = selectedReleaseBatches(data);
+  if (!activeSession) return data;
+  const activeWalk = data.walkSessions.find((walk) =>
+    walk.projectId === data.activeProjectId
+    && walk.daySessionId === activeSession.id
+    && walk.status === 'active');
+  if (!activeWalk || (draft && draft.walkSessionId !== activeWalk.id)) {
+    return data;
+  }
+
+  const storedState = parseStoredTrackCWalkState(activeWalk.note);
+  const reviewedSelections = storedState?.reviewedSelections;
+  if (!reviewedSelections) return data;
+
+  const releaseItems = releaseItemMaps(batches);
+  const selectedItemIds = new Set(activeWalk.selectedItemIds);
+  const draftOutcomes = draft?.outcomes ?? storedState?.outcomes ?? [];
+  const outcomes = draftOutcomes.map((outcome) => {
+    const item = releaseItems.byTarget.get(trackCWorkKey(outcome.target));
+    return item && selectedItemIds.has(item.id)
+      ? { outcome: outcome.outcome, selectedItemId: item.id }
+      : undefined;
+  });
+  if (outcomes.some((outcome) => !outcome)) {
+    return data;
+  }
+
+  const nextWalk: AppWalkSession = {
+    ...activeWalk,
+    note: serializeStoredTrackCWalkState({
+      reviewedSelections,
+      outcomes: draftOutcomes,
+      ...(draft ? { draft } : {}),
+    }),
+    outcomes: outcomes.filter(
+      (outcome): outcome is NonNullable<typeof outcome> => Boolean(outcome),
+    ),
+    updatedAt: draft?.updatedAt ?? activeWalk.updatedAt,
+  };
+  if (
+    nextWalk.note === activeWalk.note
+    && nextWalk.updatedAt === activeWalk.updatedAt
+    && JSON.stringify(nextWalk.outcomes) === JSON.stringify(activeWalk.outcomes)
+  ) {
+    return data;
+  }
+  return {
+    ...data,
+    walkSessions: upsertById(data.walkSessions, nextWalk),
+  };
+}
 
 export function applyTrackCStateChange(
   data: AppData,

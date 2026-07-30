@@ -122,11 +122,16 @@ export const AssignmentView = ({
     <section className="track-c-assignment" aria-labelledby="track-c-assignment-heading">
       <header className="track-c-view-heading">
         <div>
-          <h1 id="track-c-assignment-heading">Bulk assign</h1>
-          <p>Review before personal records change</p>
+          <h1 id="track-c-assignment-heading">Assign Crews</h1>
+          <p>Released Paint and Clean work only</p>
         </div>
         <ClipboardCheck aria-hidden="true" size={20} />
       </header>
+      <p className="track-c-boundary-copy">
+        Personal Alpha fallback: Crew Detail enhancements and Advanced Additional
+        Scope are unavailable in this release. Review and confirm every personal
+        assignment here; paper and payroll remain unchanged.
+      </p>
       <div className="track-c-form-stack">
         <fieldset className="track-c-segmented">
           <legend>Trade</legend>

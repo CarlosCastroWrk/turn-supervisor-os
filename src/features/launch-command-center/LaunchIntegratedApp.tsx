@@ -253,7 +253,7 @@ const contentTitleForRoute = (view: AppView, unitNumber?: string) => {
   if (view === 'units') return 'TurnBoard';
   if (view === 'issues') return 'Issues';
   if (view === 'crews') return 'Crews';
-  if (view === 'assignments') return 'Import work';
+  if (view === 'assignments') return 'Assign Crews';
   if (view === 'daily') return 'Daily log';
   if (view === 'reports') return 'Reports';
   if (view === 'review') return 'Review';
@@ -837,6 +837,9 @@ export function LaunchIntegratedApp() {
       }
       setCaptureOpen(nextLocation.captureRequested || historyRequestsCapture());
       setRoute(nextLocation.route);
+      if (nextLocation.route.view !== 'crews') setCrewEditor(null);
+      if (nextLocation.route.view !== 'more') setMoreDetailPage(null);
+      if (nextLocation.route.view !== 'dashboard') setHomeMode('day');
       if (
         nextLocation.route.view !== 'search'
         && nextLocation.route.view !== 'notifications'
@@ -1430,7 +1433,7 @@ export function LaunchIntegratedApp() {
     </div>
   );
   const legacyToolDescription: Partial<Record<AppView, string>> = {
-    assignments: 'Review the existing personal assignment and import tools.',
+    assignments: 'Assign released Paint and Clean work in this personal Alpha.',
     daily: 'Review personal daily notes and end-of-day records.',
     export: 'Use the existing guarded backup, restore, and export controls.',
     issues: 'Review personal blockers and follow-ups without changing paper.',

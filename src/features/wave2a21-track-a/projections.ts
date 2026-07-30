@@ -10,7 +10,10 @@ import {
   projectTrackCUnitWork,
 } from '../wave2a2-track-c/projections';
 import { trackCWorkKey } from '../wave2a2-track-c/model';
-import { adaptDurableFieldEventsToActivity } from './activity';
+import {
+  adaptDurableFieldEventsToActivity,
+  adaptLegacyActivityLogsToActivity,
+} from './activity';
 import type {
   AppData,
 } from '../../types';
@@ -240,7 +243,7 @@ export function buildCanonicalFieldProjectionFromAppData(
     throw new Error('Canonical field projection requires at most one active Day Session.');
   }
   const activeSession = activeSessions[0];
-  return buildCanonicalFieldProjection({
+  const projection = buildCanonicalFieldProjection({
     accountId,
     activeDaySessionId: activeSession?.daySessionId,
     fieldEvents: data.fieldEvents,
@@ -248,4 +251,23 @@ export function buildCanonicalFieldProjectionFromAppData(
     todayTask: projectTodayTask(compatibleData, activeSession),
     trackCState: projectTrackCState(compatibleData),
   });
+  const activity = [
+    ...projection.activity,
+    ...adaptLegacyActivityLogsToActivity({
+      accountId,
+      activityLogs: data.activityLogs,
+      projectId: data.activeProjectId,
+    }),
+  ].sort((left, right) =>
+    right.recordedAt.localeCompare(left.recordedAt)
+    || left.sourceEventId.localeCompare(right.sourceEventId));
+
+  return {
+    ...projection,
+    activity,
+    counts: {
+      ...projection.counts,
+      activity: activity.length,
+    },
+  };
 }

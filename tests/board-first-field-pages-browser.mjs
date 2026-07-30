@@ -189,7 +189,7 @@ try {
 
   const hostRoutes = [
     { button: 'Reports', hash: '#/reports', heading: 'Reports and Proof' },
-    { button: 'Setup', hash: '#/setup', heading: 'Activate project' },
+    { button: 'Setup', hash: '#/setup', heading: 'Set up project' },
     { button: 'Backup', hash: '#/export', heading: 'Data and backup' },
     { button: 'Sync', hash: '#/sync', heading: 'Sync' },
   ];

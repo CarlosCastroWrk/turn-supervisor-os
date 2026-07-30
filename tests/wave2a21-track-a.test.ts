@@ -25,6 +25,7 @@ import {
 } from '../src/features/wave2a21-track-a/activation.ts';
 import {
   adaptDurableFieldEventsToActivity,
+  adaptLegacyActivityLogsToActivity,
 } from '../src/features/wave2a21-track-a/activity.ts';
 import {
   adaptAppDataForTrackA,
@@ -462,6 +463,35 @@ test('Project Setup uses five authorized groups and stores native time controls 
     workEndTime: '16:45',
     workStartTime: '09:15',
   });
+
+  const startOnly = configurationWithSchedule(source, {
+    walkthroughTime: '12:00',
+    workEndTime: '',
+    workStartTime: '10:00',
+  });
+  assert.equal(startOnly.defaultWorkingHoursWording, '10:00–');
+  assert.deepEqual(resolveProjectDefaultSchedule(startOnly), {
+    walkthroughTime: '12:00',
+    workEndTime: '',
+    workStartTime: '10:00',
+  });
+  const completedAfterStart = configurationWithSchedule(
+    startOnly,
+    {
+      ...resolveProjectDefaultSchedule(startOnly),
+      workEndTime: '17:00',
+    },
+  );
+  assert.equal(completedAfterStart.defaultWorkingHoursWording, '10:00–17:00');
+
+  const incompleteActivation = prepareProjectActivation(
+    createData(),
+    createDraft({ configuration: startOnly }),
+  );
+  assert.equal(incompleteActivation.ok, false);
+  if (!incompleteActivation.ok) {
+    assert.match(incompleteActivation.errors.join(' '), /Default working hours are required/u);
+  }
 });
 
 test('Daily Release starts empty, defaults applicable sections only after Unit selection, and requires explicit review', () => {
@@ -1237,6 +1267,46 @@ test('durable field-event Activity adapter is project scoped, exact, sorted, and
       projectId: PROJECT_ID,
     })[0].eventKind,
     'undo-recorded',
+  );
+});
+
+test('canonical Activity preserves exact personal AppData notes alongside field events', () => {
+  const activated = prepareProjectActivation(createData(), createDraft());
+  assert.equal(activated.ok, true);
+  if (!activated.ok) return;
+
+  const exactNote = 'Unit walk reminder — exact personal wording.';
+  const note = {
+    action: 'Added personal note',
+    createdAt: '2026-07-29T15:00:00.000Z',
+    entityId: PROJECT_ID,
+    entityType: 'Project' as const,
+    id: 'activity-personal-note',
+    note: exactNote,
+    projectId: PROJECT_ID,
+  };
+  const adapterResult = adaptLegacyActivityLogsToActivity({
+    accountId: 'los-personal',
+    activityLogs: [note, note],
+    projectId: PROJECT_ID,
+  });
+  assert.equal(adapterResult.length, 1);
+  assert.equal(adapterResult[0].wording, exactNote);
+  assert.equal(adapterResult[0].boundary, 'personal-record');
+  assert.equal(adapterResult[0].sourceRefs[0].kind, 'app-data-record');
+
+  const projection = buildCanonicalFieldProjectionFromAppData(
+    {
+      ...activated.data,
+      activityLogs: [note, ...activated.data.activityLogs],
+    },
+    'los-personal',
+  );
+  assert.equal(projection.activity[0].wording, exactNote);
+  assert.equal(projection.counts.activity, projection.activity.length);
+  assert.equal(
+    projection.activity.filter((activity) => activity.wording === exactNote).length,
+    1,
   );
 });
 

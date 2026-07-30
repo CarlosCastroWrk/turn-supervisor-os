@@ -8,6 +8,9 @@ interface SyncDiagnosticsViewProps {
 }
 
 export function SyncDiagnosticsView({ sync }: SyncDiagnosticsViewProps) {
+  const alphaCommit = import.meta.env.VITE_ALPHA_GIT_SHA?.trim()
+    || 'Local development build';
+
   return (
     <div className="page page--sync">
       <header className="field-page-header">
@@ -37,6 +40,16 @@ export function SyncDiagnosticsView({ sync }: SyncDiagnosticsViewProps) {
           <SyncPanel presentation="page" sync={sync} />
         </Section>
       )}
+
+      <Section title="Personal Alpha 0.1" kicker="Release diagnostics">
+        <div className="sync-page-state">
+          <ShieldCheck size={24} aria-hidden="true" />
+          <div>
+            <strong>Build commit</strong>
+            <p data-alpha-git-sha={alphaCommit}>{alphaCommit}</p>
+          </div>
+        </div>
+      </Section>
     </div>
   );
 }

@@ -212,18 +212,27 @@ export function configurationWithSchedule(
   configuration: ProjectConfiguration,
   schedule: ProjectDefaultSchedule,
 ): ProjectConfiguration {
+  const hasStartTime = isValidTimeValue(schedule.workStartTime);
+  const hasEndTime = isValidTimeValue(schedule.workEndTime);
+  const workingHoursWording = hasStartTime && hasEndTime
+    ? formatWorkingHoursWording(schedule.workStartTime, schedule.workEndTime)
+    : hasStartTime || hasEndTime
+      ? `${hasStartTime ? schedule.workStartTime : ''}–${hasEndTime ? schedule.workEndTime : ''}`
+      : '';
   return {
     ...configuration,
     defaultWalkthroughScheduleWording:
       formatWalkthroughScheduleWording(schedule.walkthroughTime),
-    defaultWorkingHoursWording:
-      formatWorkingHoursWording(schedule.workStartTime, schedule.workEndTime),
+    defaultWorkingHoursWording: workingHoursWording,
   };
 }
 
 export function resolveProjectDefaultSchedule(
   configuration: ProjectConfiguration,
 ): ProjectDefaultSchedule {
+  const partialWorkingTimes = configuration.defaultWorkingHoursWording
+    .trim()
+    .match(/^((?:[01]\d|2[0-3]):[0-5]\d)?–((?:[01]\d|2[0-3]):[0-5]\d)?$/u);
   const workingTimes = scheduleTimesFromWording(
     configuration.defaultWorkingHoursWording,
   );
@@ -231,8 +240,8 @@ export function resolveProjectDefaultSchedule(
     configuration.defaultWalkthroughScheduleWording,
   )[0];
   return {
-    workEndTime: workingTimes[1] ?? '',
-    workStartTime: workingTimes[0] ?? '',
+    workEndTime: partialWorkingTimes?.[2] ?? workingTimes[1] ?? '',
+    workStartTime: partialWorkingTimes?.[1] ?? workingTimes[0] ?? '',
     walkthroughTime,
   };
 }

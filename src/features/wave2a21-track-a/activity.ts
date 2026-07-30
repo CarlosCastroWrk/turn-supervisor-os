@@ -1,4 +1,4 @@
-import type { FieldEvent } from '../../types';
+import type { ActivityLog, FieldEvent } from '../../types';
 import type {
   OperationalEventKind,
   OperationalSourceReference,
@@ -100,6 +100,42 @@ export function adaptDurableFieldEventsToActivity(input: {
       return true;
     })
     .map((event) => adaptFieldEventToActivity(input.accountId, event))
+    .sort((left, right) =>
+      right.recordedAt.localeCompare(left.recordedAt)
+      || left.sourceEventId.localeCompare(right.sourceEventId));
+}
+
+export function adaptLegacyActivityLogsToActivity(input: {
+  readonly accountId: string;
+  readonly projectId: string;
+  readonly activityLogs: readonly ActivityLog[];
+}): readonly TrackAFieldActivity[] {
+  const seen = new Set<string>();
+  return input.activityLogs
+    .filter((activity) => activity.projectId === input.projectId)
+    .filter((activity) => {
+      if (seen.has(activity.id)) return false;
+      seen.add(activity.id);
+      return true;
+    })
+    .map((activity): TrackAFieldActivity => ({
+      accountId: input.accountId,
+      boundary: 'personal-record',
+      eventKind: 'note-recorded',
+      id: `legacy:${activity.id}`,
+      projectId: activity.projectId,
+      recordedAt: activity.createdAt,
+      sourceEventId: `legacy:${activity.id}`,
+      sourceRefs: [{
+        excerpt: activity.note,
+        id: `activity:${activity.id}`,
+        kind: 'app-data-record',
+        label: `Personal AppData Activity · ${activity.action}`,
+      }],
+      title: activity.action,
+      unitId: activity.entityType === 'Unit' ? activity.entityId : undefined,
+      wording: activity.note,
+    }))
     .sort((left, right) =>
       right.recordedAt.localeCompare(left.recordedAt)
       || left.sourceEventId.localeCompare(right.sourceEventId));

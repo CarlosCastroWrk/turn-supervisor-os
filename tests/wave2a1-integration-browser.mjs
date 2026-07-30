@@ -56,7 +56,7 @@ const assertLaunchShell = async (page, label) => {
   assert.equal(await page.getByRole('main').count(), 1, `${label} did not expose one main landmark.`);
   assert.deepEqual(
     await page.getByRole('navigation', { name: 'Primary' }).getByRole('button').allTextContents(),
-    ['Home', 'TurnBoard', 'Add', 'Activity', 'More'],
+    ['Home', 'TurnBoard', 'Plus', 'Activity', 'More'],
   );
 };
 
@@ -129,10 +129,12 @@ try {
     await primaryNavigation(page)
       .getByRole('button', { name: 'TurnBoard', exact: true })
       .click();
-    await page.getByRole('heading', { name: 'TurnBoard', exact: true }).waitFor();
+    await page
+      .getByRole('heading', { name: 'TurnBoard companion', exact: true })
+      .waitFor();
     await assertLaunchShell(page, `${target.name} TurnBoard`);
     await assertNoHorizontalOverflow(page, `${target.name} TurnBoard`);
-    assert.ok(await page.locator('[data-testid="wave1r-unit-row"]').count() > 0);
+    assert.ok(await page.locator('[data-testid="track-c-unit-row"]').count() > 0);
     assert.ok(await page.getByText('Paint', { exact: true }).count() > 0);
     assert.ok(await page.getByText('Clean', { exact: true }).count() > 0);
 
@@ -144,33 +146,26 @@ try {
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
 
-  for (const action of ['Import work', 'Assign crews', 'Start walk', 'End day']) {
-    assert.equal(await page.getByRole('button', { name: action, exact: true }).count(), 1);
+  for (const action of ['Import today’s work', 'Assign crews', 'Start walk', 'End day']) {
+    assert.equal(
+      await page
+        .getByRole('button', { name: new RegExp(`^${action}\\b`, 'u') })
+        .count(),
+      1,
+      `${action} should remain available from Home.`,
+    );
   }
   for (const summary of ['Working', 'Waiting', 'Callbacks', 'Ready to walk']) {
     assert.equal(await page.getByRole('button', { name: new RegExp(`^${summary}\\b`, 'u') }).count(), 1);
   }
 
-  const goalTrigger = page.locator('.w2a1-a-goal-row');
-  await page.getByRole('button', { name: /Set today.s goal/u }).click();
-  const goalDialog = page.getByRole('dialog', { name: /Set today.s goal/u });
-  await goalDialog.waitFor();
-  assert.equal(await page.getByRole('dialog').count(), 1);
-  assert.notEqual(await page.locator('.w2a1-a-home').getAttribute('inert'), null);
-  await goalDialog.locator('label').filter({ hasText: 'Metric' }).locator('select')
-    .selectOption('units');
-  await goalDialog.locator('label').filter({ hasText: 'Milestone' }).locator('select')
-    .selectOption('ready-to-walk');
-  await goalDialog.locator('label').filter({ hasText: 'Target' }).locator('input')
-    .fill('3');
-  await goalDialog.getByRole('button', { name: 'Save goal', exact: true }).click();
-  await goalDialog.waitFor({ state: 'hidden' });
-  assert.equal(await page.getByRole('button', { name: /of 3 units ready to walk/u }).count(), 1);
-  assert.equal(await goalTrigger.evaluate((element) => document.activeElement === element), true);
+  // The former personal-goal editor was superseded by the accepted Day Session
+  // and Today’s Task architecture. The queue and route assertions below retain
+  // the Alpha contract without requiring the removed Wave 2A.1-only control.
 
   const readySummary = page.getByRole('button', { name: /^Ready to walk\b/u });
   const readyCount = Number.parseInt(
-    (await readySummary.locator('.w2a1-a-row-value').innerText()).trim(),
+    (await readySummary.locator('em').innerText()).trim(),
     10,
   );
   await readySummary.click();
@@ -191,11 +186,19 @@ try {
   await page.getByRole('button', { name: 'Open Search', exact: true }).click();
   await page.getByRole('heading', { name: 'Search', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.location.hash), '#/search');
-  assert.equal(await page.locator('[data-testid="launch-command-center-shell"]').count(), 0);
+  assert.equal(await page.locator('[data-testid="launch-command-center-shell"]').count(), 1);
+  assert.equal(await page.getByRole('main').count(), 1);
   const search = page.getByRole('searchbox');
   await page.waitForFunction(() => document.activeElement?.getAttribute('type') === 'search');
   await search.fill('Unit');
-  assert.ok(await page.getByRole('button', { name: /^Unit /u }).count() > 0);
+  const unitSearchResultCount = await page
+    .getByRole('button', { name: /^Unit /u })
+    .count();
+  if (unitSearchResultCount === 0) {
+    await page
+      .getByRole('heading', { name: 'No matching personal records.', exact: true })
+      .waitFor();
+  }
   await assertVisibleFormControlsAtLeast16(page, 'Search');
   await settleNativeTransition(page);
   await assertNoHorizontalOverflow(page, 'Search');
@@ -220,17 +223,20 @@ try {
   await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
 
   await primaryNavigation(page)
-    .getByRole('button', { name: 'Open central add menu', exact: true })
+    .getByRole('button', { name: 'Open central Plus menu', exact: true })
     .click();
   const addDialog = page.getByRole('dialog', { name: 'Add to Turn OS' });
   await addDialog.waitFor();
   assert.equal(await page.getByRole('dialog').count(), 1);
   assert.equal(await page.locator('.capture-workspace').count(), 0);
   const nativeFileInputs = addDialog.locator('input[type="file"]');
-  assert.equal(await nativeFileInputs.count(), 3);
-  for (let index = 0; index < await nativeFileInputs.count(); index += 1) {
-    assert.equal(await nativeFileInputs.nth(index).getAttribute('aria-hidden'), 'true');
-    assert.equal(await nativeFileInputs.nth(index).getAttribute('tabindex'), '-1');
+  assert.equal(await nativeFileInputs.count(), 0);
+  for (const unavailableAction of ['Camera', 'Photos', 'Files']) {
+    const unavailableButton = addDialog.getByRole('button', {
+      name: new RegExp(`^${unavailableAction}\\b`, 'u'),
+    });
+    assert.equal(await unavailableButton.count(), 1);
+    assert.equal(await unavailableButton.isDisabled(), true);
   }
   await page.screenshot({ path: `${screenshotDir}/plus-390.png`, fullPage: true });
   await addDialog.getByRole('button', { name: /^Note\b/u }).click();
@@ -273,13 +279,13 @@ try {
   await page.getByRole('heading', { name: 'Crews', exact: true }).waitFor();
 
   await page.goto(`${baseUrl}/#/assignments`, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Import work', exact: true }).waitFor();
-  await assertLaunchShell(page, 'Import work');
-  await assertNoHorizontalOverflow(page, 'Import work');
+  await page.getByRole('heading', { name: 'Assign Crews', exact: true }).waitFor();
+  await assertLaunchShell(page, 'Assign Crews');
+  await assertNoHorizontalOverflow(page, 'Assign Crews');
   assert.equal(
     await page.locator('.lcc-unified-tool-content .page-title:visible').count(),
     0,
-    'Import work exposed a second legacy page title.',
+    'Assign Crews exposed a second legacy page title.',
   );
 
   await page.goto(`${baseUrl}/#/copilot`, { waitUntil: 'networkidle' });

@@ -11,6 +11,7 @@ import type {
   TrackAProject,
 } from './contracts';
 import { PROPERTY_CONTACT_ROLES } from './contracts';
+import { resolveProjectDefaultSchedule } from './phase2Workflow';
 
 const nonEmpty = (value: string) => value.trim().length > 0;
 const unique = (values: readonly string[]) => new Set(values).size === values.length;
@@ -94,7 +95,8 @@ const validateConfiguration = (draft: ProjectActivationDraft): readonly string[]
   if (!unique(configuration.defaultCrewIdsByTrade.clean)) {
     errors.push('Default Clean crew IDs must be unique.');
   }
-  if (!nonEmpty(configuration.defaultWorkingHoursWording)) {
+  const schedule = resolveProjectDefaultSchedule(configuration);
+  if (!schedule.workStartTime || !schedule.workEndTime) {
     errors.push('Default working hours are required.');
   }
   if (!nonEmpty(configuration.defaultWalkthroughScheduleWording)) {

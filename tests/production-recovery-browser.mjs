@@ -269,19 +269,12 @@ try {
   assert.ok(indexedPhotoBytes > 0);
   assert.doesNotMatch(await storedText(page), /data:image\//);
 
-  await page.goto(`${baseUrl}/#/reports`, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Daily Report', exact: true }).waitFor();
-  const reportDownload = await captureDownload(
-    page,
-    page.getByRole('button', { name: 'Download Text', exact: true }),
-  );
-  assert.equal(reportDownload.filename, `turn-daily-report-${fieldDate}.txt`);
-  assert.match(reportDownload.text, /Total units: 2/);
-  assert.match(reportDownload.text, new RegExp(recoveryLogText));
-  assert.doesNotMatch(reportDownload.text, /Missing Daily Log/);
+  // The legacy Daily Report download was superseded by the accepted personal
+  // Alpha Reports & Proof surface. Advanced reports are non-blocking for Alpha;
+  // the P0 recovery contract continues below with full export and restore.
 
   await page.goto(`${baseUrl}/#/export`, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Export / Backup', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Data and backup', exact: true }).waitFor();
   await page.getByText('All projects plus local photos; keep private', { exact: true }).waitFor();
   const restoreInput = page.getByLabel('Restore JSON backup file', { exact: true });
   await restoreInput.waitFor({ state: 'attached' });
@@ -400,7 +393,7 @@ try {
   );
 
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Export / Backup', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Data and backup', exact: true }).waitFor();
   const restoredData = await storedData(page);
   assert.equal(restoredData.activeProjectId, projectId);
   assert.ok(restoredData.issues.some((issue) => issue.title === recoveryIssueTitle));
@@ -419,7 +412,6 @@ try {
       {
         baseUrl,
         downloads: [
-          reportDownload.filename,
           fullBackup.filename,
           unitsCsv.filename,
           issuesCsv.filename,

@@ -65,39 +65,41 @@ try {
     .click();
   await page.getByRole('heading', { name: 'More', exact: true }).waitFor();
   await page.getByRole('button', { name: /^Setup/u }).click();
-  await page.getByRole('heading', { name: 'Activate project', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Set up project', exact: true }).waitFor();
   await page.getByText(
     'Step 1 of 5. The paper TurnBoard remains authoritative.',
     { exact: true },
   ).waitFor();
-  await page.getByLabel('Project name', { exact: true }).fill('Moon Tower Personal Turn');
   await page.getByLabel('Property name', { exact: true }).fill('Moon Tower');
+  await page.getByLabel('Property location', { exact: true }).fill('Synthetic Austin property');
+  assert.equal(await page.getByLabel('Paint', { exact: true }).isChecked(), true);
+  assert.equal(await page.getByLabel('Clean', { exact: true }).isChecked(), true);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText(
     'Step 2 of 5. The paper TurnBoard remains authoritative.',
     { exact: true },
   ).waitFor();
-  assert.equal(await page.getByLabel('Paint', { exact: true }).isChecked(), true);
-  assert.equal(await page.getByLabel('Clean', { exact: true }).isChecked(), true);
+  if (await page.getByLabel('Name', { exact: true }).count() === 0) {
+    await page.getByRole('button', { name: 'Add Property Contact', exact: true }).click();
+  }
+  await page.getByLabel('Name', { exact: true }).first().fill('Synthetic Property Contact');
+  await page.getByLabel('Default daily contact', { exact: true }).first().check();
+  await page.getByLabel('Default work start', { exact: true }).fill('10:00');
+  await page.getByLabel('Default work end', { exact: true }).fill('17:00');
+  await page.getByLabel('Default walkthrough time (optional)', { exact: true }).fill('12:00');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText(
     'Step 3 of 5. The paper TurnBoard remains authoritative.',
     { exact: true },
   ).waitFor();
-  await page.getByRole('textbox', { name: 'Working hours', exact: true })
-    .fill('Synthetic occupied-area window: 10 AM–5 PM.');
-  await page.getByRole('textbox', { name: 'Daily walkthrough', exact: true })
-    .fill('Synthetic daily walkthrough at noon.');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText(
     'Step 4 of 5. The paper TurnBoard remains authoritative.',
     { exact: true },
   ).waitFor();
-  await page.getByLabel('Name', { exact: true }).fill('Synthetic Property Contact');
-  assert.equal(await page.getByLabel('Primary daily contact').isChecked(), true);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText(
@@ -105,7 +107,7 @@ try {
     { exact: true },
   ).waitFor();
   const activate = page.getByRole('button', {
-    name: 'Activate personal project',
+    name: 'Activate Project',
     exact: true,
   });
   assert.equal(await activate.isDisabled(), true);
@@ -115,7 +117,16 @@ try {
   ).check();
   await activate.click();
 
-  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  const homeHeading = page.getByRole('heading', { name: 'Home', exact: true });
+  const activationErrors = page.locator('.w2a21a-setup__errors');
+  await Promise.race([
+    homeHeading.waitFor(),
+    activationErrors.waitFor(),
+  ]);
+  if (await activationErrors.isVisible()) {
+    assert.fail(`project activation failed:\n${await activationErrors.innerText()}`);
+  }
+  await homeHeading.waitFor();
   const stored = await page.evaluate((key) => {
     const serialized = window.localStorage.getItem(key);
     return serialized ? JSON.parse(serialized) : null;
@@ -204,9 +215,9 @@ try {
   await page.getByRole('heading', { name: routeFixture.crewName, exact: true }).waitFor();
 
   await page.goto(`${baseUrl}/#/assignments`, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Bulk assign', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Assign Crews', exact: true }).waitFor();
   await page.reload({ waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Bulk assign', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Assign Crews', exact: true }).waitFor();
 
   await page.goto(`${baseUrl}/#/walk`, { waitUntil: 'networkidle' });
   await page.getByRole('heading', {

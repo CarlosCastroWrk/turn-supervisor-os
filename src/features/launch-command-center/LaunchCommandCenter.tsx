@@ -577,7 +577,12 @@ export function LaunchLoginSurface({
     <main className="lcc-root lcc-login" data-testid="launch-login-surface">
       <section className="lcc-login__panel" aria-labelledby="lcc-login-title">
         <div className="lcc-login__brand">
-          <span className="lcc-login__mark" aria-hidden="true">TO</span>
+          <span className="lcc-login__mark" aria-hidden="true">
+            <svg viewBox="0 0 512 512" width="32" height="32" fill="none" stroke="currentColor"
+              strokeWidth="58" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M150 172 H362 M256 172 V300 Q256 352 308 352 H356" />
+            </svg>
+          </span>
           <span>
             <strong>Turn OS</strong>
             <small>Supervisor</small>

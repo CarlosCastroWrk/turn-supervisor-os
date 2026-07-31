@@ -93,7 +93,12 @@ function TurnOsLockup({ onOpenHome }: { onOpenHome: () => void }) {
       onClick={onOpenHome}
       type="button"
     >
-      <span className="w2a2-lockup__mark" aria-hidden="true">TO</span>
+      <span className="w2a2-lockup__mark" aria-hidden="true">
+        <svg viewBox="0 0 512 512" width="22" height="22" fill="none" stroke="currentColor"
+          strokeWidth="58" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M150 172 H362 M256 172 V300 Q256 352 308 352 H356" />
+        </svg>
+      </span>
       <span className="w2a2-lockup__name">
         <strong>Turn OS</strong>
         <small>Supervisor</small>

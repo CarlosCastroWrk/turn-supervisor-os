@@ -3,11 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f2f4f7" media="(prefers-color-scheme: light)" />
     <meta
       name="description"
       content="Turn Supervisor OS is a private local-first field notebook for student housing Turn supervision."
     />
+    <!-- Paint the app's own chrome color before React mounts so a cold launch
+         never flashes a blank white screen. Matches the device light/dark mode;
+         the in-app theme manager takes over once loaded. -->
+    <style>
+      :root { color-scheme: light dark; }
+      html { background: #0f172a; }
+      @media (prefers-color-scheme: light) { html { background: #f2f4f7; } }
+    </style>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png" />

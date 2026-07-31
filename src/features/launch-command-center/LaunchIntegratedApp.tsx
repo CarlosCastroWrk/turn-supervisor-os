@@ -2077,7 +2077,12 @@ function LaunchOperationalApp({
       {hostAlerts}
       {launchProjection.project?.mode !== 'real' && !demoExplored ? (
         <section aria-labelledby="lcc-welcome-title" className="lcc-welcome">
-          <span aria-hidden="true" className="lcc-welcome__mark">TO</span>
+          <span aria-hidden="true" className="lcc-welcome__mark">
+            <svg viewBox="0 0 512 512" width="40" height="40" fill="none" stroke="currentColor"
+              strokeWidth="58" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M150 172 H362 M256 172 V300 Q256 352 308 352 H356" />
+            </svg>
+          </span>
           <h1 id="lcc-welcome-title">Welcome to Turn OS</h1>
           <p>
             Set up your first property to begin managing crews, Units,

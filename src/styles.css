@@ -488,6 +488,28 @@ textarea {
 button {
   cursor: pointer;
   min-height: 44px;
+  /* Field-app touch feel: no grey iOS tap flash, no 300ms double-tap delay. */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 90ms ease-out, opacity 90ms ease-out;
+}
+
+/* One global pressed state — the biggest "feels like a real app" signal for
+   hurried, gloved taps. Skips when the user asks for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+}
+
+button:disabled {
+  cursor: default;
+}
+
+/* Suppress rubber-band / pull-to-refresh in installed standalone mode; inner
+   scrollers own their own scrolling. */
+html {
+  overscroll-behavior-y: none;
 }
 
 .icon-button {

@@ -27,14 +27,42 @@ export const projectCanonicalFieldConsumers = (
   projection: CanonicalFieldProjection,
   readNotificationIds: ReadonlySet<string>,
 ): CanonicalFieldConsumers => {
-  const homeRecords: NativeHomeRecord[] = projection.workRecords
-    .filter((record) => Boolean(record.queue))
-    .map((record) => ({
-      destinationId: `unit:${record.target.unitId}`,
-      id: `canonical-home:${record.id}`,
-      meta: workMeta(record),
-      summaryStates: record.queue ? [record.queue] : [],
-      unitLabel: `Unit ${record.unitNumber}`,
+  // Los reads queues at Unit + Trade grain: one record per unit and trade
+  // per queue, with the affected sections listed in the meta line.
+  const homeGroups = new Map<string, {
+    queue: NonNullable<CanonicalWorkRecord['queue']>;
+    sections: string[];
+    trade: CanonicalWorkRecord['trade'];
+    unitId: string;
+    unitNumber: string;
+    waitingReasons: Set<string>;
+  }>();
+  for (const record of projection.workRecords) {
+    if (!record.queue) continue;
+    const key = `${record.target.unitId}:${record.trade}:${record.queue}`;
+    const group = homeGroups.get(key) ?? {
+      queue: record.queue,
+      sections: [],
+      trade: record.trade,
+      unitId: record.target.unitId,
+      unitNumber: record.unitNumber,
+      waitingReasons: new Set<string>(),
+    };
+    group.sections.push(sectionLabel(record.target.section));
+    for (const reason of record.waitingReasons) group.waitingReasons.add(reason);
+    homeGroups.set(key, group);
+  }
+  const homeRecords: NativeHomeRecord[] = [...homeGroups.entries()]
+    .map(([key, group]) => ({
+      destinationId: `unit:${group.unitId}`,
+      id: `canonical-home:${key}`,
+      meta: [
+        group.trade === 'paint' ? 'Paint' : 'Clean',
+        group.sections.join(', '),
+        ...(group.waitingReasons.size > 0 ? [[...group.waitingReasons].join(' · ')] : []),
+      ].join(' · '),
+      summaryStates: [group.queue],
+      unitLabel: `Unit ${group.unitNumber} · ${group.trade === 'paint' ? 'Paint' : 'Clean'}`,
     }));
 
   const unitSearchResults = [...new Map(

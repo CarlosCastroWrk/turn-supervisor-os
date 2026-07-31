@@ -27,6 +27,7 @@ import {
   recordTrackCPersonalPdsMirror,
   type TrackCSectionAction,
 } from './operations';
+import { projectTrackCUnitWork } from './projections';
 import {
   WalkView,
   type TrackCWalkIntegration,
@@ -136,7 +137,19 @@ export const TrackCFieldOps = ({
       setNotice(result.error.message);
       return;
     }
-    setNotice('Personal section record saved. Paper and payroll remain unchanged.');
+    const unitAfter = result.value.units.find((unit) => unit.id === target.unitId);
+    const unitWork = projectTrackCUnitWork(result.value, target.unitId)
+      .filter((work) => work.release === 'released');
+    const allPassed = unitWork.length > 0 && unitWork.every((work) =>
+      work.inspection === 'los-passed' || work.property === 'property-accepted');
+    if (
+      allPassed
+      && (action === 'record-los-pass' || action === 'record-reinspection-pass')
+    ) {
+      setNotice(`Unit ${unitAfter?.unitNumber ?? ''} is fully passed — every released Paint and Clean section has your pass. It shows as Ready to Walk.`);
+    } else {
+      setNotice('Personal section record saved. Paper and payroll remain unchanged.');
+    }
     commitState(result.value, `section-${action}`);
   };
 

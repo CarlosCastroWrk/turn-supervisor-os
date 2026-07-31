@@ -197,8 +197,9 @@ const CompactTrade = ({
   const names = progress.crewIds
     .map((crewId) => trackCCrewName(state, crewId))
     .filter(Boolean);
+  const complete = /^(\d+)\/\1 (Los passed|accepted)/.test(progress.conciseLabel);
   return (
-    <div className="track-c-unit-row__trade">
+    <div className={`track-c-unit-row__trade ${complete ? 'is-complete' : ''}`}>
       <Icon aria-hidden="true" size={15} strokeWidth={2.2} />
       <span>{tradeLabel(progress.trade)}</span>
       <strong>

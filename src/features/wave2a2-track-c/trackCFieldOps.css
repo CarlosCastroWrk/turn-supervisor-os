@@ -505,16 +505,27 @@
 }
 
 .track-c-trade-complete {
-  background: var(--track-c-blue-soft);
+  background: var(--track-c-blue);
   border: 0;
-  border-bottom: 1px solid var(--track-c-border);
-  color: var(--track-c-blue);
-  font-size: 11px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
   font-weight: 800;
-  min-height: 44px;
-  padding: 8px 12px;
-  text-align: left;
-  width: 100%;
+  margin: 8px;
+  min-height: 48px;
+  padding: 10px 14px;
+  text-align: center;
+  width: calc(100% - 16px);
+}
+
+/* A trade line whose released scope is fully Los-passed or accepted */
+.track-c-unit-row__trade.is-complete small {
+  color: var(--track-c-green);
+  font-weight: 800;
+}
+
+.track-c-unit-row__trade.is-complete svg {
+  color: var(--track-c-green);
 }
 
 .track-c-section-list {

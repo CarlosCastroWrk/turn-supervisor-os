@@ -528,7 +528,7 @@ export function FastStartDayFlow({
                 <dt>Daily Release</dt>
                 <dd>
                   {releaseReview.ok
-                    ? `${releaseReview.plan.selectedUnitIds.length} Units · ${releaseReview.plan.items.length} section-trades`
+                    ? `${releaseReview.plan.selectedUnitIds.length} Units · ${releaseReview.plan.items.length} Paint/Clean sections`
                     : 'Needs review'}
                 </dd>
               </div>

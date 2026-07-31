@@ -2081,7 +2081,7 @@ function LaunchOperationalApp({
               appendManualReleaseBatchToActiveDay(current, batch));
             if (!saved) return false;
             setManualReleaseStatus(
-              `${batch.items.length} released section-trade${batch.items.length === 1 ? '' : 's'} saved to the active Day Session.`,
+              `${batch.items.length} released section${batch.items.length === 1 ? '' : 's'} saved to the active Day Session.`,
             );
             setHomeMode('day');
             return true;

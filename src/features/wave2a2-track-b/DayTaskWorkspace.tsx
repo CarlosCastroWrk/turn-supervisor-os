@@ -658,7 +658,7 @@ export function EndDayFlow({
   const [errors, setErrors] = useState<readonly string[]>([]);
   const [warnings, setWarnings] = useState<readonly string[]>(
     summary.unresolvedSectionTradeIds.length > 0
-      ? [`${summary.unresolvedSectionTradeIds.length} released section-trades remain unresolved.`]
+      ? [`${summary.unresolvedSectionTradeIds.length} released Paint and Clean sections remain unresolved.`]
       : [],
   );
   const [saving, setSaving] = useState(false);
@@ -724,10 +724,10 @@ export function EndDayFlow({
         </section>
       ) : null}
       <section className="w2a2b-review-card">
-        <span className="w2a2b-eyebrow">Deterministic summary</span>
-        <h2>{summary.releasedToday} released section-trades</h2>
+        <span className="w2a2b-eyebrow">Day summary</span>
+        <h2>{summary.releasedToday} released Paint and Clean sections</h2>
         <p className="w2a2b-grain-copy">
-          Operational state counts use section-trade grain. Notes/photos use event count.
+          Counts are Paint and Clean sections. Notes and photos count events.
         </p>
         <div className="w2a2b-summary-grid">
           {(Object.keys(END_DAY_SUMMARY_LABELS) as (keyof typeof END_DAY_SUMMARY_LABELS)[]).map((key) => (
@@ -746,7 +746,7 @@ export function EndDayFlow({
             <strong>Unresolved work stays unresolved</strong>
             <small>
               You may close the personal day, but {summary.unresolvedSectionTradeIds.length}
-              {' '}released section-trades still need follow-up.
+              {' '}released Paint and Clean sections still need follow-up.
             </small>
           </span>
         </section>
@@ -830,6 +830,11 @@ export function EndDayFlow({
       ) : null}
 
       <footer className="w2a2b-flow-actions">
+        {!review.explicitConfirmation && !activeWalkSessionId ? (
+          <p className="w2a2b-footer-hint">
+            Check the confirmation above to close the day.
+          </p>
+        ) : null}
         <button
           className="w2a2b-primary-button"
           data-track-b-critical-target="true"

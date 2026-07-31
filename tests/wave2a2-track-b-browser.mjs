@@ -257,7 +257,7 @@ try {
     await load(page, 'active');
     await page.getByRole('button', { name: 'End day', exact: true }).click();
     await page.getByRole('heading', { name: 'End Day', exact: true }).waitFor();
-    await page.getByText('224 released section-trades', { exact: true }).waitFor();
+    await page.getByText('224 released Paint and Clean sections', { exact: true }).waitFor();
     await page.getByText(
       'Operational state counts use section-trade grain. Notes/photos use event count.',
       { exact: true },

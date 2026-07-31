@@ -177,7 +177,7 @@ export function ManualReleaseReview({
 
         <div className="w2a2-core-release__summary" aria-live="polite">
           <span>{matchingUnits.total} matching Units</span>
-          <strong>{selected.size} section-trades selected</strong>
+          <strong>{selected.size} section{selected.size === 1 ? '' : 's'} selected</strong>
         </div>
 
         <div className="w2a2-core-release__units">

@@ -145,16 +145,27 @@ export const TrackCFieldOps = ({
     const unitAfter = result.value.units.find((unit) => unit.id === target.unitId);
     const unitWork = projectTrackCUnitWork(result.value, target.unitId)
       .filter((work) => work.release === 'released');
-    const allPassed = unitWork.length > 0 && unitWork.every((work) =>
-      work.inspection === 'los-passed' || work.property === 'property-accepted');
-    if (
-      allPassed
-      && (action === 'record-los-pass' || action === 'record-reinspection-pass')
-    ) {
+    const isPassed = (work: (typeof unitWork)[number]) =>
+      work.inspection === 'los-passed' || work.property === 'property-accepted';
+    const allPassed = unitWork.length > 0 && unitWork.every(isPassed);
+    const tradeWork = unitWork.filter((work) => work.trade === target.trade);
+    const tradeComplete = tradeWork.length > 0 && tradeWork.every(isPassed);
+    const isPassAction = action === 'record-los-pass' || action === 'record-reinspection-pass';
+    const tradeLabel = target.trade === 'paint' ? 'Paint' : 'Clean';
+    if (allPassed && isPassAction) {
+      // Whole unit done — the one moment worth an action.
       setNotice(`Unit ${unitAfter?.unitNumber ?? ''} is fully passed — Ready to Walk.`);
       setNoticeAction({ label: 'Start Walk now', view: 'walk' });
+    } else if (tradeComplete && isPassAction) {
+      // A full trade finished — a single notice, not one per bed.
+      setNotice(`Unit ${unitAfter?.unitNumber ?? ''} ${tradeLabel} fully passed.`);
+      setNoticeAction(undefined);
+    } else if (isPassAction) {
+      // Mid-trade pass: stay quiet so the toast never gets in the way.
+      setNotice('');
+      setNoticeAction(undefined);
     } else {
-      setNotice('Personal section record saved. Paper and payroll remain unchanged.');
+      setNotice('Personal record saved. Paper and payroll remain unchanged.');
       setNoticeAction(undefined);
     }
     commitState(result.value, `section-${action}`);

@@ -1585,7 +1585,25 @@ function LaunchOperationalApp({
       return;
     }
     if (destination === 'unit-import') {
-      navigate('assignments');
+      // Unit Import lives in the setup flow's Units step — open there (not Assign Crews).
+      try {
+        const nextDraft = setupDraft && !setupActivationCommittedRef.current
+          ? setupDraft
+          : createProjectActivationDraft(data, nowISO(), 'Los');
+        setSetupDraft(nextDraft);
+        setSetupStep(3); // 0 Property · 1 Contacts · 2 Crews · 3 Units · 4 Review
+        saveSetupDraft(nextDraft, 3);
+        setupActivationCommittedRef.current = false;
+        setSetupErrors([]);
+        setSetupStatus('Add or import Units for your roster.');
+      } catch (error) {
+        setSetupDraft(null);
+        setSetupErrors([
+          error instanceof Error ? error.message : 'Unit import is unavailable.',
+        ]);
+        setSetupStatus('Unit import is unavailable. Nothing was changed.');
+      }
+      navigate('setup');
       return;
     }
     if (destination === 'daily-goal') {

@@ -39,6 +39,7 @@ interface BoardViewProps {
     unitId: string,
     trade: TrackCTrade,
   ) => void;
+  readonly onRequestAssign?: (trade: TrackCTrade) => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
 }
 
@@ -92,20 +93,36 @@ const compactSectionStatus = (work: TrackCWorkProjection) => {
 const layerCopy = (state: TrackCState, work: TrackCWorkProjection) => {
   const crew =
     work.activeCrewIds.length === 0
-      ? 'No confirmed crew'
+      ? 'Unassigned'
       : work.activeCrewIds.length > 1
         ? 'Conflicting crews'
         : trackCCrewName(state, work.responsibleCrewId) ?? 'Unknown crew';
+  const crewSays = work.activeCrewIds.length === 0
+    ? 'No crew yet'
+    : work.execution === 'crew-reported-complete'
+      ? 'Reported complete'
+      : work.execution === 'working'
+        ? 'Working'
+        : 'Not started';
+  const myInspection = work.inspection === 'los-passed'
+    ? 'Passed'
+    : work.inspection === 'needs-los-inspection'
+      ? 'Needs my inspection'
+      : work.inspection === 'callback-open'
+        ? 'Callback open'
+        : work.inspection === 'reinspection-pending'
+          ? 'Ready to reinspect'
+          : 'Waiting on crew';
+  const property = work.property === 'property-accepted'
+    ? work.personalPdsMirror
+      ? 'Accepted · noted for paper'
+      : 'Accepted'
+    : 'Not walked yet';
   return [
-    ['Release', work.release.replaceAll('-', ' ')],
     ['Crew', crew],
-    ['Crew report', work.execution === 'crew-reported-complete' ? 'Complete' : work.execution],
-    ['Los', work.inspection.replaceAll('-', ' ')],
-    ['Property', work.property.replaceAll('-', ' ')],
-    [
-      'Paper mirror',
-      work.personalPdsMirror ? 'Recorded personally' : 'Not recorded',
-    ],
+    ['Crew says', crewSays],
+    ['My inspection', myInspection],
+    ['Property', property],
   ] as const;
 };
 
@@ -273,7 +290,12 @@ const WorkSection = ({
           <p className="track-c-section-row__detail-status">
             {executionLabel(work)}
           </p>
-          {blocked ? (
+          {work.release === 'unreleased' && !work.assignmentConflict ? (
+            <p className="track-c-section-row__note">
+              Not released yet. This section appears here when the property
+              releases it.
+            </p>
+          ) : blocked ? (
             <p className="track-c-section-row__warning">
               <ShieldAlert aria-hidden="true" size={16} />
               {work.access !== 'clear' &&
@@ -285,14 +307,16 @@ const WorkSection = ({
                   'This section is not eligible for field actions until release, access, and source conflicts are resolved.'}
             </p>
           ) : null}
-          <dl className="track-c-layer-list">
-            {layerCopy(state, work).map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
+          {work.release === 'released' ? (
+            <dl className="track-c-layer-list">
+              {layerCopy(state, work).map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {actions.length > 0 ? (
             <div className="track-c-action-row">
               {actions.map((item) => (
@@ -333,6 +357,7 @@ const UnitDetail = ({
   onClose,
   onSectionAction,
   onTradeComplete,
+  onRequestAssign,
   onRequestMirror,
 }: {
   state: TrackCState;
@@ -340,6 +365,7 @@ const UnitDetail = ({
   onClose: () => void;
   onSectionAction: BoardViewProps['onSectionAction'];
   onTradeComplete: BoardViewProps['onTradeComplete'];
+  onRequestAssign?: BoardViewProps['onRequestAssign'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -410,7 +436,18 @@ const UnitDetail = ({
                     : crewNames.join(', ')}
                 </span>
               </div>
-              <small>{progress.conciseLabel}</small>
+              {crewNames.length === 0 && progress.released > 0 && onRequestAssign ? (
+                <button
+                  className="track-c-trade-assign"
+                  data-track-c-critical-target="true"
+                  onClick={() => onRequestAssign(trade)}
+                  type="button"
+                >
+                  Assign
+                </button>
+              ) : (
+                <small>{progress.conciseLabel}</small>
+              )}
             </header>
             {canRecordTradeComplete ? (
               <button
@@ -466,6 +503,7 @@ export const BoardView = ({
   onCloseUnit,
   onSectionAction,
   onTradeComplete,
+  onRequestAssign,
   onRequestMirror,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
@@ -478,6 +516,7 @@ export const BoardView = ({
     return (
       <UnitDetail
         onClose={onCloseUnit}
+        onRequestAssign={onRequestAssign}
         onRequestMirror={onRequestMirror}
         onSectionAction={onSectionAction}
         onTradeComplete={onTradeComplete}

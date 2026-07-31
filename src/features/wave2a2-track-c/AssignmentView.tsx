@@ -27,6 +27,7 @@ import {
 interface AssignmentViewProps {
   readonly state: TrackCState;
   readonly createId: (prefix: string) => string;
+  readonly initialTrade?: TrackCTrade;
   readonly now: () => string;
   readonly onBack?: () => void;
   readonly onStateChange: (state: TrackCState, reason: string) => void;
@@ -35,11 +36,12 @@ interface AssignmentViewProps {
 export const AssignmentView = ({
   state,
   createId,
+  initialTrade,
   now,
   onBack,
   onStateChange,
 }: AssignmentViewProps) => {
-  const [trade, setTrade] = useState<TrackCTrade>('paint');
+  const [trade, setTrade] = useState<TrackCTrade>(initialTrade ?? 'paint');
   const compatibleCrews = useMemo(
     () => state.crews.filter((crew) => crew.trade === trade),
     [state.crews, trade],
@@ -182,6 +184,24 @@ export const AssignmentView = ({
         </label>
         <fieldset className="track-c-choice-list">
           <legend>Select Units</legend>
+          {eligibleUnits.length > 1 ? (
+            <button
+              className="track-c-select-all"
+              data-track-c-critical-target="true"
+              onClick={() => {
+                setUnitIds((current) =>
+                  current.length === eligibleUnits.length
+                    ? []
+                    : eligibleUnits.map((unit) => unit.id));
+                setProposal(undefined);
+              }}
+              type="button"
+            >
+              {unitIds.length === eligibleUnits.length
+                ? 'Clear all'
+                : `Select all ${eligibleUnits.length} Units`}
+            </button>
+          ) : null}
           {eligibleUnits.map((unit) => (
             <label key={unit.id}>
               <input

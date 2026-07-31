@@ -75,6 +75,7 @@ export const TrackCFieldOps = ({
   const [localSelectedCrewId, setLocalSelectedCrewId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
+  const [assignInitialTrade, setAssignInitialTrade] = useState<TrackCTrade>();
   const shellRef = useRef<HTMLDivElement>(null);
   const mirrorDialogRef = useRef<HTMLElement>(null);
   const mirrorCancelRef = useRef<HTMLButtonElement>(null);
@@ -115,6 +116,7 @@ export const TrackCFieldOps = ({
     setLocalSelectedCrewId(undefined);
     setNotice(undefined);
     setMirrorTarget(undefined);
+    if (nextView !== 'assign') setAssignInitialTrade(undefined);
   };
 
   const runSectionAction = (
@@ -326,6 +328,10 @@ export const TrackCFieldOps = ({
               onNavigate?.({ unitId, view: 'board' });
               setLocalSelectedUnitId(unitId);
             }}
+            onRequestAssign={(trade) => {
+              setAssignInitialTrade(trade);
+              navigate('assign');
+            }}
             onRequestMirror={requestMirror}
             onSectionAction={runSectionAction}
             onTradeComplete={recordTradeComplete}
@@ -352,6 +358,8 @@ export const TrackCFieldOps = ({
         {view === 'assign' ? (
           <AssignmentView
             createId={createId}
+            initialTrade={assignInitialTrade}
+            key={assignInitialTrade ?? 'default'}
             now={now}
             onBack={() => navigate('board')}
             onStateChange={commitState}

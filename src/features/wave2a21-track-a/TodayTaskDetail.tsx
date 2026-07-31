@@ -17,6 +17,12 @@ const QUEUE_LABELS: Readonly<Record<TodayTaskQueueId, string>> = {
 export interface TodayTaskDetailProps {
   readonly onBack: () => void;
   readonly onOpenQueue: (queueId: TodayTaskQueueId) => void;
+  readonly onOpenUnit?: (unitId: string) => void;
+  readonly todayUnits?: readonly {
+    readonly sectionCount: number;
+    readonly unitId: string;
+    readonly unitNumber: string;
+  }[];
   readonly onReviewStartDay: () => void;
   readonly projection: CanonicalFieldProjection;
   readonly startDayValues: StartDayResolvedValues;
@@ -30,9 +36,11 @@ const SOURCE_LABELS: Readonly<Record<StartDayValueSource, string>> = {
 export function TodayTaskDetail({
   onBack,
   onOpenQueue,
+  onOpenUnit,
   onReviewStartDay,
   projection,
   startDayValues,
+  todayUnits = [],
 }: TodayTaskDetailProps) {
   const progress = projection.todayTask.progress;
   const startDayRows = [
@@ -88,6 +96,24 @@ export function TodayTaskDetail({
           />
           <p>{progress.scopeLabel}. Crew completion does not mean Los inspected or property accepted.</p>
         </section>
+
+        {todayUnits.length > 0 ? (
+          <section aria-labelledby="w2a21a-task-units">
+            <h2 id="w2a21a-task-units">Units released today · {todayUnits.length}</h2>
+            <div className="w2a21a-task-detail__queues">
+              {todayUnits.map((unit) => (
+                <button
+                  key={unit.unitId}
+                  onClick={() => onOpenUnit?.(unit.unitId)}
+                  type="button"
+                >
+                  <span>Unit {unit.unitNumber}</span>
+                  <strong>{unit.sectionCount} sections</strong>
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section aria-labelledby="w2a21a-task-queues">
           <h2 id="w2a21a-task-queues">Field queues</h2>

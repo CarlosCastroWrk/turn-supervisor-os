@@ -160,8 +160,10 @@ export function createProjectActivationDraft(
           paint: startsFromDemo ? [] : defaultCrewIds(data, projectId, 'Painter'),
         },
         defaultPropertyContactId,
-        defaultWalkthroughScheduleWording: '',
-        defaultWorkingHoursWording: '',
+        // Sensible field defaults so first-time setup never blocks on the
+        // schedule step; Los can adjust them any time.
+        defaultWalkthroughScheduleWording: 'Walkthrough at 16:00',
+        defaultWorkingHoursWording: 'Work 08:00\u201319:00',
         enabledTrades: { clean: true, paint: true },
         permissions: safePermissions,
         projectId,

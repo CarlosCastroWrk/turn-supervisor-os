@@ -922,7 +922,12 @@ function DayTaskHome({
             <small>{rosterCount} Units in property roster</small>
             <h2 id="w2a2b-task-title">Today’s Task</h2>
           </span>
-          {task ? <strong>{task.sections.length} sections</strong> : null}
+          {task ? (
+            <strong>
+              {new Set(task.sections.map((section) => section.unitId)).size} Units
+              {' · '}{task.sections.length} sections
+            </strong>
+          ) : null}
         </div>
         {scopeErrors.length > 0 ? (
           <div className="w2a2b-message is-error" role="alert">

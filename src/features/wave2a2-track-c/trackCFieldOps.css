@@ -251,6 +251,26 @@
   color: var(--track-c-muted);
 }
 
+/* One focus indicator: the field container, never the inner input. */
+.track-c-shell .track-c-search input:focus-visible {
+  outline: none;
+}
+
+.track-c-search:focus-within {
+  border-color: var(--track-c-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--track-c-blue) 18%, transparent);
+}
+
+/* Keep the board search reachable while long Unit lists scroll. */
+.track-c-shell.is-embedded .track-c-board .track-c-search {
+  background: color-mix(in srgb, var(--track-c-bg) 94%, transparent);
+  inset-block-start: 0;
+  position: sticky;
+  z-index: 6;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
 .track-c-unit-list,
 .track-c-crew-list {
   background: var(--track-c-surface);

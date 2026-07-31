@@ -1463,13 +1463,17 @@ function LaunchOperationalApp({
     }
     if (destination === 'setup') {
       try {
+        const projectActive = launchProjection.project?.mode === 'real';
         if (!setupDraft || setupActivationCommittedRef.current) {
           const nextDraft = createProjectActivationDraft(data, nowISO(), 'Los');
+          const startStep = projectActive ? 4 : 0;
           setSetupDraft(nextDraft);
-          setSetupStep(0);
-          saveSetupDraft(nextDraft, 0);
+          setSetupStep(startStep);
+          saveSetupDraft(nextDraft, startStep);
           setupActivationCommittedRef.current = false;
-          setSetupStatus('Review all five steps before activating this personal project.');
+          setSetupStatus(projectActive
+            ? `${launchProjection.propertyName} is already active. Review or update its setup; nothing changes until you re-activate.`
+            : 'Review all five steps before activating this personal project.');
         } else {
           setSetupStatus('Your unfinished setup draft is restored.');
         }
@@ -1499,7 +1503,7 @@ function LaunchOperationalApp({
       return;
     }
     navigate('export');
-  }, [data, navigate, saveSetupDraft, setupDraft]);
+  }, [data, launchProjection.project?.mode, launchProjection.propertyName, navigate, saveSetupDraft, setupDraft]);
 
   const activateProject = useCallback(async () => {
     if (!setupDraft || setupActivationInFlightRef.current) return;
@@ -2004,6 +2008,15 @@ function LaunchOperationalApp({
         canonicalProjectionResult.projection && startDayResolution.values ? (
           <TodayTaskDetail
             onBack={() => navigate('dashboard')}
+            onOpenUnit={(unitId) => navigate('unitDetail', unitId)}
+            todayUnits={[...new Map(
+              (todayTask?.sections ?? []).map((section) => [section.unitId, section.unitId]),
+            ).keys()].map((unitId) => ({
+              sectionCount: (todayTask?.sections ?? [])
+                .filter((section) => section.unitId === unitId).length,
+              unitId,
+              unitNumber: unitNumberById.get(unitId) ?? unitId,
+            }))}
             onOpenQueue={(queueId) => navigate(
               'dashboard',
               undefined,

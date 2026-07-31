@@ -233,10 +233,6 @@ export function ProjectSetupFlow({
       ))
       .filter((value): value is string => Boolean(value))
       .filter((value) => !existingNumbers.has(value.toLocaleLowerCase()));
-    if (!unitBuilding.trim() || !unitFloor.trim()) {
-      setRosterMessage('Enter a building and floor before adding Units.');
-      return;
-    }
     if (invalid.length > 0) {
       setRosterMessage(`Review unsupported Unit identifiers: ${invalid.join(', ')}`);
       return;
@@ -248,8 +244,10 @@ export function ProjectSetupFlow({
     setSetupUnits([
       ...setupUnits,
       ...uniqueNumbers.map((unitNumber): TrackASetupUnit => ({
-        building: unitBuilding.trim(),
-        floor: unitFloor.trim(),
+        building: unitBuilding.trim()
+          || `Building ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
+        floor: unitFloor.trim()
+          || `Floor ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
         id: `unit:${draft.project.id}:${encodeURIComponent(unitNumber.toLocaleLowerCase())}`,
         projectId: draft.project.id,
         unitNumber,
@@ -586,27 +584,27 @@ export function ProjectSetupFlow({
             </p>
             <div className="w2a21a-setup__roster-entry">
               <label>
-                Unit identifiers
+                Unit numbers — paste the whole list at once
                 <textarea
                   onChange={(event) => setUnitPaste(event.target.value)}
-                  placeholder="101 102 103 or one per line"
+                  placeholder="101 102 103 201 202… (spaces, commas, or one per line)"
                   value={unitPaste}
                 />
               </label>
               <div className="w2a21a-setup__columns">
                 <label>
-                  Building
+                  Building (optional)
                   <input
                     onChange={(event) => setUnitBuilding(event.target.value)}
-                    placeholder="Building A"
+                    placeholder="Auto from Unit number"
                     value={unitBuilding}
                   />
                 </label>
                 <label>
-                  Floor
+                  Floor (optional)
                   <input
                     onChange={(event) => setUnitFloor(event.target.value)}
-                    placeholder="Floor 1"
+                    placeholder="Auto from Unit number"
                     value={unitFloor}
                   />
                 </label>

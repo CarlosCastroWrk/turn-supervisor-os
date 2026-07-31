@@ -117,11 +117,11 @@ try {
     'Step 4 of 5 · Paper remains authoritative.',
     { exact: true },
   ).waitFor();
-  await page.getByLabel('Unit identifiers', { exact: true }).fill(
+  await page.getByLabel('Unit numbers — paste the whole list at once', { exact: true }).fill(
     '101 102 103 104 105 106 107 108 109 110',
   );
-  await page.getByLabel('Building', { exact: true }).fill('Building A');
-  await page.getByLabel('Floor', { exact: true }).fill('Floor 1');
+  await page.getByLabel('Building (optional)', { exact: true }).fill('Building A');
+  await page.getByLabel('Floor (optional)', { exact: true }).fill('Floor 1');
   await page.locator('.w2a21a-setup__roster-entry select').selectOption('3');
   await page.getByRole('button', { name: 'Add Units', exact: true }).click();
   await page.getByText('10 Units added to the personal roster draft.', {

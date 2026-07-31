@@ -109,6 +109,68 @@ export function adaptDurableFieldEventsToActivity(input: {
       || left.sourceEventId.localeCompare(right.sourceEventId));
 }
 
+export interface TrackAFieldActivityGroup extends TrackAFieldActivity {
+  readonly groupedCount: number;
+  readonly groupedSections: readonly string[];
+}
+
+export const ACTIVITY_BURST_WINDOW_MS = 15 * 60_000;
+
+const SECTION_DISPLAY_ORDER = ['common', 'A', 'B', 'C', 'D', 'E'];
+
+const sectionOrder = (section: string) => {
+  const index = SECTION_DISPLAY_ORDER.indexOf(section);
+  return index === -1 ? SECTION_DISPLAY_ORDER.length : index;
+};
+
+// One bulk action (assign a crew, start work, walk a unit) emits one event per
+// section, but Los reads the feed at Unit + Trade grain. Merge same-titled
+// events for the same unit and trade recorded within one burst window into a
+// single row; the underlying event log is never mutated.
+export function groupFieldActivityBursts(
+  items: readonly TrackAFieldActivity[],
+  windowMs: number = ACTIVITY_BURST_WINDOW_MS,
+): readonly TrackAFieldActivityGroup[] {
+  interface OpenGroup {
+    count: number;
+    head: TrackAFieldActivity;
+    oldestMs: number;
+    sections: string[];
+  }
+  const groups: OpenGroup[] = [];
+  const open = new Map<string, OpenGroup>();
+  for (const item of items) {
+    const key = item.unitId
+      ? `${item.unitId}:${item.trade ?? ''}:${item.title}`
+      : undefined;
+    const recordedMs = Date.parse(item.recordedAt);
+    const existing = key ? open.get(key) : undefined;
+    if (existing && existing.oldestMs - recordedMs <= windowMs) {
+      existing.count += 1;
+      existing.oldestMs = Math.min(existing.oldestMs, recordedMs);
+      if (item.section && !existing.sections.includes(item.section)) {
+        existing.sections.push(item.section);
+      }
+      continue;
+    }
+    const created: OpenGroup = {
+      count: 1,
+      head: item,
+      oldestMs: recordedMs,
+      sections: item.section ? [item.section] : [],
+    };
+    groups.push(created);
+    if (key) open.set(key, created);
+  }
+  return groups.map((group) => ({
+    ...group.head,
+    groupedCount: group.count,
+    groupedSections: [...group.sections]
+      .sort((left, right) => sectionOrder(left) - sectionOrder(right)),
+    section: group.count > 1 ? undefined : group.head.section,
+  }));
+}
+
 export function adaptLegacyActivityLogsToActivity(input: {
   readonly accountId: string;
   readonly projectId: string;

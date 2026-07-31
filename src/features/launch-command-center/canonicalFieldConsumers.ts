@@ -11,10 +11,41 @@ import type {
 const sectionLabel = (section: CanonicalWorkRecord['target']['section']) =>
   section === 'common' ? 'Common' : `Room ${section}`;
 
-const workMeta = (record: CanonicalWorkRecord) => [
-  record.trade === 'paint' ? 'Paint' : 'Clean',
-  sectionLabel(record.target.section),
-  ...(record.waitingReasons.length > 0 ? [record.waitingReasons.join(' · ')] : []),
+const tradeLabel = (trade: CanonicalWorkRecord['trade']) =>
+  trade === 'paint' ? 'Paint' : 'Clean';
+
+// Notifications read at Unit + Trade grain like every other list Los uses:
+// one item per unit and trade per category, with the affected sections and
+// any waiting reasons folded into the reason line.
+interface UnitTradeGroup {
+  head: CanonicalWorkRecord;
+  key: string;
+  sections: string[];
+  waitingReasons: Set<string>;
+}
+
+const groupByUnitTrade = (
+  records: readonly CanonicalWorkRecord[],
+): UnitTradeGroup[] => {
+  const groups = new Map<string, UnitTradeGroup>();
+  for (const record of records) {
+    const key = `${record.target.unitId}:${record.trade}`;
+    const group = groups.get(key) ?? {
+      head: record,
+      key,
+      sections: [],
+      waitingReasons: new Set<string>(),
+    };
+    group.sections.push(sectionLabel(record.target.section));
+    for (const reason of record.waitingReasons) group.waitingReasons.add(reason);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+};
+
+const groupReason = (group: UnitTradeGroup) => [
+  group.sections.join(', '),
+  ...(group.waitingReasons.size > 0 ? [[...group.waitingReasons].join(' · ')] : []),
 ].join(' · ');
 
 export interface CanonicalFieldConsumers {
@@ -109,38 +140,38 @@ export const projectCanonicalFieldConsumers = (
   }));
 
   const notifications: NativeNotificationItem[] = [
-    ...projection.assignmentConflicts.map((record) => ({
+    ...groupByUnitTrade(projection.assignmentConflicts).map((group) => ({
       category: 'conflicts' as const,
-      destinationId: `unit:${record.target.unitId}`,
-      destinationLabel: `Unit ${record.unitNumber}`,
+      destinationId: `unit:${group.head.target.unitId}`,
+      destinationLabel: `Unit ${group.head.unitNumber}`,
       group: 'important' as const,
-      id: `canonical-conflict:${record.id}`,
-      read: readNotificationIds.has(`canonical-conflict:${record.id}`),
-      reason: record.waitingReasons.join(' · ') || 'Assignment responsibility conflicts.',
+      id: `canonical-conflict:${group.key}`,
+      read: readNotificationIds.has(`canonical-conflict:${group.key}`),
+      reason: groupReason(group) || 'Assignment responsibility conflicts.',
       timeLabel: 'Current',
-      title: `Unit ${record.unitNumber}`,
+      title: `Unit ${group.head.unitNumber} · ${tradeLabel(group.head.trade)}`,
     })),
-    ...projection.queues.callbacks.map((record) => ({
+    ...groupByUnitTrade(projection.queues.callbacks).map((group) => ({
       category: 'callbacks' as const,
-      destinationId: `unit:${record.target.unitId}`,
-      destinationLabel: `Unit ${record.unitNumber}`,
+      destinationId: `unit:${group.head.target.unitId}`,
+      destinationLabel: `Unit ${group.head.unitNumber}`,
       group: 'important' as const,
-      id: `canonical-callback:${record.id}`,
-      read: readNotificationIds.has(`canonical-callback:${record.id}`),
-      reason: workMeta(record),
+      id: `canonical-callback:${group.key}`,
+      read: readNotificationIds.has(`canonical-callback:${group.key}`),
+      reason: groupReason(group),
       timeLabel: 'Current',
-      title: `Unit ${record.unitNumber}`,
+      title: `Unit ${group.head.unitNumber} · ${tradeLabel(group.head.trade)}`,
     })),
-    ...projection.queues['ready-to-walk'].map((record) => ({
+    ...groupByUnitTrade(projection.queues['ready-to-walk']).map((group) => ({
       category: 'inspections' as const,
-      destinationId: `unit:${record.target.unitId}`,
-      destinationLabel: `Unit ${record.unitNumber}`,
+      destinationId: `unit:${group.head.target.unitId}`,
+      destinationLabel: `Unit ${group.head.unitNumber}`,
       group: 'today' as const,
-      id: `canonical-walk:${record.id}`,
-      read: readNotificationIds.has(`canonical-walk:${record.id}`),
-      reason: workMeta(record),
+      id: `canonical-walk:${group.key}`,
+      read: readNotificationIds.has(`canonical-walk:${group.key}`),
+      reason: groupReason(group),
       timeLabel: 'Current',
-      title: `Unit ${record.unitNumber}`,
+      title: `Unit ${group.head.unitNumber} · ${tradeLabel(group.head.trade)}`,
     })),
   ];
 

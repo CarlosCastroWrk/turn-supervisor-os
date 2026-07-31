@@ -26,6 +26,7 @@ import {
 import {
   adaptDurableFieldEventsToActivity,
   adaptLegacyActivityLogsToActivity,
+  groupFieldActivityBursts,
 } from '../src/features/wave2a21-track-a/activity.ts';
 import {
   adaptAppDataForTrackA,
@@ -37,6 +38,7 @@ import type {
   PropertyContact,
   TrackACrewOption,
   TrackAAppData,
+  TrackAFieldActivity,
   TrackAProject,
 } from '../src/features/wave2a21-track-a/contracts.ts';
 import {
@@ -1286,13 +1288,15 @@ test('canonical consumer lists, badges, queue counts, and exact section-trade re
       + projection.counts.callbacks
       + projection.counts.ready,
   );
+  const uniqueUnitTrades = (records: readonly { target: { unitId: string }; trade: string }[]) =>
+    new Set(records.map((record) => `${record.target.unitId}:${record.trade}`)).size;
   assert.equal(
     consumers.notifications.filter((item) => item.category === 'callbacks').length,
-    projection.counts.callbacks,
+    uniqueUnitTrades(projection.queues.callbacks),
   );
   assert.equal(
     consumers.notifications.filter((item) => item.category === 'inspections').length,
-    projection.counts.ready,
+    uniqueUnitTrades(projection.queues['ready-to-walk']),
   );
   assert.equal(
     consumers.searchGroups.find((group) => group.id === 'activity')?.results.length,
@@ -1320,6 +1324,98 @@ test('canonical consumer lists, badges, queue counts, and exact section-trade re
       && record.projection.confirmedEventCount === 0),
     false,
   );
+});
+
+test('canonical notifications group at Unit + Trade grain with sections in the reason', () => {
+  const base = createTrackCState();
+  const state: TrackCState = {
+    ...base,
+    events: [
+      ...base.events,
+      trackCEvent('assignment-unit-103-b', 'assignment-confirmed', 'unit-103', 'B'),
+      trackCEvent('complete-unit-103-b', 'crew-reported-complete', 'unit-103', 'B'),
+      trackCEvent('callback-unit-103-b', 'callback-opened', 'unit-103', 'B'),
+    ],
+    units: base.units.map((unit) => unit.id === 'unit-103'
+      ? {
+          ...unit,
+          applicableSections: ['B', 'C'],
+          workFacts: [
+            ...unit.workFacts,
+            { ...unit.workFacts[0], id: 'work-unit-103-b', section: 'B' as const },
+          ],
+        }
+      : unit),
+  };
+  const projection = buildCanonicalFieldProjection({
+    accountId: 'los-personal',
+    activeDaySessionId: DAY_SESSION_ID,
+    fieldEvents: [],
+    projectId: PROJECT_ID,
+    todayTask: createTodayTask(),
+    trackCState: state,
+  });
+  assert.equal(projection.queues.callbacks.length, 2, 'both callback sections stay in the queue');
+
+  const consumers = projectCanonicalFieldConsumers(projection, new Set());
+  const callbackNotifications = consumers.notifications
+    .filter((item) => item.category === 'callbacks');
+  assert.equal(callbackNotifications.length, 1, 'one notification per unit and trade');
+  assert.equal(callbackNotifications[0].title, 'Unit 103 · Paint');
+  assert.equal(callbackNotifications[0].id, 'canonical-callback:unit-103:paint');
+  assert.match(callbackNotifications[0].reason, /Room B/u);
+  assert.match(callbackNotifications[0].reason, /Room C/u);
+});
+
+const activityItem = (
+  id: string,
+  overrides: Partial<TrackAFieldActivity> = {},
+): TrackAFieldActivity => ({
+  accountId: 'los-personal',
+  boundary: 'personal-record',
+  eventKind: 'assignment-recorded',
+  id,
+  projectId: PROJECT_ID,
+  recordedAt: NOW,
+  sourceEventId: id,
+  sourceRefs: [],
+  title: 'Crew assignment confirmed',
+  wording: `${id} synthetic wording`,
+  ...overrides,
+});
+
+test('Activity bursts collapse one bulk action into a single Unit + Trade row', () => {
+  const grouped = groupFieldActivityBursts([
+    activityItem('a-1', { recordedAt: '2026-07-29T14:00:03.000Z', section: 'C', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('a-2', { recordedAt: '2026-07-29T14:00:02.000Z', section: 'B', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('a-3', { recordedAt: '2026-07-29T14:00:01.000Z', section: 'A', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('a-4', { recordedAt: '2026-07-29T14:00:00.000Z', section: 'common', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('b-1', { recordedAt: '2026-07-29T13:59:00.000Z', section: 'A', trade: 'clean', unitId: 'unit-102' }),
+  ]);
+
+  assert.equal(grouped.length, 2);
+  assert.equal(grouped[0].groupedCount, 4);
+  assert.equal(grouped[0].id, 'a-1', 'group keeps the newest member as its head');
+  assert.equal(grouped[0].section, undefined, 'grouped rows drop the single-section scope');
+  assert.deepEqual(grouped[0].groupedSections, ['common', 'A', 'B', 'C']);
+  assert.equal(grouped[1].groupedCount, 1);
+  assert.equal(grouped[1].wording, 'b-1 synthetic wording', 'single rows keep their original wording');
+});
+
+test('Activity bursts never merge across the window, different titles, or unitless events', () => {
+  const grouped = groupFieldActivityBursts([
+    activityItem('recent', { recordedAt: '2026-07-29T14:30:00.000Z', section: 'A', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('stale', { recordedAt: '2026-07-29T14:00:00.000Z', section: 'B', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('other-title', { recordedAt: '2026-07-29T13:59:59.000Z', section: 'B', title: 'Work started', trade: 'paint', unitId: 'unit-101' }),
+    activityItem('day-1', { recordedAt: '2026-07-29T13:59:58.000Z', title: 'Day started' }),
+    activityItem('day-2', { recordedAt: '2026-07-29T13:59:57.000Z', title: 'Day started' }),
+  ]);
+
+  assert.deepEqual(
+    grouped.map((item) => item.id),
+    ['recent', 'stale', 'other-title', 'day-1', 'day-2'],
+  );
+  assert.ok(grouped.every((item) => item.groupedCount === 1));
 });
 
 test('durable field-event Activity adapter is project scoped, exact, sorted, and deduplicated', () => {

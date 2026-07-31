@@ -120,6 +120,7 @@ import {
   createProjectSetupDraftStore,
   formatWalkthroughScheduleWording,
   formatWorkingHoursWording,
+  groupFieldActivityBursts,
   resolveStartDayValues,
   TodayTaskDetail,
   type CanonicalFieldProjection,
@@ -764,15 +765,20 @@ function LaunchOperationalApp({
           unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,
         }))
       : launchProjection.activityItems;
-    const canonicalItems = (canonicalProjectionResult.projection?.activity ?? [])
-      .map((activity): BoardFirstActivityItem => ({
+    const sectionDisplay = (section: string) =>
+      section === 'common' ? 'Common' : section.toUpperCase();
+    const canonicalItems = groupFieldActivityBursts(
+      canonicalProjectionResult.projection?.activity ?? [],
+    ).map((activity): BoardFirstActivityItem => ({
       id: activity.id,
       kind: boardActivityKind(activity),
       recordedAt: activity.recordedAt,
       sourceLabel: activity.sourceRefs[0]?.label ?? 'Personal operational memory',
       synthetic: launchProjection.project?.mode === 'demo',
       title: contextualTitle(activity),
-      wording: activity.wording,
+      wording: activity.groupedCount > 1
+        ? `${activity.groupedSections.map(sectionDisplay).join(', ')} — ${activity.groupedCount} sections in one update.`
+        : activity.wording,
       unitId: activity.unitId,
       unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,
     }));

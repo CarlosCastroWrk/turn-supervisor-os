@@ -514,7 +514,7 @@ function ActivitySurface({
           <h1 id="w1r-activity-title">Activity</h1>
           <p>What happened, in order</p>
         </div>
-        <span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span>
+        <span>{activity.length} {activity.length === 1 ? 'update' : 'updates'}</span>
       </div>
       <ActivityList
         activity={activity}

@@ -691,6 +691,27 @@ function LaunchOperationalApp({
     [launchProjection.commandUnits],
   );
   const persistedActivity = useMemo(() => {
+    const contextualTitle = (activity: {
+      section?: string;
+      title: string;
+      trade?: string;
+      unitId?: string;
+    }) => {
+      const unitNumber = activity.unitId
+        ? unitNumberById.get(activity.unitId)
+        : undefined;
+      if (!unitNumber) return activity.title;
+      const trade = activity.trade === 'paint'
+        ? 'Paint'
+        : activity.trade === 'clean'
+          ? 'Clean'
+          : undefined;
+      const section = activity.section
+        ? activity.section === 'common' ? 'Common' : activity.section.toUpperCase()
+        : undefined;
+      const scope = [trade, section].filter(Boolean).join(' ');
+      return `Unit ${unitNumber}${scope ? ` · ${scope}` : ''} — ${activity.title}`;
+    };
     const legacyItems = operationalSource.ok
       ? listOperationalActivity(
           operationalScope,
@@ -702,7 +723,7 @@ function LaunchOperationalApp({
           recordedAt: activity.recordedAt,
           sourceLabel: activity.sourceRefs[0]?.label ?? 'Personal operational memory',
           synthetic: launchProjection.project?.mode === 'demo',
-          title: activity.title,
+          title: contextualTitle(activity),
           wording: activity.wording,
           unitId: activity.unitId,
           unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,
@@ -715,7 +736,7 @@ function LaunchOperationalApp({
       recordedAt: activity.recordedAt,
       sourceLabel: activity.sourceRefs[0]?.label ?? 'Personal operational memory',
       synthetic: launchProjection.project?.mode === 'demo',
-      title: activity.title,
+      title: contextualTitle(activity),
       wording: activity.wording,
       unitId: activity.unitId,
       unitNumber: activity.unitId ? unitNumberById.get(activity.unitId) : undefined,

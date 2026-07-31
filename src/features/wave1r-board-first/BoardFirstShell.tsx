@@ -456,7 +456,9 @@ function ActivityList({
                   <time dateTime={item.recordedAt}>{formatActivityTime(item.recordedAt)}</time>
                 </span>
                 <span className="w1r-activity-list__wording">{item.wording}</span>
-                <small>{item.sourceLabel}</small>
+                {item.sourceLabel !== 'Personal Turn OS record' ? (
+                  <small>{item.sourceLabel}</small>
+                ) : null}
               </button>
             ) : (
               <>
@@ -465,7 +467,9 @@ function ActivityList({
                   <time dateTime={item.recordedAt}>{formatActivityTime(item.recordedAt)}</time>
                 </div>
                 <p>{item.wording}</p>
-                <small>{item.sourceLabel}</small>
+                {item.sourceLabel !== 'Personal Turn OS record' ? (
+                  <small>{item.sourceLabel}</small>
+                ) : null}
               </>
             )}
             {item.unitId && item.unitNumber ? (
@@ -508,7 +512,7 @@ function ActivitySurface({
       <div className="w1r-surface-heading">
         <div>
           <h1 id="w1r-activity-title">Activity</h1>
-          <p>Human-readable personal field history</p>
+          <p>What happened, in order</p>
         </div>
         <span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span>
       </div>

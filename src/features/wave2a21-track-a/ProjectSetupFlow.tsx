@@ -87,6 +87,7 @@ export function ProjectSetupFlow({
   const step = clampProjectSetupStep(currentStep);
   const schedule = resolveProjectDefaultSchedule(draft.configuration);
   const [unitPaste, setUnitPaste] = useState('');
+  const [missingNotice, setMissingNotice] = useState<readonly string[] | null>(null);
   const [unitBuilding, setUnitBuilding] = useState('');
   const [unitFloor, setUnitFloor] = useState('');
   const [unitType, setUnitType] = useState<TrackASetupUnit['unitType']>(3);
@@ -267,35 +268,45 @@ export function ProjectSetupFlow({
     ...draft.configuration.defaultCrewIdsByTrade.paint,
     ...draft.configuration.defaultCrewIdsByTrade.clean,
   ]);
-  const stepComplete = [
-    Boolean(
-      draft.project.propertyName.trim()
-      && draft.project.location.trim()
-      && draft.project.startDate
-      && draft.project.endDate
-      && draft.project.startDate <= draft.project.endDate
-      && draft.project.supervisorName.trim()
-      && (
-        draft.configuration.enabledTrades.paint
+  const stepMissing: readonly (readonly string[])[] = [
+    [
+      ...draft.project.propertyName.trim() ? [] : ['Property name'],
+      ...draft.project.location.trim() ? [] : ['Property location'],
+      ...draft.project.startDate ? [] : ['Turn start date'],
+      ...draft.project.endDate ? [] : ['Turn end date'],
+      ...draft.project.startDate && draft.project.endDate
+        && draft.project.startDate > draft.project.endDate
+        ? ['Turn end date on or after the start date']
+        : [],
+      ...draft.project.supervisorName.trim() ? [] : ['Supervisor name'],
+      ...draft.configuration.enabledTrades.paint
         || draft.configuration.enabledTrades.clean
-      )
-    ),
-    Boolean(
-      activeContacts.some((contact) =>
+        ? []
+        : ['At least one trade (Paint or Clean)'],
+    ],
+    [
+      ...activeContacts.some((contact) =>
         contact.isPrimary && contact.name.trim() && contact.title.trim())
-      && schedule.workStartTime
-      && schedule.workEndTime
-      && schedule.walkthroughTime
-    ),
-    Boolean(
-      (!draft.configuration.enabledTrades.paint || setupCrews.some((crew) =>
-        crew.active && crew.trade === 'paint' && crew.name.trim()))
-      && (!draft.configuration.enabledTrades.clean || setupCrews.some((crew) =>
-        crew.active && crew.trade === 'clean' && crew.name.trim()))
-    ),
-    setupUnits.length > 0,
-    true,
-  ] as const;
+        ? []
+        : ['A primary property contact with a name and title'],
+      ...schedule.workStartTime ? [] : ['Work start time (Default schedule)'],
+      ...schedule.workEndTime ? [] : ['Work end time (Default schedule)'],
+      ...schedule.walkthroughTime ? [] : ['Walkthrough time (Default schedule)'],
+    ],
+    [
+      ...!draft.configuration.enabledTrades.paint || setupCrews.some((crew) =>
+        crew.active && crew.trade === 'paint' && crew.name.trim())
+        ? []
+        : ['At least one active Paint crew'],
+      ...!draft.configuration.enabledTrades.clean || setupCrews.some((crew) =>
+        crew.active && crew.trade === 'clean' && crew.name.trim())
+        ? []
+        : ['At least one active Clean crew'],
+    ],
+    setupUnits.length > 0 ? [] : ['At least one Unit in the roster'],
+    [],
+  ];
+  const stepComplete = stepMissing.map((missing) => missing.length === 0);
   const firstIncompleteStep = stepComplete.findIndex((complete) => !complete);
   const furthestAvailableStep = firstIncompleteStep < 0
     ? PROJECT_SETUP_STEPS.length - 1
@@ -322,7 +333,10 @@ export function ProjectSetupFlow({
               <button
                 aria-label={`Go to step ${index + 1}: ${item.label}`}
                 disabled={index > furthestAvailableStep}
-                onClick={() => onStepChange(index)}
+                onClick={() => {
+                  setMissingNotice(null);
+                  onStepChange(index);
+                }}
                 type="button"
               >
                 <span>{index + 1}</span>
@@ -530,7 +544,7 @@ export function ProjectSetupFlow({
             </fieldset>
 
             <fieldset>
-              <legend>Default schedule</legend>
+              <legend>Default schedule · Required</legend>
               <div className="w2a21a-setup__columns">
                 <label>
                   Default work start
@@ -859,16 +873,25 @@ export function ProjectSetupFlow({
               Activate Project
             </button>
             <p className="w2a21a-setup__supporting">
-              Activation is complete only after the host confirms durable local persistence.
+              Your project is saved on this device before activation completes.
             </p>
           </fieldset>
         ) : null}
       </div>
 
+      {missingNotice && missingNotice.length > 0 ? (
+        <div className="w2a21a-setup__errors w2a21a-setup__missing" role="alert">
+          <strong>To continue, complete:</strong>
+          <ul>{missingNotice.map((item) => <li key={item}>{item}</li>)}</ul>
+        </div>
+      ) : null}
       <footer className="w2a21a-setup__footer">
         <button
           disabled={step === 0}
-          onClick={() => onStepChange(step - 1)}
+          onClick={() => {
+            setMissingNotice(null);
+            onStepChange(step - 1);
+          }}
           type="button"
         >
           Back
@@ -876,8 +899,14 @@ export function ProjectSetupFlow({
         {step < PROJECT_SETUP_STEPS.length - 1 ? (
           <button
             className="w2a21a-setup__primary"
-            disabled={!stepComplete[step]}
-            onClick={() => onStepChange(step + 1)}
+            onClick={() => {
+              if (stepComplete[step]) {
+                setMissingNotice(null);
+                onStepChange(step + 1);
+                return;
+              }
+              setMissingNotice(stepMissing[step]);
+            }}
             type="button"
           >
             Continue

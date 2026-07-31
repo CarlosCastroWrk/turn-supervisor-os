@@ -1,6 +1,12 @@
-import { ArrowLeft, Check, Search } from 'lucide-react';
+import { ArrowLeft, Camera, Check, MessageSquareText, Search } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { createId } from '../../lib/constants';
+import {
+  imageFileToIntakeSource,
+  intakeEnabled,
+  requestIntake,
+  type IntakeRow,
+} from '../../lib/intakeClient';
 import type {
   DailyReleaseBatch,
   FieldSection,
@@ -48,6 +54,84 @@ export function ManualReleaseReview({
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const pendingBatchRef = useRef<DailyReleaseBatch | undefined>(undefined);
+  const [intakeBusy, setIntakeBusy] = useState(false);
+  const [intakeStatus, setIntakeStatus] = useState('');
+  const [intakeMessage, setIntakeMessage] = useState('');
+  const intakeFileRef = useRef<HTMLInputElement>(null);
+
+  const applyIntakeRows = (rows: IntakeRow[], uncertainties: string[]) => {
+    const unitByNumber = new Map(roster.units.map((unit) =>
+      [unit.unitNumber.toLocaleLowerCase(), unit]));
+    const unmatched: string[] = [];
+    let added = 0;
+    setSelected((current) => {
+      const next = new Map(current);
+      for (const row of rows) {
+        const unit = unitByNumber.get(row.unitNumber.trim().toLocaleLowerCase());
+        if (!unit) {
+          unmatched.push(row.unitNumber);
+          continue;
+        }
+        const trades = row.trades.length > 0 ? row.trades : ['paint', 'clean'];
+        for (const trade of trades) {
+          for (const section of unit.applicableSections) {
+            if (!section.trades.includes(trade === 'paint' ? 'Paint' : 'Clean')) continue;
+            if (
+              row.sections.length > 0
+              && !row.sections.includes(section.id as IntakeRow['sections'][number])
+            ) {
+              continue;
+            }
+            const selection: ManualReleaseSelection = {
+              section: section.id as FieldSection,
+              trade: trade as FieldTrade,
+              unitId: unit.id,
+            };
+            const key = selectionKey(selection);
+            if (!next.has(key)) {
+              next.set(key, selection);
+              added += 1;
+            }
+          }
+        }
+      }
+      return next;
+    });
+    pendingBatchRef.current = undefined;
+    setError('');
+    const notes = [
+      `${added} section${added === 1 ? '' : 's'} pre-selected from the import.`,
+      unmatched.length > 0
+        ? `Not in your roster (skipped): ${unmatched.join(', ')}.`
+        : '',
+      uncertainties.length > 0 ? `Check: ${uncertainties.join(' ')}` : '',
+      'Nothing is released until you review and confirm below.',
+    ].filter(Boolean);
+    setIntakeStatus(notes.join(' '));
+  };
+
+  const runIntake = async (
+    source:
+      | { type: 'image'; mediaType: string; data: string }
+      | { type: 'text'; text: string },
+  ) => {
+    setIntakeBusy(true);
+    setIntakeStatus('Reading the release…');
+    try {
+      const result = await requestIntake({
+        kind: 'release',
+        rosterUnitNumbers: roster.units.map((unit) => unit.unitNumber),
+        source,
+      });
+      applyIntakeRows(result.rows, result.uncertainties);
+    } catch (caught) {
+      setIntakeStatus(caught instanceof Error
+        ? caught.message
+        : 'The import reader failed. Use the roster below.');
+    } finally {
+      setIntakeBusy(false);
+    }
+  };
 
   const matchingUnits = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -141,12 +225,71 @@ export function ManualReleaseReview({
           <strong>Record exactly what the property released.</strong>
           <p>
             Select only Units, sections, and Paint/Clean work the property actually
-            released. This does not read a file, photo, paper mark, or official system.
+            released.
+            {intakeEnabled()
+              ? ' Imported suggestions are proposals only — your review decides.'
+              : ' This does not read a file, photo, paper mark, or official system.'}
           </p>
         </section>
 
         {unavailableReason ? (
           <p className="w2a2-core-error" role="alert">{unavailableReason}</p>
+        ) : null}
+
+        {intakeEnabled() ? (
+          <section className="w2a2-core-intake">
+            <strong>Import the release</strong>
+            <p>
+              Photo of the TurnBoard or Joseph’s message. You review everything
+              before it counts.
+            </p>
+            <div className="w2a2-core-intake__actions">
+              <button
+                disabled={intakeBusy}
+                onClick={() => intakeFileRef.current?.click()}
+                type="button"
+              >
+                <Camera aria-hidden="true" size={17} />
+                From photo
+              </button>
+              <input
+                accept="image/*"
+                aria-label="Choose a TurnBoard photo"
+                capture="environment"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (!file) return;
+                  void imageFileToIntakeSource(file)
+                    .then((source) => runIntake(source))
+                    .catch(() => setIntakeStatus('That photo could not be read.'));
+                }}
+                ref={intakeFileRef}
+                type="file"
+              />
+            </div>
+            <label>
+              <span className="w2a2-core-intake__label">
+                <MessageSquareText aria-hidden="true" size={15} /> Or paste the message
+              </span>
+              <textarea
+                onChange={(event) => setIntakeMessage(event.target.value)}
+                placeholder="Joseph: you can start 301–310 paint and clean…"
+                value={intakeMessage}
+              />
+            </label>
+            <button
+              disabled={intakeBusy || !intakeMessage.trim()}
+              onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
+              type="button"
+            >
+              Read message
+            </button>
+            {intakeStatus ? (
+              <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
+            ) : null}
+          </section>
         ) : null}
 
         <label className="w2a2-core-field">

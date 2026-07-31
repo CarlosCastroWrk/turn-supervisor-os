@@ -42,6 +42,7 @@
     "check:os": "scripts/check_os.sh"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@supabase/supabase-js": "2.110.0",
     "@vitejs/plugin-react": "^4.3.4",
     "lucide-react": "^0.468.0",

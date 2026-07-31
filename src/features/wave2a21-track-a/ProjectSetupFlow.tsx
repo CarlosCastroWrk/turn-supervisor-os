@@ -1,4 +1,9 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import {
+  imageFileToIntakeSource,
+  intakeEnabled,
+  requestIntake,
+} from '../../lib/intakeClient';
 import type {
   BrowserPermissionState,
   ProjectActivationDraft,
@@ -83,6 +88,47 @@ export function ProjectSetupFlow({
   const [unitFloor] = useState('');
   const [unitType, setUnitType] = useState<TrackASetupUnit['unitType']>(3);
   const [rosterMessage, setRosterMessage] = useState('');
+  const [rosterIntakeBusy, setRosterIntakeBusy] = useState(false);
+  const rosterIntakeFileRef = useRef<HTMLInputElement>(null);
+
+  const importRosterPhoto = async (file: File) => {
+    setRosterIntakeBusy(true);
+    setRosterMessage('Reading the TurnBoard photo…');
+    try {
+      const source = await imageFileToIntakeSource(file);
+      const result = await requestIntake({ kind: 'roster', source });
+      const existing = new Set(setupUnits.map((unit) =>
+        unit.unitNumber.toLocaleLowerCase()));
+      const additions = [] as TrackASetupUnit[];
+      for (const row of result.rows) {
+        const unitNumber = row.unitNumber.trim();
+        if (!unitNumber || existing.has(unitNumber.toLocaleLowerCase())) continue;
+        existing.add(unitNumber.toLocaleLowerCase());
+        additions.push({
+          building: row.building?.trim()
+            || `Building ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
+          floor: `Floor ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
+          id: `unit:${draft.project.id}:${encodeURIComponent(unitNumber.toLocaleLowerCase())}`,
+          projectId: draft.project.id,
+          unitNumber,
+          unitType: setupUnitType(row.bedCount ?? 3),
+        });
+      }
+      if (additions.length > 0) setSetupUnits([...setupUnits, ...additions]);
+      const notes = [
+        `${additions.length} Unit${additions.length === 1 ? '' : 's'} added from the photo.`,
+        result.uncertainties.length > 0 ? `Check: ${result.uncertainties.join(' ')}` : '',
+        'Review the roster below before continuing.',
+      ].filter(Boolean);
+      setRosterMessage(notes.join(' '));
+    } catch (caught) {
+      setRosterMessage(caught instanceof Error
+        ? caught.message
+        : 'The photo could not be read. Paste the Unit numbers instead.');
+    } finally {
+      setRosterIntakeBusy(false);
+    }
+  };
   const setupCrews = useMemo<readonly TrackASetupCrew[]>(
     () => draft.crews ?? crewOptions.map((crew) => ({
       active: crew.active !== false,
@@ -559,6 +605,30 @@ export function ProjectSetupFlow({
                 </select>
               </label>
               <button onClick={addRosterUnits} type="button">Add Units</button>
+              {intakeEnabled() ? (
+                <>
+                  <button
+                    disabled={rosterIntakeBusy}
+                    onClick={() => rosterIntakeFileRef.current?.click()}
+                    type="button"
+                  >
+                    {rosterIntakeBusy ? 'Reading photo…' : 'Import from TurnBoard photo'}
+                  </button>
+                  <input
+                    accept="image/*"
+                    aria-label="Choose a TurnBoard photo for the roster"
+                    capture="environment"
+                    hidden
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) void importRosterPhoto(file);
+                    }}
+                    ref={rosterIntakeFileRef}
+                    type="file"
+                  />
+                </>
+              ) : null}
               {rosterMessage ? (
                 <p aria-live="polite" className="w2a21a-setup__supporting">
                   {rosterMessage}

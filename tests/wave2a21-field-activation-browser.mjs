@@ -66,14 +66,10 @@ try {
   });
 
   await page.goto(baseUrl, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Welcome to Turn OS', exact: true }).waitFor();
 
   startTiming('setup-and-reopen');
-  await primaryNavigation(page)
-    .getByRole('button', { name: 'More', exact: true })
-    .click();
-  await page.getByRole('heading', { name: 'More', exact: true }).waitFor();
-  await page.getByRole('button', { name: /^Setup/u }).click();
+  await page.getByRole('button', { name: /Set Up Your Property|Continue Property Setup/u }).click();
   await page.getByRole('heading', { name: 'Set up project', exact: true }).waitFor();
   await page.getByText(
     'Step 1 of 5 · Paper remains authoritative.',
@@ -133,8 +129,8 @@ try {
   }).waitFor();
 
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  await page.getByRole('heading', { name: 'More', exact: true }).waitFor();
-  await page.getByRole('button', { name: /^Setup/u }).click();
+  await page.getByRole('heading', { name: 'Welcome to Turn OS', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Continue Property Setup', exact: true }).click();
   await page.getByText(
     'Step 4 of 5 · Paper remains authoritative.',
     { exact: true },

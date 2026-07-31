@@ -73,6 +73,10 @@ const fieldEvent = (id, daySessionId, eventType, recordedAt) => ({
 
 const buildSupervisorFixture = () => {
   const data = cloneSeed();
+  // The operator fixture represents an activated personal project, not the
+  // demo, so the shell opens the operational Home rather than onboarding.
+  data.projects = data.projects.map((project) =>
+    project.id === projectId ? { ...project, mode: 'real' } : project);
   const dayOneRelease = release(
     'browser-day-1-release',
     dayOneDate,
@@ -284,7 +288,7 @@ try {
   const backupPath = join(tempDirectory, 'valid-turn-os-backup.json');
   await writeFile(backupPath, JSON.stringify(seedData), 'utf8');
   await recoveryPage.locator('input[type="file"]').setInputFiles(backupPath);
-  await recoveryPage.getByRole('heading', { name: 'Home', exact: true }).waitFor();
+  await recoveryPage.getByRole('heading', { name: 'Welcome to Turn OS', exact: true }).waitFor();
   const restoredRaw = await recoveryPage.evaluate(
     (key) => window.localStorage.getItem(key),
     storageKey,

@@ -397,6 +397,7 @@ body:has(.w2a1-a-page-transition) {
   border: 0;
   color: var(--w2a1-a-text);
   flex: 1 1 auto;
+  outline: none;
   font-size: 16px;
   height: 48px;
   min-width: 0;

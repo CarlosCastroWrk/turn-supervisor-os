@@ -1256,7 +1256,7 @@ export function DayTaskWorkspace({
     onExternalAction?.(action);
     setReceipt(
       action === 'import-work'
-        ? 'Manual release review opened. Import upgrade is not included in this candidate.'
+        ? 'Manual release review opened. Record exactly what the property released.'
         : action === 'assign-crews'
           ? 'Crew assignment handoff requested. Integration owns the assignment route.'
           : 'Walk handoff requested. Integration owns the deterministic walk route.',

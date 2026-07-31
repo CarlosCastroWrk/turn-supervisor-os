@@ -138,7 +138,7 @@ export function ManualReleaseReview({
 
       <div className="w2a2-core-page__scroll" data-turn-scroll-region="primary">
         <section className="w2a2-core-boundary" role="note">
-          <strong>Import upgrade is not included in this candidate.</strong>
+          <strong>Record exactly what the property released.</strong>
           <p>
             Select only Units, sections, and Paint/Clean work the property actually
             released. This does not read a file, photo, paper mark, or official system.

@@ -8,8 +8,12 @@ import { seedData } from '../src/data/seed.ts';
 const baseUrl = process.env.PDS_BASE_URL ?? 'http://127.0.0.1:4174';
 const storageKey = 'turn-supervisor-os:v0.1';
 const projectId = seedData.activeProjectId;
-const dayOneDate = '2026-07-29';
-const dayTwoDate = '2026-07-30';
+const localDate = (date) => new Date(
+  date.getTime() - date.getTimezoneOffset() * 60_000,
+).toISOString().slice(0, 10);
+const nowDate = new Date();
+const dayTwoDate = localDate(nowDate);
+const dayOneDate = localDate(new Date(nowDate.getTime() - 86_400_000));
 
 const cloneSeed = () => structuredClone(seedData);
 

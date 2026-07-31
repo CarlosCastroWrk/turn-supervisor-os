@@ -356,6 +356,7 @@ function LaunchOperationalApp({
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
   const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
   const [homeMode, setHomeMode] = useState<HomeMode>('day');
+  const [demoExplored, setDemoExplored] = useState(false);
   const [manualReleaseStatus, setManualReleaseStatus] = useState('');
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
@@ -1650,21 +1651,6 @@ function LaunchOperationalApp({
     </section>
   ) : null;
 
-  const storageDurabilityAlert = (
-    storagePersistence === 'best-effort' || storagePersistence === 'failed'
-  ) ? (
-    <section className="persistence-alert lcc-host-alert" role="status">
-      <AlertTriangle size={22} aria-hidden="true" />
-      <div>
-        <strong>Browser storage is best-effort on this device</strong>
-        <p>
-          Turn OS will keep saving locally, but the browser did not grant protected
-          persistent storage. Keep a current JSON backup.
-        </p>
-      </div>
-    </section>
-  ) : null;
-
   const loadWarningAlert = loadWarnings.length > 0 ? (
     <section className="persistence-alert lcc-host-alert" role="status">
       <AlertTriangle size={22} aria-hidden="true" />
@@ -1694,7 +1680,6 @@ function LaunchOperationalApp({
       {cacheAlert}
       {repositoryAlert}
       {offlineContinuityAlert}
-      {storageDurabilityAlert}
       {loadWarningAlert}
       {manualReleaseAlert}
     </>
@@ -1968,7 +1953,32 @@ function LaunchOperationalApp({
   ) : route.view === 'dashboard' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
-      {route.homeSummary === 'today-task' ? (
+      {launchProjection.project?.mode !== 'real' && !demoExplored ? (
+        <section aria-labelledby="lcc-welcome-title" className="lcc-welcome">
+          <span aria-hidden="true" className="lcc-welcome__mark">TO</span>
+          <h1 id="lcc-welcome-title">Welcome to Turn OS</h1>
+          <p>
+            Set up your first property to begin managing crews, Units,
+            inspections, and walks. Paper remains the official TurnBoard.
+          </p>
+          <div className="lcc-welcome__actions">
+            <button
+              className="lcc-welcome__primary"
+              onClick={() => handleMoreNavigation('setup')}
+              type="button"
+            >
+              {setupDraft ? 'Continue Property Setup' : 'Set Up Your Property'}
+            </button>
+            <button
+              className="lcc-welcome__secondary"
+              onClick={() => setDemoExplored(true)}
+              type="button"
+            >
+              Explore the demo first
+            </button>
+          </div>
+        </section>
+      ) : route.homeSummary === 'today-task' ? (
         canonicalProjectionResult.projection && startDayResolution.values ? (
           <TodayTaskDetail
             onBack={() => navigate('dashboard')}
@@ -2210,6 +2220,13 @@ function LaunchOperationalApp({
               label="Latest local save"
               value={backupStatus.label}
             />
+            <GroupedInsetRow
+              detail={storagePersistence === 'persistent'
+                ? 'The browser granted protected persistent storage.'
+                : 'Saving works normally. Keep a current JSON backup as your guarantee.'}
+              label="Protected storage"
+              value={storagePersistence === 'persistent' ? 'Granted' : 'Best effort'}
+            />
           </GroupedInsetSection>
         </NativeDetailShell>
       ) : (
@@ -2289,7 +2306,7 @@ function LaunchOperationalApp({
             saveSetupDraft(draft, setupStep);
             setSetupErrors([]);
           }}
-          onExit={() => navigate('more')}
+          onExit={() => navigate('dashboard')}
           onRemoveContact={(contactId) => {
             if (!setupDraft) return;
             const nextDraft = removeProjectContact(setupDraft, contactId);

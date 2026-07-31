@@ -17,6 +17,7 @@ import {
   setDailyReleaseException,
   setDailyReleaseUnitSelected,
 } from './phase2Workflow';
+import { AiSignInPanel } from '../../components/AiSignInPanel';
 import type { ProjectRosterUnitOption } from './contracts';
 import '../wave2a2-core/acceptedCore.css';
 import './trackA.css';
@@ -205,6 +206,7 @@ export function DailyReleaseSelector({
         <section className="w2a2-core-intake">
           <strong>Import today’s release</strong>
           <p>Photo of the TurnBoard or Joseph’s message — you review before starting.</p>
+          <AiSignInPanel purpose="release import" />
           <button
             disabled={intakeBusy}
             onClick={() => intakeFileRef.current?.click()}

@@ -15,6 +15,7 @@ import type {
   TrackASetupCrew,
   TrackASetupUnit,
 } from './contracts';
+import { AiSignInPanel } from '../../components/AiSignInPanel';
 import { PROPERTY_CONTACT_ROLES } from './contracts';
 import {
   resolveProjectDefaultSchedule,
@@ -662,6 +663,7 @@ export function ProjectSetupFlow({
               <button onClick={addRosterUnits} type="button">Add Units</button>
               {intakeEnabled() ? (
                 <>
+                  <AiSignInPanel purpose="photo import" />
                   <button
                     disabled={rosterIntakeBusy}
                     onClick={() => rosterIntakeFileRef.current?.click()}

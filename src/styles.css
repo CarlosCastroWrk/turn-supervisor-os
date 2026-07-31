@@ -506,6 +506,74 @@ button:disabled {
   cursor: default;
 }
 
+/* Inline sign-in for AI import (kept small so it sits inside the intake card). */
+.ai-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  margin: 10px 0;
+  border: 1px solid var(--turn-color-divider, var(--border, #d8dee6));
+  border-radius: 12px;
+  background: var(--turn-color-surface, #ffffff);
+}
+.ai-signin__lead {
+  margin: 0;
+  font-size: 14px;
+  color: var(--turn-color-ink-soft, #45505f);
+}
+.ai-signin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--turn-color-ink-soft, #45505f);
+}
+.ai-signin__field input {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--turn-color-divider, var(--border, #d8dee6));
+  padding: 0 12px;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  background: var(--turn-color-page, #fff);
+  color: var(--turn-color-ink, #141a22);
+}
+.ai-signin__go {
+  min-height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: var(--turn-color-primary, #0072dc);
+  color: var(--turn-color-page, #fff);
+  font-size: 16px;
+  font-weight: 700;
+}
+.ai-signin__error {
+  margin: 0;
+  font-size: 13px;
+  color: #c0362c;
+}
+.ai-signin--in {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ai-signin__who {
+  font-size: 13.5px;
+  color: var(--turn-color-ink-soft, #45505f);
+}
+.ai-signin__out {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--turn-color-divider, var(--border, #d8dee6));
+  background: transparent;
+  color: var(--turn-color-ink, #141a22);
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
 /* Suppress rubber-band / pull-to-refresh in installed standalone mode; inner
    scrollers own their own scrolling. */
 html {

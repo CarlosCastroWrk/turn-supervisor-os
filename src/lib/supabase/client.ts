@@ -6,6 +6,16 @@ const supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 export const isSyncFeatureEnabled = viteEnv.VITE_ENABLE_SYNC === 'true';
 
+// AI features (photo/message import, secure Capture) need a signed-in Supabase
+// session even when the full sync engine is off. The engine itself stays gated
+// by isSyncFeatureEnabled everywhere in sync.ts; this flag only lets the auth
+// client exist so a user can sign in for those features without turning on sync
+// (which would put a login wall on the otherwise-public field app).
+export const isAuthNeedingFeatureEnabled =
+  isSyncFeatureEnabled ||
+  viteEnv.VITE_ENABLE_INTAKE === 'true' ||
+  viteEnv.VITE_ENABLE_AI === 'true';
+
 export const isSupabaseConfigured = Boolean(
   supabaseUrl &&
     supabaseAnonKey &&
@@ -38,7 +48,7 @@ export const getSessionBoundSupabaseClient = (accessToken: string) => {
 };
 
 export const getSupabaseClient = () => {
-  if (!isSyncFeatureEnabled || !isSupabaseConfigured) {
+  if (!isAuthNeedingFeatureEnabled || !isSupabaseConfigured) {
     return null;
   }
 

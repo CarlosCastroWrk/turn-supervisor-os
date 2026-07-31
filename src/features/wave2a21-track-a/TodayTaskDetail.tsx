@@ -9,6 +9,8 @@ import './trackA.css';
 
 const QUEUE_LABELS: Readonly<Record<TodayTaskQueueId, string>> = {
   callbacks: 'Callbacks',
+  'needs-crew': 'Needs Crew',
+  'needs-inspection': 'Needs Inspection',
   'ready-to-walk': 'Ready for property walk',
   waiting: 'Waiting',
   working: 'Working',

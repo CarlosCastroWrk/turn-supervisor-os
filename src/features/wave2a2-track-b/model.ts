@@ -52,6 +52,14 @@ const ACTIVE_DAY_STATUSES = new Set<DaySession['status']>(['active', 'ending', '
 
 const queueMetadata: Record<TodayTaskQueueId, Pick<TodayTaskQueue, 'emptyMessage' | 'label'>> = {
   callbacks: { emptyMessage: 'No released sections have an open callback.', label: 'Callbacks' },
+  'needs-crew': {
+    emptyMessage: 'Every released section has a crew.',
+    label: 'Needs Crew',
+  },
+  'needs-inspection': {
+    emptyMessage: 'Crew-completed work will appear here for your inspection.',
+    label: 'Needs Inspection',
+  },
   'ready-to-walk': {
     emptyMessage: 'No released sections are ready for a property walk.',
     label: 'Ready to walk',
@@ -416,6 +424,21 @@ export function selectTodayTaskQueue(
 ): TodayTaskQueue {
   const source = task?.sections ?? [];
   const records = source.filter((section) => {
+    if (queueId === 'needs-crew') {
+      return (
+        section.waitingReasons.length === 0
+        && section.tradeStates.some((state) => !state.assignedCrewId)
+      );
+    }
+    if (queueId === 'needs-inspection') {
+      return (
+        section.waitingReasons.length === 0
+        && !hasOpenCallback(section)
+        && section.tradeStates.some((state) =>
+          state.execution === 'crew-reported-complete'
+          && !passedInspection(state.inspection))
+      );
+    }
     if (queueId === 'working') {
       return section.tradeStates.some((state) => state.execution === 'working');
     }
@@ -453,6 +476,8 @@ export function getTodayTaskQueueCounts(
 ): Readonly<Record<TodayTaskQueueId, number>> {
   return {
     callbacks: selectTodayTaskQueue(task, 'callbacks').records.length,
+    'needs-crew': selectTodayTaskQueue(task, 'needs-crew').records.length,
+    'needs-inspection': selectTodayTaskQueue(task, 'needs-inspection').records.length,
     'ready-to-walk': selectTodayTaskQueue(task, 'ready-to-walk').records.length,
     waiting: selectTodayTaskQueue(task, 'waiting').records.length,
     working: selectTodayTaskQueue(task, 'working').records.length,

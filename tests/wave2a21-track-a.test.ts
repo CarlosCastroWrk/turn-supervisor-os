@@ -1406,6 +1406,8 @@ test('AppData projection adapter preserves project scope when no Day Session is 
   assert.equal(projection.counts.unitsTouched, 0);
   assert.deepEqual(projection.todayTask.queueCounts, {
     callbacks: 0,
+    'needs-crew': 0,
+    'needs-inspection': 0,
     'ready-to-walk': 0,
     waiting: 0,
     working: 0,

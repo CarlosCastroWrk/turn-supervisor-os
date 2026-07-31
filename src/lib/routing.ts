@@ -13,7 +13,9 @@ export interface AppRoute {
 }
 
 export type HomeSummaryFilter =
+  | 'needs-crew'
   | 'working'
+  | 'needs-inspection'
   | 'waiting'
   | 'callbacks'
   | 'ready-to-walk'
@@ -63,7 +65,9 @@ const topLevelViews = new Set<AppView>([
 
 const unitStatusFilters: UnitStatusFilter[] = ['All', 'Blocked', 'Ready', 'Not Started', 'In Progress', 'Needs Inspection'];
 const homeSummaryFilters: HomeSummaryFilter[] = [
+  'needs-crew',
   'working',
+  'needs-inspection',
   'waiting',
   'callbacks',
   'ready-to-walk',

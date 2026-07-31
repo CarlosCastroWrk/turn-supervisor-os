@@ -292,6 +292,8 @@ test('Home queue filters return only exact released section records', () => {
 
   assert.deepEqual(counts, {
     callbacks: 6,
+    'needs-crew': 40,
+    'needs-inspection': 0,
     'ready-to-walk': 34,
     waiting: 8,
     working: 16,

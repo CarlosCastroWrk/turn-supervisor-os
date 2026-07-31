@@ -186,7 +186,13 @@ export interface TodayTask {
   sections: readonly TodayTaskSection[];
 }
 
-export type TodayTaskQueueId = 'working' | 'waiting' | 'callbacks' | 'ready-to-walk';
+export type TodayTaskQueueId =
+  | 'needs-crew'
+  | 'working'
+  | 'needs-inspection'
+  | 'waiting'
+  | 'callbacks'
+  | 'ready-to-walk';
 
 export interface TodayTaskQueue {
   emptyMessage: string;

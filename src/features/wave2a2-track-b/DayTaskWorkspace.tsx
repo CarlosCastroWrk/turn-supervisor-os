@@ -62,7 +62,9 @@ type WorkspaceView =
   | { id: 'queue'; queue: TodayTaskQueue };
 
 const queueOrder: readonly TodayTaskQueueId[] = [
+  'needs-crew',
   'working',
+  'needs-inspection',
   'waiting',
   'callbacks',
   'ready-to-walk',
@@ -70,6 +72,8 @@ const queueOrder: readonly TodayTaskQueueId[] = [
 
 const queueIcons: Readonly<Record<TodayTaskQueueId, ReactNode>> = {
   callbacks: <RotateCcw aria-hidden="true" size={20} />,
+  'needs-crew': <Users aria-hidden="true" size={20} />,
+  'needs-inspection': <ClipboardList aria-hidden="true" size={20} />,
   'ready-to-walk': <Footprints aria-hidden="true" size={20} />,
   waiting: <AlertTriangle aria-hidden="true" size={20} />,
   working: <Play aria-hidden="true" size={20} />,

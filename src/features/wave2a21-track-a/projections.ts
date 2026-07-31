@@ -44,11 +44,30 @@ const canonicalQueueForWork = (
   if (record.waitingReasons.length > 0) return 'waiting';
   if (
     projection.release === 'released'
+    && projection.access === 'clear'
+    && projection.sourceConfidence === 'confirmed'
+    && !projection.assignmentConflict
+    && !projection.responsibleCrewId
+  ) {
+    return 'needs-crew';
+  }
+  if (
+    projection.release === 'released'
+    && projection.responsibleCrewId
+    && (
+      projection.execution === 'crew-reported-complete'
+      || projection.inspection === 'needs-los-inspection'
+    )
+    && projection.inspection !== 'los-passed'
+  ) {
+    return 'needs-inspection';
+  }
+  if (
+    projection.release === 'released'
     && projection.responsibleCrewId
     && (
       projection.execution === 'assigned'
       || projection.execution === 'working'
-      || projection.execution === 'crew-reported-complete'
     )
   ) {
     return 'working';
@@ -140,6 +159,8 @@ export function buildCanonicalFieldProjection(
   ).size;
   const workRecords = canonicalWorkRecords(input);
   const queues = {
+    'needs-crew': workRecords.filter((record) => record.queue === 'needs-crew'),
+    'needs-inspection': workRecords.filter((record) => record.queue === 'needs-inspection'),
     callbacks: workRecords.filter((record) => record.queue === 'callbacks'),
     'ready-to-walk': workRecords.filter((record) => record.queue === 'ready-to-walk'),
     waiting: workRecords.filter((record) => record.queue === 'waiting'),
@@ -159,6 +180,8 @@ export function buildCanonicalFieldProjection(
   const walkCandidates = queues['ready-to-walk'];
   const queueCounts = {
     callbacks: queues.callbacks.length,
+    'needs-crew': queues['needs-crew'].length,
+    'needs-inspection': queues['needs-inspection'].length,
     'ready-to-walk': queues['ready-to-walk'].length,
     waiting: queues.waiting.length,
     working: queues.working.length,

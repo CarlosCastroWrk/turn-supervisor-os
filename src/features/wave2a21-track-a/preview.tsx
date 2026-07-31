@@ -155,6 +155,8 @@ const projection: CanonicalFieldProjection = {
   projectId: PROJECT_ID,
   queues: {
     callbacks: [],
+    'needs-crew': [],
+    'needs-inspection': [],
     'ready-to-walk': [],
     waiting: [],
     working: [],
@@ -173,6 +175,8 @@ const projection: CanonicalFieldProjection = {
     },
     queueCounts: {
       callbacks: 1,
+      'needs-crew': 0,
+      'needs-inspection': 0,
       'ready-to-walk': 1,
       waiting: 1,
       working: 2,

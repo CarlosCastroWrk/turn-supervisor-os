@@ -241,7 +241,9 @@ export interface CanonicalTodayTaskProjection {
 }
 
 export type CanonicalWorkQueueId =
+  | 'needs-crew'
   | 'working'
+  | 'needs-inspection'
   | 'waiting'
   | 'callbacks'
   | 'ready-to-walk';

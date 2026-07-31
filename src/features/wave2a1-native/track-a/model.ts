@@ -1,5 +1,7 @@
 export const NATIVE_HOME_SUMMARIES = [
+  { id: 'needs-crew', label: 'Needs Crew' },
   { id: 'working', label: 'Working' },
+  { id: 'needs-inspection', label: 'Needs Inspection' },
   { id: 'waiting', label: 'Waiting' },
   { id: 'callbacks', label: 'Callbacks' },
   { id: 'ready-to-walk', label: 'Ready to walk' },
@@ -26,6 +28,8 @@ export type NativeHomeSummaryCounts = Record<NativeHomeSummaryId, number>;
 
 const HOME_EMPTY_MESSAGES: Record<NativeHomeSummaryId, string> = {
   callbacks: 'No Units have callbacks.',
+  'needs-crew': 'Every released Unit has a crew.',
+  'needs-inspection': 'Crew-completed work will appear here for your inspection.',
   'ready-to-walk': 'No Units are ready to walk.',
   waiting: 'No Units are waiting.',
   working: 'No Units are working.',

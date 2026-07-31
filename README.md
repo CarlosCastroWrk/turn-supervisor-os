@@ -4,6 +4,35 @@ Turn Supervisor OS is the current app name for PDS / Turn Field Copilot: a priva
 
 It is not official Property Doctor Services software. It is a personal supervisor notebook for staying organized, tracking field status, communicating clearly, and learning the operation from the inside before proposing any software ideas.
 
+---
+
+## 🟢 Live app — Personal Alpha 0.3
+
+**Production (public):** https://turn-supervisor-os.vercel.app
+
+Personal Alpha 0.3 is the field-first rebuild that turns the app into a real supervisor loop for the Moon Tower Turn (~166 units, Paint + Clean, starting Aug 2, 2026). It is device-local first: every day is logged to an append-only event ledger so the truth survives the night and each day can be reopened in a professional record.
+
+### The daily loop
+**Setup → Start Day → Release → Assign → Crew complete → Inspect → Walk → End Day.** Work is tracked at Unit + Trade grain (e.g. "Unit 101 · Paint"), the paper TurnBoard stays authoritative, and nothing is released or accepted without an explicit human confirm.
+
+### The story so far
+- **0.2 → 0.2.1:** fixed the original P0 where board state vanished after End Day — projections now read the full ledger, so multi-day survives.
+- **0.3 "Operator Takeover":** one-scroll shell reset, operator-first Unit Detail, roster tap-grid release, inline crew assign with auto-start-work, Needs-Crew / Needs-Inspection / Ready-to-walk queues, Day History, survival kit (morning brief, copy-day-update, End-Day export ritual, undo pass, crew change), and quiet Unit+Trade notifications.
+- **Intake:** photo/message → structured rows via a model-agnostic broker (Haiku → Sonnet → OpenRouter → OpenAI), always human-confirmed.
+- **Reports:** End-Day Supervisor Report PDF and walk-receipt text for property contacts.
+- **Jul 31 hardening pass** (audit-driven): the photo-import API now requires sign-in before spending any AI credit; multi-photo import; a storage meter with early warning; offline-safe PDF; a crash-proof error boundary with backup export; instant-save durability on every field tap; and a sync-pull race fix. Verified by 395 + 99 automated tests and a full production build.
+
+### Sign-in & your keys
+AI features (photo import, capture) are locked to a **single allowed email** — only that signed-in account can call Anthropic / OpenAI / OpenRouter on the owner's keys. Field logging works fully offline without sign-in; sign-in is only needed for the AI import features and cross-device sync.
+
+### Roadmap ahead (post-Moon-Tower)
+- Design-system consolidation onto the newest layer (one component set, shared tokens, pressed states, iOS splash) + a simple **Turn OS "Turn-T" logo**
+- **Mac / iPad "command desk"** — same synced data, a two-pane master-detail review view (needs event-log sync turned on first)
+- **Turn OS Chat** — an event-log-grounded assistant over the model-agnostic gateway (Anthropic / OpenAI / OpenRouter), with an approved-knowledge store
+- Property-manager "Ready for you" portal, additional trades, and full field-event sync
+
+---
+
 ## What V0.1 Includes
 
 - Mobile-first field Home with Turn day, readiness, tappable status counts, Needs attention, today's movement, and next actions

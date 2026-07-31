@@ -49,10 +49,12 @@
   color-scheme: inherit;
 }
 
+/* Embedded in the launch shell, the shell's main region owns all vertical
+   scrolling; Track C content flows to its natural height. */
 .track-c-shell.is-embedded {
-  block-size: 100%;
+  block-size: auto;
   inline-size: 100%;
-  max-block-size: 100%;
+  max-block-size: none;
   min-block-size: 0;
   overflow-x: clip;
 }
@@ -63,6 +65,7 @@
 
 .track-c-shell.is-embedded .track-c-shell__main {
   margin-inline-start: 0;
+  overflow: visible;
   padding-bottom: 0;
 }
 
@@ -167,7 +170,10 @@
 .track-c-shell.is-embedded .track-c-assignment,
 .track-c-shell.is-embedded .track-c-walk,
 .track-c-shell.is-embedded .track-c-detail {
+  height: auto;
   max-inline-size: 100%;
+  min-height: 0;
+  overflow-y: visible;
   scroll-padding-bottom: max(18px, env(safe-area-inset-bottom));
 }
 
@@ -1318,12 +1324,13 @@
 
 .track-c-sticky-action {
   background: color-mix(in srgb, var(--track-c-bg) 92%, transparent);
-  bottom: calc(68px + env(safe-area-inset-bottom));
-  left: 0;
-  padding: 8px 10px;
-  position: fixed;
-  right: 0;
+  inset-block-end: 0;
+  inset-inline: 0;
+  padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+  position: sticky;
   z-index: 5;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 
 .track-c-confirm-row {

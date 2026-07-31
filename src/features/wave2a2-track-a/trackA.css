@@ -519,6 +519,9 @@
   min-inline-size: 0;
 }
 
+/* One scroll owner: `main` is the only vertical scroller in the shell.
+   Route content — including every focused workflow — flows naturally inside
+   it. Nothing below main may clip or own vertical scrolling. */
 .w2a2-shell__main {
   flex: 1 1 auto;
   min-block-size: 0;
@@ -530,29 +533,26 @@
   scroll-behavior: auto;
   scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom));
   inline-size: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .w2a2-shell__main.is-contained {
-  overflow: hidden;
   padding-bottom: calc(66px + env(safe-area-inset-bottom));
 }
 
 .w2a2-shell.is-detail-mode .w2a2-shell__main,
 .w2a2-shell.is-detail-mode .w2a2-shell__main.is-contained {
-  overflow: hidden;
-  padding-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  scroll-padding-bottom: max(18px, env(safe-area-inset-bottom));
 }
 
 .w2a2-shell.is-detail-mode .w2a2-navigation {
   display: none;
 }
 
-.w2a2-shell.is-detail-mode .w2a2-route-surface {
-  height: 100%;
-}
-
+.w2a2-shell.is-detail-mode .w2a2-route-surface,
 .w2a2-shell.is-detail-mode .w2a1-a-detail-page {
-  height: 100%;
+  min-block-size: 100%;
 }
 
 .w2a2-route-surface {
@@ -566,14 +566,9 @@
 .w2a2-shell.is-detail-mode .w2a1b-page,
 .w2a2-shell.is-detail-mode [data-turn-profile-scroll],
 .w2a2-shell.is-detail-mode [data-turn-privacy-scroll] {
-  block-size: 100%;
   min-block-size: 0;
   overflow-x: clip;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding-bottom: max(18px, env(safe-area-inset-bottom));
-  scroll-padding-bottom: max(18px, env(safe-area-inset-bottom));
-  -webkit-overflow-scrolling: touch;
 }
 
 .w2a2-shell input:not([type='checkbox']):not([type='radio']),

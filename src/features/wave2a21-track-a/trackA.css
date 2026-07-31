@@ -101,12 +101,11 @@
   color: var(--turn-color-on-brand, #fff);
 }
 
+/* The shell's main region is the single scroll owner; Setup and the
+   profile/privacy pages flow inside it instead of nesting scrollers. */
 .w2a21a-setup__body,
 .w2a21a-profile-privacy-scroll {
   min-block-size: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .w2a21a-setup__body {
@@ -285,6 +284,9 @@
   padding-block: 12px calc(12px + env(safe-area-inset-bottom));
   border-block-start: 1px solid var(--turn-color-divider, var(--border));
   background: var(--turn-color-header, var(--surface));
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 5;
 }
 
 .w2a21a-setup__footer button {

@@ -79,6 +79,9 @@ export interface Wave2A2UnifiedShellProps
     scrollTop?: number;
   };
   detailMode?: boolean;
+  /** First-run gate: hide the tab bar and header actions so property setup is
+   *  the only path forward until a project exists (or the demo is chosen). */
+  onboarding?: boolean;
   onOpenHome?: () => void;
   restoreContentScroll?: boolean;
   theme: Pick<TurnThemeState, 'reducedMotion' | 'resolvedTheme'>;
@@ -119,6 +122,7 @@ export function Wave2A2UnifiedShell({
   contentTitle,
   dateLabel,
   detailMode = false,
+  onboarding = false,
   intelligenceAvailable = false,
   notificationCount = 0,
   onNavigate,
@@ -275,7 +279,7 @@ export function Wave2A2UnifiedShell({
           <span aria-hidden="true">·</span>
           <time>{dateLabel}</time>
         </div>
-        <div className="w2a2-header__actions">
+        <div className="w2a2-header__actions" hidden={onboarding}>
           <button
             aria-label="Open Search"
             data-lcc-critical-target="true"
@@ -322,11 +326,11 @@ export function Wave2A2UnifiedShell({
 
       <div className="w2a2-shell__body">
         <nav
-          aria-hidden={contentDialogOpen || detailMode || undefined}
+          aria-hidden={contentDialogOpen || detailMode || onboarding || undefined}
           aria-label="Primary"
           className="w2a2-navigation"
-          hidden={detailMode}
-          inert={contentDialogOpen || detailMode || undefined}
+          hidden={detailMode || onboarding}
+          inert={contentDialogOpen || detailMode || onboarding || undefined}
         >
           {navigationItems.map((item) => {
             if (item.id === 'plus') {

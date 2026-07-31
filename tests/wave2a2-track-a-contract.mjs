@@ -142,7 +142,7 @@ test('unified shell owns only the approved primary hierarchy', () => {
 test('focused routes keep one main while pages that own main remain singular', () => {
   assert.match(shellSource, /detailMode\?: boolean/u);
   assert.match(shellSource, /contentOwnsMain\?: boolean/u);
-  assert.match(shellSource, /hidden=\{detailMode\}/u);
+  assert.match(shellSource, /hidden=\{detailMode \|\| onboarding\}/u);
   assert.match(shellSource, /contentOwnsMain \? \(\s*<div/u);
   assert.match(shellSource, /:\s*\(\s*<main/u);
   assert.match(

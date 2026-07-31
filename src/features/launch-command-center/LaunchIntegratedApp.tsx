@@ -2638,6 +2638,7 @@ function LaunchOperationalApp({
         }}
         dateLabel={launchProjection.dateLabel}
         detailMode={shellDetailMode}
+        onboarding={launchProjection.project?.mode !== 'real' && !demoExplored}
         notificationCount={nativeNotifications.filter((item) => !item.read).length}
         onNavigate={handlePrimaryNavigation}
         onOpenHome={() => handlePrimaryNavigation('home')}

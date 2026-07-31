@@ -86,6 +86,7 @@ import {
   TrackCFieldOps,
   type TrackCRouteState,
   buildDailyReportData,
+  prewarmDailyReportPdf,
   projectTrackCWork,
   saveDailyReportPdf,
 } from '../wave2a2-track-c';
@@ -160,7 +161,7 @@ import {
   routeForNavigation,
   type AppNavigate,
 } from '../../lib/routing';
-import { persistAppDataNow, usePersistentAppData } from '../../lib/storage';
+import { estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
 import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useSupabaseSync } from '../../lib/supabase/sync';
@@ -464,6 +465,32 @@ function LaunchOperationalApp({
       window.removeEventListener('offline', updateConnectivity);
     };
   }, []);
+
+  // While online and idle, pull the PDF chunk into the offline cache so the
+  // first Daily Report of the day still generates after a deploy even in a
+  // dead zone. Re-runs whenever we regain connectivity (new chunk after deploy).
+  useEffect(() => {
+    if (!online) return undefined;
+    const idleWindow = window as typeof window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let timer: number | undefined;
+    let idle: number | undefined;
+    if (idleWindow.requestIdleCallback) {
+      idle = idleWindow.requestIdleCallback(() => prewarmDailyReportPdf(), { timeout: 5_000 });
+    } else {
+      timer = window.setTimeout(() => prewarmDailyReportPdf(), 2_000);
+    }
+    return () => {
+      if (idle !== undefined) idleWindow.cancelIdleCallback?.(idle);
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [online]);
+
+  // On-device storage usage, recomputed as data changes, so the Storage screen
+  // can warn before the localStorage ceiling is hit mid-Turn.
+  const storageUsage = useMemo(() => estimateStorageUsage(), [data]);
 
   useEffect(() => {
     const refreshClock = () => setNow(new Date());
@@ -1230,6 +1257,10 @@ function LaunchOperationalApp({
     }
     if (destinationId === 'activity') {
       navigate('activity');
+      return;
+    }
+    if (destinationId === 'walk') {
+      navigate('units', undefined, { fieldWorkflow: 'walk' });
       return;
     }
     navigate('dashboard');
@@ -2382,10 +2413,31 @@ function LaunchOperationalApp({
           statusLabel={backupStatus.label}
           title="Storage"
         >
+          {storageUsage && storageUsage.level !== 'ok' ? (
+            <div
+              className="lcc-host-alert"
+              role="status"
+              style={{
+                borderColor: storageUsage.level === 'critical' ? '#c0362c' : '#b07414',
+                color: storageUsage.level === 'critical' ? '#c0362c' : '#8a5a10',
+              }}
+            >
+              {storageUsage.level === 'critical'
+                ? `Storage is ${storageUsage.percentUsed}% full. Export a backup now, then start a fresh device backup — saving can stop when this device is full.`
+                : `Storage is ${storageUsage.percentUsed}% full. Keep exporting your nightly backup; consider a fresh backup file if it keeps climbing.`}
+            </div>
+          ) : null}
           <GroupedInsetSection
             label="On this device"
             footer="Use Backup and Restore for guarded recovery controls."
           >
+            {storageUsage ? (
+              <GroupedInsetRow
+                detail={`About ${storageUsage.approxMb} MB of this device's app storage.`}
+                label="Storage used"
+                value={`${storageUsage.percentUsed}%`}
+              />
+            ) : null}
             <GroupedInsetRow label="Units" value={String(data.units.length)} />
             <GroupedInsetRow label="Activity records" value={String(data.activityLogs.length)} />
             <GroupedInsetRow label="Photo records" value={String(data.photoNotes.length)} />

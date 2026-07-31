@@ -89,6 +89,70 @@ export function DailyReleaseSelector({
       setIntakeBusy(false);
     }
   };
+
+  const importReleasePhotos = async (files: File[]) => {
+    if (files.length === 0) return;
+    if (files.length === 1) {
+      try {
+        const source = await imageFileToIntakeSource(files[0]);
+        await runIntake(source);
+      } catch {
+        setIntakeStatus('That photo could not be read.');
+      }
+      return;
+    }
+    // Several release photos: read each, merge the matched units, select once.
+    setIntakeBusy(true);
+    const unitByNumber = new Map(rosterUnits.map((unit) =>
+      [unit.unitNumber.toLocaleLowerCase(), unit]));
+    const matchedIds = new Set<string>();
+    const unmatched: string[] = [];
+    const uncertainties: string[] = [];
+    const failedPhotos: number[] = [];
+    let readCount = 0;
+    for (let index = 0; index < files.length; index += 1) {
+      setIntakeStatus(`Reading photo ${index + 1} of ${files.length}…`);
+      try {
+        const source = await imageFileToIntakeSource(files[index]);
+        const result = await requestIntake({
+          kind: 'release',
+          rosterUnitNumbers: rosterUnits.map((unit) => unit.unitNumber),
+          source,
+        });
+        readCount += 1;
+        for (const row of result.rows) {
+          const unit = unitByNumber.get(row.unitNumber.trim().toLocaleLowerCase());
+          if (unit) matchedIds.add(unit.id);
+          else if (!unmatched.includes(row.unitNumber)) unmatched.push(row.unitNumber);
+        }
+        for (const note of result.uncertainties) {
+          if (!uncertainties.includes(note)) uncertainties.push(note);
+        }
+      } catch (caught) {
+        failedPhotos.push(index + 1);
+        if (caught instanceof Error && /sign in/iu.test(caught.message)) {
+          setIntakeStatus(caught.message);
+          setIntakeBusy(false);
+          return;
+        }
+      }
+    }
+    onChange({
+      ...draft,
+      explicitConfirmation: false,
+      selectedUnitIds: [...new Set([...draft.selectedUnitIds, ...matchedIds])],
+    });
+    const notes = [
+      `${matchedIds.size} Unit${matchedIds.size === 1 ? '' : 's'} selected from ${readCount} photo${readCount === 1 ? '' : 's'}.`,
+      unmatched.length > 0 ? `Not in your roster (skipped): ${unmatched.join(', ')}.` : '',
+      failedPhotos.length > 0 ? `Photo ${failedPhotos.join(', ')} could not be read.` : '',
+      uncertainties.length > 0 ? `Check: ${uncertainties.join(' ')}` : '',
+      'Review before starting the day — nothing is released until you confirm.',
+    ].filter(Boolean);
+    setIntakeStatus(notes.join(' '));
+    setIntakeBusy(false);
+  };
+
   const selectedUnits = rosterUnits.filter((unit) =>
     draft.selectedUnitIds.includes(unit.id));
   const addExactUnits = () => {
@@ -146,19 +210,17 @@ export function DailyReleaseSelector({
             onClick={() => intakeFileRef.current?.click()}
             type="button"
           >
-            {intakeBusy ? 'Reading…' : 'From photo'}
+            {intakeBusy ? 'Reading…' : 'From photos'}
           </button>
           <input
             accept="image/*"
-            aria-label="Choose a TurnBoard photo"
+            aria-label="Choose one or more TurnBoard photos"
+            multiple
             hidden
             onChange={(event) => {
-              const file = event.target.files?.[0];
+              const files = Array.from(event.target.files ?? []);
               event.target.value = '';
-              if (!file) return;
-              void imageFileToIntakeSource(file)
-                .then((source) => runIntake(source))
-                .catch(() => setIntakeStatus('That photo could not be read.'));
+              if (files.length > 0) void importReleasePhotos(files);
             }}
             ref={intakeFileRef}
             type="file"

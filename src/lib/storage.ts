@@ -32,6 +32,45 @@ const STORAGE_KEY = APP_DATA_STORAGE_KEY;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
 export const APP_DATA_SAVE_INTERVAL_MS = 500;
 
+// Practical localStorage ceiling on iOS Safari is ~5 MB measured in UTF-16
+// characters; keep a safety margin so the warning fires well before writes
+// start throwing mid-field-day. (The scale test guards backups under 4.5M chars.)
+const STORAGE_BUDGET_CHARS = 4_500_000;
+
+export type StorageUsageLevel = 'ok' | 'watch' | 'critical';
+
+export interface StorageUsageEstimate {
+  characters: number;
+  approxMb: number;
+  percentUsed: number;
+  level: StorageUsageLevel;
+}
+
+// Reads how much of the on-device budget the app is using so the Storage screen
+// can warn Los BEFORE the ceiling is hit — never discover the limit by writes
+// silently failing. Counts every key so drafts and any corrupt snapshot count too.
+export const estimateStorageUsage = (): StorageUsageEstimate | null => {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null;
+    let characters = 0;
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (!key) continue;
+      characters += key.length + (window.localStorage.getItem(key)?.length ?? 0);
+    }
+    const percentUsed = Math.min(100, Math.round((characters / STORAGE_BUDGET_CHARS) * 100));
+    const level: StorageUsageLevel = percentUsed >= 85 ? 'critical' : percentUsed >= 70 ? 'watch' : 'ok';
+    return {
+      characters,
+      approxMb: Math.round((characters / 1_000_000) * 10) / 10,
+      percentUsed,
+      level,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export interface AppDataSaveStatus {
   state: 'saved' | 'pending' | 'failed';
   canRetry: boolean;

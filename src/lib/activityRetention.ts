@@ -1,6 +1,12 @@
 import type { ActivityLog, AppData } from '../types';
 
-export const ACTIVITY_LOG_RETENTION_LIMIT = 10_000;
+// The activity feed is display/audit history, not the source of truth (the
+// field-event ledger and day sessions are). An 11-day Turn produces well under
+// this many grouped entries, so 3,000 keeps ample feed history while cutting
+// worst-case localStorage pressure by ~2 MB versus the old 10,000 cap. Kept a
+// clean multiple of the 1,000-row sync pull page size. Active-project and
+// provenance logs are retained first (see applyActivityLogRetention).
+export const ACTIVITY_LOG_RETENTION_LIMIT = 3_000;
 
 const PROVENANCE_ACTIVITY_TYPES = new Set<ActivityLog['entityType']>([
   'DraftAction',

@@ -174,6 +174,19 @@ export function buildDailyReportData(input: {
   };
 }
 
+// Warm the PDF chunk into the service-worker cache while the device is online,
+// so the day's first report can still generate in a dead-zone hallway after a
+// deploy has changed the chunk's hashed filename. Safe to call repeatedly.
+let pdfPrewarmed = false;
+export function prewarmDailyReportPdf(): void {
+  if (pdfPrewarmed) return;
+  pdfPrewarmed = true;
+  void import('jspdf').catch(() => {
+    // Offline or blocked — the on-demand import will retry when a report is made.
+    pdfPrewarmed = false;
+  });
+}
+
 // jsPDF loads on demand so report generation never weighs down the app shell.
 export async function saveDailyReportPdf(report: DailyReportData): Promise<string> {
   const { jsPDF } = await import('jspdf');

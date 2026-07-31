@@ -48,6 +48,45 @@ const groupReason = (group: UnitTradeGroup) => [
   ...(group.waitingReasons.size > 0 ? [[...group.waitingReasons].join(' · ')] : []),
 ].join(' · ');
 
+// Ready-to-walk is the highest-volume category — on a 166-unit Turn it can be
+// dozens at once. Above a small threshold, collapse it into ONE summary that
+// links to the walk queue, so the notifications list stays a short list of
+// things that need Los, not a wall. Small counts still deep-link per unit+trade.
+const READY_TO_WALK_SUMMARY_THRESHOLD = 3;
+
+const readyToWalkNotifications = (
+  groups: UnitTradeGroup[],
+  readNotificationIds: ReadonlySet<string>,
+): NativeNotificationItem[] => {
+  if (groups.length <= READY_TO_WALK_SUMMARY_THRESHOLD) {
+    return groups.map((group) => ({
+      category: 'inspections' as const,
+      destinationId: `unit:${group.head.target.unitId}`,
+      destinationLabel: `Unit ${group.head.unitNumber}`,
+      group: 'today' as const,
+      id: `canonical-walk:${group.key}`,
+      read: readNotificationIds.has(`canonical-walk:${group.key}`),
+      reason: groupReason(group),
+      timeLabel: 'Current',
+      title: `Unit ${group.head.unitNumber} · ${tradeLabel(group.head.trade)}`,
+    }));
+  }
+  // Id carries the count so the summary re-surfaces (unread) as more become ready.
+  const id = `canonical-walk-summary:${groups.length}`;
+  const preview = groups.slice(0, 3).map((group) => `Unit ${group.head.unitNumber}`).join(', ');
+  return [{
+    category: 'inspections' as const,
+    destinationId: 'walk',
+    destinationLabel: 'Ready to walk',
+    group: 'today' as const,
+    id,
+    read: readNotificationIds.has(id),
+    reason: `${preview} and ${groups.length - 3} more are ready for your walk.`,
+    timeLabel: 'Current',
+    title: `${groups.length} ready to walk`,
+  }];
+};
+
 export interface CanonicalFieldConsumers {
   readonly homeRecords: readonly NativeHomeRecord[];
   readonly notifications: readonly NativeNotificationItem[];
@@ -162,17 +201,7 @@ export const projectCanonicalFieldConsumers = (
       timeLabel: 'Current',
       title: `Unit ${group.head.unitNumber} · ${tradeLabel(group.head.trade)}`,
     })),
-    ...groupByUnitTrade(projection.queues['ready-to-walk']).map((group) => ({
-      category: 'inspections' as const,
-      destinationId: `unit:${group.head.target.unitId}`,
-      destinationLabel: `Unit ${group.head.unitNumber}`,
-      group: 'today' as const,
-      id: `canonical-walk:${group.key}`,
-      read: readNotificationIds.has(`canonical-walk:${group.key}`),
-      reason: groupReason(group),
-      timeLabel: 'Current',
-      title: `Unit ${group.head.unitNumber} · ${tradeLabel(group.head.trade)}`,
-    })),
+    ...readyToWalkNotifications(groupByUnitTrade(projection.queues['ready-to-walk']), readNotificationIds),
   ];
 
   return {

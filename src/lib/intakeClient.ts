@@ -2,6 +2,8 @@
 // rows; every result is routed into the existing human review flows and
 // nothing is released or saved without an explicit confirm.
 
+import { getSupabaseClient } from './supabase/client';
+
 export interface IntakeRow {
   unitNumber: string;
   bedCount?: number | null;
@@ -47,6 +49,13 @@ export const imageFileToIntakeSource = async (file: File): Promise<{
   };
 };
 
+const accessToken = async (): Promise<string | null> => {
+  const client = getSupabaseClient();
+  if (!client) return null;
+  const { data, error } = await client.auth.getSession();
+  return error ? null : data.session?.access_token ?? null;
+};
+
 export const requestIntake = async (payload: {
   kind: 'roster' | 'release';
   source:
@@ -54,9 +63,18 @@ export const requestIntake = async (payload: {
     | { type: 'text'; text: string };
   rosterUnitNumbers?: readonly string[];
 }): Promise<IntakeResult> => {
+  const token = await accessToken();
+  if (!token) {
+    throw new Error('Sign in to Sync to use photo import. Paste or manual selection still works.');
+  }
   const response = await fetch('/api/importIntake/extract', {
     body: JSON.stringify(payload),
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+    },
+    cache: 'no-store',
+    credentials: 'same-origin',
     method: 'POST',
   });
   const body = await response.json().catch(() => null);

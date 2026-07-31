@@ -91,57 +91,81 @@ export function ProjectSetupFlow({
   const [rosterIntakeBusy, setRosterIntakeBusy] = useState(false);
   const rosterIntakeFileRef = useRef<HTMLInputElement>(null);
 
-  const importRosterPhoto = async (file: File) => {
+  const importRosterPhotos = async (files: File[]) => {
+    if (files.length === 0) return;
     setRosterIntakeBusy(true);
-    setRosterMessage('Reading the TurnBoard photo…');
-    try {
-      const source = await imageFileToIntakeSource(file);
-      const result = await requestIntake({ kind: 'roster', source });
-      const existing = new Set(setupUnits.map((unit) =>
-        unit.unitNumber.toLocaleLowerCase()));
-      const additions = [] as TrackASetupUnit[];
-      for (const row of result.rows) {
-        const unitNumber = row.unitNumber.trim();
-        if (!unitNumber || existing.has(unitNumber.toLocaleLowerCase())) continue;
-        existing.add(unitNumber.toLocaleLowerCase());
-        additions.push({
-          building: row.building?.trim()
-            || `Building ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
-          floor: `Floor ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
-          id: `unit:${draft.project.id}:${encodeURIComponent(unitNumber.toLocaleLowerCase())}`,
-          projectId: draft.project.id,
-          unitNumber,
-          unitType: setupUnitType(row.bedCount ?? 3),
-        });
+    const many = files.length > 1;
+    setRosterMessage(many
+      ? `Reading ${files.length} TurnBoard photos…`
+      : 'Reading the TurnBoard photo…');
+    // One reader call per photo, then merge across all of them. Dedupe by unit
+    // number (case-insensitive) so the same unit shown on two sheets is added
+    // once; keep the first readable bed count we see for it.
+    const existing = new Set(setupUnits.map((unit) => unit.unitNumber.toLocaleLowerCase()));
+    const additions: TrackASetupUnit[] = [];
+    const unreadableBeds: string[] = [];
+    const uncertainties: string[] = [];
+    const failedPhotos: number[] = [];
+    let readCount = 0;
+    for (let index = 0; index < files.length; index += 1) {
+      if (many) setRosterMessage(`Reading photo ${index + 1} of ${files.length}…`);
+      try {
+        const source = await imageFileToIntakeSource(files[index]);
+        const result = await requestIntake({ kind: 'roster', source });
+        readCount += 1;
+        for (const row of result.rows) {
+          const unitNumber = row.unitNumber.trim();
+          if (!unitNumber || existing.has(unitNumber.toLocaleLowerCase())) continue;
+          existing.add(unitNumber.toLocaleLowerCase());
+          additions.push({
+            building: row.building?.trim()
+              || `Building ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
+            floor: `Floor ${unitNumber.replace(/[^0-9]/gu, '').charAt(0) || '1'}`,
+            id: `unit:${draft.project.id}:${encodeURIComponent(unitNumber.toLocaleLowerCase())}`,
+            projectId: draft.project.id,
+            unitNumber,
+            unitType: setupUnitType(row.bedCount ?? 3),
+          });
+          if (row.bedCount === null || row.bedCount === undefined) unreadableBeds.push(unitNumber);
+        }
+        for (const note of result.uncertainties) {
+          if (!uncertainties.includes(note)) uncertainties.push(note);
+        }
+      } catch (caught) {
+        failedPhotos.push(index + 1);
+        // An auth/sign-in failure is the same for every photo — stop early.
+        if (caught instanceof Error && /sign in/iu.test(caught.message)) {
+          setRosterMessage(caught.message);
+          setRosterIntakeBusy(false);
+          return;
+        }
       }
-      if (additions.length > 0) setSetupUnits([...setupUnits, ...additions]);
-      const bedBreakdown = [1, 2, 3, 4, 5]
-        .map((count) => {
-          const matching = additions.filter((unit) => unit.unitType === count).length;
-          return matching > 0 ? `${matching}× ${count}BR` : '';
-        })
-        .filter(Boolean)
-        .join(', ');
-      const unreadableBeds = result.rows
-        .filter((row) => row.bedCount === null || row.bedCount === undefined)
-        .map((row) => row.unitNumber);
-      const notes = [
-        `${additions.length} Unit${additions.length === 1 ? '' : 's'} added from the photo`
-          + (bedBreakdown ? ` (${bedBreakdown}).` : '.'),
-        unreadableBeds.length > 0
-          ? `Bed count unreadable for ${unreadableBeds.join(', ')} — set to 3BR, fix below.`
-          : '',
-        result.uncertainties.length > 0 ? `Check: ${result.uncertainties.join(' ')}` : '',
-        'Verify the bed counts below against the sheet before continuing.',
-      ].filter(Boolean);
-      setRosterMessage(notes.join(' '));
-    } catch (caught) {
-      setRosterMessage(caught instanceof Error
-        ? caught.message
-        : 'The photo could not be read. Paste the Unit numbers instead.');
-    } finally {
-      setRosterIntakeBusy(false);
     }
+    if (additions.length > 0) setSetupUnits([...setupUnits, ...additions]);
+    const bedBreakdown = [1, 2, 3, 4, 5]
+      .map((count) => {
+        const matching = additions.filter((unit) => unit.unitType === count).length;
+        return matching > 0 ? `${matching}× ${count}BR` : '';
+      })
+      .filter(Boolean)
+      .join(', ');
+    const source = many ? `${readCount} photo${readCount === 1 ? '' : 's'}` : 'the photo';
+    const notes = [
+      additions.length > 0
+        ? `${additions.length} Unit${additions.length === 1 ? '' : 's'} added from ${source}`
+          + (bedBreakdown ? ` (${bedBreakdown}).` : '.')
+        : `No new Units were read from ${source}.`,
+      unreadableBeds.length > 0
+        ? `Bed count unreadable for ${unreadableBeds.join(', ')} — set to 3BR, fix below.`
+        : '',
+      failedPhotos.length > 0
+        ? `Photo ${failedPhotos.join(', ')} could not be read — retake or paste those.`
+        : '',
+      uncertainties.length > 0 ? `Check: ${uncertainties.join(' ')}` : '',
+      additions.length > 0 ? 'Verify the bed counts below against the sheet before continuing.' : '',
+    ].filter(Boolean);
+    setRosterMessage(notes.join(' '));
+    setRosterIntakeBusy(false);
   };
   const setupCrews = useMemo<readonly TrackASetupCrew[]>(
     () => draft.crews ?? crewOptions.map((crew) => ({
@@ -626,16 +650,17 @@ export function ProjectSetupFlow({
                     onClick={() => rosterIntakeFileRef.current?.click()}
                     type="button"
                   >
-                    {rosterIntakeBusy ? 'Reading photo…' : 'Import from TurnBoard photo'}
+                    {rosterIntakeBusy ? 'Reading photos…' : 'Import from TurnBoard photos'}
                   </button>
                   <input
                     accept="image/*"
-                    aria-label="Choose a TurnBoard photo for the roster"
+                    aria-label="Choose one or more TurnBoard photos for the roster"
+                    multiple
                         hidden
                     onChange={(event) => {
-                      const file = event.target.files?.[0];
+                      const files = Array.from(event.target.files ?? []);
                       event.target.value = '';
-                      if (file) void importRosterPhoto(file);
+                      if (files.length > 0) void importRosterPhotos(files);
                     }}
                     ref={rosterIntakeFileRef}
                     type="file"

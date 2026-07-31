@@ -4,6 +4,7 @@ import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
 import { addDraftActions, applyAllPendingDraftActions, createRealTurnProject } from '../src/lib/actions.ts';
 import { mockAgentProvider } from '../src/lib/ai/mockAgentProvider.ts';
+import { ACTIVITY_LOG_RETENTION_LIMIT } from '../src/lib/activityRetention.ts';
 import { parseJsonBackup } from '../src/lib/backups.ts';
 import {
   buildDailyActivitySnapshot,
@@ -181,7 +182,12 @@ test('1,000 units, 100 blockers, 500 ready units, and 10,000 events remain repor
   assert.equal(unitsCsv.split('\n').length, 1_001);
   assert.equal(restored.activeProjectId, projectId);
   assert.equal(getUnitsForProject(restored, projectId).length, 1_000);
-  assert.equal(restored.activityLogs.filter((log) => log.projectId === projectId).length, 10_000);
+  // Restore applies Activity retention, so a 10,000-log backup is trimmed to the
+  // newest retention window (the field-event ledger, not this feed, is the truth).
+  assert.equal(
+    restored.activityLogs.filter((log) => log.projectId === projectId).length,
+    ACTIVITY_LOG_RETENTION_LIMIT,
+  );
   assert.ok(backup.length < 4_500_000, `Expected a safety margin below localStorage pressure; received ${backup.length} characters.`);
   assert.ok(elapsedMs < 5_000, `Expected scale operations under 5s; received ${elapsedMs.toFixed(1)}ms.`);
 });

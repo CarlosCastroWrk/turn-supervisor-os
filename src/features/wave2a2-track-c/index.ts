@@ -73,6 +73,7 @@ export {
 export { buildWalkReceiptText } from './walkReceipt';
 export {
   buildDailyReportData,
+  prewarmDailyReportPdf,
   saveDailyReportPdf,
   type DailyReportData,
 } from './dailyReport';

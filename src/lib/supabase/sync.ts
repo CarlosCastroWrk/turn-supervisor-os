@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { flushSync } from 'react-dom';
 import type { RealtimeChannel, Session, SupabaseClient } from '@supabase/supabase-js';
 import type {
   ActivityLog,
@@ -1431,14 +1432,24 @@ export const useSupabaseSync = (
       const requestGuard = () => guardSyncIdentity(identity);
       const { remote, rowCount, baseline } = await fetchRemoteData(requestClient, requestGuard);
       requestGuard();
-      const nextData = rowCount > 0
-        ? hasStoredDataRef.current
-          ? mergeRemoteData(dataRef.current, remote)
-          : replaceRemoteData(dataRef.current, remote)
-        : dataRef.current;
-      syncBaselineRef.current = baseline;
+      // Merge INSIDE a flushSync'd functional update so the base is React's
+      // freshest committed state, not a snapshot taken before this await.
+      // Otherwise a local tap dispatched during the pull would be silently
+      // overwritten by the wholesale replace. flushSync runs the updater
+      // synchronously, so `nextData` is correct before we mirror it into refs.
+      let nextData = dataRef.current;
       applyingRemoteRef.current = true;
-      setData(nextData);
+      flushSync(() => {
+        setData((current) => {
+          nextData = rowCount > 0
+            ? hasStoredDataRef.current
+              ? mergeRemoteData(current, remote)
+              : replaceRemoteData(current, remote)
+            : current;
+          return nextData;
+        });
+      });
+      syncBaselineRef.current = baseline;
       dataRef.current = nextData;
       hasStoredDataRef.current = true;
       window.setTimeout(() => {
@@ -1511,11 +1522,19 @@ export const useSupabaseSync = (
       syncBaselineRef.current = baseline;
 
       if (rowCount > 0) {
-        nextData = hasStoredDataRef.current
-          ? mergeRemoteData(dataRef.current, remote)
-          : replaceRemoteData(dataRef.current, remote);
+        // Same race guard as pullNow: merge against freshest committed state so
+        // a local tap during the pre-upload pull is not dropped before upload.
+        let merged = dataRef.current;
         applyingRemoteRef.current = true;
-        setData(nextData);
+        flushSync(() => {
+          setData((current) => {
+            merged = hasStoredDataRef.current
+              ? mergeRemoteData(current, remote)
+              : replaceRemoteData(current, remote);
+            return merged;
+          });
+        });
+        nextData = merged;
         dataRef.current = nextData;
         hasStoredDataRef.current = true;
         window.setTimeout(() => {
@@ -1615,11 +1634,19 @@ export const useSupabaseSync = (
       syncBaselineRef.current = baseline;
 
       if (rowCount > 0) {
-        nextData = hasStoredDataRef.current
-          ? mergeRemoteData(dataRef.current, remote)
-          : replaceRemoteData(dataRef.current, remote);
+        // Same race guard as pullNow: merge against freshest committed state so
+        // a local tap during the pre-upload pull is not dropped before upload.
+        let merged = dataRef.current;
         applyingRemoteRef.current = true;
-        setData(nextData);
+        flushSync(() => {
+          setData((current) => {
+            merged = hasStoredDataRef.current
+              ? mergeRemoteData(current, remote)
+              : replaceRemoteData(current, remote);
+            return merged;
+          });
+        });
+        nextData = merged;
         dataRef.current = nextData;
         hasStoredDataRef.current = true;
         window.setTimeout(() => {

@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   Check,
   ClipboardCheck,
   Droplets,
@@ -27,6 +28,7 @@ interface AssignmentViewProps {
   readonly state: TrackCState;
   readonly createId: (prefix: string) => string;
   readonly now: () => string;
+  readonly onBack?: () => void;
   readonly onStateChange: (state: TrackCState, reason: string) => void;
 }
 
@@ -34,6 +36,7 @@ export const AssignmentView = ({
   state,
   createId,
   now,
+  onBack,
   onStateChange,
 }: AssignmentViewProps) => {
   const [trade, setTrade] = useState<TrackCTrade>('paint');
@@ -121,6 +124,17 @@ export const AssignmentView = ({
   return (
     <section className="track-c-assignment" aria-labelledby="track-c-assignment-heading">
       <header className="track-c-view-heading">
+        {onBack ? (
+          <button
+            aria-label="Back to TurnBoard"
+            className="track-c-back-button"
+            data-track-c-critical-target="true"
+            onClick={onBack}
+            type="button"
+          >
+            <ArrowLeft aria-hidden="true" size={20} />
+          </button>
+        ) : null}
         <div>
           <h1 id="track-c-assignment-heading">Assign Crews</h1>
           <p>Released Paint and Clean work only</p>

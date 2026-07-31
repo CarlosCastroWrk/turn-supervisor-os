@@ -357,6 +357,7 @@ function LaunchOperationalApp({
   const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
   const [homeMode, setHomeMode] = useState<HomeMode>('day');
   const [demoExplored, setDemoExplored] = useState(false);
+  const [dayWorkspaceView, setDayWorkspaceView] = useState('home');
   const [manualReleaseStatus, setManualReleaseStatus] = useState('');
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
@@ -2108,6 +2109,7 @@ function LaunchOperationalApp({
             { fieldWorkflow: 'walk', walkSessionId },
           )}
           onRequestStartDay={() => setHomeMode('start-day')}
+          onViewChange={setDayWorkspaceView}
           propertyRoster={propertyRoster}
           releases={dailyReleases}
           queueCounts={canonicalProjectionResult.projection?.todayTask.queueCounts}
@@ -2364,6 +2366,11 @@ function LaunchOperationalApp({
     || route.view === 'assignments'
     || route.fieldWorkflow === 'walk'
     || (route.view === 'dashboard' && homeMode !== 'day')
+    || (route.view === 'dashboard'
+      && !route.homeSummary
+      && homeMode === 'day'
+      && dayWorkspaceView !== 'home'
+      && dayWorkspaceView !== 'queue')
     || (route.view === 'crews' && Boolean(route.crewId))
     || Boolean(moreDetailPage)
     || Boolean(crewEditor);

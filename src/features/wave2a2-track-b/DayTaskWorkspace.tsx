@@ -14,6 +14,8 @@ import {
   Users,
 } from 'lucide-react';
 import {
+  useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -1171,6 +1173,7 @@ export interface DayTaskWorkspaceProps {
     intent: 'return' | 'end',
   ) => void;
   onRequestStartDay?: () => void;
+  onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
   releases: readonly DailyReleaseBatch[];
@@ -1208,6 +1211,7 @@ export function DayTaskWorkspace({
   onOpenTaskDetail,
   onOpenActiveWalk,
   onRequestStartDay,
+  onViewChange,
   propertyRoster,
   releases,
   queueCounts,
@@ -1220,11 +1224,21 @@ export function DayTaskWorkspace({
     propertyRoster.propertyId,
     currentDate,
   );
-  const [view, setView] = useState<WorkspaceView>(
+  const [view, setViewState] = useState<WorkspaceView>(
     recovery.kind === 'date-rollover'
       ? { id: 'recovery' }
       : { id: initialView },
   );
+  const setView = useCallback((nextView: WorkspaceView) => {
+    setViewState(nextView);
+    onViewChange?.(nextView.id);
+  }, [onViewChange]);
+  useEffect(() => {
+    onViewChange?.(view.id);
+    return () => onViewChange?.('home');
+    // Report only on mount/unmount; interactive transitions go through setView.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [session, setSession] = useState<DaySession | undefined>(
     recovery.session ?? initialSession,
   );

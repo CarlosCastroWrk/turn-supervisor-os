@@ -353,6 +353,7 @@ export const TrackCFieldOps = ({
           <AssignmentView
             createId={createId}
             now={now}
+            onBack={() => navigate('board')}
             onStateChange={commitState}
             state={state}
           />

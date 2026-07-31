@@ -2,6 +2,7 @@ export type TrackBToolDestination =
   | 'backup-restore'
   | 'crews'
   | 'daily-goal'
+  | 'day-history'
   | 'official-pds-forms'
   | 'privacy'
   | 'profile'
@@ -31,6 +32,11 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     label: 'Work',
     items: [
       { id: 'crews', label: 'Crews', detail: 'People available for Paint and Clean' },
+      {
+        id: 'day-history',
+        label: 'Day History',
+        detail: 'Every day of this Turn — released, passed, accepted',
+      },
       {
         id: 'reports-and-proof',
         label: 'Reports and Proof',

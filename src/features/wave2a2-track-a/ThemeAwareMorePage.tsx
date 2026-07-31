@@ -1,4 +1,4 @@
-import {
+import { CalendarDays,
   Archive,
   BarChart3,
   Cloud,
@@ -35,6 +35,7 @@ import type {
 
 const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   'backup-restore': <Archive aria-hidden="true" size={21} />,
+  'day-history': <CalendarDays aria-hidden="true" size={21} />,
   crews: <Users aria-hidden="true" size={21} />,
   'daily-goal': <Flag aria-hidden="true" size={21} />,
   'official-pds-forms': <FileText aria-hidden="true" size={21} />,

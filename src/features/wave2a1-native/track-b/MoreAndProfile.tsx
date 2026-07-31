@@ -1,4 +1,4 @@
-import {
+import { CalendarDays,
   Archive,
   BarChart3,
   ClipboardList,
@@ -30,6 +30,7 @@ import {
 
 const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   'backup-restore': <Archive size={21} />,
+  'day-history': <CalendarDays size={21} />,
   crews: <Users size={21} />,
   'daily-goal': <Flag size={21} />,
   'official-pds-forms': <FileText size={21} />,

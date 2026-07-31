@@ -193,7 +193,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'crews' | 'forms' | 'profile' | 'privacy' | 'storage' | null;
+type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'profile' | 'privacy' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -1461,7 +1461,12 @@ function LaunchOperationalApp({
       setMoreDetailPage('forms');
       return;
     }
-    if (destination === 'profile' || destination === 'privacy' || destination === 'storage') {
+    if (
+      destination === 'profile'
+      || destination === 'privacy'
+      || destination === 'storage'
+      || destination === 'day-history'
+    ) {
       setMoreDetailPage(destination);
       return;
     }
@@ -2263,6 +2268,55 @@ function LaunchOperationalApp({
             </GroupedInsetSection>
           </NativeDetailShell>
         </ProfilePrivacyScrollRegion>
+      ) : moreDetailPage === 'day-history' ? (
+        <NativeDetailShell
+          description="Every day of this Turn, newest first. Paper remains official."
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel="Personal record"
+          title="Day History"
+        >
+          {daySessions.length === 0 ? (
+            <p className="lcc-host-status">No Day Sessions yet — start your first day.</p>
+          ) : [...daySessions]
+            .sort((left, right) => right.date.localeCompare(left.date))
+            .map((historySession, index) => {
+              const sessionEvents = dayEvents.filter((event) =>
+                event.daySessionId === historySession.daySessionId);
+              const passes = sessionEvents.filter((event) =>
+                event.eventType === 'los-passed' || event.eventType === 'callback-resolved').length;
+              const crewComplete = sessionEvents.filter((event) =>
+                event.eventType === 'crew-reported-complete').length;
+              const callbacks = sessionEvents.filter((event) =>
+                event.eventType === 'callback-opened').length;
+              const acceptedByUnit = new Map<string, Set<string>>();
+              for (const event of sessionEvents) {
+                if (event.eventType !== 'property-accepted' || !event.unitId) continue;
+                const trades = acceptedByUnit.get(event.unitId) ?? new Set<string>();
+                if (event.trade) trades.add(event.trade);
+                acceptedByUnit.set(event.unitId, trades);
+              }
+              const acceptedLabel = [...acceptedByUnit.entries()]
+                .map(([unitId, trades]) =>
+                  `${unitNumberById.get(unitId) ?? unitId} (${[...trades].join(' + ')})`)
+                .join(', ');
+              return (
+                <GroupedInsetSection
+                  key={historySession.daySessionId}
+                  label={`Day ${daySessions.length - index} · ${historySession.date}${
+                    historySession.status === 'closed' ? '' : ' · open'}`}
+                >
+                  <GroupedInsetRow label="Crew reported complete" value={String(crewComplete)} />
+                  <GroupedInsetRow label="Passed my inspection" value={String(passes)} />
+                  <GroupedInsetRow label="Callbacks opened" value={String(callbacks)} />
+                  <GroupedInsetRow
+                    detail={acceptedLabel || undefined}
+                    label="Property accepted"
+                    value={String(acceptedByUnit.size)}
+                  />
+                </GroupedInsetSection>
+              );
+            })}
+        </NativeDetailShell>
       ) : moreDetailPage === 'storage' ? (
         <NativeDetailShell
           description="A read-only view of records currently held by this personal app."

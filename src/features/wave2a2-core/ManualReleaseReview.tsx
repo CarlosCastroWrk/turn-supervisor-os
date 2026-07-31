@@ -255,7 +255,6 @@ export function ManualReleaseReview({
               <input
                 accept="image/*"
                 aria-label="Choose a TurnBoard photo"
-                capture="environment"
                 hidden
                 onChange={(event) => {
                   const file = event.target.files?.[0];

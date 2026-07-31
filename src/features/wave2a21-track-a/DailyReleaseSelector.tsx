@@ -1,4 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import {
+  imageFileToIntakeSource,
+  intakeEnabled,
+  requestIntake,
+} from '../../lib/intakeClient';
 import type {
   DailyReleaseDraft,
   DailyReleaseExceptionKind,
@@ -13,6 +18,7 @@ import {
   setDailyReleaseUnitSelected,
 } from './phase2Workflow';
 import type { ProjectRosterUnitOption } from './contracts';
+import '../wave2a2-core/acceptedCore.css';
 import './trackA.css';
 
 export interface DailyReleaseSelectorProps {
@@ -34,6 +40,53 @@ export function DailyReleaseSelector({
 }: DailyReleaseSelectorProps) {
   const [exactUnitInput, setExactUnitInput] = useState('');
   const [exactUnitErrors, setExactUnitErrors] = useState<readonly string[]>([]);
+  const [intakeBusy, setIntakeBusy] = useState(false);
+  const [intakeStatus, setIntakeStatus] = useState('');
+  const [intakeMessage, setIntakeMessage] = useState('');
+  const intakeFileRef = useRef<HTMLInputElement>(null);
+
+  const runIntake = async (
+    source:
+      | { type: 'image'; mediaType: string; data: string }
+      | { type: 'text'; text: string },
+  ) => {
+    setIntakeBusy(true);
+    setIntakeStatus('Reading today’s release…');
+    try {
+      const result = await requestIntake({
+        kind: 'release',
+        rosterUnitNumbers: rosterUnits.map((unit) => unit.unitNumber),
+        source,
+      });
+      const unitByNumber = new Map(rosterUnits.map((unit) =>
+        [unit.unitNumber.toLocaleLowerCase(), unit]));
+      const matchedIds: string[] = [];
+      const unmatched: string[] = [];
+      for (const row of result.rows) {
+        const unit = unitByNumber.get(row.unitNumber.trim().toLocaleLowerCase());
+        if (unit) matchedIds.push(unit.id);
+        else unmatched.push(row.unitNumber);
+      }
+      onChange({
+        ...draft,
+        explicitConfirmation: false,
+        selectedUnitIds: [...new Set([...draft.selectedUnitIds, ...matchedIds])],
+      });
+      const notes = [
+        `${matchedIds.length} Unit${matchedIds.length === 1 ? '' : 's'} selected from the import.`,
+        unmatched.length > 0 ? `Not in your roster (skipped): ${unmatched.join(', ')}.` : '',
+        result.uncertainties.length > 0 ? `Check: ${result.uncertainties.join(' ')}` : '',
+        'Review before starting the day — nothing is released until you confirm.',
+      ].filter(Boolean);
+      setIntakeStatus(notes.join(' '));
+    } catch (caught) {
+      setIntakeStatus(caught instanceof Error
+        ? caught.message
+        : 'The import reader failed. Tap Units below instead.');
+    } finally {
+      setIntakeBusy(false);
+    }
+  };
   const selectedUnits = rosterUnits.filter((unit) =>
     draft.selectedUnitIds.includes(unit.id));
   const addExactUnits = () => {
@@ -81,6 +134,53 @@ export function DailyReleaseSelector({
           </p>
         ) : null}
       </fieldset>
+
+      {intakeEnabled() && rosterUnits.length > 0 ? (
+        <section className="w2a2-core-intake">
+          <strong>Import today’s release</strong>
+          <p>Photo of the TurnBoard or Joseph’s message — you review before starting.</p>
+          <button
+            disabled={intakeBusy}
+            onClick={() => intakeFileRef.current?.click()}
+            type="button"
+          >
+            {intakeBusy ? 'Reading…' : 'From photo'}
+          </button>
+          <input
+            accept="image/*"
+            aria-label="Choose a TurnBoard photo"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              void imageFileToIntakeSource(file)
+                .then((source) => runIntake(source))
+                .catch(() => setIntakeStatus('That photo could not be read.'));
+            }}
+            ref={intakeFileRef}
+            type="file"
+          />
+          <label>
+            <span className="w2a2-core-intake__label">Or paste the message</span>
+            <textarea
+              onChange={(event) => setIntakeMessage(event.target.value)}
+              placeholder="Joseph: start 1503–1508 paint and clean…"
+              value={intakeMessage}
+            />
+          </label>
+          <button
+            disabled={intakeBusy || !intakeMessage.trim()}
+            onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
+            type="button"
+          >
+            Read message
+          </button>
+          {intakeStatus ? (
+            <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
+          ) : null}
+        </section>
+      ) : null}
 
       <fieldset>
         <legend>Units released today</legend>

@@ -617,8 +617,7 @@ export function ProjectSetupFlow({
                   <input
                     accept="image/*"
                     aria-label="Choose a TurnBoard photo for the roster"
-                    capture="environment"
-                    hidden
+                        hidden
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       event.target.value = '';

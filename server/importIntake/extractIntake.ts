@@ -81,32 +81,37 @@ const JSON_SCHEMA = {
 } as const;
 
 const promptFor = (request: IntakeRequest) => {
-  const shared = `You read PDS student-housing Turn documents for a supervisor named Los.
-Board semantics: rows are Units (e.g. 301, 704). Columns per trade band
-(PAINTING, HOUSEKEEPING/CLEAN — ignore CARPET) are Common, A, B, C, D, E.
-Blacked-out cells mean the section does not exist for that unit. A single
-slash across a cell means the property released/authorized that section.
-An X means Los already passed it. A crew name written in the row means
-assigned. Ignore highlighting colors (payroll tracking).
-Report only what is visibly present. Anything ambiguous goes to
-uncertainties with the unit number named. Never invent units.`;
+  const shared = `You read PDS student-housing TurnBoard sheets for a supervisor named Los.
+Sheet layout (one band per trade, titled Painting or Cleaning; ignore Carpet):
+columns are Bldg | Unit Type | Unit # | Comn | A | B | C | D | E | crew name | PDS Approved.
+Unit Type is the BED COUNT (2, 3, 4, or 5). Blacked-out section cells simply
+mirror the bed count — a 3-bed unit has Comn+A+B+C and its D/E cells are
+blacked out. Blackouts are NOT release or work marks.
+Marks inside white cells: a single slash = the property released that section;
+an X = Los already passed it; a written crew name = assigned.
+Data hygiene: a row of zeros or blanks is a spreadsheet artifact — skip it.
+If the same unit number appears twice, report it once and add an uncertainty
+naming it. If a cell or margin notes no access, occupied, locked, or similar,
+do not treat that section as released — add an uncertainty naming the unit
+and the note. Report only what is visibly present; never invent units.`;
   if (request.kind === 'roster') {
     return `${shared}
 
-TASK: Extract the property ROSTER — every unit number visible, with bedCount
-(from the unit-type column when present: 3 means 3BR = sections Common+A+B+C)
-and building when shown. trades: report ["paint","clean"]. sections: leave
-empty for roster extraction (the app derives them from bedCount).`;
+TASK: Extract the property ROSTER — every real unit row: unitNumber, bedCount
+from the Unit Type column, building from the Bldg column (as the number shown,
+e.g. "15"). trades: ["paint","clean"]. sections: leave empty (the app derives
+them from bedCount). Skip artifact rows.`;
   }
   const rosterHint = request.rosterUnitNumbers?.length
     ? `\nKnown roster unit numbers (anything not in this list is an uncertainty): ${request.rosterUnitNumbers.join(', ')}`
     : '';
   return `${shared}
 
-TASK: Extract TODAY'S RELEASED work only — units whose cells show release
-slashes, or units the message says are released today. For each unit report
-which trades were released and which sections (empty sections array means
-"all applicable"). Do not include units with no release marks.${rosterHint}`;
+TASK: Extract TODAY'S RELEASED work only — units whose white cells show
+release slashes, or units the message says are released today. For each unit
+report which trades were released and which sections (empty sections array
+means "all applicable"). Exclude sections with access/occupied notes and
+explain in uncertainties. Do not include units with no release marks.${rosterHint}`;
 };
 
 const anthropicKey = () =>

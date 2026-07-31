@@ -883,11 +883,15 @@ interface DayTaskHomeProps {
     unitId: string;
     unitNumber: string;
   }[];
+  dayNumber?: number;
+  onExportBackup?: () => Promise<string>;
 }
 
 function DayTaskHome({
   acceptedToday = [],
   currentDate,
+  dayNumber,
+  onExportBackup,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -903,12 +907,56 @@ function DayTaskHome({
   const counts = queueCounts ?? getTodayTaskQueueCounts(task);
   const progress = calculateTodayTaskProgress(task);
   const active = isOpenDay(session);
+  const [ritualStatus, setRitualStatus] = useState('');
+  const summaryText = () => {
+    const acceptedLine = acceptedToday.length > 0
+      ? ` Accepted: ${acceptedToday.map((unit) =>
+          `${unit.unitNumber} (${unit.trades.join(' + ')})`).join(', ')}.`
+      : '';
+    return `${propertyName} — Day ${dayNumber ?? ''} update (${currentDate}): `
+      + `${progress.actual}/${progress.target} released sections passed my inspection. `
+      + `Needs crew ${counts['needs-crew']}, working ${counts.working}, `
+      + `needs my inspection ${counts['needs-inspection']}, callbacks ${counts.callbacks}, `
+      + `ready to walk ${counts['ready-to-walk']}.${acceptedLine} `
+      + '(Personal Turn OS record; paper board is official.)';
+  };
+  const copySummary = async () => {
+    try {
+      await navigator.clipboard.writeText(summaryText());
+      setRitualStatus('Day update copied — paste it to Tony or Joseph.');
+    } catch {
+      setRitualStatus(summaryText());
+    }
+  };
+  const exportBackup = async () => {
+    if (!onExportBackup) return;
+    setRitualStatus('Building the backup file…');
+    try {
+      setRitualStatus(await onExportBackup());
+    } catch {
+      setRitualStatus('The backup could not be built. Try again from More → Backup.');
+    }
+  };
 
   return (
     <section className="w2a2b-home" data-testid="track-b-home">
       <header className="w2a2b-home-header">
         <span className="w2a2b-eyebrow">Personal field companion</span>
         <h1>Home</h1>
+        {dayNumber ? (
+          <p className="w2a2b-day-brief">
+            Day {dayNumber}
+            {counts.callbacks > 0
+              ? ` · ${counts.callbacks} callback${counts.callbacks === 1 ? '' : 's'} open`
+              : ''}
+            {counts['ready-to-walk'] > 0
+              ? ` · ${counts['ready-to-walk']} ready to walk`
+              : ''}
+            {counts.callbacks === 0 && counts['ready-to-walk'] === 0
+              ? ' · nothing carried over'
+              : ''}
+          </p>
+        ) : null}
         <p><strong>{propertyName}</strong><span aria-hidden="true"> · </span>{currentDate}</p>
       </header>
 
@@ -1049,6 +1097,37 @@ function DayTaskHome({
           </div>
         </section>
       ) : null}
+
+      <section className="w2a2b-section w2a2b-ritual" aria-label="Day update and backup">
+        <div className="w2a2b-inset-list">
+          <button
+            data-track-b-critical-target="true"
+            onClick={() => void copySummary()}
+            type="button"
+          >
+            <span className="w2a2b-row-icon is-ready-to-walk"><ClipboardList aria-hidden="true" size={20} /></span>
+            <span><strong>Copy day update</strong></span>
+            <ChevronRight aria-hidden="true" size={19} />
+          </button>
+          {session?.status === 'closed' && onExportBackup ? (
+            <button
+              data-track-b-critical-target="true"
+              onClick={() => void exportBackup()}
+              type="button"
+            >
+              <span className="w2a2b-row-icon is-working"><FileUp aria-hidden="true" size={20} /></span>
+              <span>
+                <strong>Export tonight’s backup</strong>
+                <small>Save the file to iCloud Drive — that’s your off-phone copy.</small>
+              </span>
+              <ChevronRight aria-hidden="true" size={19} />
+            </button>
+          ) : null}
+        </div>
+        {ritualStatus ? (
+          <p aria-live="polite" className="w2a2b-ritual__status">{ritualStatus}</p>
+        ) : null}
+      </section>
 
       <section className="w2a2b-section" aria-labelledby="w2a2b-actions-title">
         <div className="w2a2b-section-heading">
@@ -1275,6 +1354,7 @@ export interface DayTaskWorkspaceProps {
     intent: 'return' | 'end',
   ) => void;
   onRequestStartDay?: () => void;
+  onExportBackup?: () => Promise<string>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
@@ -1312,6 +1392,7 @@ export function DayTaskWorkspace({
   onOpenQueueId,
   onOpenTaskDetail,
   onOpenActiveWalk,
+  onExportBackup,
   onRequestStartDay,
   onViewChange,
   propertyRoster,
@@ -1484,6 +1565,10 @@ export function DayTaskWorkspace({
       <DayTaskHome
         acceptedToday={acceptedToday}
         currentDate={currentDate}
+        dayNumber={existingSessions.filter((candidate) =>
+          candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)
+          || undefined}
+        onExportBackup={onExportBackup}
         onAction={externalAction}
         onEndDay={() => setView({ id: 'end-day' })}
         onOpenQueue={(queue) => {

@@ -22,6 +22,7 @@ import type {
 } from './model';
 import {
   applyTrackCSectionAction,
+  changeTrackCCrew,
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
   recordTrackCPersonalPdsMirror,
@@ -259,6 +260,28 @@ export const TrackCFieldOps = ({
     commitState(nextState, 'bulk-assignment-confirmed');
   };
 
+  const changeCrew = (
+    unitId: string,
+    trade: TrackCTrade,
+    toCrewId: string,
+  ) => {
+    const result = changeTrackCCrew(state, {
+      eventIdPrefix: createId('track-c-change-crew'),
+      recordedAt: now(),
+      recordedBy: 'Los',
+      toCrewId,
+      trade,
+      unitId,
+    });
+    if (!result.ok) {
+      setNotice(result.error.message);
+      return;
+    }
+    const crewName = state.crews.find((crew) => crew.id === toCrewId)?.name ?? 'New crew';
+    setNotice(`${crewName} now owns this work — history from the previous crew is kept.`);
+    commitState(result.value, 'bulk-assignment-confirmed');
+  };
+
   const requestMirror = useCallback((target: TrackCWorkTarget) => {
     mirrorTriggerRef.current =
       document.activeElement instanceof HTMLElement
@@ -387,6 +410,7 @@ export const TrackCFieldOps = ({
               setLocalSelectedUnitId(unitId);
             }}
             onQuickAssign={quickAssign}
+            onChangeCrew={changeCrew}
             onRequestNote={onRequestUnitNote}
             onRequestAssign={(trade) => {
               setAssignInitialTrade(trade);

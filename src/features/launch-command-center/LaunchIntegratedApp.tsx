@@ -174,6 +174,8 @@ import { DailyLogView } from '../../views/DailyLogView';
 import { ExportView } from '../../views/ExportView';
 import { IssuesView } from '../../views/IssuesView';
 import { ReviewView } from '../../views/ReviewView';
+import { buildJsonBackupWithLocalPhotos } from '../../lib/photoBackup';
+import { downloadTextFile } from '../../lib/exporters';
 import { SyncDiagnosticsView } from '../../views/SyncDiagnosticsView';
 import { TrainingQuestionsView } from '../../views/TrainingQuestionsView';
 import { UnitDetailView } from '../../views/UnitDetailView';
@@ -2155,6 +2157,17 @@ function LaunchOperationalApp({
             undefined,
             { fieldWorkflow: 'walk', walkSessionId },
           )}
+          onExportBackup={async () => {
+            const result = await buildJsonBackupWithLocalPhotos(data);
+            downloadTextFile(
+              `turn-supervisor-backup-${currentDate}.json`,
+              result.text,
+              'application/json',
+            );
+            return result.missingPhotoFiles > 0
+              ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device. Move it to iCloud Drive.`
+              : 'Backup saved. Move the file from Downloads to iCloud Drive and tonight is safe.';
+          }}
           onRequestStartDay={() => setHomeMode('start-day')}
           onViewChange={setDayWorkspaceView}
           propertyRoster={propertyRoster}

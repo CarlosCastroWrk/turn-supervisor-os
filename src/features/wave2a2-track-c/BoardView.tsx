@@ -45,6 +45,11 @@ interface BoardViewProps {
     trade: TrackCTrade,
     crewId: string,
   ) => void;
+  readonly onChangeCrew?: (
+    unitId: string,
+    trade: TrackCTrade,
+    crewId: string,
+  ) => void;
   readonly onRequestNote?: () => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
 }
@@ -181,6 +186,18 @@ const actionsFor = (
         action: 'record-reinspection-pass',
         label: 'Pass reinspection',
         tone: 'positive',
+      },
+    ];
+  }
+  if (
+    work.inspection === 'los-passed' &&
+    work.property !== 'property-accepted'
+  ) {
+    return [
+      {
+        action: 'reopen-inspection',
+        label: 'Undo pass — back to Needs Inspection',
+        tone: 'caution',
       },
     ];
   }
@@ -369,6 +386,7 @@ const UnitDetail = ({
   onSectionAction,
   onTradeComplete,
   onQuickAssign,
+  onChangeCrew,
   onRequestAssign,
   onRequestNote,
   onRequestMirror,
@@ -379,6 +397,7 @@ const UnitDetail = ({
   onSectionAction: BoardViewProps['onSectionAction'];
   onTradeComplete: BoardViewProps['onTradeComplete'];
   onQuickAssign?: BoardViewProps['onQuickAssign'];
+  onChangeCrew?: BoardViewProps['onChangeCrew'];
   onRequestAssign?: BoardViewProps['onRequestAssign'];
   onRequestNote?: BoardViewProps['onRequestNote'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
@@ -494,9 +513,31 @@ const UnitDetail = ({
                   ) : (
                     <small>{progress.conciseLabel}</small>
                   )
-              ) : (
-                <small>{progress.conciseLabel}</small>
-              )}
+              ) : crewNames.length === 1
+                && onChangeCrew
+                && state.crews.filter((crew) =>
+                  crew.trade === trade && !progress.crewIds.includes(crew.id)).length > 0 ? (
+                  <select
+                    aria-label={`Change ${tradeLabel(trade)} crew for Unit ${unit.unitNumber}`}
+                    className="track-c-trade-assign track-c-trade-change"
+                    onChange={(event) => {
+                      if (event.target.value) {
+                        onChangeCrew(unitId, trade, event.target.value);
+                      }
+                    }}
+                    value=""
+                  >
+                    <option value="">Change…</option>
+                    {state.crews
+                      .filter((crew) =>
+                        crew.trade === trade && !progress.crewIds.includes(crew.id))
+                      .map((crew) => (
+                        <option key={crew.id} value={crew.id}>{crew.name}</option>
+                      ))}
+                  </select>
+                ) : (
+                  <small>{progress.conciseLabel}</small>
+                )}
             </header>
             {canRecordTradeComplete ? (
               <button
@@ -553,6 +594,7 @@ export const BoardView = ({
   onSectionAction,
   onTradeComplete,
   onQuickAssign,
+  onChangeCrew,
   onRequestAssign,
   onRequestNote,
   onRequestMirror,
@@ -575,6 +617,7 @@ export const BoardView = ({
       <UnitDetail
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
+        onChangeCrew={onChangeCrew}
         onRequestAssign={onRequestAssign}
         onRequestNote={onRequestNote}
         onRequestMirror={onRequestMirror}

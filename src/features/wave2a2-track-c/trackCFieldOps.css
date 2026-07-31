@@ -1823,3 +1823,9 @@ select.track-c-trade-assign {
   color: var(--track-c-green);
   font-weight: 850;
 }
+
+select.track-c-trade-change {
+  background: var(--track-c-surface);
+  border: 1.5px solid var(--track-c-border);
+  color: var(--track-c-muted);
+}

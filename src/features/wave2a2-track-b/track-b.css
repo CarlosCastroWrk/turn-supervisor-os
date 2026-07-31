@@ -933,3 +933,20 @@ button.w2a2b-primary-button {
   font-style: normal;
   font-weight: 850;
 }
+
+.w2a2b-day-brief {
+  color: var(--turn-color-secondary, #66707c);
+  font-size: 15px;
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
+.w2a2b-ritual__status {
+  background: var(--turn-color-grouped, #f7f8fa);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 8px 16px 0;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}

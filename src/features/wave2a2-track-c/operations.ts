@@ -106,7 +106,8 @@ export type TrackCSectionAction =
   | 'record-los-pass'
   | 'open-callback'
   | 'record-correction-ready'
-  | 'record-reinspection-pass';
+  | 'record-reinspection-pass'
+  | 'reopen-inspection';
 
 export interface TrackCSectionActionRequest {
   readonly eventId: string;
@@ -206,6 +207,27 @@ export const applyTrackCSectionAction = (
         request.note ??
         'Los passed reinspection. Property acceptance remains pending.';
       break;
+    case 'reopen-inspection':
+      if (projection.inspection !== 'los-passed') {
+        return error(
+          'invalid-transition',
+          'Only a Los-passed section can be reopened for inspection.',
+        );
+      }
+      if (projection.property === 'property-accepted') {
+        return error(
+          'invalid-transition',
+          'Property-accepted work cannot be reopened. Use a walk correction.',
+        );
+      }
+      // The crew's completion report still stands; the recorded pass is
+      // superseded by this explicit reopen, and the section returns to
+      // Needs Inspection. History keeps both events.
+      eventType = 'crew-reported-complete';
+      summary =
+        request.note ??
+        'Los reopened this section for inspection — the earlier pass was recorded in error.';
+      break;
   }
 
   return {
@@ -224,6 +246,89 @@ export const applyTrackCSectionAction = (
       }),
     ]),
   };
+};
+
+export interface TrackCChangeCrewInput {
+  readonly unitId: string;
+  readonly trade: TrackCTrade;
+  readonly toCrewId: string;
+  readonly recordedAt: string;
+  readonly recordedBy: string;
+  readonly eventIdPrefix: string;
+}
+
+// Move a Unit+Trade from its current crew to another. Emits an explicit
+// assignment-cleared for the outgoing crew, an assignment-confirmed for the
+// incoming crew, and work-started, per released section — history preserved.
+export const changeTrackCCrew = (
+  state: TrackCState,
+  input: TrackCChangeCrewInput,
+): TrackCResult<TrackCState> => {
+  const toCrew = state.crews.find((crew) => crew.id === input.toCrewId);
+  if (!toCrew) return error('not-found', 'The selected crew was not found.');
+  if (toCrew.trade !== input.trade) {
+    return error('blocked', `${toCrew.name} is not a ${input.trade} crew.`);
+  }
+  const unit = state.units.find((candidate) => candidate.id === input.unitId);
+  if (!unit) return error('not-found', 'The Unit was not found.');
+  const targets = unit.workFacts
+    .filter((fact) => fact.trade === input.trade && fact.release === 'released')
+    .map((fact) => ({
+      section: fact.section,
+      trade: fact.trade,
+      unitId: fact.unitId,
+    }));
+  if (targets.length === 0) {
+    return error('blocked', 'No released sections exist for this Unit and trade.');
+  }
+  const events: TrackCConfirmedEvent[] = [];
+  let changed = 0;
+  for (const [index, target] of targets.entries()) {
+    const projection = projectTrackCWork(state, target);
+    if (!projection || projection.property === 'property-accepted') continue;
+    const fromCrewId = projection.responsibleCrewId;
+    if (fromCrewId === input.toCrewId) continue;
+    if (fromCrewId) {
+      events.push(confirmedEvent({
+        crewId: fromCrewId,
+        eventType: 'assignment-cleared',
+        id: `${input.eventIdPrefix}-clear-${index}`,
+        recordedAt: input.recordedAt,
+        recordedBy: input.recordedBy,
+        sourceLabel: 'Los crew change',
+        sourceType: 'personal-confirmation',
+        summary: 'Los moved this work to a different crew.',
+        target,
+      }));
+    }
+    events.push(confirmedEvent({
+      crewId: input.toCrewId,
+      eventType: 'assignment-confirmed',
+      id: `${input.eventIdPrefix}-assign-${index}`,
+      recordedAt: input.recordedAt,
+      recordedBy: input.recordedBy,
+      sourceLabel: 'Los crew change',
+      sourceType: 'personal-confirmation',
+      summary: `Los assigned ${toCrew.name} to this work.`,
+      target,
+    }));
+    events.push(confirmedEvent({
+      crewId: input.toCrewId,
+      eventType: 'work-started',
+      id: `${input.eventIdPrefix}-start-${index}`,
+      recordedAt: input.recordedAt,
+      recordedBy: input.recordedBy,
+      sourceLabel: 'Los crew change',
+      sourceType: 'personal-confirmation',
+      summary: `${toCrew.name} is working this section.`,
+      target,
+    }));
+    changed += 1;
+  }
+  if (changed === 0) {
+    return error('blocked', 'Nothing to change — this crew already owns the eligible work.');
+  }
+  return { ok: true, value: appendEvents(state, events) };
 };
 
 export interface TrackCBulkProposalInput {

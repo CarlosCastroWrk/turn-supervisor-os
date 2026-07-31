@@ -1712,3 +1712,17 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Inline crew picker on the Unit Detail trade header */
+select.track-c-trade-assign {
+  appearance: none;
+  cursor: pointer;
+  max-inline-size: 132px;
+  text-align: center;
+}
+
+/* The crew who owns the trade should be readable at a glance */
+.track-c-trade-panel__identity span {
+  font-size: 15px;
+  font-weight: 750;
+}

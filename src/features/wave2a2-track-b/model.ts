@@ -108,7 +108,7 @@ const exactStringMultisetMatch = (left: readonly string[], right: readonly strin
 
 const wasInspected = (state: LosInspectionState) => state !== 'pending';
 
-const passedInspection = (state: LosInspectionState) => (
+export const passedInspection = (state: LosInspectionState) => (
   state === 'passed' || state === 'passed-after-callback'
 );
 

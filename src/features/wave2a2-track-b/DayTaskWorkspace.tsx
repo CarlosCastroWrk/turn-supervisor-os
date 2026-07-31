@@ -33,6 +33,7 @@ import {
   getDayRecoveryDecision,
   getTodayTaskQueueCounts,
   markDaySessionEnding,
+  passedInspection,
   projectTodayTaskForSession,
   selectTodayTaskQueue,
   startDaySession,
@@ -49,6 +50,7 @@ import type {
   TodayTask,
   TodayTaskQueue,
   TodayTaskQueueId,
+  TodayTaskTradeState,
   TrackBCrewOption,
   TrackBTrade,
 } from './types';
@@ -1073,15 +1075,57 @@ interface QueuePageProps {
   queue: TodayTaskQueue;
 }
 
+const queueTradeMatches = (
+  queueId: TodayTaskQueueId,
+  state: TodayTaskTradeState,
+) => {
+  if (queueId === 'needs-crew') return !state.assignedCrewId;
+  if (queueId === 'needs-inspection') {
+    return state.execution === 'crew-reported-complete'
+      && !passedInspection(state.inspection);
+  }
+  if (queueId === 'ready-to-walk') {
+    return passedInspection(state.inspection) && state.propertyWalk === 'pending';
+  }
+  if (queueId === 'working') return state.execution === 'working';
+  return true;
+};
+
 function QueuePage({ onBack, queue }: QueuePageProps) {
+  // Los reads queues at Unit + Trade grain: one row per Unit and trade,
+  // with the affected sections listed inside it.
+  const packages = new Map<string, {
+    sections: string[];
+    trade: TodayTaskTradeState['trade'];
+    unitNumber: string;
+    unitType: string;
+    waitingReasons: Set<string>;
+  }>();
+  for (const record of queue.records) {
+    for (const state of record.tradeStates) {
+      if (!queueTradeMatches(queue.id, state)) continue;
+      const key = `${record.unitId}:${state.trade}`;
+      const entry = packages.get(key) ?? {
+        sections: [],
+        trade: state.trade,
+        unitNumber: record.unitNumber,
+        unitType: record.unitType,
+        waitingReasons: new Set<string>(),
+      };
+      entry.sections.push(record.sectionLabel);
+      for (const reason of record.waitingReasons) entry.waitingReasons.add(reason);
+      packages.set(key, entry);
+    }
+  }
+  const rows = [...packages.entries()];
   return (
     <section className="w2a2b-flow-page" data-testid={`track-b-queue-${queue.id}`}>
       <PageHeader
         onBack={onBack}
-        subtitle={`${queue.records.length} released ${queue.records.length === 1 ? 'section' : 'sections'}`}
+        subtitle={`${rows.length} Unit+Trade ${rows.length === 1 ? 'job' : 'jobs'}`}
         title={queue.label}
       />
-      {queue.records.length === 0 ? (
+      {rows.length === 0 ? (
         <section className="w2a2b-empty-card" role="status">
           {queueIcons[queue.id]}
           <h2>{queue.emptyMessage}</h2>
@@ -1089,23 +1133,21 @@ function QueuePage({ onBack, queue }: QueuePageProps) {
         </section>
       ) : (
         <div className="w2a2b-record-list">
-          {queue.records.map((record) => (
-            <article key={`${record.unitId}:${record.sectionId}`}>
+          {rows.map(([key, entry]) => (
+            <article key={key}>
               <span>
-                <strong>Unit {record.unitNumber}</strong>
-                <small>{record.sectionLabel} · {record.unitType}</small>
+                <strong>Unit {entry.unitNumber} · {entry.trade}</strong>
+                <small>{entry.sections.join(', ')} · {entry.unitType}</small>
               </span>
               <span className="w2a2b-trade-pills">
-                {record.tradeStates.map((state) => (
-                  <em key={state.trade}>
-                    {state.trade === 'Paint'
-                      ? <Paintbrush aria-hidden="true" size={14} />
-                      : <Sparkles aria-hidden="true" size={14} />}
-                    {state.trade}
-                  </em>
-                ))}
+                <em>
+                  {entry.trade === 'Paint'
+                    ? <Paintbrush aria-hidden="true" size={14} />
+                    : <Sparkles aria-hidden="true" size={14} />}
+                  {entry.trade}
+                </em>
               </span>
-              {record.waitingReasons.map((reason) => <p key={reason}>{reason}</p>)}
+              {[...entry.waitingReasons].map((reason) => <p key={reason}>{reason}</p>)}
             </article>
           ))}
         </div>

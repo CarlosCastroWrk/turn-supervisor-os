@@ -91,7 +91,51 @@ export function DailyReleaseSelector({
           </div>
         ) : (
           <div className="w2a21a-release__selection">
-            <section className="w2a21a-release__exact">
+            <section className="w2a21a-release__roster">
+              <div className="w2a21a-release__roster-header">
+                <strong>Tap the Units the property released</strong>
+                {rosterUnits.length > 1 ? (
+                  <button
+                    onClick={() => onChange({
+                      ...draft,
+                      explicitConfirmation: false,
+                      selectedUnitIds:
+                        draft.selectedUnitIds.length === rosterUnits.length
+                          ? []
+                          : rosterUnits.map((unit) => unit.id),
+                    })}
+                    type="button"
+                  >
+                    {draft.selectedUnitIds.length === rosterUnits.length
+                      ? 'Clear all'
+                      : `Select all ${rosterUnits.length}`}
+                  </button>
+                ) : null}
+              </div>
+              <div className="w2a21a-release__roster-grid">
+                {rosterUnits.map((unit) => {
+                  const checked = draft.selectedUnitIds.includes(unit.id);
+                  return (
+                    <button
+                      aria-pressed={checked}
+                      className={checked ? 'is-selected' : undefined}
+                      key={unit.id}
+                      onClick={() => onChange(setDailyReleaseUnitSelected(
+                        draft,
+                        unit.id,
+                        !checked,
+                      ))}
+                      type="button"
+                    >
+                      <strong>{unit.unitNumber}</strong>
+                      <small>{unit.unitType}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+            <details className="w2a21a-release__exact">
+              <summary>Paste exact Unit numbers instead</summary>
               <label>
                 Exact Unit numbers
                 <textarea
@@ -122,7 +166,7 @@ export function DailyReleaseSelector({
                   <ul>{exactUnitErrors.map((error) => <li key={error}>{error}</li>)}</ul>
                 </div>
               ) : null}
-            </section>
+            </details>
             <details className="w2a21a-release__known">
               <summary>
                 Review known Units <span>{draft.selectedUnitIds.length} selected</span>

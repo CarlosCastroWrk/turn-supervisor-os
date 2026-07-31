@@ -22,6 +22,8 @@ import type {
 } from './model';
 import {
   applyTrackCSectionAction,
+  confirmTrackCBulkAssignmentProposal,
+  createTrackCBulkAssignmentProposal,
   recordTrackCPersonalPdsMirror,
   type TrackCSectionAction,
 } from './operations';
@@ -201,6 +203,47 @@ export const TrackCFieldOps = ({
     commitState(nextState, `trade-${trade}-crew-complete`);
   };
 
+  const quickAssign = (
+    unitId: string,
+    trade: TrackCTrade,
+    crewId: string,
+  ) => {
+    const proposal = createTrackCBulkAssignmentProposal(state, {
+      createdAt: now(),
+      createdBy: 'Los',
+      crewId,
+      proposalId: createId('track-c-quick-assign-proposal'),
+      sectionMode: 'all-released',
+      sections: [],
+      trade,
+      unitIds: [unitId],
+    });
+    const result = confirmTrackCBulkAssignmentProposal(state, proposal, {
+      confirmed: true,
+      eventIdPrefix: createId('track-c-quick-assign'),
+      recordedAt: now(),
+      recordedBy: 'Los',
+    });
+    if (!result.ok) {
+      setNotice(result.error.message);
+      return;
+    }
+    let nextState = result.value.state;
+    for (const target of result.value.receipt.assignedTargets) {
+      const started = applyTrackCSectionAction(nextState, {
+        action: 'start-work',
+        eventId: createId('track-c-quick-start'),
+        recordedAt: now(),
+        recordedBy: 'Los',
+        target,
+      });
+      if (started.ok) nextState = started.value;
+    }
+    const crewName = state.crews.find((crew) => crew.id === crewId)?.name ?? 'Crew';
+    setNotice(`${crewName} assigned — ${result.value.receipt.assignedTargets.length} section${result.value.receipt.assignedTargets.length === 1 ? '' : 's'} Working.`);
+    commitState(nextState, 'bulk-assignment-confirmed');
+  };
+
   const requestMirror = useCallback((target: TrackCWorkTarget) => {
     mirrorTriggerRef.current =
       document.activeElement instanceof HTMLElement
@@ -328,6 +371,7 @@ export const TrackCFieldOps = ({
               onNavigate?.({ unitId, view: 'board' });
               setLocalSelectedUnitId(unitId);
             }}
+            onQuickAssign={quickAssign}
             onRequestAssign={(trade) => {
               setAssignInitialTrade(trade);
               navigate('assign');

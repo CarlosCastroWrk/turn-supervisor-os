@@ -346,10 +346,7 @@ try {
 
   await page.getByText('Screen 2 of 4 · Daily release', { exact: true }).waitFor();
   await page.getByLabel('Both', { exact: true }).check();
-  await page.getByLabel('Exact Unit numbers', { exact: true }).fill(
-    '101, 102, 103, 104, 105, 106, 107, 108, 109, 110',
-  );
-  await page.getByRole('button', { name: 'Add exact Units', exact: true }).click();
+  await page.getByRole('button', { name: 'Select all 10', exact: true }).click();
   await page.getByText('10 selected', { exact: true }).waitFor();
   await fastStartDay.locator('.w2a21a-release__confirm input').check();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();

@@ -23,7 +23,6 @@ import {
   defaultActiveCrewIds,
   prepareDailyReleasePlan,
   prepareFastStartDaySubmission,
-  resolveProjectDefaultSchedule,
 } from './phase2Workflow';
 import './trackA.css';
 
@@ -77,10 +76,6 @@ export function FastStartDayFlow({
   const availableContacts = useMemo(() => contacts.filter((contact) =>
     contact.projectId === projectId && contact.activeForProject !== false),
   [contacts, projectId]);
-  const savedSchedule = useMemo(
-    () => resolveProjectDefaultSchedule(configuration),
-    [configuration],
-  );
   const savedCrewIds = useMemo(
     () => defaultActiveCrewIds(configuration, crewOptions),
     [configuration, crewOptions],
@@ -385,92 +380,8 @@ export function FastStartDayFlow({
               )}
             </section>
 
-            <section>
-              <div className="w2a21a-start-day__section-heading">
-                <span>
-                  <h2>Schedule</h2>
-                  <p>
-                    {savedSchedule.workStartTime || 'Not set'}–{
-                      savedSchedule.workEndTime || 'Not set'
-                    }
-                    {savedSchedule.walkthroughTime
-                      ? ` · Walkthrough ${savedSchedule.walkthroughTime}`
-                      : ' · No default walkthrough'}
-                  </p>
-                </span>
-                <button
-                  aria-expanded={draft.changeScheduleToday}
-                  onClick={() => {
-                    updateDraft((current) => ({
-                      ...current,
-                      changeScheduleToday: !current.changeScheduleToday,
-                      explicitStartConfirmation: false,
-                      schedule: current.changeScheduleToday
-                        ? savedSchedule
-                        : current.schedule,
-                    }));
-                  }}
-                  type="button"
-                >
-                  {draft.changeScheduleToday ? 'Use saved schedule' : 'Changed today'}
-                </button>
-              </div>
-              {draft.changeScheduleToday ? (
-                <div className="w2a21a-setup__columns">
-                  <label>
-                    Work start
-                    <input
-                      onChange={(event) => {
-                        updateDraft((current) => ({
-                          ...current,
-                          explicitStartConfirmation: false,
-                          schedule: {
-                            ...current.schedule,
-                            workStartTime: event.target.value,
-                          },
-                        }));
-                      }}
-                      type="time"
-                      value={draft.schedule.workStartTime}
-                    />
-                  </label>
-                  <label>
-                    Work end
-                    <input
-                      onChange={(event) => {
-                        updateDraft((current) => ({
-                          ...current,
-                          explicitStartConfirmation: false,
-                          schedule: {
-                            ...current.schedule,
-                            workEndTime: event.target.value,
-                          },
-                        }));
-                      }}
-                      type="time"
-                      value={draft.schedule.workEndTime}
-                    />
-                  </label>
-                  <label>
-                    Walkthrough (optional)
-                    <input
-                      onChange={(event) => {
-                        updateDraft((current) => ({
-                          ...current,
-                          explicitStartConfirmation: false,
-                          schedule: {
-                            ...current.schedule,
-                            walkthroughTime: event.target.value || undefined,
-                          },
-                        }));
-                      }}
-                      type="time"
-                      value={draft.schedule.walkthroughTime ?? ''}
-                    />
-                  </label>
-                </div>
-              ) : null}
-            </section>
+            {/* Schedule keeps its saved defaults; it left the Start Day flow to
+                keep mornings fast. */}
 
             <section>
               <h2>Morning note <small>Optional</small></h2>

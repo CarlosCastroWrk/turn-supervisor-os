@@ -40,6 +40,11 @@ interface BoardViewProps {
     trade: TrackCTrade,
   ) => void;
   readonly onRequestAssign?: (trade: TrackCTrade) => void;
+  readonly onQuickAssign?: (
+    unitId: string,
+    trade: TrackCTrade,
+    crewId: string,
+  ) => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
 }
 
@@ -357,6 +362,7 @@ const UnitDetail = ({
   onClose,
   onSectionAction,
   onTradeComplete,
+  onQuickAssign,
   onRequestAssign,
   onRequestMirror,
 }: {
@@ -365,6 +371,7 @@ const UnitDetail = ({
   onClose: () => void;
   onSectionAction: BoardViewProps['onSectionAction'];
   onTradeComplete: BoardViewProps['onTradeComplete'];
+  onQuickAssign?: BoardViewProps['onQuickAssign'];
   onRequestAssign?: BoardViewProps['onRequestAssign'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
 }) => {
@@ -436,15 +443,39 @@ const UnitDetail = ({
                     : crewNames.join(', ')}
                 </span>
               </div>
-              {crewNames.length === 0 && progress.released > 0 && onRequestAssign ? (
-                <button
-                  className="track-c-trade-assign"
-                  data-track-c-critical-target="true"
-                  onClick={() => onRequestAssign(trade)}
-                  type="button"
-                >
-                  Assign
-                </button>
+              {crewNames.length === 0 && progress.released > 0 ? (
+                onQuickAssign
+                  && state.crews.some((crew) => crew.trade === trade) ? (
+                    <select
+                      aria-label={`Assign a ${tradeLabel(trade)} crew to Unit ${unit.unitNumber}`}
+                      className="track-c-trade-assign"
+                      data-track-c-critical-target="true"
+                      onChange={(event) => {
+                        if (event.target.value) {
+                          onQuickAssign(unitId, trade, event.target.value);
+                        }
+                      }}
+                      value=""
+                    >
+                      <option value="">Assign…</option>
+                      {state.crews
+                        .filter((crew) => crew.trade === trade)
+                        .map((crew) => (
+                          <option key={crew.id} value={crew.id}>{crew.name}</option>
+                        ))}
+                    </select>
+                  ) : onRequestAssign ? (
+                    <button
+                      className="track-c-trade-assign"
+                      data-track-c-critical-target="true"
+                      onClick={() => onRequestAssign(trade)}
+                      type="button"
+                    >
+                      Assign
+                    </button>
+                  ) : (
+                    <small>{progress.conciseLabel}</small>
+                  )
               ) : (
                 <small>{progress.conciseLabel}</small>
               )}
@@ -503,6 +534,7 @@ export const BoardView = ({
   onCloseUnit,
   onSectionAction,
   onTradeComplete,
+  onQuickAssign,
   onRequestAssign,
   onRequestMirror,
 }: BoardViewProps) => {
@@ -516,6 +548,7 @@ export const BoardView = ({
     return (
       <UnitDetail
         onClose={onCloseUnit}
+        onQuickAssign={onQuickAssign}
         onRequestAssign={onRequestAssign}
         onRequestMirror={onRequestMirror}
         onSectionAction={onSectionAction}

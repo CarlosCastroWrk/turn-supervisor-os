@@ -190,8 +190,8 @@ test('primary Plus keeps Note and manual Release available while blocking unacce
   for (const action of ['camera', 'photos', 'files', 'paste-text']) {
     assert.equal(
       TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS[action].availability,
-      'unavailable',
-      `${action} must not enter a legacy primary route.`,
+      'hidden',
+      `${action} must not appear in the primary Plus sheet or enter a legacy route.`,
     );
   }
   assert.match(plusSource, /label:\s*'Add Release Batch'/u);

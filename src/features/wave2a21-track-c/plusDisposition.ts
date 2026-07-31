@@ -16,11 +16,11 @@ export const TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS: Readonly<
 > = {
   blocker: { availability: 'available' },
   camera: {
-    availability: 'unavailable',
+    availability: 'hidden',
     reason: 'Camera intake is not included in this candidate.',
   },
   files: {
-    availability: 'unavailable',
+    availability: 'hidden',
     reason: 'File intake is not included in this candidate.',
   },
   'import-work': {
@@ -28,11 +28,11 @@ export const TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS: Readonly<
   },
   note: { availability: 'available' },
   'paste-text': {
-    availability: 'unavailable',
+    availability: 'hidden',
     reason: 'Paste Text intake is not included in this candidate.',
   },
   photos: {
-    availability: 'unavailable',
+    availability: 'hidden',
     reason: 'Photo intake is not included in this candidate.',
   },
 };

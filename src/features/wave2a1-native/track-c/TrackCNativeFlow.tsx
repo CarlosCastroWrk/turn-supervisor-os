@@ -291,7 +291,7 @@ export function TrackCNativeFlow({
       description={
         screen === 'note'
           ? 'Personal Activity only. No paper, approval, payroll, or official status changes.'
-          : 'Choose an available direct action. Unavailable items are not connected to legacy screens.'
+          : 'Record something quickly. Paper remains the official TurnBoard.'
       }
       initialFocusRef={screen === 'note' ? textareaRef : undefined}
       onDismiss={dismiss}

@@ -620,7 +620,14 @@ try {
   await page.getByRole('heading', { name: 'Active Walk', exact: true }).waitFor();
   assert.match(new URL(page.url()).hash, /^#\/walk\/[^/]+$/u);
 
-  await page.getByRole('button', { name: 'Accepted', exact: true }).click();
+  {
+    // Labels flip to "✓ Accepted" as they're tapped, so always take the first
+    // remaining un-accepted section.
+    const acceptButtons = page.getByRole('button', { name: 'Accepted', exact: true });
+    while (await acceptButtons.count() > 0) {
+      await acceptButtons.first().click();
+    }
+  }
   const walkNote = 'Joseph accepted Unit 101 Paint in the synthetic Alpha loop.';
   await page.locator('.track-c-walk-note textarea').fill(walkNote);
   await page.getByRole('button', { name: 'Review End Walk', exact: true }).click();

@@ -899,3 +899,15 @@
   line-height: 1;
   min-inline-size: 44px;
 }
+
+.w2a21a-release__roster-grid > button.is-done {
+  background: var(--turn-color-grouped, #f7f8fa);
+  border-color: var(--turn-color-divider, #d9dde3);
+  color: var(--turn-color-secondary, #66707c);
+  opacity: .75;
+}
+
+.w2a21a-release__roster-grid > button.is-done small {
+  color: var(--turn-color-ready, #237a45);
+  font-weight: 800;
+}

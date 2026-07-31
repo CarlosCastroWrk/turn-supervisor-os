@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-  type TrackCSection,
   type TrackCState,
   type TrackCTrade,
   type TrackCWalkOutcome,
@@ -234,39 +233,6 @@ const ActiveWalk = ({
     commitDraft(nextDraft);
   };
 
-  const toggleCorrectionSection = (
-    item: WalkPackage,
-    section: TrackCSection,
-  ) => {
-    const target = item.targets.find((candidate) => candidate.section === section);
-    if (!target) return;
-    const record = draft.outcomes.find(
-      (outcome) => trackCWorkKey(outcome.target) === trackCWorkKey(target),
-    );
-    const correctionCount = item.targets.filter((candidate) =>
-      draft.outcomes.some(
-        (outcome) =>
-          trackCWorkKey(outcome.target) === trackCWorkKey(candidate) &&
-          outcome.outcome === 'correction-requested',
-      )).length;
-    if (record?.outcome === 'correction-requested' && correctionCount === 1) {
-      setMessage('Keep at least one affected section selected for this correction.');
-      return;
-    }
-    setMessage(undefined);
-    commitDraft(updateTrackCWalkDraft(
-      draft,
-      target,
-      {
-        outcome:
-          record?.outcome === 'correction-requested'
-            ? 'accepted'
-            : 'correction-requested',
-        note: record?.note,
-      },
-      now(),
-    ));
-  };
 
   const endWalk = () => {
     const endedAt = now();
@@ -445,33 +411,55 @@ const ActiveWalk = ({
                 </div>
               </header>
               <div className="track-c-walk-checkoff">
-                <span>Check off as {activeWalk.propertyContact} approves:</span>
-                <div>
+                <span>With {activeWalk.propertyContact} — each section:</span>
+                <div className="track-c-walk-checkoff__rows">
                   {item.targets.map((target) => {
                     const record = packageRecords.find(
                       (outcome) =>
                         trackCWorkKey(outcome.target) === trackCWorkKey(target),
                     );
-                    const checked = record?.outcome === 'accepted';
+                    const sectionOutcome = record?.outcome;
                     return (
-                      <button
-                        aria-pressed={checked}
-                        className={checked ? 'is-checked' : undefined}
-                        data-track-c-critical-target="true"
+                      <div
+                        className="track-c-walk-section-row"
                         key={trackCWorkKey(target)}
-                        onClick={() => {
-                          setMessage(undefined);
-                          commitDraft(updateTrackCWalkDraft(
-                            draft,
-                            target,
-                            { note: record?.note, outcome: 'accepted' },
-                            now(),
-                          ));
-                        }}
-                        type="button"
                       >
-                        {checked ? '✓ ' : ''}{trackCSectionLabel(target.section)}
-                      </button>
+                        <strong>{trackCSectionLabel(target.section)}</strong>
+                        <button
+                          aria-pressed={sectionOutcome === 'accepted'}
+                          className={sectionOutcome === 'accepted' ? 'is-accepted' : undefined}
+                          data-track-c-critical-target="true"
+                          onClick={() => {
+                            setMessage(undefined);
+                            commitDraft(updateTrackCWalkDraft(
+                              draft,
+                              target,
+                              { note: record?.note, outcome: 'accepted' },
+                              now(),
+                            ));
+                          }}
+                          type="button"
+                        >
+                          {sectionOutcome === 'accepted' ? '✓ Accepted' : 'Accepted'}
+                        </button>
+                        <button
+                          aria-pressed={sectionOutcome === 'correction-requested'}
+                          className={sectionOutcome === 'correction-requested' ? 'is-needs-work' : undefined}
+                          data-track-c-critical-target="true"
+                          onClick={() => {
+                            setMessage(undefined);
+                            commitDraft(updateTrackCWalkDraft(
+                              draft,
+                              target,
+                              { note: record?.note, outcome: 'correction-requested' },
+                              now(),
+                            ));
+                          }}
+                          type="button"
+                        >
+                          Needs work
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -480,44 +468,33 @@ const ActiveWalk = ({
                     ✓ Whole {walkPackageLabel(state, item)} accepted — record it on paper.
                   </p>
                 ) : null}
+                {recordedOutcome === 'correction-requested' ? (
+                  <p className="track-c-walk-checkoff__needs-work">
+                    Sections marked Needs work become callbacks for the crew when
+                    you end the walk.
+                  </p>
+                ) : null}
+                <details className="track-c-walk-more">
+                  <summary>More options</summary>
+                  <div className="track-c-outcome-grid">
+                    {OUTCOMES.filter((choice) =>
+                      choice.outcome === 'deferred' || choice.outcome === 'not-walked')
+                      .map((choice) => (
+                        <button
+                          aria-pressed={recordedOutcome === choice.outcome}
+                          data-track-c-critical-target="true"
+                          key={choice.outcome}
+                          onClick={() =>
+                            updatePackage(item, { outcome: choice.outcome })
+                          }
+                          type="button"
+                        >
+                          {choice.label}
+                        </button>
+                      ))}
+                  </div>
+                </details>
               </div>
-              <div className="track-c-outcome-grid">
-                {OUTCOMES.map((choice) => (
-                  <button
-                    aria-pressed={recordedOutcome === choice.outcome}
-                    data-track-c-critical-target="true"
-                    key={choice.outcome}
-                    onClick={() =>
-                      updatePackage(item, { outcome: choice.outcome })
-                    }
-                    type="button"
-                  >
-                    {choice.label}
-                  </button>
-                ))}
-              </div>
-              {recordedOutcome === 'correction-requested' ? (
-                <fieldset className="track-c-correction-sections">
-                  <legend>Affected sections</legend>
-                  {item.targets.map((target) => {
-                    const record = packageRecords.find(
-                      (outcome) =>
-                        trackCWorkKey(outcome.target) === trackCWorkKey(target),
-                    );
-                    return (
-                      <label key={trackCWorkKey(target)}>
-                        <input
-                          checked={record?.outcome === 'correction-requested'}
-                          onChange={() =>
-                            toggleCorrectionSection(item, target.section)}
-                          type="checkbox"
-                        />
-                        <span>{trackCSectionLabel(target.section)}</span>
-                      </label>
-                    );
-                  })}
-                </fieldset>
-              ) : null}
               <label className="track-c-walk-note">
                 <span>Optional note</span>
                 <textarea

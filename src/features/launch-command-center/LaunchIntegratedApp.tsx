@@ -85,6 +85,7 @@ import {
 import {
   TrackCFieldOps,
   type TrackCRouteState,
+  projectTrackCWork,
 } from '../wave2a2-track-c';
 import {
   ManualReleaseReview,
@@ -527,6 +528,37 @@ function LaunchOperationalApp({
     [activeDaySession, data],
   );
   const trackCState = useMemo(() => projectTrackCState(data), [data]);
+  const acceptedWalkMeta = useMemo(() => {
+    const meta: Record<string, { at?: string; contact: string }> = {};
+    for (const walk of trackCState.completedWalks) {
+      for (const outcome of walk.outcomes ?? []) {
+        if (outcome.outcome !== 'accepted') continue;
+        meta[outcome.target.unitId] = {
+          at: walk.endedAt,
+          contact: walk.startedBy && walk.propertyContact
+            ? walk.propertyContact
+            : walk.propertyContact ?? 'the property',
+        };
+      }
+    }
+    return meta;
+  }, [trackCState.completedWalks]);
+  const doneUnitIds = useMemo(() => new Set(
+    trackCState.units
+      .filter((unit) => {
+        const released = unit.workFacts.filter((fact) => fact.release === 'released');
+        if (released.length === 0) return false;
+        return released.every((fact) => {
+          const work = projectTrackCWork(trackCState, {
+            section: fact.section,
+            trade: fact.trade,
+            unitId: fact.unitId,
+          });
+          return work?.property === 'property-accepted';
+        });
+      })
+      .map((unit) => unit.id),
+  ), [trackCState]);
   const trackCWalkDraft = useMemo(
     () => projectTrackCWalkDraft(data),
     [data],
@@ -1217,9 +1249,14 @@ function LaunchOperationalApp({
     // The More tab must land on the More menu, never restore a remembered
     // focused workflow like Setup.
     const restoredRoute = resolveAppHash(decision.target.routeKey).route;
+    // Tabs land on their root surface: More never restores Setup, and Home
+    // never restores a queue/summary sub-page.
     const nextRoute = destination === 'more' && restoredRoute.view === 'setup'
       ? resolveAppHash('#/more').route
-      : restoredRoute;
+      : destination === 'home'
+        && (restoredRoute.view !== 'dashboard' || restoredRoute.homeSummary)
+        ? resolveAppHash('#/dashboard').route
+        : restoredRoute;
     const nextHash = buildAppHash(nextRoute);
 
     clearLegacyCaptureHistoryState();
@@ -2087,6 +2124,7 @@ function LaunchOperationalApp({
             onStartDay={startFastDay}
             projectId={activeProject.id}
             propertyName={propertyRoster.propertyName}
+            doneUnitIds={doneUnitIds}
             rosterUnits={fastStartDayRosterUnits}
           />
         ) : (
@@ -2162,6 +2200,8 @@ function LaunchOperationalApp({
             undefined,
             { fieldWorkflow: 'walk', walkSessionId },
           )}
+          acceptedWalkMeta={acceptedWalkMeta}
+          onOpenUnitFromHome={(unitId) => navigate('unitDetail', unitId)}
           onExportBackup={async () => {
             const result = await buildJsonBackupWithLocalPhotos(data);
             downloadTextFile(

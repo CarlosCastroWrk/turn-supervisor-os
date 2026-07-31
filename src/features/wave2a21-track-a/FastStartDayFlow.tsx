@@ -41,6 +41,7 @@ export interface FastStartDayFlowProps {
   ) => boolean | Promise<boolean>;
   readonly projectId: string;
   readonly propertyName: string;
+  readonly doneUnitIds?: ReadonlySet<string>;
   readonly rosterUnits: readonly ProjectRosterUnitOption[];
 }
 
@@ -71,6 +72,7 @@ export function FastStartDayFlow({
   onStartDay,
   projectId,
   propertyName,
+  doneUnitIds,
   rosterUnits,
 }: FastStartDayFlowProps) {
   const availableContacts = useMemo(() => contacts.filter((contact) =>
@@ -300,6 +302,7 @@ export function FastStartDayFlow({
               Property roster, Daily Release, and Today’s Task remain separate.
             </p>
             <DailyReleaseSelector
+              doneUnitIds={doneUnitIds}
               availableTradeChoices={availableTradeChoices}
               draft={draft.releaseDraft}
               onChange={(nextDraft) => {

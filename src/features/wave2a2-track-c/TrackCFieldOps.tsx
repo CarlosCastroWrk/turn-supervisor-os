@@ -80,6 +80,7 @@ export const TrackCFieldOps = ({
   const [localSelectedUnitId, setLocalSelectedUnitId] = useState<string>();
   const [localSelectedCrewId, setLocalSelectedCrewId] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [noticeAction, setNoticeAction] = useState<{ label: string; view: TrackCView }>();
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
   const [assignInitialTrade, setAssignInitialTrade] = useState<TrackCTrade>();
   const shellRef = useRef<HTMLDivElement>(null);
@@ -121,6 +122,7 @@ export const TrackCFieldOps = ({
     setLocalSelectedUnitId(undefined);
     setLocalSelectedCrewId(undefined);
     setNotice(undefined);
+    setNoticeAction(undefined);
     setMirrorTarget(undefined);
     if (nextView !== 'assign') setAssignInitialTrade(undefined);
   };
@@ -149,9 +151,11 @@ export const TrackCFieldOps = ({
       allPassed
       && (action === 'record-los-pass' || action === 'record-reinspection-pass')
     ) {
-      setNotice(`Unit ${unitAfter?.unitNumber ?? ''} is fully passed — every released Paint and Clean section has your pass. It shows as Ready to Walk.`);
+      setNotice(`Unit ${unitAfter?.unitNumber ?? ''} is fully passed — Ready to Walk.`);
+      setNoticeAction({ label: 'Start Walk now', view: 'walk' });
     } else {
       setNotice('Personal section record saved. Paper and payroll remain unchanged.');
+      setNoticeAction(undefined);
     }
     commitState(result.value, `section-${action}`);
   };
@@ -485,7 +489,17 @@ export const TrackCFieldOps = ({
           >
             Dismiss
           </button>
-        </div>
+                  {noticeAction ? (
+            <button
+              className="track-c-notice__action"
+              data-track-c-critical-target="true"
+              onClick={() => navigate(noticeAction.view)}
+              type="button"
+            >
+              {noticeAction.label}
+            </button>
+          ) : null}
+</div>
       ) : null}
       {mirrorTarget ? (
         <div

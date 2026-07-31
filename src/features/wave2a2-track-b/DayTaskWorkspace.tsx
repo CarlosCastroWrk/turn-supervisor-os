@@ -883,15 +883,19 @@ interface DayTaskHomeProps {
     unitId: string;
     unitNumber: string;
   }[];
+  acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
   dayNumber?: number;
   onExportBackup?: () => Promise<string>;
+  onOpenUnit?: (unitId: string) => void;
 }
 
 function DayTaskHome({
   acceptedToday = [],
+  acceptedWalkMeta,
   currentDate,
   dayNumber,
   onExportBackup,
+  onOpenUnit,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -909,16 +913,18 @@ function DayTaskHome({
   const active = isOpenDay(session);
   const [ritualStatus, setRitualStatus] = useState('');
   const summaryText = () => {
-    const acceptedLine = acceptedToday.length > 0
-      ? ` Accepted: ${acceptedToday.map((unit) =>
-          `${unit.unitNumber} (${unit.trades.join(' + ')})`).join(', ')}.`
+    const doneLine = acceptedToday.length > 0
+      ? `${acceptedToday.length} unit${acceptedToday.length === 1 ? '' : 's'} done — ${
+          acceptedToday.map((unit) => {
+            const meta = acceptedWalkMeta?.[unit.unitId];
+            return `${unit.unitNumber} (${unit.trades.join(' + ')})${
+              meta ? ` with ${meta.contact}` : ''}`;
+          }).join(', ')}. `
       : '';
-    return `${propertyName} — Day ${dayNumber ?? ''} update (${currentDate}): `
-      + `${progress.actual}/${progress.target} released sections passed my inspection. `
-      + `Needs crew ${counts['needs-crew']}, working ${counts.working}, `
-      + `needs my inspection ${counts['needs-inspection']}, callbacks ${counts.callbacks}, `
-      + `ready to walk ${counts['ready-to-walk']}.${acceptedLine} `
-      + '(Personal Turn OS record; paper board is official.)';
+    return `${propertyName} Day ${dayNumber ?? ''}: ${doneLine}`
+      + `${progress.actual}/${progress.target} sections passed. `
+      + `${counts.callbacks} callback${counts.callbacks === 1 ? '' : 's'} open, `
+      + `${counts['ready-to-walk']} ready to walk.`;
   };
   const copySummary = async () => {
     try {
@@ -1084,16 +1090,44 @@ function DayTaskHome({
           <div className="w2a2b-section-heading">
             <span>
               <small>Property accepted with you on the walk</small>
-              <h2 id="w2a2b-done-title">Done today · {acceptedToday.reduce((total, unit) => total + unit.trades.length, 0)}</h2>
+              <h2 id="w2a2b-done-title">
+                Done today · {acceptedToday.length} Unit{acceptedToday.length === 1 ? '' : 's'}
+              </h2>
             </span>
           </div>
           <div className="w2a2b-inset-list w2a2b-done-list">
-            {acceptedToday.map((unit) => (
-              <div key={unit.unitId}>
-                <strong>Unit {unit.unitNumber}</strong>
-                <span>{unit.trades.map((trade) => `${trade} ✓`).join('  ')}</span>
-              </div>
-            ))}
+            {acceptedToday.map((unit) => {
+              const meta = acceptedWalkMeta?.[unit.unitId];
+              const body = (
+                <>
+                  <span className="w2a2b-done-list__unit">
+                    <strong>Unit {unit.unitNumber}</strong>
+                    {meta ? (
+                      <small>
+                        with {meta.contact}
+                        {meta.at ? ` · ${new Intl.DateTimeFormat(undefined, {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        }).format(new Date(meta.at))}` : ''}
+                      </small>
+                    ) : null}
+                  </span>
+                  <span>{unit.trades.map((trade) => `${trade} ✓`).join('  ')}</span>
+                </>
+              );
+              return onOpenUnit ? (
+                <button
+                  data-track-b-critical-target="true"
+                  key={unit.unitId}
+                  onClick={() => onOpenUnit(unit.unitId)}
+                  type="button"
+                >
+                  {body}
+                </button>
+              ) : (
+                <div key={unit.unitId}>{body}</div>
+              );
+            })}
           </div>
         </section>
       ) : null}
@@ -1354,7 +1388,9 @@ export interface DayTaskWorkspaceProps {
     intent: 'return' | 'end',
   ) => void;
   onRequestStartDay?: () => void;
+  acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
   onExportBackup?: () => Promise<string>;
+  onOpenUnitFromHome?: (unitId: string) => void;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
@@ -1392,7 +1428,9 @@ export function DayTaskWorkspace({
   onOpenQueueId,
   onOpenTaskDetail,
   onOpenActiveWalk,
+  acceptedWalkMeta,
   onExportBackup,
+  onOpenUnitFromHome,
   onRequestStartDay,
   onViewChange,
   propertyRoster,
@@ -1415,6 +1453,8 @@ export function DayTaskWorkspace({
   const setView = useCallback((nextView: WorkspaceView) => {
     setViewState(nextView);
     onViewChange?.(nextView.id);
+    document.getElementById('launch-command-center-main')
+      ?.scrollTo({ behavior: 'auto', top: 0 });
   }, [onViewChange]);
   useEffect(() => {
     onViewChange?.(view.id);
@@ -1564,7 +1604,9 @@ export function DayTaskWorkspace({
     <>
       <DayTaskHome
         acceptedToday={acceptedToday}
+        acceptedWalkMeta={acceptedWalkMeta}
         currentDate={currentDate}
+        onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)
           || undefined}

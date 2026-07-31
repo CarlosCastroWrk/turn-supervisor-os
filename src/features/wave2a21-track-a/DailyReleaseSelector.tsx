@@ -25,6 +25,7 @@ export interface DailyReleaseSelectorProps {
   readonly availableTradeChoices?: readonly DailyReleaseTradeChoice[];
   readonly draft: DailyReleaseDraft;
   readonly onChange: (draft: DailyReleaseDraft) => void;
+  readonly doneUnitIds?: ReadonlySet<string>;
   readonly rosterUnits: readonly ProjectRosterUnitOption[];
 }
 
@@ -36,6 +37,7 @@ export function DailyReleaseSelector({
   availableTradeChoices = DAILY_RELEASE_TRADE_CHOICES,
   draft,
   onChange,
+  doneUnitIds,
   rosterUnits,
 }: DailyReleaseSelectorProps) {
   const [exactUnitInput, setExactUnitInput] = useState('');
@@ -200,9 +202,13 @@ export function DailyReleaseSelector({
                       ...draft,
                       explicitConfirmation: false,
                       selectedUnitIds:
-                        draft.selectedUnitIds.length === rosterUnits.length
+                        draft.selectedUnitIds.length
+                          === rosterUnits.filter((unit) =>
+                            !(doneUnitIds?.has(unit.id) ?? false)).length
                           ? []
-                          : rosterUnits.map((unit) => unit.id),
+                          : rosterUnits
+                            .filter((unit) => !(doneUnitIds?.has(unit.id) ?? false))
+                            .map((unit) => unit.id),
                     })}
                     type="button"
                   >
@@ -215,10 +221,12 @@ export function DailyReleaseSelector({
               <div className="w2a21a-release__roster-grid">
                 {rosterUnits.map((unit) => {
                   const checked = draft.selectedUnitIds.includes(unit.id);
+                  const done = doneUnitIds?.has(unit.id) ?? false;
                   return (
                     <button
                       aria-pressed={checked}
-                      className={checked ? 'is-selected' : undefined}
+                      className={done ? 'is-done' : checked ? 'is-selected' : undefined}
+                      disabled={done}
                       key={unit.id}
                       onClick={() => onChange(setDailyReleaseUnitSelected(
                         draft,
@@ -228,7 +236,7 @@ export function DailyReleaseSelector({
                       type="button"
                     >
                       <strong>{unit.unitNumber}</strong>
-                      <small>{unit.unitType}</small>
+                      <small>{done ? '✓ Done' : unit.unitType}</small>
                     </button>
                   );
                 })}

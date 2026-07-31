@@ -637,7 +637,7 @@ test('exact Unit-number selection fails as one batch for duplicates, unknowns, o
 test('Daily Release respects enabled Paint/Clean scope and rejects stale roster confirmation', () => {
   assert.deepEqual(
     availableDailyReleaseTradeChoices({ clean: true, paint: true }),
-    ['Paint', 'Clean', 'Both'],
+    ['Both', 'Paint', 'Clean'],
   );
   assert.deepEqual(
     availableDailyReleaseTradeChoices({ clean: false, paint: true }),

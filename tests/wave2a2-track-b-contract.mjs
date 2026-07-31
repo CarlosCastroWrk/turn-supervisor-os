@@ -294,13 +294,18 @@ test('Home queue filters return only exact released section records', () => {
     callbacks: 6,
     'needs-crew': 40,
     'needs-inspection': 0,
-    'ready-to-walk': 34,
+    'ready-to-walk': 22,
     waiting: 8,
     working: 16,
   });
+  // Ready to Walk counts Unit+Trade packages; its queue detail still lists
+  // the underlying section records.
+  assert.equal(selectTodayTaskQueue(task, 'ready-to-walk').records.length, 34);
   for (const [queueId, count] of Object.entries(counts)) {
     const queue = selectTodayTaskQueue(task, queueId);
-    assert.equal(queue.records.length, count);
+    if (queueId !== 'ready-to-walk') {
+      assert.equal(queue.records.length, count);
+    }
     assert.ok(queue.records.every((record) => task.sections.some((section) => (
       section.unitId === record.unitId && section.sectionId === record.sectionId
     ))));

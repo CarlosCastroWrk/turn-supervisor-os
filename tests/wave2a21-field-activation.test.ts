@@ -171,6 +171,7 @@ test('isolated activation persists only the new personal roster and crews under 
       name: 'Moon Tower',
       propertyName: 'Moon Tower',
       startDate: '2026-08-01',
+      supervisorName: 'Los',
     },
     units: [{
       building: 'Building A',

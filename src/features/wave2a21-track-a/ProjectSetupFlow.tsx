@@ -12,7 +12,6 @@ import type {
 } from './contracts';
 import { PROPERTY_CONTACT_ROLES } from './contracts';
 import {
-  configurationWithSchedule,
   resolveProjectDefaultSchedule,
 } from './phase2Workflow';
 import {
@@ -61,17 +60,9 @@ const setupUnitType = (value: string | number): TrackASetupUnit['unitType'] => {
     TrackASetupUnit['unitType'];
 };
 
-const permissionCopy: Readonly<Record<BrowserPermissionState, string>> = {
-  denied: 'Denied by this browser or device',
-  granted: 'Granted by this browser or device',
-  prompt: 'Not decided by this browser or device',
-  unknown: 'Not checked by this component',
-  unsupported: 'Unavailable in this browser',
-};
 
 export function ProjectSetupFlow({
   activationErrors = [],
-  cameraPermissionState = 'unknown',
   crewOptions = [],
   currentStep,
   draft,
@@ -88,8 +79,8 @@ export function ProjectSetupFlow({
   const schedule = resolveProjectDefaultSchedule(draft.configuration);
   const [unitPaste, setUnitPaste] = useState('');
   const [missingNotice, setMissingNotice] = useState<readonly string[] | null>(null);
-  const [unitBuilding, setUnitBuilding] = useState('');
-  const [unitFloor, setUnitFloor] = useState('');
+  const [unitBuilding] = useState('');
+  const [unitFloor] = useState('');
   const [unitType, setUnitType] = useState<TrackASetupUnit['unitType']>(3);
   const [rosterMessage, setRosterMessage] = useState('');
   const setupCrews = useMemo<readonly TrackASetupCrew[]>(
@@ -129,15 +120,6 @@ export function ProjectSetupFlow({
   };
   const setConfiguration = (configuration: ProjectConfiguration) => {
     onDraftChange({ ...draft, configuration });
-  };
-  const setSchedule = (
-    field: 'walkthroughTime' | 'workEndTime' | 'workStartTime',
-    value: string,
-  ) => {
-    setConfiguration(configurationWithSchedule(draft.configuration, {
-      ...schedule,
-      [field]: value || undefined,
-    }));
   };
   const setPrimaryContact = (contactId: string) => {
     onDraftChange({
@@ -541,38 +523,8 @@ export function ProjectSetupFlow({
               <button onClick={onAddContact} type="button">Add Property Contact</button>
             </fieldset>
 
-            <fieldset>
-              <legend>Default schedule · Required</legend>
-              <div className="w2a21a-setup__columns">
-                <label>
-                  Default work start
-                  <input
-                    onChange={(event) => setSchedule('workStartTime', event.target.value)}
-                    type="time"
-                    value={schedule.workStartTime}
-                  />
-                </label>
-                <label>
-                  Default work end
-                  <input
-                    onChange={(event) => setSchedule('workEndTime', event.target.value)}
-                    type="time"
-                    value={schedule.workEndTime}
-                  />
-                </label>
-              </div>
-              <label>
-                Default walkthrough time
-                <input
-                  onChange={(event) => setSchedule('walkthroughTime', event.target.value)}
-                  type="time"
-                  value={schedule.walkthroughTime ?? ''}
-                />
-              </label>
-              <p className="w2a21a-setup__supporting">
-                Start Day reuses these defaults. A one-day change does not rewrite them.
-              </p>
-            </fieldset>
+            {/* Default schedule uses prefilled working defaults; editable from
+                Start Day when it matters. */}
           </div>
         ) : null}
 
@@ -586,29 +538,13 @@ export function ProjectSetupFlow({
               <label>
                 Unit numbers — paste the whole list at once
                 <textarea
+                  inputMode="numeric"
                   onChange={(event) => setUnitPaste(event.target.value)}
                   placeholder="101 102 103 201 202… (spaces, commas, or one per line)"
                   value={unitPaste}
                 />
               </label>
-              <div className="w2a21a-setup__columns">
-                <label>
-                  Building (optional)
-                  <input
-                    onChange={(event) => setUnitBuilding(event.target.value)}
-                    placeholder="Auto from Unit number"
-                    value={unitBuilding}
-                  />
-                </label>
-                <label>
-                  Floor (optional)
-                  <input
-                    onChange={(event) => setUnitFloor(event.target.value)}
-                    placeholder="Auto from Unit number"
-                    value={unitFloor}
-                  />
-                </label>
-              </div>
+
               <label>
                 Unit type
                 <select
@@ -684,46 +620,24 @@ export function ProjectSetupFlow({
                     {matchingCrews.length === 0 ? (
                       <p>No {trade} crews are saved yet.</p>
                     ) : matchingCrews.map((crew) => (
-                      <div className="w2a21a-setup__contact" key={crew.id}>
-                        <label>
-                          Crew name
-                          <input
-                            onChange={(event) => updateSetupCrew(crew.id, (current) => ({
-                              ...current,
-                              name: event.target.value,
-                            }))}
-                            value={crew.name}
-                          />
-                        </label>
-                        <label>
-                          Phone (optional)
-                          <input
-                            inputMode="tel"
-                            onChange={(event) => updateSetupCrew(crew.id, (current) => ({
-                              ...current,
-                              phone: event.target.value,
-                            }))}
-                            value={crew.phone ?? ''}
-                          />
-                        </label>
-                        <label className="w2a21a-setup__check">
-                          <input
-                            checked={crew.active}
-                            onChange={(event) => updateSetupCrew(crew.id, (current) => ({
-                              ...current,
-                              active: event.target.checked,
-                            }))}
-                            type="checkbox"
-                          />
-                          Active for this project
-                        </label>
+                      <div className="w2a21a-setup__crew-row" key={crew.id}>
+                        <input
+                          aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} crew name`}
+                          onChange={(event) => updateSetupCrew(crew.id, (current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))}
+                          placeholder="Crew name"
+                          value={crew.name}
+                        />
                         <button
+                          aria-label={`Remove ${crew.name || 'crew'}`}
                           onClick={() => setSetupCrews(
                             setupCrews.filter((candidate) => candidate.id !== crew.id),
                           )}
                           type="button"
                         >
-                          Remove crew
+                          ×
                         </button>
                       </div>
                     ))}
@@ -735,53 +649,8 @@ export function ProjectSetupFlow({
               })}
             </fieldset>
 
-            <fieldset>
-              <legend>Personal data and permissions</legend>
-              <label>
-                Personal photo rule
-                <select
-                  onChange={(event) => setConfiguration({
-                    ...draft.configuration,
-                    permissions: {
-                      ...draft.configuration.permissions,
-                      photos: event.target.value as ProjectConfiguration['permissions']['photos'],
-                    },
-                  })}
-                  value={draft.configuration.permissions.photos}
-                >
-                  <option value="not-confirmed">Permission not confirmed</option>
-                  <option value="permitted">Los confirmed permission outside the app</option>
-                  <option value="prohibited">Do not store photos</option>
-                </select>
-              </label>
-              <dl className="w2a21a-setup__permission-state">
-                <div>
-                  <dt>Unit-number storage</dt>
-                  <dd>Personal app only · synthetic or explicitly approved data</dd>
-                </div>
-                <div>
-                  <dt>Crew-name storage</dt>
-                  <dd>Personal app only · synthetic or explicitly approved data</dd>
-                </div>
-                <div>
-                  <dt>Phone-number storage (optional)</dt>
-                  <dd>Leave blank unless synthetic or explicitly approved</dd>
-                </div>
-                <div>
-                  <dt>Browser camera permission</dt>
-                  <dd>{permissionCopy[cameraPermissionState]}</dd>
-                </div>
-              </dl>
-              <div className="w2a21a-setup__notice" role="note">
-                These settings reflect the existing personal-app data boundary:
-                {' '}{draft.configuration.permissions.personalAppData ===
-                  'synthetic-or-explicitly-approved-only'
-                  ? 'synthetic or explicitly approved data only.'
-                  : 'review the configured personal-data rule.'}
-                {' '}They do not request or grant property, PDS, device, camera,
-                contact, or photo permission.
-              </div>
-            </fieldset>
+            {/* Personal-data permissions keep their safe defaults; the controls
+                moved out of the first-run flow to keep Setup fast. */}
           </div>
         ) : null}
 

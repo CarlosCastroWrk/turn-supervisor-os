@@ -26,7 +26,7 @@ export const clampFastStartDayStep = (step: number) => (
     : 0
 );
 
-export const DAILY_RELEASE_TRADE_CHOICES = ['Paint', 'Clean', 'Both'] as const;
+export const DAILY_RELEASE_TRADE_CHOICES = ['Both', 'Paint', 'Clean'] as const;
 export type DailyReleaseTradeChoice =
   (typeof DAILY_RELEASE_TRADE_CHOICES)[number];
 

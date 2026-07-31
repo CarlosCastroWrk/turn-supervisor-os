@@ -667,6 +667,7 @@ export function EndDayFlow({
   );
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const readyToWalkPackages = getTodayTaskQueueCounts(task)['ready-to-walk'];
 
   const finish = async () => {
     if (savingRef.current) return;
@@ -725,6 +726,15 @@ export function EndDayFlow({
             </button>
             <button onClick={onCancel} type="button">Cancel End Day</button>
           </div>
+        </section>
+      ) : null}
+      {readyToWalkPackages > 0 && !activeWalkSessionId ? (
+        <section className="w2a2b-message is-warning" role="status">
+          <p>
+            {readyToWalkPackages} Unit+Trade package{readyToWalkPackages === 1 ? ' is' : 's are'} still
+            Ready to Walk. Walk {readyToWalkPackages === 1 ? 'it' : 'them'} with the property
+            before closing if you can — otherwise {readyToWalkPackages === 1 ? 'it' : 'they'} carry to tomorrow.
+          </p>
         </section>
       ) : null}
       <section className="w2a2b-review-card">
@@ -1149,7 +1159,7 @@ function RecoveryPage({ currentDate, now, onChoice, session }: RecoveryPageProps
           type="button"
         >
           <strong>Review and close</strong>
-          <small>Open the deterministic End Day summary.</small>
+          <small>Review and close that day.</small>
         </button>
         <button
           data-track-b-critical-target="true"

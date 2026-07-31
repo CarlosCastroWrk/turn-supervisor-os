@@ -79,6 +79,7 @@ try {
   await page.getByLabel('Property location', { exact: true }).fill('Synthetic Austin property');
   await page.getByLabel('Turn start date', { exact: true }).fill('2026-08-01');
   await page.getByLabel('Turn end date', { exact: true }).fill('2026-08-15');
+  await page.getByLabel('Supervisor name', { exact: true }).fill('Los');
   assert.equal(await page.getByLabel('Paint', { exact: true }).isChecked(), true);
   assert.equal(await page.getByLabel('Clean', { exact: true }).isChecked(), true);
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -97,9 +98,6 @@ try {
   await setupContacts.nth(1).getByLabel('Name', { exact: true }).fill('Paige');
   await setupContacts.nth(1).locator('select').selectOption('Property Manager');
   await setupContacts.nth(0).getByLabel('Default daily contact', { exact: true }).check();
-  await page.getByLabel('Default work start', { exact: true }).fill('10:00');
-  await page.getByLabel('Default work end', { exact: true }).fill('17:00');
-  await page.getByLabel('Default walkthrough time', { exact: true }).fill('12:00');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText(
@@ -108,9 +106,8 @@ try {
   ).waitFor();
   await page.getByRole('button', { name: 'Add Paint crew', exact: true }).click();
   await page.getByRole('button', { name: 'Add Clean crew', exact: true }).click();
-  const setupCrewNames = page.getByLabel('Crew name', { exact: true });
-  await setupCrewNames.nth(0).fill('Jose Paint');
-  await setupCrewNames.nth(1).fill('Los Clean');
+  await page.getByLabel('Paint crew name', { exact: true }).first().fill('Jose Paint');
+  await page.getByLabel('Clean crew name', { exact: true }).first().fill('Los Clean');
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
 
   await page.getByText(
@@ -120,8 +117,6 @@ try {
   await page.getByLabel('Unit numbers — paste the whole list at once', { exact: true }).fill(
     '101 102 103 104 105 106 107 108 109 110',
   );
-  await page.getByLabel('Building (optional)', { exact: true }).fill('Building A');
-  await page.getByLabel('Floor (optional)', { exact: true }).fill('Floor 1');
   await page.locator('.w2a21a-setup__roster-entry select').selectOption('3');
   await page.getByRole('button', { name: 'Add Units', exact: true }).click();
   await page.getByText('10 Units added to the personal roster draft.', {
@@ -460,7 +455,7 @@ try {
       name: 'Confirm personal assignment',
       exact: true,
     }).click();
-    await page.getByText('40 personal assignment records saved.', {
+    await page.getByText('40 assignments saved — crews are Working.', {
       exact: true,
     }).waitFor();
     await page.waitForFunction(
@@ -585,7 +580,7 @@ try {
     'Los passed · property walk pending',
   );
   await paintPanel.getByText('4/4 Los passed', { exact: true }).waitFor();
-  await cleanPanel.getByText('4/4 assigned', { exact: true }).waitFor();
+  await cleanPanel.getByText('4/4 working', { exact: true }).waitFor();
   stopTiming('crew-complete-inspection-callback-reinspection');
 
   startTiming('property-walk-and-reopen');
@@ -729,7 +724,7 @@ try {
     .getByText('4/4 accepted', { exact: true })
     .waitFor();
   await page.locator('.track-c-trade-panel.is-clean')
-    .getByText('4/4 assigned', { exact: true })
+    .getByText('4/4 working', { exact: true })
     .waitFor();
   stopTiming('property-walk-and-reopen');
 

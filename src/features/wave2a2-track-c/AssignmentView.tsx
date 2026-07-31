@@ -17,6 +17,7 @@ import {
   trackCSectionLabel,
 } from './model';
 import {
+  applyTrackCSectionAction,
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
 } from './operations';
@@ -115,10 +116,23 @@ export const AssignmentView = ({
       setMessage(result.error.message);
       return;
     }
-    onStateChange(result.value.state, 'bulk-assignment-confirmed');
+    // Assigned crews are working crews in Los's SOP: record explicit
+    // work-started events for every assigned target in the same confirm.
+    let nextState = result.value.state;
+    for (const target of result.value.receipt.assignedTargets) {
+      const started = applyTrackCSectionAction(nextState, {
+        action: 'start-work',
+        eventId: createId('track-c-start-work'),
+        recordedAt: now(),
+        recordedBy: 'Los',
+        target,
+      });
+      if (started.ok) nextState = started.value;
+    }
+    onStateChange(nextState, 'bulk-assignment-confirmed');
     setReceipt(result.value.receipt);
     setMessage(
-      `${result.value.receipt.assignedTargets.length} personal assignment records saved.`,
+      `${result.value.receipt.assignedTargets.length} assignments saved — crews are Working.`,
     );
     setProposal(undefined);
   };

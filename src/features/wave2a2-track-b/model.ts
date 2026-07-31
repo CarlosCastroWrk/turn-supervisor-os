@@ -471,6 +471,36 @@ export function selectTodayTaskQueue(
   };
 }
 
+// Ready to Walk is counted at Unit+Trade package grain: a package is ready
+// when every released section of that Unit and trade passed Los inspection
+// and is pending the property walk.
+export function countReadyToWalkPackages(task: TodayTask | null): number {
+  if (!task) return 0;
+  const byUnit = new Map<string, TodayTaskSection[]>();
+  for (const section of task.sections) {
+    const group = byUnit.get(section.unitId) ?? [];
+    group.push(section);
+    byUnit.set(section.unitId, group);
+  }
+  let packages = 0;
+  for (const sections of byUnit.values()) {
+    for (const trade of ['Paint', 'Clean'] as const) {
+      const tradeStates = sections
+        .map((section) => section.tradeStates.find((state) => state.trade === trade))
+        .filter((state): state is TodayTaskTradeState => Boolean(state));
+      if (tradeStates.length === 0) continue;
+      const blocked = sections.some((section) =>
+        section.waitingReasons.length > 0 || hasOpenCallback(section));
+      if (blocked) continue;
+      if (tradeStates.every((state) =>
+        passedInspection(state.inspection) && state.propertyWalk === 'pending')) {
+        packages += 1;
+      }
+    }
+  }
+  return packages;
+}
+
 export function getTodayTaskQueueCounts(
   task: TodayTask | null,
 ): Readonly<Record<TodayTaskQueueId, number>> {
@@ -478,7 +508,7 @@ export function getTodayTaskQueueCounts(
     callbacks: selectTodayTaskQueue(task, 'callbacks').records.length,
     'needs-crew': selectTodayTaskQueue(task, 'needs-crew').records.length,
     'needs-inspection': selectTodayTaskQueue(task, 'needs-inspection').records.length,
-    'ready-to-walk': selectTodayTaskQueue(task, 'ready-to-walk').records.length,
+    'ready-to-walk': countReadyToWalkPackages(task),
     waiting: selectTodayTaskQueue(task, 'waiting').records.length,
     working: selectTodayTaskQueue(task, 'working').records.length,
   };

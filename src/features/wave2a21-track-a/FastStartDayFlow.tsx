@@ -241,24 +241,10 @@ export function FastStartDayFlow({
             <section>
               <h2>Property and date</h2>
               <p><strong>{propertyName}</strong></p>
-              <label>
-                Field date
-                <input
-                  onChange={(event) => {
-                    updateDraft((current) => ({
-                      ...current,
-                      date: event.target.value,
-                      explicitStartConfirmation: false,
-                      releaseDraft: {
-                        ...current.releaseDraft,
-                        explicitConfirmation: false,
-                      },
-                    }));
-                  }}
-                  type="date"
-                  value={draft.date}
-                />
-              </label>
+              <p className="w2a21a-start-day__today">
+                Today · {draft.date}. A Day Session always covers the current
+                field day.
+              </p>
               <label>
                 Property Contact
                 <select

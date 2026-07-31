@@ -124,7 +124,7 @@ export function createProjectActivationDraft(
         projectManagerName: '',
         propertyName: '',
         startDate: '',
-        supervisorName: activatedBy,
+        supervisorName: '',
         updatedAt: activatedAt,
       }
     : structuredClone(project) as TrackAProject;

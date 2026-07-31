@@ -123,12 +123,19 @@ const anthropicKey = () =>
   process.env.claudeTurnOskey?.trim() || process.env.ANTHROPIC_API_KEY?.trim();
 const openAiKey = () =>
   process.env.openAiturnOsKey?.trim() || process.env.OPENAI_API_KEY?.trim();
+const openRouterKey = () =>
+  process.env.OPenrouterTurnOsKey?.trim() || process.env.OPENROUTER_API_KEY?.trim();
 
-// Cost-first routing: Haiku reads the board; Sonnet only re-reads when Haiku
-// is unsure or returns an invalid shape. OpenAI is the cross-provider backup.
+// Cost-first, model-agnostic routing: Haiku reads the board; Sonnet only
+// re-reads when Haiku is unsure or returns an invalid shape. OpenRouter
+// (open-source models over an OpenAI-compatible API) is the first
+// cross-provider backup, OpenAI the last.
 const ANTHROPIC_CHEAP = process.env.TURN_OS_INTAKE_MODEL_CHEAP?.trim() || 'claude-haiku-4-5';
 const ANTHROPIC_STRONG = process.env.TURN_OS_INTAKE_MODEL_STRONG?.trim() || 'claude-sonnet-4-6';
 const OPENAI_MODEL = process.env.TURN_OS_INTAKE_MODEL_OPENAI?.trim() || 'gpt-4o-mini';
+const OPENROUTER_MODEL = process.env.TURN_OS_INTAKE_MODEL_OPENROUTER?.trim()
+  || 'qwen/qwen2.5-vl-72b-instruct';
+const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
 const runAnthropic = async (
   request: IntakeRequest,
@@ -161,12 +168,14 @@ const runAnthropic = async (
   return intakeResultSchema.parse(JSON.parse(text.text));
 };
 
-const runOpenAi = async (
+// Runs any OpenAI-compatible provider (OpenAI itself, OpenRouter, or a
+// future self-hosted endpoint) — the model-agnostic leg of the gateway.
+const runOpenAiCompatible = async (
   request: IntakeRequest,
+  provider: { apiKey?: string; baseURL?: string; model: string; name: string },
 ): Promise<z.infer<typeof intakeResultSchema>> => {
-  const key = openAiKey();
-  if (!key) throw new Error('openai-key-missing');
-  const client = new OpenAI({ apiKey: key });
+  if (!provider.apiKey) throw new Error(`${provider.name}-key-missing`);
+  const client = new OpenAI({ apiKey: provider.apiKey, baseURL: provider.baseURL });
   const userContent: OpenAI.Chat.ChatCompletionContentPart[] = request.source.type === 'image'
     ? [
         { text: promptFor(request), type: 'text' },
@@ -181,11 +190,11 @@ const runOpenAi = async (
       { content: 'Return only JSON matching the requested schema.', role: 'system' },
       { content: userContent, role: 'user' },
     ],
-    model: OPENAI_MODEL,
+    model: provider.model,
     response_format: { type: 'json_object' },
   });
   const raw = completion.choices[0]?.message?.content;
-  if (!raw) throw new Error('openai-empty');
+  if (!raw) throw new Error(`${provider.name}-empty`);
   return intakeResultSchema.parse(JSON.parse(raw));
 };
 
@@ -225,12 +234,27 @@ export const extractIntake = async (
       attempts.push({ error, provider: 'anthropic' });
     }
   }
-  if (openAiKey()) {
+  const compatibleProviders = [
+    {
+      apiKey: openRouterKey(),
+      baseURL: OPENROUTER_BASE_URL,
+      model: OPENROUTER_MODEL,
+      name: 'openrouter',
+    },
+    { apiKey: openAiKey(), model: OPENAI_MODEL, name: 'openai' },
+  ];
+  for (const provider of compatibleProviders) {
+    if (!provider.apiKey) continue;
     try {
-      const fallback = await runOpenAi(request);
-      return { ...fallback, escalated: attempts.length > 0, model: OPENAI_MODEL, provider: 'openai' };
+      const fallback = await runOpenAiCompatible(request, provider);
+      return {
+        ...fallback,
+        escalated: attempts.length > 0,
+        model: provider.model,
+        provider: provider.name,
+      };
     } catch (error) {
-      attempts.push({ error, provider: 'openai' });
+      attempts.push({ error, provider: provider.name });
     }
   }
   const detail = attempts

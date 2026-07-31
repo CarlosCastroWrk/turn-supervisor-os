@@ -45,6 +45,7 @@
     "@anthropic-ai/sdk": "^0.115.0",
     "@supabase/supabase-js": "2.110.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.468.0",
     "openai": "6.46.0",
     "papaparse": "5.5.4",

@@ -15,6 +15,12 @@ import {
   startTrackCWalk,
 } from '../src/features/wave2a2-track-c/operations.ts';
 import {
+  buildDailyReportData,
+} from '../src/features/wave2a2-track-c/dailyReport.ts';
+import {
+  buildWalkReceiptText,
+} from '../src/features/wave2a2-track-c/walkReceipt.ts';
+import {
   TRACK_C_PROJECTION_INVARIANTS,
   projectTrackCAssignmentEligibility,
   projectTrackCAssignmentEligibleUnits,
@@ -785,6 +791,142 @@ test('walk correction preserves crew while acceptance and personal paper mirror 
   assert.equal(
     projectTrackCWork(mirrored.value, acceptedTarget)?.personalPdsMirror,
     true,
+  );
+});
+
+test('walk receipt reads at Unit + Trade grain with contact, acceptance, and paper boundary', () => {
+  const paintReady = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const initial = makePackageReady(
+    paintReady,
+    '606',
+    'clean',
+    'crew-bright-clean',
+  );
+  const paintTargets = packageTargets(initial, '301', 'paint');
+  const cleanTargets = packageTargets(initial, '606', 'clean');
+
+  const started = startTrackCWalk(initial, {
+    walkSessionId: 'walk-receipt-test',
+    propertyContact: 'Joseph',
+    selectedTargets: [...paintTargets, ...cleanTargets],
+    startedAt: '2026-07-28T21:00:00.000Z',
+    startedBy: 'Los',
+    confirmedLosInspection: true,
+  });
+  assert.equal(started.ok, true);
+  const ended = endTrackCWalk(started.value, {
+    endedAt: '2026-07-28T21:10:00.000Z',
+    recordedBy: 'Los',
+    eventIdPrefix: 'walk-receipt-outcome',
+    outcomes: [
+      ...paintTargets.map((target, index) => ({
+        target,
+        outcome: index === 0 ? 'correction-requested' : 'accepted',
+      })),
+      ...cleanTargets.map((target) => ({ target, outcome: 'accepted' })),
+    ],
+  });
+  assert.equal(ended.ok, true);
+
+  const walk = ended.value.completedWalks[ended.value.completedWalks.length - 1];
+  const receipt = buildWalkReceiptText(ended.value, walk);
+  const lines = receipt.split('\n');
+
+  assert.match(lines[0], /walk receipt$/u);
+  assert.match(lines[1], /^Walked with Joseph · /u);
+  const paintLine = lines.find((line) => line.includes('Unit 301 · Paint'));
+  const cleanLine = lines.find((line) => line.includes('Unit 606 · Clean'));
+  assert.ok(paintLine, 'receipt has a Unit 301 Paint line');
+  assert.ok(cleanLine, 'receipt has a Unit 606 Clean line');
+  assert.match(paintLine, /needs work/u);
+  assert.match(paintLine, new RegExp(`${paintTargets.length - 1}/${paintTargets.length} accepted`, 'u'));
+  assert.match(cleanLine, new RegExp(`all ${cleanTargets.length} sections accepted`, 'u'));
+  assert.equal(
+    lines[lines.length - 1],
+    'Paper TurnBoard remains the official record.',
+  );
+});
+
+test('daily report data counts accepted units, open callbacks, and walked-with from the ledger', () => {
+  const paintReady = makePackageReady(
+    createSyntheticTrackCState(),
+    '301',
+    'paint',
+    'crew-bluebird-paint',
+  );
+  const initial = makePackageReady(
+    paintReady,
+    '606',
+    'clean',
+    'crew-bright-clean',
+  );
+  const paintTargets = packageTargets(initial, '301', 'paint');
+  const cleanTargets = packageTargets(initial, '606', 'clean');
+  const started = startTrackCWalk(initial, {
+    walkSessionId: 'walk-report-test',
+    propertyContact: 'Joseph',
+    selectedTargets: [...paintTargets, ...cleanTargets],
+    startedAt: '2026-07-28T21:00:00.000Z',
+    startedBy: 'Los',
+    confirmedLosInspection: true,
+  });
+  assert.equal(started.ok, true);
+  const ended = endTrackCWalk(started.value, {
+    endedAt: '2026-07-28T21:10:00.000Z',
+    recordedBy: 'Los',
+    eventIdPrefix: 'walk-report-outcome',
+    outcomes: [
+      ...paintTargets.map((target, index) => ({
+        target,
+        outcome: index === 0 ? 'correction-requested' : 'accepted',
+      })),
+      ...cleanTargets.map((target) => ({ target, outcome: 'accepted' })),
+    ],
+  });
+  assert.equal(ended.ok, true);
+
+  const toLocalDate = (iso) => {
+    const date = new Date(iso);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 10);
+  };
+  const reportDate = toLocalDate('2026-07-28T21:10:00.000Z');
+  const baselineAccepted = initial.events.filter((event) =>
+    event.eventType === 'property-accepted'
+    && toLocalDate(event.recordedAt) === reportDate);
+  const baselineUnits = new Set(baselineAccepted.map((event) => event.target.unitId));
+  const report = buildDailyReportData({
+    date: reportDate,
+    dayNumber: 3,
+    state: ended.value,
+  });
+
+  assert.equal(report.propertyName, ended.value.propertyName);
+  assert.equal(report.dayNumber, 3);
+  assert.equal(report.supervisor, 'Los');
+  assert.equal(
+    report.stats.unitsAccepted,
+    new Set([...baselineUnits, 'unit-606']).size,
+    'only the fully accepted clean package adds acceptance — the corrected paint package defers',
+  );
+  assert.equal(
+    report.stats.sectionsAccepted,
+    baselineAccepted.length + cleanTargets.length,
+  );
+  assert.equal(report.stats.callbacksStillOpen >= 1, true, 'the paint correction stays open');
+  const cleanUnit = report.unitsDone.find((unit) => unit.unitNumber === '606');
+  assert.ok(cleanUnit, 'the fully accepted clean unit is listed');
+  assert.equal(cleanUnit.walkedWith, 'Joseph');
+  assert.ok(cleanUnit.time, 'accepted units carry the walk time');
+  assert.ok(
+    report.openCallbacks.some((callback) => callback.unitNumber === '301'),
+    'open callbacks list the corrected paint unit',
   );
 });
 

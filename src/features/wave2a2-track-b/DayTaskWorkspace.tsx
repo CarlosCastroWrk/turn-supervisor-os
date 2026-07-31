@@ -886,6 +886,7 @@ interface DayTaskHomeProps {
   acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
   dayNumber?: number;
   onExportBackup?: () => Promise<string>;
+  onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnit?: (unitId: string) => void;
 }
 
@@ -895,6 +896,7 @@ function DayTaskHome({
   currentDate,
   dayNumber,
   onExportBackup,
+  onExportReport,
   onOpenUnit,
   onAction,
   onEndDay,
@@ -941,6 +943,15 @@ function DayTaskHome({
       setRitualStatus(await onExportBackup());
     } catch {
       setRitualStatus('The backup could not be built. Try again from More → Backup.');
+    }
+  };
+  const exportReport = async () => {
+    if (!onExportReport) return;
+    setRitualStatus('Building today’s report…');
+    try {
+      setRitualStatus(await onExportReport(dayNumber));
+    } catch {
+      setRitualStatus('The report could not be built. The backup still has every record.');
     }
   };
 
@@ -1143,6 +1154,20 @@ function DayTaskHome({
             <span><strong>Copy day update</strong></span>
             <ChevronRight aria-hidden="true" size={19} />
           </button>
+          {session?.status === 'closed' && onExportReport ? (
+            <button
+              data-track-b-critical-target="true"
+              onClick={() => void exportReport()}
+              type="button"
+            >
+              <span className="w2a2b-row-icon is-needs-inspection"><ClipboardList aria-hidden="true" size={20} /></span>
+              <span>
+                <strong>Save today’s report (PDF)</strong>
+                <small>The one-page day report you can hand to Rey, Tony, or the property.</small>
+              </span>
+              <ChevronRight aria-hidden="true" size={19} />
+            </button>
+          ) : null}
           {session?.status === 'closed' && onExportBackup ? (
             <button
               data-track-b-critical-target="true"
@@ -1390,6 +1415,7 @@ export interface DayTaskWorkspaceProps {
   onRequestStartDay?: () => void;
   acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
   onExportBackup?: () => Promise<string>;
+  onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnitFromHome?: (unitId: string) => void;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -1430,6 +1456,7 @@ export function DayTaskWorkspace({
   onOpenActiveWalk,
   acceptedWalkMeta,
   onExportBackup,
+  onExportReport,
   onOpenUnitFromHome,
   onRequestStartDay,
   onViewChange,
@@ -1611,6 +1638,7 @@ export function DayTaskWorkspace({
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)
           || undefined}
         onExportBackup={onExportBackup}
+        onExportReport={onExportReport}
         onAction={externalAction}
         onEndDay={() => setView({ id: 'end-day' })}
         onOpenQueue={(queue) => {

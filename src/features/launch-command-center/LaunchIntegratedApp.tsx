@@ -85,7 +85,9 @@ import {
 import {
   TrackCFieldOps,
   type TrackCRouteState,
+  buildDailyReportData,
   projectTrackCWork,
+  saveDailyReportPdf,
 } from '../wave2a2-track-c';
 import {
   ManualReleaseReview,
@@ -2218,6 +2220,16 @@ function LaunchOperationalApp({
             return result.missingPhotoFiles > 0
               ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device. Move it to iCloud Drive.`
               : 'Backup saved. Move the file from Downloads to iCloud Drive and tonight is safe.';
+          }}
+          onExportReport={async (dayNumber) => {
+            const report = buildDailyReportData({
+              date: activeDaySession?.date ?? currentDate,
+              dayNumber,
+              state: trackCState,
+              supervisor: 'Los',
+            });
+            const filename = await saveDailyReportPdf(report);
+            return `Report saved as ${filename}. Share it from Files whenever you need to.`;
           }}
           onRequestStartDay={() => setHomeMode('start-day')}
           onViewChange={setDayWorkspaceView}

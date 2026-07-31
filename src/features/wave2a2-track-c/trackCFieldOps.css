@@ -1423,6 +1423,21 @@
   padding: 8px;
 }
 
+.track-c-walk-receipt-copy {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+  margin: 0 10px;
+  min-height: 44px;
+}
+
+.track-c-walk-receipt-status {
+  font-size: 12px;
+  margin: 0 10px;
+  white-space: pre-line;
+}
+
 .track-c-confirm-card {
   flex: 0 0 auto;
   margin: 0 10px 12px;

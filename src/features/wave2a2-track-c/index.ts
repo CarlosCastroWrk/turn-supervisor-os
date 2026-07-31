@@ -70,3 +70,9 @@ export {
   createSyntheticTrackCState,
   createTrackCScaleState,
 } from './fixtures';
+export { buildWalkReceiptText } from './walkReceipt';
+export {
+  buildDailyReportData,
+  saveDailyReportPdf,
+  type DailyReportData,
+} from './dailyReport';

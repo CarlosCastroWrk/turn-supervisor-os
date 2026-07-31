@@ -20,6 +20,7 @@ import {
   trackCSectionLabel,
   trackCWorkKey,
 } from './model';
+import { buildWalkReceiptText } from './walkReceipt';
 import {
   applyTrackCWalkDraft,
   isTrackCWalkDraftComplete,
@@ -553,6 +554,7 @@ export const WalkView = ({
   const [confirmedInspection, setConfirmedInspection] = useState(false);
   const [setupStage, setSetupStage] = useState<'select' | 'review'>('select');
   const [message, setMessage] = useState<string>();
+  const [receiptStatus, setReceiptStatus] = useState('');
 
   if (state.activeWalk) {
     return (
@@ -610,6 +612,29 @@ export const WalkView = ({
         Accepted items are personal records only. Corrections preserve the
         responsible crew and require reinspection.
       </p>
+      <button
+        className="track-c-walk-receipt-copy"
+        onClick={async () => {
+          const receipt = buildWalkReceiptText(state, latestWalk);
+          try {
+            await navigator.clipboard.writeText(receipt);
+            setReceiptStatus(
+              `Receipt copied — text it to ${latestWalk.propertyContact}.`,
+            );
+          } catch {
+            setReceiptStatus(receipt);
+          }
+        }}
+        type="button"
+      >
+        <ClipboardCheck aria-hidden="true" size={17} />
+        Copy walk receipt
+      </button>
+      {receiptStatus ? (
+        <p className="track-c-walk-receipt-status" role="status">
+          {receiptStatus}
+        </p>
+      ) : null}
       {eligibleMirrors.length > 0 ? (
         <div className="track-c-mirror-list">
           <h3>Eligible personal paper mirrors</h3>

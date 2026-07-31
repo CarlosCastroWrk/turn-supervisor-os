@@ -878,9 +878,15 @@ interface DayTaskHomeProps {
   session?: DaySession;
   task: TodayTask | null;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
+  acceptedToday?: readonly {
+    trades: readonly string[];
+    unitId: string;
+    unitNumber: string;
+  }[];
 }
 
 function DayTaskHome({
+  acceptedToday = [],
   currentDate,
   onAction,
   onEndDay,
@@ -1024,6 +1030,25 @@ function DayTaskHome({
           })}
         </div>
       </section>
+
+      {acceptedToday.length > 0 ? (
+        <section className="w2a2b-section" aria-labelledby="w2a2b-done-title">
+          <div className="w2a2b-section-heading">
+            <span>
+              <small>Property accepted with you on the walk</small>
+              <h2 id="w2a2b-done-title">Done today · {acceptedToday.reduce((total, unit) => total + unit.trades.length, 0)}</h2>
+            </span>
+          </div>
+          <div className="w2a2b-inset-list w2a2b-done-list">
+            {acceptedToday.map((unit) => (
+              <div key={unit.unitId}>
+                <strong>Unit {unit.unitNumber}</strong>
+                <span>{unit.trades.map((trade) => `${trade} ✓`).join('  ')}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="w2a2b-section" aria-labelledby="w2a2b-actions-title">
         <div className="w2a2b-section-heading">
@@ -1317,6 +1342,26 @@ export function DayTaskWorkspace({
     [initialTask, propertyRoster, releases, session],
   );
   const task = taskProjection.task ?? null;
+  const acceptedToday = useMemo(() => {
+    const unitNumberById = new Map(propertyRoster.units.map((unit) =>
+      [unit.id, unit.unitNumber]));
+    const byUnit = new Map<string, { trades: Set<string>; unitId: string }>();
+    for (const event of events) {
+      if (event.eventType !== 'property-accepted') continue;
+      if (!event.unitId || !event.recordedAt.startsWith(currentDate)) continue;
+      const entry = byUnit.get(event.unitId)
+        ?? { trades: new Set<string>(), unitId: event.unitId };
+      if (event.trade) entry.trades.add(event.trade);
+      byUnit.set(event.unitId, entry);
+    }
+    return [...byUnit.values()]
+      .map((entry) => ({
+        trades: [...entry.trades],
+        unitId: entry.unitId,
+        unitNumber: unitNumberById.get(entry.unitId) ?? entry.unitId,
+      }))
+      .sort((left, right) => left.unitNumber.localeCompare(right.unitNumber));
+  }, [currentDate, events, propertyRoster.units]);
 
   const externalAction = (action: 'import-work' | 'assign-crews' | 'start-walk') => {
     onExternalAction?.(action);
@@ -1420,6 +1465,7 @@ export function DayTaskWorkspace({
   return (
     <>
       <DayTaskHome
+        acceptedToday={acceptedToday}
         currentDate={currentDate}
         onAction={externalAction}
         onEndDay={() => setView({ id: 'end-day' })}

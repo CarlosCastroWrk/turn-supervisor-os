@@ -45,6 +45,7 @@ interface BoardViewProps {
     trade: TrackCTrade,
     crewId: string,
   ) => void;
+  readonly onRequestNote?: () => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
 }
 
@@ -365,6 +366,7 @@ const UnitDetail = ({
   onTradeComplete,
   onQuickAssign,
   onRequestAssign,
+  onRequestNote,
   onRequestMirror,
 }: {
   state: TrackCState;
@@ -374,6 +376,7 @@ const UnitDetail = ({
   onTradeComplete: BoardViewProps['onTradeComplete'];
   onQuickAssign?: BoardViewProps['onQuickAssign'];
   onRequestAssign?: BoardViewProps['onRequestAssign'];
+  onRequestNote?: BoardViewProps['onRequestNote'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -410,6 +413,16 @@ const UnitDetail = ({
       <p className="track-c-detail__truth">
         Crew completion, Los inspection, and property acceptance stay separate.
       </p>
+      {onRequestNote ? (
+        <button
+          className="track-c-unit-note-button"
+          data-track-c-critical-target="true"
+          onClick={onRequestNote}
+          type="button"
+        >
+          Add note or change order to Unit {unit.unitNumber}
+        </button>
+      ) : null}
       {TRACK_C_TRADES.map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);
@@ -537,6 +550,7 @@ export const BoardView = ({
   onTradeComplete,
   onQuickAssign,
   onRequestAssign,
+  onRequestNote,
   onRequestMirror,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
@@ -551,6 +565,7 @@ export const BoardView = ({
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onRequestAssign={onRequestAssign}
+        onRequestNote={onRequestNote}
         onRequestMirror={onRequestMirror}
         onSectionAction={onSectionAction}
         onTradeComplete={onTradeComplete}

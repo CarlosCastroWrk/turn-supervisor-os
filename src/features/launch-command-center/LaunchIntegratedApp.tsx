@@ -353,6 +353,7 @@ function LaunchOperationalApp({
       || historyRequestsCapture(),
   );
   const [plusOpen, setPlusOpen] = useState(false);
+  const [plusInitialScreen, setPlusInitialScreen] = useState<'menu' | 'note'>('menu');
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
   const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
   const [homeMode, setHomeMode] = useState<HomeMode>('day');
@@ -1372,7 +1373,12 @@ function LaunchOperationalApp({
     operationalScope.accountId,
   ]);
 
+  const openUnitNote = useCallback(() => {
+    setPlusInitialScreen('note');
+    setPlusOpen(true);
+  }, []);
   const openNativePlus = useCallback(() => {
+    setPlusInitialScreen('menu');
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
     setPlusOpen(true);
   }, []);
@@ -1881,6 +1887,7 @@ function LaunchOperationalApp({
         <TrackCFieldOps
           embedded
           initialState={activeFieldState}
+          onRequestUnitNote={openUnitNote}
           initialView={trackCRouteState.view}
           onCrewContactRequested={() => {
             setMoreStatus('No message was sent. Crew contact remains a manual external action.');
@@ -2474,6 +2481,7 @@ function LaunchOperationalApp({
         <TrackCNativeFlow
           actionAvailability={TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS}
           data={data}
+          initialScreen={plusInitialScreen}
           initialUnitId={route.view === 'unitDetail' ? route.unitId : undefined}
           onDismiss={() => setPlusOpen(false)}
           onExternalAction={handleNativePlusAction}

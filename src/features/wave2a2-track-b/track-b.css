@@ -905,3 +905,17 @@ button.w2a2b-primary-button {
     transition: none;
   }
 }
+
+.w2a2b-done-list > div {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-block-size: 48px;
+  padding: 10px 14px;
+}
+
+.w2a2b-done-list > div span {
+  color: var(--turn-color-ready, #237a45);
+  font-weight: 800;
+}

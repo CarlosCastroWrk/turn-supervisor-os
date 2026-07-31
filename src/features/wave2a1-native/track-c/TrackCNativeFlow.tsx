@@ -48,6 +48,7 @@ export interface TrackCNativeFlowProps {
   data: AppData;
   draftStorage?: NoteDraftStorage | null;
   initialUnitId?: string;
+  initialScreen?: 'menu' | 'note';
   onDismiss: () => void;
   onExternalAction?: (action: Exclude<TrackCPlusAction, 'note' | TrackCNativeFileAction>) => void;
   onNativeFiles?: (selection: TrackCNativeFileSelection) => void;
@@ -120,6 +121,7 @@ export function TrackCNativeFlow({
   data,
   draftStorage,
   initialUnitId,
+  initialScreen = 'menu',
   onDismiss,
   onExternalAction,
   onNativeFiles,
@@ -186,11 +188,11 @@ export function TrackCNativeFlow({
 
   useEffect(() => {
     if (!open) return;
-    setScreen('menu');
+    setScreen(initialScreen);
     setNote(createBlankPersonalNoteSession(initialUnitId));
     setHasResumeDraft(noteDraftStore.hasDraft());
     setStatus('');
-  }, [initialUnitId, noteDraftStore, open]);
+  }, [initialScreen, initialUnitId, noteDraftStore, open]);
 
   const dismiss = useCallback(() => {
     if (screen === 'note' && !preserveNoteDraft()) return;

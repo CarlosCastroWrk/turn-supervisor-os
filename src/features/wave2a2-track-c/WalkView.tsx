@@ -444,6 +444,43 @@ const ActiveWalk = ({
                   </span>
                 </div>
               </header>
+              <div className="track-c-walk-checkoff">
+                <span>Check off as {activeWalk.propertyContact} approves:</span>
+                <div>
+                  {item.targets.map((target) => {
+                    const record = packageRecords.find(
+                      (outcome) =>
+                        trackCWorkKey(outcome.target) === trackCWorkKey(target),
+                    );
+                    const checked = record?.outcome === 'accepted';
+                    return (
+                      <button
+                        aria-pressed={checked}
+                        className={checked ? 'is-checked' : undefined}
+                        data-track-c-critical-target="true"
+                        key={trackCWorkKey(target)}
+                        onClick={() => {
+                          setMessage(undefined);
+                          commitDraft(updateTrackCWalkDraft(
+                            draft,
+                            target,
+                            { note: record?.note, outcome: 'accepted' },
+                            now(),
+                          ));
+                        }}
+                        type="button"
+                      >
+                        {checked ? '✓ ' : ''}{trackCSectionLabel(target.section)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {recordedOutcome === 'accepted' ? (
+                  <p className="track-c-walk-checkoff__done">
+                    ✓ Whole {walkPackageLabel(state, item)} accepted — record it on paper.
+                  </p>
+                ) : null}
+              </div>
               <div className="track-c-outcome-grid">
                 {OUTCOMES.map((choice) => (
                   <button

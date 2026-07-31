@@ -53,6 +53,7 @@ export interface TrackCFieldOpsProps {
   readonly onCrewEditRequested?: (crewId: string) => void;
   readonly onCrewContactRequested?: (crewId: string) => void;
   readonly onNavigate?: (route: TrackCRouteState) => void;
+  readonly onRequestUnitNote?: () => void;
   readonly now?: () => string;
   readonly routeState?: TrackCRouteState;
   readonly walkIntegration?: TrackCWalkIntegration;
@@ -68,6 +69,7 @@ export const TrackCFieldOps = ({
   onCrewEditRequested,
   onCrewContactRequested,
   onNavigate,
+  onRequestUnitNote,
   now = () => new Date().toISOString(),
   routeState,
   walkIntegration,
@@ -385,6 +387,7 @@ export const TrackCFieldOps = ({
               setLocalSelectedUnitId(unitId);
             }}
             onQuickAssign={quickAssign}
+            onRequestNote={onRequestUnitNote}
             onRequestAssign={(trade) => {
               setAssignInitialTrade(trade);
               navigate('assign');

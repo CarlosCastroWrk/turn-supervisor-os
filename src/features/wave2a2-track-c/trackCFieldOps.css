@@ -1737,3 +1737,61 @@ select.track-c-trade-assign {
   font-size: 15px;
   font-weight: 750;
 }
+
+.track-c-walk-checkoff {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.track-c-walk-checkoff > span {
+  color: var(--track-c-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.track-c-walk-checkoff > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.track-c-walk-checkoff > div > button {
+  background: var(--track-c-surface);
+  border: 1.5px solid var(--track-c-border);
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 750;
+  min-block-size: 46px;
+  min-inline-size: 76px;
+  padding: 8px 14px;
+}
+
+.track-c-walk-checkoff > div > button.is-checked {
+  background: var(--track-c-green-soft);
+  border-color: var(--track-c-green);
+  color: var(--track-c-green);
+}
+
+.track-c-walk-checkoff__done {
+  background: var(--track-c-green-soft);
+  border-radius: 10px;
+  color: var(--track-c-green);
+  font-size: 14px;
+  font-weight: 750;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.track-c-unit-note-button {
+  background: var(--track-c-surface);
+  border: 1.5px dashed var(--track-c-blue);
+  border-radius: 12px;
+  color: var(--track-c-blue);
+  font-size: 14px;
+  font-weight: 750;
+  margin: 0 8px 8px;
+  min-block-size: 44px;
+  padding: 8px 12px;
+  width: calc(100% - 16px);
+}

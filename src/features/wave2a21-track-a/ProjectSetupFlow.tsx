@@ -115,10 +115,24 @@ export function ProjectSetupFlow({
         });
       }
       if (additions.length > 0) setSetupUnits([...setupUnits, ...additions]);
+      const bedBreakdown = [1, 2, 3, 4, 5]
+        .map((count) => {
+          const matching = additions.filter((unit) => unit.unitType === count).length;
+          return matching > 0 ? `${matching}× ${count}BR` : '';
+        })
+        .filter(Boolean)
+        .join(', ');
+      const unreadableBeds = result.rows
+        .filter((row) => row.bedCount === null || row.bedCount === undefined)
+        .map((row) => row.unitNumber);
       const notes = [
-        `${additions.length} Unit${additions.length === 1 ? '' : 's'} added from the photo.`,
+        `${additions.length} Unit${additions.length === 1 ? '' : 's'} added from the photo`
+          + (bedBreakdown ? ` (${bedBreakdown}).` : '.'),
+        unreadableBeds.length > 0
+          ? `Bed count unreadable for ${unreadableBeds.join(', ')} — set to 3BR, fix below.`
+          : '',
         result.uncertainties.length > 0 ? `Check: ${result.uncertainties.join(' ')}` : '',
-        'Review the roster below before continuing.',
+        'Verify the bed counts below against the sheet before continuing.',
       ].filter(Boolean);
       setRosterMessage(notes.join(' '));
     } catch (caught) {
@@ -652,6 +666,18 @@ export function ProjectSetupFlow({
                       <span aria-label={`Applicable sections for Unit ${unit.unitNumber}`}>
                         {unitTypeSections(unit.unitType).join(', ')}
                       </span>
+                      <select
+                        aria-label={`Bed count for Unit ${unit.unitNumber}`}
+                        onChange={(event) => setSetupUnits(setupUnits.map((candidate) =>
+                          candidate.id === unit.id
+                            ? { ...candidate, unitType: setupUnitType(event.target.value) }
+                            : candidate))}
+                        value={unit.unitType}
+                      >
+                        {[1, 2, 3, 4, 5].map((count) => (
+                          <option key={count} value={count}>{count}BR</option>
+                        ))}
+                      </select>
                       <button
                         aria-label={`Remove Unit ${unit.unitNumber}`}
                         onClick={() => setSetupUnits(

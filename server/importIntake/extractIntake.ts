@@ -69,7 +69,7 @@ const JSON_SCHEMA = {
           },
           unitNumber: { type: 'string' },
         },
-        required: ['unitNumber', 'trades', 'sections', 'confidence'],
+        required: ['unitNumber', 'bedCount', 'building', 'note', 'trades', 'sections', 'confidence'],
         type: 'object',
       },
       type: 'array',
@@ -84,9 +84,14 @@ const promptFor = (request: IntakeRequest) => {
   const shared = `You read PDS student-housing TurnBoard sheets for a supervisor named Los.
 Sheet layout (one band per trade, titled Painting or Cleaning; ignore Carpet):
 columns are Bldg | Unit Type | Unit # | Comn | A | B | C | D | E | crew name | PDS Approved.
-Unit Type is the BED COUNT (2, 3, 4, or 5). Blacked-out section cells simply
-mirror the bed count — a 3-bed unit has Comn+A+B+C and its D/E cells are
-blacked out. Blackouts are NOT release or work marks.
+Unit Type is the BED COUNT (2, 3, 4, or 5). A blacked-out section cell means
+that room is not part of this unit's scope — occupied or nonexistent — and is
+never worked, released, or counted. A 3-bed unit has Comn+A+B+C with D/E
+blacked; a 5-bed has no blackouts; a 2-bed has C/D/E blacked.
+bedCount is REQUIRED on every row: read the Unit Type column, then verify it
+against the blackout pattern (bedCount = 5 minus the number of blacked
+letter cells). If the two disagree or are unreadable, output your best value
+with confidence "low" and add an uncertainty naming the unit.
 Marks inside white cells: a single slash = the property released that section;
 an X = Los already passed it; a written crew name = assigned.
 Data hygiene: a row of zeros or blanks is a spreadsheet artifact — skip it.
@@ -184,10 +189,19 @@ const runOpenAi = async (
   return intakeResultSchema.parse(JSON.parse(raw));
 };
 
-const needsEscalation = (result: z.infer<typeof intakeResultSchema>) => {
+const needsEscalation = (
+  request: IntakeRequest,
+  result: z.infer<typeof intakeResultSchema>,
+) => {
   if (result.rows.length === 0) return true;
   const lowConfidence = result.rows.filter((row) => row.confidence === 'low').length;
-  return lowConfidence > result.rows.length / 2;
+  if (lowConfidence > result.rows.length / 2) return true;
+  if (request.kind === 'roster') {
+    const missingBeds = result.rows.filter((row) =>
+      row.bedCount === null || row.bedCount === undefined).length;
+    return missingBeds > result.rows.length / 3;
+  }
+  return false;
 };
 
 export const extractIntake = async (
@@ -197,7 +211,7 @@ export const extractIntake = async (
   if (anthropicKey()) {
     try {
       const cheap = await runAnthropic(request, ANTHROPIC_CHEAP);
-      if (!needsEscalation(cheap)) {
+      if (!needsEscalation(request, cheap)) {
         return { ...cheap, escalated: false, model: ANTHROPIC_CHEAP, provider: 'anthropic' };
       }
       try {

@@ -1212,7 +1212,12 @@ function LaunchOperationalApp({
   const handlePrimaryNavigation = useCallback((destination: LaunchPrimaryDestination) => {
     const tab = destination as TrackCPrimaryTab;
     const decision = selectTrackCPrimaryTab(tabRouteMemoryRef.current, tab);
-    const nextRoute = resolveAppHash(decision.target.routeKey).route;
+    // The More tab must land on the More menu, never restore a remembered
+    // focused workflow like Setup.
+    const restoredRoute = resolveAppHash(decision.target.routeKey).route;
+    const nextRoute = destination === 'more' && restoredRoute.view === 'setup'
+      ? resolveAppHash('#/more').route
+      : restoredRoute;
     const nextHash = buildAppHash(nextRoute);
 
     clearLegacyCaptureHistoryState();
@@ -2062,6 +2067,7 @@ function LaunchOperationalApp({
           )}
           onBack={() => navigate('dashboard')}
           onOpenRecord={(record: NativeHomeRecord) => openDestination(record.destinationId)}
+          onStartWalk={() => navigate('units', undefined, { fieldWorkflow: 'walk' })}
         />
       ) : homeMode === 'start-day' ? (
         activeProject?.fieldConfiguration ? (

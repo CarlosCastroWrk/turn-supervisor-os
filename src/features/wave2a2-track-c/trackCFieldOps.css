@@ -1795,3 +1795,31 @@ select.track-c-trade-assign {
   padding: 8px 12px;
   width: calc(100% - 16px);
 }
+
+.track-c-board-scope {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 8px;
+}
+
+.track-c-board-scope > button {
+  background: var(--track-c-surface);
+  border: 1.5px solid var(--track-c-border);
+  border-radius: 999px;
+  color: var(--track-c-muted);
+  font-size: 14px;
+  font-weight: 750;
+  min-block-size: 40px;
+  padding: 6px 14px;
+}
+
+.track-c-board-scope > button[aria-pressed='true'] {
+  background: var(--track-c-blue);
+  border-color: var(--track-c-blue);
+  color: #fff;
+}
+
+.track-c-section-row__state.is-passed {
+  color: var(--track-c-green);
+  font-weight: 850;
+}

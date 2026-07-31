@@ -1098,6 +1098,7 @@ function DayTaskHome({
 interface QueuePageProps {
   onBack: () => void;
   queue: TodayTaskQueue;
+  onStartWalk?: () => void;
 }
 
 const queueTradeMatches = (
@@ -1116,7 +1117,7 @@ const queueTradeMatches = (
   return true;
 };
 
-function QueuePage({ onBack, queue }: QueuePageProps) {
+function QueuePage({ onBack, onStartWalk, queue }: QueuePageProps) {
   // Los reads queues at Unit + Trade grain: one row per Unit and trade,
   // with the affected sections listed inside it.
   const packages = new Map<string, {
@@ -1150,6 +1151,16 @@ function QueuePage({ onBack, queue }: QueuePageProps) {
         subtitle={`${rows.length} Unit+Trade ${rows.length === 1 ? 'job' : 'jobs'}`}
         title={queue.label}
       />
+      {queue.id === 'ready-to-walk' && rows.length > 0 && onStartWalk ? (
+        <button
+          className="w2a2b-primary-button w2a2b-start-walk"
+          data-track-b-critical-target="true"
+          onClick={onStartWalk}
+          type="button"
+        >
+          Start Walk with the property
+        </button>
+      ) : null}
       {rows.length === 0 ? (
         <section className="w2a2b-empty-card" role="status">
           {queueIcons[queue.id]}
@@ -1437,7 +1448,13 @@ export function DayTaskWorkspace({
     );
   }
   if (view.id === 'queue') {
-    return <QueuePage onBack={() => setView({ id: 'home' })} queue={view.queue} />;
+    return (
+      <QueuePage
+        onBack={() => setView({ id: 'home' })}
+        onStartWalk={() => onExternalAction?.('start-walk')}
+        queue={view.queue}
+      />
+    );
   }
   if (view.id === 'recovery' && recovery.session) {
     return (

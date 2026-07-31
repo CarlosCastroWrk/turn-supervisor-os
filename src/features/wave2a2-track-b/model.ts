@@ -501,16 +501,39 @@ export function countReadyToWalkPackages(task: TodayTask | null): number {
   return packages;
 }
 
+// Every queue counts Unit+Trade jobs — the grain Los thinks in — not
+// individual sections.
+const countQueueUnitTradeJobs = (
+  task: TodayTask | null,
+  queueId: TodayTaskQueueId,
+): number => {
+  const jobs = new Set<string>();
+  for (const section of selectTodayTaskQueue(task, queueId).records) {
+    for (const state of section.tradeStates) {
+      const matches = queueId === 'needs-crew'
+        ? !state.assignedCrewId
+        : queueId === 'needs-inspection'
+          ? state.execution === 'crew-reported-complete'
+            && !passedInspection(state.inspection)
+          : queueId === 'working'
+            ? state.execution === 'working'
+            : true;
+      if (matches) jobs.add(`${section.unitId}:${state.trade}`);
+    }
+  }
+  return jobs.size;
+};
+
 export function getTodayTaskQueueCounts(
   task: TodayTask | null,
 ): Readonly<Record<TodayTaskQueueId, number>> {
   return {
-    callbacks: selectTodayTaskQueue(task, 'callbacks').records.length,
-    'needs-crew': selectTodayTaskQueue(task, 'needs-crew').records.length,
-    'needs-inspection': selectTodayTaskQueue(task, 'needs-inspection').records.length,
+    callbacks: countQueueUnitTradeJobs(task, 'callbacks'),
+    'needs-crew': countQueueUnitTradeJobs(task, 'needs-crew'),
+    'needs-inspection': countQueueUnitTradeJobs(task, 'needs-inspection'),
     'ready-to-walk': countReadyToWalkPackages(task),
-    waiting: selectTodayTaskQueue(task, 'waiting').records.length,
-    working: selectTodayTaskQueue(task, 'working').records.length,
+    waiting: countQueueUnitTradeJobs(task, 'waiting'),
+    working: countQueueUnitTradeJobs(task, 'working'),
   };
 }
 

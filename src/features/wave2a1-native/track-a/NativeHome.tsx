@@ -349,18 +349,32 @@ export interface NativeHomeSummaryPageProps {
   destination: NativeHomeSummaryDestination;
   onBack: () => void;
   onOpenRecord: (record: NativeHomeRecord) => void;
+  onStartWalk?: () => void;
 }
 
 export function NativeHomeSummaryPage({
   destination,
   onBack,
   onOpenRecord,
+  onStartWalk,
 }: NativeHomeSummaryPageProps) {
   return (
     <NativePageTransition>
       <section className="w2a1-a-root w2a1-a-detail-page">
         <NativePageHeader onBack={onBack} title={destination.label} />
         <div className="w2a1-a-detail-page__scroll">
+          {destination.id === 'ready-to-walk'
+            && destination.records.length > 0
+            && onStartWalk ? (
+              <button
+                className="w2a1-a-start-walk"
+                data-w2a1-critical-target="true"
+                onClick={onStartWalk}
+                type="button"
+              >
+                Start Walk with the property
+              </button>
+            ) : null}
           {destination.records.length === 0 ? (
             <section className="w2a1-a-empty-state" aria-live="polite">
               <Flag aria-hidden="true" size={24} />

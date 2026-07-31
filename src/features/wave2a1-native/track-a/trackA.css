@@ -696,3 +696,17 @@ body:has(.w2a1-a-page-transition) {
     animation: none;
   }
 }
+
+.w2a1-a-start-walk {
+  background: var(--w2a1-a-blue, #0877d1);
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0 0 16px;
+  min-block-size: 52px;
+  padding: 12px 16px;
+  width: 100%;
+}

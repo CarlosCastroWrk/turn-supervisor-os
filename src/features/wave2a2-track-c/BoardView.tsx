@@ -287,7 +287,11 @@ const WorkSection = ({
         <span className="track-c-section-row__section">
           {trackCSectionLabel(work.section)}
         </span>
-        <span className="track-c-section-row__state">
+        <span
+          className={`track-c-section-row__state ${
+            ['Passed', 'Accepted'].includes(compactSectionStatus(work)) ? 'is-passed' : ''
+          }`}
+        >
           {compactSectionStatus(work)}
         </span>
         <ChevronRight aria-hidden="true" size={17} />
@@ -554,10 +558,17 @@ export const BoardView = ({
   onRequestMirror,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
-  const units = useMemo(
-    () => searchTrackCCompactUnits(state, query),
-    [query, state],
-  );
+  const [scope, setScope] = useState<'released' | 'all'>('released');
+  const units = useMemo(() => {
+    const matches = searchTrackCCompactUnits(state, query);
+    if (scope === 'all') return matches;
+    const released = matches.filter((unit) =>
+      state.units.find((candidate) => candidate.id === unit.unitId)
+        ?.workFacts.some((fact) => fact.release === 'released'));
+    return released;
+  }, [query, scope, state]);
+  const releasedCount = useMemo(() => state.units.filter((unit) =>
+    unit.workFacts.some((fact) => fact.release === 'released')).length, [state.units]);
 
   if (selectedUnitId) {
     return (
@@ -584,6 +595,22 @@ export const BoardView = ({
         </div>
         <span>{units.length} Units</span>
       </header>
+      <div className="track-c-board-scope" role="group" aria-label="Board scope">
+        <button
+          aria-pressed={scope === 'released'}
+          onClick={() => setScope('released')}
+          type="button"
+        >
+          Released · {releasedCount}
+        </button>
+        <button
+          aria-pressed={scope === 'all'}
+          onClick={() => setScope('all')}
+          type="button"
+        >
+          All Units · {state.units.length}
+        </button>
+      </div>
       <label className="track-c-search">
         <Search aria-hidden="true" size={18} />
         <span className="track-c-visually-hidden">Search Unit, location, or crew</span>

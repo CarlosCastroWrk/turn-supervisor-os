@@ -290,22 +290,19 @@ test('Home queue filters return only exact released section records', () => {
   const task = createSyntheticTodayTask();
   const counts = getTodayTaskQueueCounts(task);
 
+  // Every queue counts Unit+Trade jobs; queue detail pages list the
+  // underlying section records grouped per job.
   assert.deepEqual(counts, {
-    callbacks: 6,
-    'needs-crew': 40,
+    callbacks: 4,
+    'needs-crew': 32,
     'needs-inspection': 0,
     'ready-to-walk': 22,
-    waiting: 8,
-    working: 16,
+    waiting: 6,
+    working: 12,
   });
-  // Ready to Walk counts Unit+Trade packages; its queue detail still lists
-  // the underlying section records.
   assert.equal(selectTodayTaskQueue(task, 'ready-to-walk').records.length, 34);
-  for (const [queueId, count] of Object.entries(counts)) {
+  for (const queueId of Object.keys(counts)) {
     const queue = selectTodayTaskQueue(task, queueId);
-    if (queueId !== 'ready-to-walk') {
-      assert.equal(queue.records.length, count);
-    }
     assert.ok(queue.records.every((record) => task.sections.some((section) => (
       section.unitId === record.unitId && section.sectionId === record.sectionId
     ))));

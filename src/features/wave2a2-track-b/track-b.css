@@ -919,3 +919,17 @@ button.w2a2b-primary-button {
   color: var(--turn-color-ready, #237a45);
   font-weight: 800;
 }
+
+.w2a2b-start-walk {
+  margin: 0 16px 10px;
+  width: calc(100% - 32px);
+}
+
+
+/* Queue tile counts read as primary values, not hints */
+.w2a2b-inset-list > button > em {
+  color: var(--turn-color-primary, #111318);
+  font-size: 17px;
+  font-style: normal;
+  font-weight: 850;
+}

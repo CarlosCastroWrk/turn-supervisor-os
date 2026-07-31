@@ -914,6 +914,9 @@ function DayTaskHome({
   const progress = calculateTodayTaskProgress(task);
   const active = isOpenDay(session);
   const [ritualStatus, setRitualStatus] = useState('');
+  // Done-today can grow to dozens of units; keep it collapsed to a tappable
+  // summary so it never stacks up and buries the rest of Home.
+  const [doneExpanded, setDoneExpanded] = useState(false);
   const summaryText = () => {
     const doneLine = acceptedToday.length > 0
       ? `${acceptedToday.length} unit${acceptedToday.length === 1 ? '' : 's'} done — ${
@@ -1098,15 +1101,25 @@ function DayTaskHome({
 
       {acceptedToday.length > 0 ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-done-title">
-          <div className="w2a2b-section-heading">
+          <button
+            aria-controls="w2a2b-done-list"
+            aria-expanded={doneExpanded}
+            className="w2a2b-section-heading w2a2b-done-toggle"
+            onClick={() => setDoneExpanded((open) => !open)}
+            type="button"
+          >
             <span>
               <small>Property accepted with you on the walk</small>
               <h2 id="w2a2b-done-title">
                 Done today · {acceptedToday.length} Unit{acceptedToday.length === 1 ? '' : 's'}
               </h2>
             </span>
-          </div>
-          <div className="w2a2b-inset-list w2a2b-done-list">
+            <span aria-hidden="true" className="w2a2b-done-toggle__chevron">
+              {doneExpanded ? 'Hide' : 'Show all'}
+            </span>
+          </button>
+          {doneExpanded ? (
+          <div className="w2a2b-inset-list w2a2b-done-list" id="w2a2b-done-list">
             {acceptedToday.map((unit) => {
               const meta = acceptedWalkMeta?.[unit.unitId];
               const body = (
@@ -1140,6 +1153,7 @@ function DayTaskHome({
               );
             })}
           </div>
+          ) : null}
         </section>
       ) : null}
 

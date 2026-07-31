@@ -252,6 +252,26 @@ button.w2a2b-primary-button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Done-today collapses to a tappable summary; the heading itself is the button. */
+button.w2a2b-done-toggle {
+  align-items: center;
+  appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  inline-size: calc(100% - 20px);
+  min-block-size: 44px;
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.w2a2b-done-toggle__chevron {
+  color: var(--turn-color-accent, var(--w2a2b-accent, #0072dc));
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .w2a2b-progress-card,
 .w2a2b-empty-card,
 .w2a2b-review-card,

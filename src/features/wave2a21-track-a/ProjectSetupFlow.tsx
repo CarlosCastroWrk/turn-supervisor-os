@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   imageFileToIntakeSource,
   intakeEnabled,
@@ -90,6 +90,15 @@ export function ProjectSetupFlow({
   const [rosterMessage, setRosterMessage] = useState('');
   const [rosterIntakeBusy, setRosterIntakeBusy] = useState(false);
   const rosterIntakeFileRef = useRef<HTMLInputElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  const missingRef = useRef<HTMLDivElement>(null);
+
+  // Each step change should start at the top of the new step, not wherever the
+  // previous step was scrolled to. (Fixes landing mid-form on the next step.)
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ block: 'start' });
+  }, [step]);
+
 
   const importRosterPhotos = async (files: File[]) => {
     if (files.length === 0) return;
@@ -376,12 +385,20 @@ export function ProjectSetupFlow({
     ? PROJECT_SETUP_STEPS.length - 1
     : firstIncompleteStep;
 
+  // Clear the "what's missing" notice as soon as the step is actually complete,
+  // so it never lingers as stale guidance after the fields are filled.
+  const currentStepComplete = stepComplete[step];
+  useEffect(() => {
+    if (currentStepComplete) setMissingNotice(null);
+  }, [currentStepComplete]);
+
   return (
     <section
       aria-labelledby="w2a21a-setup-title"
       className="w2a21a-setup"
       data-track-a-project-setup="true"
     >
+      <div ref={topRef} aria-hidden="true" />
       <header className="w2a21a-setup__header">
         <div className="w2a21a-setup__title-row">
           <div>
@@ -851,23 +868,16 @@ export function ProjectSetupFlow({
                 <ul>{activationErrors.map((error) => <li key={error}>{error}</li>)}</ul>
               </div>
             ) : null}
-            <button
-              className="w2a21a-setup__primary"
-              disabled={existingProjectRequiresConfirmation && !draft.confirmOverwrite}
-              onClick={onActivate}
-              type="button"
-            >
-              Activate Project
-            </button>
             <p className="w2a21a-setup__supporting">
-              Your project is saved on this device before activation completes.
+              Your project is saved on this device before activation completes. Use
+              Activate Project below to finish.
             </p>
           </fieldset>
         ) : null}
       </div>
 
       {missingNotice && missingNotice.length > 0 ? (
-        <div className="w2a21a-setup__errors w2a21a-setup__missing" role="alert">
+        <div ref={missingRef} className="w2a21a-setup__errors w2a21a-setup__missing" role="alert">
           <strong>To continue, complete:</strong>
           <ul>{missingNotice.map((item) => <li key={item}>{item}</li>)}</ul>
         </div>
@@ -892,13 +902,25 @@ export function ProjectSetupFlow({
                 onStepChange(step + 1);
                 return;
               }
+              // Blocked: show what's missing AND scroll it into view so the tap
+              // never looks like it did nothing.
               setMissingNotice(stepMissing[step]);
+              requestAnimationFrame(() => missingRef.current?.scrollIntoView({ block: 'center' }));
             }}
             type="button"
           >
             Continue
           </button>
-        ) : null}
+        ) : (
+          <button
+            className="w2a21a-setup__primary"
+            disabled={existingProjectRequiresConfirmation && !draft.confirmOverwrite}
+            onClick={onActivate}
+            type="button"
+          >
+            Activate Project
+          </button>
+        )}
       </footer>
     </section>
   );

@@ -2007,12 +2007,13 @@ function LaunchOperationalApp({
             }
             navigate('units');
           }}
-          onStateChange={(nextState, reason) => {
-            if (reason === 'walk-started' || reason === 'walk-ended') {
-              commitDataNow((current) => applyTrackCStateChange(current, nextState));
-              return;
-            }
-            setData((current) => applyTrackCStateChange(current, nextState));
+          onStateChange={(nextState) => {
+            // Every committed TrackC change is field truth — a Los pass, an opened
+            // callback, a property acceptance, an assignment, or a walk boundary.
+            // Persist synchronously so a crash in the ~500ms deferred-write window
+            // can't lose a tap the UI already confirmed. High-frequency walk-draft
+            // edits stay deferred via onDraftChange below.
+            commitDataNow((current) => applyTrackCStateChange(current, nextState));
           }}
           routeState={trackCRouteState}
           walkIntegration={{
@@ -2216,12 +2217,10 @@ function LaunchOperationalApp({
           initialSession={activeDaySession}
           initialTask={todayTask}
           onDayStateChange={(change) => {
-            if (change.reason === 'day-started' || change.reason === 'day-closed') {
-              return commitDataNow((current) =>
-                applyDayTaskStateChange(current, change));
-            }
-            setData((current) => applyDayTaskStateChange(current, change));
-            return true;
+            // Day lifecycle and recovery decisions are all rare, high-value truth
+            // — persist synchronously so none is lost in the deferred-write window.
+            return commitDataNow((current) =>
+              applyDayTaskStateChange(current, change));
           }}
           onExternalAction={handleQuickAction}
           onOpenQueueId={(queueId) => navigate(

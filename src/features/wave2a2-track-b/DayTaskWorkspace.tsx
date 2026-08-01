@@ -1095,8 +1095,7 @@ function DayTaskHome({
 
   return (
     <section className="w2a2b-home" data-testid="track-b-home">
-      <header className="w2a2b-home-header">
-        <span className="w2a2b-eyebrow">Personal field companion</span>
+      <header className="w2a2b-home-header w2a2b-home-header--compact">
         <h1>Home</h1>
         {dayNumber ? (
           <p className="w2a2b-day-brief">
@@ -1139,6 +1138,79 @@ function DayTaskHome({
             Start Day
           </button>
         ) : null}
+      </section>
+
+      <section className="w2a2b-section" aria-labelledby="w2a2b-current-title">
+        <div className="w2a2b-section-heading">
+          <h2 id="w2a2b-current-title">Current work</h2>
+        </div>
+        {active && counts['ready-to-walk'] >= 4 ? (
+          <button
+            className="w2a2b-walk-banner"
+            data-track-b-critical-target="true"
+            onClick={() => onAction('start-walk')}
+            type="button"
+          >
+            <strong>{counts['ready-to-walk']} ready to walk</strong>
+            <span>Worth grabbing your property contact — start the walk</span>
+            <ChevronRight aria-hidden="true" size={18} />
+          </button>
+        ) : null}
+        <div className="w2a2b-inset-list">
+          {queueOrder.map((queueId) => {
+            const queue = selectTodayTaskQueue(task, queueId);
+            return (
+              <button
+                data-track-b-critical-target="true"
+                key={queueId}
+                onClick={() => onOpenQueue(queue)}
+                type="button"
+              >
+                <span className={`w2a2b-row-icon is-${queueId}`}>{queueIcons[queueId]}</span>
+                <span><strong>{queue.label}</strong></span>
+                <em>{counts[queueId]}</em>
+                <ChevronRight aria-hidden="true" size={19} />
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="w2a2b-section" aria-labelledby="w2a2b-actions-title">
+        <div className="w2a2b-section-heading">
+          <h2 id="w2a2b-actions-title">Field actions</h2>
+        </div>
+        <div className="w2a2b-inset-list">
+          {[
+            ['import-work', 'Import today’s work', <FileUp aria-hidden="true" size={20} />],
+            ['assign-crews', 'Assign crews', <Users aria-hidden="true" size={20} />],
+            ['start-walk', 'Start walk', <Footprints aria-hidden="true" size={20} />],
+          ].map(([id, label, icon]) => (
+            <button
+              data-track-b-critical-target="true"
+              key={id as string}
+              onClick={() => onAction(id as 'import-work' | 'assign-crews' | 'start-walk')}
+              type="button"
+            >
+              <span className="w2a2b-row-icon">{icon}</span>
+              <span><strong>{label}</strong></span>
+              <ChevronRight aria-hidden="true" size={19} />
+            </button>
+          ))}
+          <button
+            data-track-b-critical-target="true"
+            disabled={!active}
+            onClick={onEndDay}
+            type="button"
+          >
+            <span className="w2a2b-row-icon"><LogOut aria-hidden="true" size={20} /></span>
+            <span>
+              <strong>End day</strong>
+              {!active ? <small>Start a Day Session first</small> : null}
+            </span>
+            <ChevronRight aria-hidden="true" size={19} />
+          </button>
+        </div>
       </section>
 
       <section className="w2a2b-section" aria-labelledby="w2a2b-task-title">
@@ -1209,42 +1281,6 @@ function DayTaskHome({
             <small>{progress.percentage}% of today’s confirmed release</small>
           </section>
         )}
-      </section>
-
-      <section className="w2a2b-section" aria-labelledby="w2a2b-current-title">
-        <div className="w2a2b-section-heading">
-          <h2 id="w2a2b-current-title">Current work</h2>
-        </div>
-        {active && counts['ready-to-walk'] >= 4 ? (
-          <button
-            className="w2a2b-walk-banner"
-            data-track-b-critical-target="true"
-            onClick={() => onAction('start-walk')}
-            type="button"
-          >
-            <strong>{counts['ready-to-walk']} ready to walk</strong>
-            <span>Worth grabbing your property contact — start the walk</span>
-            <ChevronRight aria-hidden="true" size={18} />
-          </button>
-        ) : null}
-        <div className="w2a2b-inset-list">
-          {queueOrder.map((queueId) => {
-            const queue = selectTodayTaskQueue(task, queueId);
-            return (
-              <button
-                data-track-b-critical-target="true"
-                key={queueId}
-                onClick={() => onOpenQueue(queue)}
-                type="button"
-              >
-                <span className={`w2a2b-row-icon is-${queueId}`}>{queueIcons[queueId]}</span>
-                <span><strong>{queue.label}</strong></span>
-                <em>{counts[queueId]}</em>
-                <ChevronRight aria-hidden="true" size={19} />
-              </button>
-            );
-          })}
-        </div>
       </section>
 
       {acceptedToday.length > 0 ? (
@@ -1348,43 +1384,6 @@ function DayTaskHome({
         {ritualStatus ? (
           <p aria-live="polite" className="w2a2b-ritual__status">{ritualStatus}</p>
         ) : null}
-      </section>
-
-      <section className="w2a2b-section" aria-labelledby="w2a2b-actions-title">
-        <div className="w2a2b-section-heading">
-          <h2 id="w2a2b-actions-title">Field actions</h2>
-        </div>
-        <div className="w2a2b-inset-list">
-          {[
-            ['import-work', 'Import today’s work', <FileUp aria-hidden="true" size={20} />],
-            ['assign-crews', 'Assign crews', <Users aria-hidden="true" size={20} />],
-            ['start-walk', 'Start walk', <Footprints aria-hidden="true" size={20} />],
-          ].map(([id, label, icon]) => (
-            <button
-              data-track-b-critical-target="true"
-              key={id as string}
-              onClick={() => onAction(id as 'import-work' | 'assign-crews' | 'start-walk')}
-              type="button"
-            >
-              <span className="w2a2b-row-icon">{icon}</span>
-              <span><strong>{label}</strong></span>
-              <ChevronRight aria-hidden="true" size={19} />
-            </button>
-          ))}
-          <button
-            data-track-b-critical-target="true"
-            disabled={!active}
-            onClick={onEndDay}
-            type="button"
-          >
-            <span className="w2a2b-row-icon"><LogOut aria-hidden="true" size={20} /></span>
-            <span>
-              <strong>End day</strong>
-              {!active ? <small>Start a Day Session first</small> : null}
-            </span>
-            <ChevronRight aria-hidden="true" size={19} />
-          </button>
-        </div>
       </section>
 
       <p className="w2a2b-paper-boundary">

@@ -996,3 +996,17 @@ button.w2a2b-done-toggle {
   font-size: 13px;
   color: var(--turn-color-ink-soft, #45505f);
 }
+
+/* Compact Home header — the day at a glance, no giant hero to scroll past. */
+.w2a2b-home-header--compact {
+  padding-block: 4px 2px;
+}
+.w2a2b-home-header--compact h1 {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  margin: 0 0 1px;
+}
+.w2a2b-home-header--compact .w2a2b-day-brief {
+  margin: 0;
+  font-weight: 700;
+}

@@ -29,11 +29,11 @@ test('More preserves the approved grouped information architecture', () => {
       },
       {
         label: 'Project',
-        items: ['Setup', 'Unit Import'],
+        items: ['Project Setup', 'Unit Import'],
       },
       {
         label: 'Data and Safety',
-        items: ['Backup and Restore', 'Sync', 'Privacy', 'Storage'],
+        items: ['Backups', 'Sync', 'Privacy', 'Storage'],
       },
       {
         label: 'Account',

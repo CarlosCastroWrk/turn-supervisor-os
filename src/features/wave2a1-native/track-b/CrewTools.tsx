@@ -142,6 +142,32 @@ export function TrackBCrewFormPage({
     setDraft((current) => ({ ...current, trade }));
   };
 
+  // Pick from the phone's contacts where the browser supports it: fills the
+  // number automatically and keeps just the FIRST name ("Rocky PDS" → "Rocky",
+  // still editable). Falls back silently to typing when unsupported.
+  const contactPicker = (navigator as Navigator & {
+    contacts?: { select?: (props: string[], opts: { multiple: boolean }) => Promise<{
+      name?: string[];
+      tel?: string[];
+    }[]> };
+  }).contacts;
+  const pickFromPhone = async () => {
+    if (!contactPicker?.select) return;
+    try {
+      const picked = await contactPicker.select(['name', 'tel'], { multiple: false });
+      const contact = picked?.[0];
+      if (!contact) return;
+      const firstName = (contact.name?.[0] ?? '').trim().split(/\s+/u)[0] ?? '';
+      setDraft((current) => ({
+        ...current,
+        name: firstName || current.name,
+        phone: contact.tel?.[0]?.trim() || current.phone,
+      }));
+    } catch {
+      // Picker dismissed — nothing changes.
+    }
+  };
+
   return (
     <NativeDetailShell
       description="Keep only the details needed while moving through the field."
@@ -151,6 +177,15 @@ export function TrackBCrewFormPage({
     >
       <form className="w2a1b-form" onSubmit={submit}>
         <div className="w2a1b-form__card">
+          {contactPicker?.select ? (
+            <button
+              className="w2a1b-contact-picker"
+              onClick={() => void pickFromPhone()}
+              type="button"
+            >
+              Add from phone contacts
+            </button>
+          ) : null}
           <label className="w2a1b-field">
             <span>Name</span>
             <input

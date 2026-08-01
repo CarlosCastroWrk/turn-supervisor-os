@@ -822,3 +822,15 @@ button.w2a1b-row:active {
   font-weight: 700;
   text-decoration: none;
 }
+
+.w2a1b-contact-picker {
+  inline-size: 100%;
+  min-block-size: 44px;
+  border: 1px dashed var(--w2a1b-accent, #1677ff);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--w2a1b-accent, #1677ff);
+  font-weight: 700;
+  font-size: 14.5px;
+  margin-block-end: 10px;
+}

@@ -53,8 +53,8 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     id: 'project',
     label: 'Project',
     items: [
-      { id: 'setup', label: 'Setup', detail: 'Property, schedule, permissions, and review' },
-      { id: 'unit-import', label: 'Unit Import', detail: 'Review a source before adding Units' },
+      { id: 'setup', label: 'Project Setup', detail: 'Property, dates, contacts, crews, roster \u2014 edit anytime' },
+      { id: 'unit-import', label: 'Unit Import', detail: 'Add Units from TurnBoard photos or paste' },
     ],
   },
   {
@@ -63,11 +63,11 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     items: [
       {
         id: 'backup-restore',
-        label: 'Backup and Restore',
-        detail: 'Review device backup and recovery tools',
+        label: 'Backups',
+        detail: 'Save tonight\u2019s Turn file, or restore one — your off-phone copy',
       },
-      { id: 'sync', label: 'Sync', detail: 'Review connectivity and pending changes' },
-      { id: 'privacy', label: 'Privacy', detail: 'Review allowed personal-app data' },
+      { id: 'sync', label: 'Sync', detail: 'Cloud sync is off for now — the phone is the record' },
+      { id: 'privacy', label: 'Privacy', detail: 'Everything stays on this phone unless you share it' },
       { id: 'storage', label: 'Storage', detail: 'Review records and files on this device' },
     ],
   },

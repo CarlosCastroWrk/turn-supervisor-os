@@ -2017,3 +2017,31 @@ select.track-c-trade-change {
   color: #b07414;
   border-color: color-mix(in srgb, #b07414 45%, transparent);
 }
+
+/* Active Walk decrowd: tighter cards, compact per-section rows, quieter buttons. */
+.track-c-walk-items > section {
+  padding: 10px 12px;
+}
+.track-c-walk-items > section > header {
+  margin-bottom: 6px;
+}
+.track-c-walk-checkoff__rows {
+  gap: 6px;
+}
+.track-c-walk-checkoff__rows > div {
+  display: grid;
+  grid-template-columns: 64px 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.track-c-walk-checkoff__rows button {
+  min-height: 42px;
+  padding: 0 8px;
+  font-size: 14.5px;
+  border-radius: 10px;
+}
+.track-c-walk-checkoff > span,
+.track-c-walk-checkoff__rows > div > span:first-child {
+  font-size: 14px;
+  font-weight: 700;
+}

@@ -600,17 +600,22 @@ export const BoardView = ({
   onRequestMirror,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<'released' | 'all'>('released');
+  const [scope, setScope] = useState<'released' | 'approved' | 'all'>('released');
+  const isApproved = (unitId: string) =>
+    projectTrackCUnitWork(state, unitId).some((work) => work.property === 'property-accepted');
   const units = useMemo(() => {
     const matches = searchTrackCCompactUnits(state, query);
     if (scope === 'all') return matches;
-    const released = matches.filter((unit) =>
+    if (scope === 'approved') return matches.filter((unit) => isApproved(unit.unitId));
+    return matches.filter((unit) =>
       state.units.find((candidate) => candidate.id === unit.unitId)
         ?.workFacts.some((fact) => fact.release === 'released'));
-    return released;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, scope, state]);
   const releasedCount = useMemo(() => state.units.filter((unit) =>
     unit.workFacts.some((fact) => fact.release === 'released')).length, [state.units]);
+  const approvedCount = useMemo(() => state.units.filter((unit) =>
+    isApproved(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (selectedUnitId) {
     return (
@@ -645,6 +650,13 @@ export const BoardView = ({
           type="button"
         >
           Released · {releasedCount}
+        </button>
+        <button
+          aria-pressed={scope === 'approved'}
+          onClick={() => setScope('approved')}
+          type="button"
+        >
+          Approved · {approvedCount}
         </button>
         <button
           aria-pressed={scope === 'all'}

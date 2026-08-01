@@ -623,6 +623,12 @@ export function StartDayFlow({
 
 interface EndDayFlowProps {
   activeWalkSessionId?: string;
+  acceptedToday?: readonly {
+    trades: readonly string[];
+    unitId: string;
+    unitNumber: string;
+  }[];
+  acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
   events: readonly DaySessionEvent[];
   now: () => string;
   onCancel: () => void;
@@ -641,6 +647,8 @@ interface EndDayFlowProps {
 
 export function EndDayFlow({
   activeWalkSessionId,
+  acceptedToday = [],
+  acceptedWalkMeta,
   events,
   now,
   onCancel,
@@ -753,6 +761,25 @@ export function EndDayFlow({
             </div>
           ))}
         </div>
+        {acceptedToday.length > 0 ? (
+          <div className="w2a2b-done-list w2a2b-endday-accepted">
+            <small>Units the property accepted today</small>
+            {acceptedToday.map((unit) => {
+              const meta = acceptedWalkMeta?.[unit.unitId];
+              return (
+                <div key={unit.unitId} className="w2a2b-endday-accepted__row">
+                  <strong>Unit {unit.unitNumber}</strong>
+                  <span>
+                    {unit.trades
+                      .map((trade) => trade.charAt(0).toUpperCase() + trade.slice(1))
+                      .join(' + ')} approved
+                    {meta ? ` · walked with ${meta.contact}` : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
       {summary.unresolvedSectionTradeIds.length > 0 ? (
@@ -1576,6 +1603,8 @@ export function DayTaskWorkspace({
     return (
       <EndDayFlow
         activeWalkSessionId={activeWalkSessionId}
+        acceptedToday={acceptedToday}
+        acceptedWalkMeta={acceptedWalkMeta}
         events={events}
         now={now}
         onCancel={() => setView({ id: 'home' })}

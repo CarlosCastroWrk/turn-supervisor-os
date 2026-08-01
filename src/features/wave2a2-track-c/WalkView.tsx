@@ -382,6 +382,17 @@ const ActiveWalk = ({
           {walkPackages.length}
         </span>
       </header>
+      {integration?.onReturnToBoard ? (
+        <button
+          className="track-c-walk__leave"
+          data-track-c-critical-target="true"
+          onClick={integration.onReturnToBoard}
+          type="button"
+        >
+          <ArrowLeft aria-hidden="true" size={16} />
+          Back to board — the walk stays active
+        </button>
+      ) : null}
       <p className="track-c-walk__instruction">
         Record one result per Unit+Trade package. A correction still identifies
         the affected sections.

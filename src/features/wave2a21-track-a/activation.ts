@@ -263,7 +263,7 @@ const setupUnitsFromData = (
       id: unit.id,
       projectId,
       unitNumber: unit.unitNumber,
-      unitType: Math.min(5, Math.max(1, unit.bedCount)) as 1 | 2 | 3 | 4 | 5,
+      unitType: Math.min(5, Math.max(0, unit.bedCount)) as 0 | 1 | 2 | 3 | 4 | 5,
     }));
 };
 

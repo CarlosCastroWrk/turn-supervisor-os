@@ -187,3 +187,26 @@
   border: 1px solid var(--turn-color-divider, var(--border));
   color: var(--turn-color-secondary, var(--muted));
 }
+
+/* Per-day report PDF from Day History — a forgotten ritual is always recoverable. */
+.lcc-day-history-pdf {
+  inline-size: 100%;
+  min-block-size: 44px;
+  border: none;
+  background: transparent;
+  color: var(--turn-color-primary, #0072dc);
+  font-weight: 700;
+  font-size: 15px;
+  text-align: center;
+}
+
+.lcc-archive-project {
+  inline-size: 100%;
+  min-block-size: 48px;
+  border: none;
+  background: transparent;
+  color: #c0362c;
+  font-weight: 700;
+  font-size: 15.5px;
+  text-align: center;
+}

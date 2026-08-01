@@ -215,9 +215,19 @@ const CompactTrade = ({
   const names = progress.crewIds
     .map((crewId) => trackCCrewName(state, crewId))
     .filter(Boolean);
-  const complete = /^(\d+)\/\1 (Los passed|accepted)/.test(progress.conciseLabel);
+  // Tri-state truth per trade: green = property accepted everything released,
+  // yellow = some progress, red = released with nothing done yet.
+  const stateClass = progress.released === 0
+    ? ''
+    : progress.accepted >= progress.released
+      ? 'is-approved'
+      : progress.losPassed >= progress.released
+        ? 'is-complete'
+        : (progress.losPassed + progress.crewReportedComplete + progress.accepted) > 0
+          ? 'is-partial'
+          : 'is-open';
   return (
-    <div className={`track-c-unit-row__trade ${complete ? 'is-complete' : ''}`}>
+    <div className={`track-c-unit-row__trade ${stateClass}`}>
       <Icon aria-hidden="true" size={15} strokeWidth={2.2} />
       <span>{tradeLabel(progress.trade)}</span>
       <strong>

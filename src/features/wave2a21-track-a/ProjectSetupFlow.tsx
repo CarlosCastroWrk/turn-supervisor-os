@@ -60,11 +60,16 @@ const unitTypeSections = (unitType: TrackASetupUnit['unitType']) => (
   ['Common', 'A', 'B', 'C', 'D', 'E'].slice(0, unitType + 1)
 );
 
+// 0 beds = Studio (common area only). "S" on the paper TurnBoard.
 const setupUnitType = (value: string | number): TrackASetupUnit['unitType'] => {
+  if (typeof value === 'string' && /^s(tudio)?$/iu.test(value.trim())) return 0;
   const parsed = Number(value);
-  return Math.min(5, Math.max(1, Number.isFinite(parsed) ? parsed : 3)) as
+  return Math.min(5, Math.max(0, Number.isFinite(parsed) ? parsed : 3)) as
     TrackASetupUnit['unitType'];
 };
+
+const unitTypeLabel = (unitType: TrackASetupUnit['unitType']) =>
+  (unitType === 0 ? 'Studio' : `${unitType}BR`);
 
 
 export function ProjectSetupFlow({
@@ -115,6 +120,7 @@ export function ProjectSetupFlow({
     const additions: TrackASetupUnit[] = [];
     const unreadableBeds: string[] = [];
     const uncertainties: string[] = [];
+    const duplicates: string[] = [];
     const failedPhotos: number[] = [];
     let readCount = 0;
     for (let index = 0; index < files.length; index += 1) {
@@ -125,7 +131,13 @@ export function ProjectSetupFlow({
         readCount += 1;
         for (const row of result.rows) {
           const unitNumber = row.unitNumber.trim();
-          if (!unitNumber || existing.has(unitNumber.toLocaleLowerCase())) continue;
+          if (!unitNumber) continue;
+          if (existing.has(unitNumber.toLocaleLowerCase())) {
+            // Same unit seen again (another photo or already in the roster) —
+            // skip it but tell Los so he can review rather than wonder.
+            if (!duplicates.includes(unitNumber)) duplicates.push(unitNumber);
+            continue;
+          }
           existing.add(unitNumber.toLocaleLowerCase());
           additions.push({
             building: row.building?.trim()
@@ -152,10 +164,10 @@ export function ProjectSetupFlow({
       }
     }
     if (additions.length > 0) setSetupUnits([...setupUnits, ...additions]);
-    const bedBreakdown = [1, 2, 3, 4, 5]
+    const bedBreakdown = ([0, 1, 2, 3, 4, 5] as const)
       .map((count) => {
         const matching = additions.filter((unit) => unit.unitType === count).length;
-        return matching > 0 ? `${matching}× ${count}BR` : '';
+        return matching > 0 ? `${matching}× ${unitTypeLabel(count)}` : '';
       })
       .filter(Boolean)
       .join(', ');
@@ -167,6 +179,9 @@ export function ProjectSetupFlow({
         : `No new Units were read from ${source}.`,
       unreadableBeds.length > 0
         ? `Bed count unreadable for ${unreadableBeds.join(', ')} — set to 3BR, fix below.`
+        : '',
+      duplicates.length > 0
+        ? `Possible duplicates skipped (already listed once): ${duplicates.join(', ')} — review below.`
         : '',
       failedPhotos.length > 0
         ? `Photo ${failedPhotos.join(', ')} could not be read — retake or paste those.`
@@ -653,9 +668,9 @@ export function ProjectSetupFlow({
                   onChange={(event) => setUnitType(setupUnitType(event.target.value))}
                   value={unitType}
                 >
-                  {[1, 2, 3, 4, 5].map((count) => (
+                  {[0, 1, 2, 3, 4, 5].map((count) => (
                     <option key={count} value={count}>
-                      {count}BR · {unitTypeSections(setupUnitType(count)).join(', ')}
+                      {unitTypeLabel(setupUnitType(count))} · {unitTypeSections(setupUnitType(count)).join(', ')}
                     </option>
                   ))}
                 </select>
@@ -698,12 +713,15 @@ export function ProjectSetupFlow({
             </div>
             {setupUnits.length > 0 ? (
               <ul className="w2a21a-setup__roster">
-                {setupUnits.map((unit) => (
+                {[...setupUnits]
+                  .sort((left, right) =>
+                    left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
+                  .map((unit) => (
                   <li key={unit.id}>
                     <span>
                       <strong>Unit {unit.unitNumber}</strong>
                       <small>
-                        {unit.unitType}BR · {unit.building} · {unit.floor}
+                        {unitTypeLabel(unit.unitType)} · {unit.building} · {unit.floor}
                       </small>
                     </span>
                     <span>
@@ -718,8 +736,8 @@ export function ProjectSetupFlow({
                             : candidate))}
                         value={unit.unitType}
                       >
-                        {[1, 2, 3, 4, 5].map((count) => (
-                          <option key={count} value={count}>{count}BR</option>
+                        {[0, 1, 2, 3, 4, 5].map((count) => (
+                          <option key={count} value={count}>{unitTypeLabel(setupUnitType(count))}</option>
                         ))}
                       </select>
                       <button

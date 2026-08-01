@@ -60,6 +60,7 @@ type WorkspaceView =
   | { id: 'home' }
   | { id: 'start-day' }
   | { id: 'end-day' }
+  | { id: 'day-closed' }
   | { id: 'recovery' }
   | { id: 'queue'; queue: TodayTaskQueue };
 
@@ -621,6 +622,103 @@ export function StartDayFlow({
   );
 }
 
+// The closing page: after Close Day Session, land here so the nightly ritual
+// (report PDF + backup export) can never be missed on the way out.
+function DayClosedPage({
+  acceptedToday = [],
+  acceptedWalkMeta,
+  currentDate,
+  onDone,
+  onExportBackup,
+  onExportReport,
+}: {
+  acceptedToday?: readonly {
+    trades: readonly string[];
+    unitId: string;
+    unitNumber: string;
+  }[];
+  acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
+  currentDate: string;
+  onDone: () => void;
+  onExportBackup?: () => Promise<string>;
+  onExportReport?: (dayNumber?: number) => Promise<string>;
+}) {
+  const [status, setStatus] = useState('');
+  const run = (task?: () => Promise<string>) => {
+    if (!task) return;
+    setStatus('Working…');
+    void task()
+      .then(setStatus)
+      .catch(() => setStatus('That could not be completed. Try again.'));
+  };
+  return (
+    <div className="w2a2b-workspace w2a2b-day-closed">
+      <PageHeader onBack={onDone} title="Day closed" />
+      <section className="w2a2b-review-card">
+        <span className="w2a2b-eyebrow">{currentDate}</span>
+        <h2>The day is closed. Two taps and tonight is safe.</h2>
+        {acceptedToday.length > 0 ? (
+          <div className="w2a2b-done-list">
+            <small>Accepted today</small>
+            {acceptedToday.map((unit) => {
+              const meta = acceptedWalkMeta?.[unit.unitId];
+              return (
+                <div key={unit.unitId} className="w2a2b-endday-accepted__row">
+                  <strong>Unit {unit.unitNumber}</strong>
+                  <span>
+                    {unit.trades
+                      .map((trade) => trade.charAt(0).toUpperCase() + trade.slice(1))
+                      .join(' + ')} approved
+                    {meta ? ` · walked with ${meta.contact}` : ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </section>
+      <section className="w2a2b-section" aria-label="Nightly ritual">
+        <div className="w2a2b-inset-list">
+          {onExportReport ? (
+            <button
+              data-track-b-critical-target="true"
+              onClick={() => run(() => onExportReport())}
+              type="button"
+            >
+              <span className="w2a2b-row-icon is-needs-inspection"><ClipboardList aria-hidden="true" size={20} /></span>
+              <span>
+                <strong>Save today’s report (PDF)</strong>
+                <small>The one-page day report for Rey, Tony, or the property.</small>
+              </span>
+              <ChevronRight aria-hidden="true" size={19} />
+            </button>
+          ) : null}
+          {onExportBackup ? (
+            <button
+              data-track-b-critical-target="true"
+              onClick={() => run(onExportBackup)}
+              type="button"
+            >
+              <span className="w2a2b-row-icon is-working"><FileUp aria-hidden="true" size={20} /></span>
+              <span>
+                <strong>Export tonight’s backup</strong>
+                <small>Save the file to iCloud Drive — that’s your off-phone copy.</small>
+              </span>
+              <ChevronRight aria-hidden="true" size={19} />
+            </button>
+          ) : null}
+        </div>
+        {status ? (
+          <p aria-live="polite" className="w2a2b-ritual__status">{status}</p>
+        ) : null}
+      </section>
+      <button className="w2a2b-primary-button" onClick={onDone} type="button">
+        Done — back to Home
+      </button>
+    </div>
+  );
+}
+
 interface EndDayFlowProps {
   activeWalkSessionId?: string;
   acceptedToday?: readonly {
@@ -749,9 +847,19 @@ export function EndDayFlow({
       ) : null}
       <section className="w2a2b-review-card">
         <span className="w2a2b-eyebrow">Day summary</span>
-        <h2>{summary.releasedToday} released Paint and Clean sections</h2>
+        <h2>
+          {(() => {
+            const sections = task?.sections ?? [];
+            const unitCount = new Set(sections.map((section) => section.unitId)).size;
+            const commons = sections.filter((section) => section.sectionId === 'common').length;
+            const beds = sections.length - commons;
+            return sections.length > 0
+              ? `${unitCount} unit${unitCount === 1 ? '' : 's'} released · ${beds} bed${beds === 1 ? '' : 's'} · ${commons} common area${commons === 1 ? '' : 's'}`
+              : `${summary.releasedToday} released Paint and Clean sections`;
+          })()}
+        </h2>
         <p className="w2a2b-grain-copy">
-          Counts are Paint and Clean sections. Notes and photos count events.
+          Counts cover Paint and Clean. Notes and photos count events.
         </p>
         <div className="w2a2b-summary-grid">
           {(Object.keys(END_DAY_SUMMARY_LABELS) as (keyof typeof END_DAY_SUMMARY_LABELS)[]).map((key) => (
@@ -1041,8 +1149,18 @@ function DayTaskHome({
           </span>
           {task ? (
             <strong>
-              {new Set(task.sections.map((section) => section.unitId)).size} Units
-              {' · '}{task.sections.length} sections
+              {(() => {
+                // Los and the property manager count in beds and common areas,
+                // not raw "sections".
+                const unitCount = new Set(task.sections.map((section) => section.unitId)).size;
+                const commonCount = task.sections.filter((section) => section.sectionId === 'common').length;
+                const bedCount = task.sections.length - commonCount;
+                return [
+                  `${unitCount} Unit${unitCount === 1 ? '' : 's'}`,
+                  commonCount > 0 ? `${commonCount} common area${commonCount === 1 ? '' : 's'}` : '',
+                  bedCount > 0 ? `${bedCount} bed${bedCount === 1 ? '' : 's'}` : '',
+                ].filter(Boolean).join(' · ');
+              })()}
             </strong>
           ) : null}
         </div>
@@ -1619,13 +1737,27 @@ export function DayTaskWorkspace({
           setSession(nextSession);
           setEvents((current) => [...current, event]);
           setReceipt('Day Session closed. Unresolved work was not changed.');
-          setView({ id: 'home' });
+          // Land on the dedicated closing page so the report + backup ritual
+          // can never be missed on the way out.
+          setView({ id: 'day-closed' });
           return true;
         }}
         onOpenActiveWalk={onOpenActiveWalk}
         recordedBy={startedBy}
         session={session}
         task={task}
+      />
+    );
+  }
+  if (view.id === 'day-closed') {
+    return (
+      <DayClosedPage
+        acceptedToday={acceptedToday}
+        acceptedWalkMeta={acceptedWalkMeta}
+        currentDate={currentDate}
+        onDone={() => setView({ id: 'home' })}
+        onExportBackup={onExportBackup}
+        onExportReport={onExportReport}
       />
     );
   }

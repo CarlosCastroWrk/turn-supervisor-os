@@ -114,7 +114,7 @@ export interface TrackASetupUnit {
   readonly id: string;
   readonly projectId: string;
   readonly unitNumber: string;
-  readonly unitType: 1 | 2 | 3 | 4 | 5;
+  readonly unitType: 0 | 1 | 2 | 3 | 4 | 5;
 }
 
 /** @deprecated Use ProjectConfiguration. Kept as a feature-local compatibility alias. */

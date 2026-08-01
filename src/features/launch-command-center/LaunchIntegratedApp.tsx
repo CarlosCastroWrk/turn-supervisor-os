@@ -153,7 +153,7 @@ import {
 } from '../wave2a21-field-activation/model';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
-import { addCrewMember, updateCrewMember } from '../../lib/actions';
+import { addCrewMember, archiveProject, updateCrewMember } from '../../lib/actions';
 import { createId, nowISO } from '../../lib/constants';
 import {
   buildAppHash,
@@ -492,6 +492,7 @@ function LaunchOperationalApp({
   // can warn before the localStorage ceiling is hit mid-Turn.
   const storageUsage = useMemo(() => estimateStorageUsage(), [data]);
 
+
   useEffect(() => {
     const refreshClock = () => setNow(new Date());
     const refreshWhenVisible = () => {
@@ -666,6 +667,24 @@ function LaunchOperationalApp({
       : undefined,
     [canonicalProjectionResult.projection, readNotificationIds],
   );
+  // Current Work must show what is STILL OWED across the whole Turn — released
+  // but unfinished work carries over from previous days (a unit whose paint was
+  // released Day 1 stays in Needs Crew on Day 2). Counts are at Unit+Trade
+  // grain to match every other list Los reads.
+  const boardQueueCounts = useMemo(() => {
+    const projection = canonicalProjectionResult.projection;
+    if (!projection) return undefined;
+    const unitTradeCount = (records: readonly { target: { unitId: string }; trade: string }[]) =>
+      new Set(records.map((record) => `${record.target.unitId}:${record.trade}`)).size;
+    return {
+      callbacks: unitTradeCount(projection.queues.callbacks),
+      'needs-crew': unitTradeCount(projection.queues['needs-crew']),
+      'needs-inspection': unitTradeCount(projection.queues['needs-inspection']),
+      'ready-to-walk': unitTradeCount(projection.queues['ready-to-walk']),
+      waiting: unitTradeCount(projection.queues.waiting),
+      working: unitTradeCount(projection.queues.working),
+    };
+  }, [canonicalProjectionResult.projection]);
   const requiresCanonicalPersonalProjection = Boolean(activeProject?.fieldConfiguration);
   const activeFieldState = canonicalProjectionResult.projection?.trackCState
     ?? (requiresCanonicalPersonalProjection ? undefined : trackCState);
@@ -2316,7 +2335,7 @@ function LaunchOperationalApp({
           onViewChange={setDayWorkspaceView}
           propertyRoster={propertyRoster}
           releases={dailyReleases}
-          queueCounts={canonicalProjectionResult.projection?.todayTask.queueCounts}
+          queueCounts={boardQueueCounts}
           startDayPrefill={startDayPrefill}
           startedBy="Los"
         />
@@ -2421,10 +2440,6 @@ function LaunchOperationalApp({
             .map((historySession, index) => {
               const sessionEvents = dayEvents.filter((event) =>
                 event.daySessionId === historySession.daySessionId);
-              const passes = sessionEvents.filter((event) =>
-                event.eventType === 'los-passed' || event.eventType === 'callback-resolved').length;
-              const crewComplete = sessionEvents.filter((event) =>
-                event.eventType === 'crew-reported-complete').length;
               const callbacks = sessionEvents.filter((event) =>
                 event.eventType === 'callback-opened').length;
               const acceptedByUnit = new Map<string, Set<string>>();
@@ -2438,21 +2453,38 @@ function LaunchOperationalApp({
                 .map(([unitId, trades]) =>
                   `${unitNumberById.get(unitId) ?? unitId} (${[...trades].join(' + ')})`)
                 .join(', ');
-              // Per-crew breakdown of who reported how many beds (the property
-              // manager counts in beds = bedrooms). Crew attribution lives on the
-              // field events, scoped to this day by date.
-              const bedsByCrew = new Map<string, number>();
-              for (const event of trackCState.events) {
-                if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-                if (event.recordedAt.slice(0, 10) !== historySession.date) continue;
-                bedsByCrew.set(event.crewId, (bedsByCrew.get(event.crewId) ?? 0) + 1);
+              // Everything reads in beds + common areas (a bed = a bedroom —
+              // the property manager's language). Field events carry the
+              // section, so split every count; scoped to this day by date.
+              const splitLabel = (beds: number, commons: number) => [
+                beds > 0 ? `${beds} bed${beds === 1 ? '' : 's'}` : '',
+                commons > 0 ? `${commons} common area${commons === 1 ? '' : 's'}` : '',
+              ].filter(Boolean).join(' · ') || '0';
+              const dayFieldEvents = trackCState.events.filter((event) =>
+                event.recordedAt.slice(0, 10) === historySession.date);
+              const completeSplit = { beds: 0, commons: 0 };
+              const passSplit = { beds: 0, commons: 0 };
+              const crewSplit = new Map<string, { beds: number; commons: number }>();
+              for (const event of dayFieldEvents) {
+                const isCommon = event.target.section === 'common';
+                if (event.eventType === 'crew-reported-complete') {
+                  completeSplit[isCommon ? 'commons' : 'beds'] += 1;
+                  if (event.crewId) {
+                    const line = crewSplit.get(event.crewId) ?? { beds: 0, commons: 0 };
+                    line[isCommon ? 'commons' : 'beds'] += 1;
+                    crewSplit.set(event.crewId, line);
+                  }
+                }
+                if (event.eventType === 'los-passed' || event.eventType === 'callback-resolved') {
+                  passSplit[isCommon ? 'commons' : 'beds'] += 1;
+                }
               }
-              const crewBreakdown = [...bedsByCrew.entries()]
-                .map(([crewId, count]) => {
+              const crewBreakdown = [...crewSplit.entries()]
+                .map(([crewId, line]) => {
                   const name = crewRecords.find((crew) => crew.id === crewId)?.name ?? crewId;
-                  return `${name} — ${count} bed${count === 1 ? '' : 's'}`;
+                  return `${name} — ${splitLabel(line.beds, line.commons)}`;
                 })
-                .join(' · ');
+                .join('   ·   ');
               return (
                 <GroupedInsetSection
                   key={historySession.daySessionId}
@@ -2461,16 +2493,37 @@ function LaunchOperationalApp({
                 >
                   <GroupedInsetRow
                     detail={crewBreakdown || undefined}
-                    label="Crew reported beds complete"
-                    value={String(crewComplete)}
+                    label="Crew reported complete"
+                    value={splitLabel(completeSplit.beds, completeSplit.commons)}
                   />
-                  <GroupedInsetRow label="Beds I passed" value={String(passes)} />
+                  <GroupedInsetRow
+                    label="Passed my inspection"
+                    value={splitLabel(passSplit.beds, passSplit.commons)}
+                  />
                   <GroupedInsetRow label="Callbacks opened" value={String(callbacks)} />
                   <GroupedInsetRow
                     detail={acceptedLabel || undefined}
                     label="Units property accepted"
                     value={String(acceptedByUnit.size)}
                   />
+                  <button
+                    className="lcc-day-history-pdf"
+                    onClick={() => {
+                      setMoreStatus('Building the day report…');
+                      const report = buildDailyReportData({
+                        date: historySession.date,
+                        dayNumber: daySessions.length - index,
+                        state: trackCState,
+                        supervisor: 'Los',
+                      });
+                      void saveDailyReportPdf(report)
+                        .then((filename) => setMoreStatus(`Report saved as ${filename}.`))
+                        .catch(() => setMoreStatus('The report could not be created. Try again.'));
+                    }}
+                    type="button"
+                  >
+                    Save Day {daySessions.length - index} report (PDF)
+                  </button>
                 </GroupedInsetSection>
               );
             })}
@@ -2523,6 +2576,36 @@ function LaunchOperationalApp({
               value={storagePersistence === 'persistent' ? 'Granted' : 'Best effort'}
             />
           </GroupedInsetSection>
+          {launchProjection.project?.mode === 'real' ? (
+            <GroupedInsetSection
+              label="Start fresh"
+              footer="Archiving hides this project and returns you to setup. Every record is kept on this device — nothing is deleted, and it can be restored later."
+            >
+              <button
+                className="lcc-archive-project"
+                onClick={() => {
+                  const name = launchProjection.propertyName || 'this project';
+                  const sure = window.confirm(
+                    `Archive ${name} and start fresh?\n\nUse this when the current project was a test run. `
+                    + 'All records are kept on this device — nothing is deleted. You will land on property setup for the real Turn.',
+                  );
+                  if (!sure) return;
+                  const saved = commitDataNow((current) =>
+                    archiveProject(current, current.activeProjectId));
+                  setMoreStatus(saved
+                    ? `${name} archived. Set up the official Turn whenever you're ready.`
+                    : 'The project could not be archived. Nothing was changed.');
+                  if (saved) {
+                    setMoreDetailPage(null);
+                    navigate('dashboard');
+                  }
+                }}
+                type="button"
+              >
+                Archive this project — start fresh
+              </button>
+            </GroupedInsetSection>
+          ) : null}
         </NativeDetailShell>
       ) : (
         <ThemeAwareMorePage

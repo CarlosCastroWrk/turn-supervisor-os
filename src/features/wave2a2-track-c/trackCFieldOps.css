@@ -518,7 +518,8 @@
   width: calc(100% - 16px);
 }
 
-/* A trade line whose released scope is fully Los-passed or accepted */
+/* Per-trade truth colors: green = property accepted, teal-green = Los passed
+   all, amber = some progress, red = released but nothing done yet. */
 .track-c-unit-row__trade.is-complete small {
   color: var(--track-c-green);
   font-weight: 800;
@@ -526,6 +527,33 @@
 
 .track-c-unit-row__trade.is-complete svg {
   color: var(--track-c-green);
+}
+
+.track-c-unit-row__trade.is-approved small {
+  color: var(--track-c-green);
+  font-weight: 800;
+}
+
+.track-c-unit-row__trade.is-approved svg {
+  color: var(--track-c-green);
+}
+
+.track-c-unit-row__trade.is-partial small {
+  color: #b07414;
+  font-weight: 700;
+}
+
+.track-c-unit-row__trade.is-partial svg {
+  color: #b07414;
+}
+
+.track-c-unit-row__trade.is-open small {
+  color: #c0362c;
+  font-weight: 700;
+}
+
+.track-c-unit-row__trade.is-open svg {
+  color: #c0362c;
 }
 
 .track-c-section-list {
@@ -1934,4 +1962,21 @@ select.track-c-trade-change {
 
 .w2a2b-done-list__unit small {
   color: var(--turn-color-secondary, #66707c);
+}
+
+/* Leave an active walk without ending it — no dead-end flows. */
+.track-c-walk__leave {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 0 14px;
+  margin: 2px 0 6px;
+  border-radius: 10px;
+  border: 1px solid var(--track-c-divider, #d8dee6);
+  background: transparent;
+  color: var(--track-c-ink, #17202a);
+  font-weight: 600;
+  font-size: 14px;
 }

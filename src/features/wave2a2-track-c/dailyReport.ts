@@ -48,6 +48,10 @@ export interface DailyReportData {
     readonly unitsAccepted: number;
     readonly sectionsAccepted: number;
     readonly sectionsPassed: number;
+    readonly bedsPassed: number;
+    readonly commonsPassed: number;
+    readonly bedsCompleted: number;
+    readonly commonsCompleted: number;
     readonly callbacksOpened: number;
     readonly callbacksResolved: number;
     readonly callbacksStillOpen: number;
@@ -147,6 +151,14 @@ export function buildDailyReportData(input: {
   for (const event of todays('work-started')) touchCrew(event.crewId, 'started');
   for (const event of todays('crew-reported-complete')) touchCrew(event.crewId, 'completed');
 
+  // Beds vs common areas (a bed = a bedroom — the property manager's language).
+  const splitByKind = (events: readonly { target: { section: string } }[]) => {
+    const commons = events.filter((event) => event.target.section === 'common').length;
+    return { beds: events.length - commons, commons };
+  };
+  const passedSplit = splitByKind(todays('los-passed'));
+  const completedSplit = splitByKind(todays('crew-reported-complete'));
+
   return {
     crews: [...crewLines.values()]
       .map((line) => ({
@@ -161,9 +173,13 @@ export function buildDailyReportData(input: {
     openCallbacks,
     propertyName: state.propertyName,
     stats: {
+      bedsCompleted: completedSplit.beds,
+      bedsPassed: passedSplit.beds,
       callbacksOpened: todays('callback-opened').length,
       callbacksResolved: todays('callback-resolved').length,
       callbacksStillOpen: openCallbacks.length,
+      commonsCompleted: completedSplit.commons,
+      commonsPassed: passedSplit.commons,
       crewsActive: crewLines.size,
       sectionsAccepted: accepted.length,
       sectionsPassed: todays('los-passed').length,
@@ -243,7 +259,8 @@ export async function saveDailyReportPdf(report: DailyReportData): Promise<strin
 
   heading('Today at a glance');
   line(`Units accepted by the property: ${report.stats.unitsAccepted}`);
-  line(`Sections accepted: ${report.stats.sectionsAccepted} · Sections passed my inspection: ${report.stats.sectionsPassed}`);
+  line(`Crew reported complete: ${report.stats.bedsCompleted} beds · ${report.stats.commonsCompleted} common areas`);
+  line(`Passed my inspection: ${report.stats.bedsPassed} beds · ${report.stats.commonsPassed} common areas`);
   line(`Callbacks: ${report.stats.callbacksOpened} opened · ${report.stats.callbacksResolved} resolved · ${report.stats.callbacksStillOpen} still open`);
   line(`Crews active: ${report.stats.crewsActive}`);
 

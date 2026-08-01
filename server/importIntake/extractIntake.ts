@@ -27,7 +27,7 @@ export type IntakeRequest = z.infer<typeof intakeRequestSchema>;
 
 const intakeRowSchema = z.object({
   unitNumber: z.string(),
-  bedCount: z.number().int().min(1).max(5).nullable().optional(),
+  bedCount: z.number().int().min(0).max(5).nullable().optional(),
   building: z.string().nullable().optional(),
   trades: z.array(z.enum(['paint', 'clean'])).min(1),
   sections: z.array(z.enum(['common', 'A', 'B', 'C', 'D', 'E'])),
@@ -84,10 +84,13 @@ const promptFor = (request: IntakeRequest) => {
   const shared = `You read PDS student-housing TurnBoard sheets for a supervisor named Los.
 Sheet layout (one band per trade, titled Painting or Cleaning; ignore Carpet):
 columns are Bldg | Unit Type | Unit # | Comn | A | B | C | D | E | crew name | PDS Approved.
-Unit Type is the BED COUNT (2, 3, 4, or 5). A blacked-out section cell means
-that room is not part of this unit's scope — occupied or nonexistent — and is
-never worked, released, or counted. A 3-bed unit has Comn+A+B+C with D/E
-blacked; a 5-bed has no blackouts; a 2-bed has C/D/E blacked.
+Unit Type is the BED COUNT (0, 2, 3, 4, or 5; "S" or "Studio" means 0). A
+blacked-out section cell means that room is not part of this unit's scope —
+occupied or nonexistent — and is never worked, released, or counted. A 3-bed
+unit has Comn+A+B+C with D/E blacked; a 5-bed has no blackouts; a 2-bed has
+C/D/E blacked. STUDIO RULE: if ALL letter cells (A through E) are blacked out,
+the unit is a STUDIO — bedCount 0, common area only. NEVER invent beds for a
+studio; a blacked cell is never a bed.
 bedCount is REQUIRED on every row: read the Unit Type column, then verify it
 against the blackout pattern (bedCount = 5 minus the number of blacked
 letter cells). If the two disagree or are unreadable, output your best value

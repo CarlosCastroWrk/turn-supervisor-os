@@ -117,7 +117,7 @@ export function projectPropertyRoster(data: AppData): PropertyRoster {
         id: unit.id,
         propertyId: unit.projectId,
         unitNumber: unit.unitNumber,
-        unitType: `${unit.bedCount}BR`,
+        unitType: unit.bedCount === 0 ? 'Studio' : `${unit.bedCount}BR`,
       })),
   };
 }

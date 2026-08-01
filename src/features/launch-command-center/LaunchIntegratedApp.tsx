@@ -2384,7 +2384,7 @@ function LaunchOperationalApp({
               date: activeDaySession?.date ?? currentDate,
               dayNumber,
               state: trackCState,
-              supervisor: 'Los',
+              supervisor: launchProjection.project?.supervisorName?.trim() || 'Los',
             });
             const filename = await saveDailyReportPdf(report);
             return `Report saved as ${filename}. Share it from Files whenever you need to.`;
@@ -2572,7 +2572,7 @@ function LaunchOperationalApp({
                         date: historySession.date,
                         dayNumber: daySessions.length - index,
                         state: trackCState,
-                        supervisor: 'Los',
+                        supervisor: launchProjection.project?.supervisorName?.trim() || 'Los',
                       });
                       void saveDailyReportPdf(report)
                         .then((filename) => setMoreStatus(`Report saved as ${filename}.`))

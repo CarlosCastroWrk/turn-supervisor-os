@@ -28,6 +28,8 @@ export interface DailyReportUnitLine {
   readonly unitNumber: string;
   readonly trades: readonly string[];
   readonly sections: number;
+  /** "1 common area · 3 beds" — the property-manager language. */
+  readonly makeup?: string;
   readonly walkedWith?: string;
   readonly time?: string;
 }
@@ -101,14 +103,29 @@ export function buildDailyReportData(input: {
     }
   }
   const unitsDone: DailyReportUnitLine[] = [...acceptedByUnit.entries()]
-    .map(([unitId, group]) => ({
-      sections: group.sections,
-      time: walkMeta.get(unitId)?.at ? timeLabel(walkMeta.get(unitId)!.at!) : undefined,
-      trades: [...group.trades],
-      unitNumber: unitNumberById.get(unitId) ?? unitId,
-      walkedWith: walkMeta.get(unitId)?.contact,
-    }))
-    .sort((left, right) => left.unitNumber.localeCompare(right.unitNumber));
+    .map(([unitId, group]) => {
+      // Beds/common language per unit ("1 common area · 3 beds"), from the
+      // unit's own accepted sections (unique, not section-trade counts).
+      const unit = state.units.find((candidate) => candidate.id === unitId);
+      const uniqueSections = new Set(
+        unit?.workFacts.map((fact) => fact.section) ?? [],
+      );
+      const commons = uniqueSections.has('common') ? 1 : 0;
+      const beds = uniqueSections.size - commons;
+      return {
+        makeup: [
+          commons > 0 ? `${commons} common area` : '',
+          beds > 0 ? `${beds} bed${beds === 1 ? '' : 's'}` : '',
+        ].filter(Boolean).join(' · '),
+        sections: group.sections,
+        time: walkMeta.get(unitId)?.at ? timeLabel(walkMeta.get(unitId)!.at!) : undefined,
+        trades: [...group.trades],
+        unitNumber: unitNumberById.get(unitId) ?? unitId,
+        walkedWith: walkMeta.get(unitId)?.contact,
+      };
+    })
+    .sort((left, right) =>
+      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
 
   const openCallbacks: { unitNumber: string; trade: string; section: string }[] = [];
   for (const unit of state.units) {
@@ -269,7 +286,8 @@ export async function saveDailyReportPdf(report: DailyReportData): Promise<strin
     line('No units were property-accepted today.');
   }
   for (const unit of report.unitsDone) {
-    line(`Unit ${unit.unitNumber} — ${unit.trades.join(' + ')} · ${unit.sections} section${unit.sections === 1 ? '' : 's'}${unit.walkedWith ? ` · walked with ${unit.walkedWith}` : ''}${unit.time ? ` at ${unit.time}` : ''}`);
+    const scope = unit.makeup || `${unit.sections} section${unit.sections === 1 ? '' : 's'}`;
+    line(`Unit ${unit.unitNumber} — ${unit.trades.join(' + ')} · ${scope}${unit.walkedWith ? ` · walked with ${unit.walkedWith}` : ''}${unit.time ? ` at ${unit.time}` : ''}`);
   }
 
   heading('Open callbacks going into tomorrow');

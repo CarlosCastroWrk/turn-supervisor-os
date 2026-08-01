@@ -776,3 +776,49 @@ button.w2a1b-row:active {
     transform: scale(0.985);
   }
 }
+
+/* Long values ("6 beds · 2 common areas") must never collapse into a one-
+   character-per-line column next to a long detail. */
+.w2a1b-row__copy {
+  min-inline-size: 0;
+  flex: 1 1 52%;
+}
+.w2a1b-row__value {
+  flex: 0 0 auto;
+  min-inline-size: 96px;
+  max-inline-size: 44vw;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  white-space: normal;
+}
+
+/* Crew rows: call/text the moment a number exists. */
+.w2a1b-contact-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.w2a1b-contact-row .w2a1b-contact {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.w2a1b-contact-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.w2a1b-contact-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 34px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid var(--w2a1b-accent, #1677ff);
+  color: var(--w2a1b-accent, #1677ff);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}

@@ -55,7 +55,6 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     items: [
       { id: 'setup', label: 'Setup', detail: 'Property, schedule, permissions, and review' },
       { id: 'unit-import', label: 'Unit Import', detail: 'Review a source before adding Units' },
-      { id: 'daily-goal', label: 'Daily Goal', detail: 'Set one metric, milestone, and target' },
     ],
   },
   {

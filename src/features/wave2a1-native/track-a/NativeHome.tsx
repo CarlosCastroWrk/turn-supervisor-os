@@ -398,8 +398,22 @@ export function NativeHomeSummaryPage({
                   return `${unitCount} ${unitCount === 1 ? 'unit' : 'units'} · ${jobCount} ${jobCount === 1 ? 'trade' : 'trades'}`;
                 })()}
               </h2>
-              <div className="w2a1-a-inset-list">
-                {destination.records.map((record) => (
+              {(() => {
+                // Los reads queues one column per trade (Paint | Clean), each in
+                // numerical order — not the two trades stacked on top of each other.
+                const numeric = (left: NativeHomeRecord, right: NativeHomeRecord) =>
+                  left.unitLabel.localeCompare(right.unitLabel, undefined, { numeric: true });
+                const paint = destination.records
+                  .filter((record) => (record.meta ?? '').startsWith('Paint'))
+                  .sort(numeric);
+                const clean = destination.records
+                  .filter((record) => (record.meta ?? '').startsWith('Clean'))
+                  .sort(numeric);
+                const other = destination.records
+                  .filter((record) => !(record.meta ?? '').startsWith('Paint')
+                    && !(record.meta ?? '').startsWith('Clean'))
+                  .sort(numeric);
+                const row = (record: NativeHomeRecord) => (
                   <button
                     className="w2a1-a-inset-row"
                     key={record.id}
@@ -412,8 +426,28 @@ export function NativeHomeSummaryPage({
                     </span>
                     <ChevronRight aria-hidden="true" className="w2a1-a-chevron" size={19} />
                   </button>
-                ))}
-              </div>
+                );
+                if (paint.length === 0 && clean.length === 0) {
+                  return <div className="w2a1-a-inset-list">{other.map(row)}</div>;
+                }
+                return (
+                  <div className="w2a1-a-trade-columns">
+                    <div>
+                      <h3>Paint · {paint.length}</h3>
+                      <div className="w2a1-a-inset-list">{paint.map(row)}</div>
+                    </div>
+                    <div>
+                      <h3>Clean · {clean.length}</h3>
+                      <div className="w2a1-a-inset-list">{clean.map(row)}</div>
+                    </div>
+                    {other.length > 0 ? (
+                      <div className="w2a1-a-trade-columns__other">
+                        <div className="w2a1-a-inset-list">{other.map(row)}</div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </section>
           )}
         </div>

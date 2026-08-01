@@ -710,3 +710,28 @@ body:has(.w2a1-a-page-transition) {
   padding: 12px 16px;
   width: 100%;
 }
+
+/* Queue pages: one column per trade, side by side. */
+.w2a1-a-trade-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.w2a1-a-trade-columns > div > h3 {
+  margin: 0 2px 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--w2a1-a-muted, #66707c);
+}
+.w2a1-a-trade-columns .w2a1-a-inset-row {
+  padding-inline: 10px;
+}
+.w2a1-a-trade-columns .w2a1-a-row-content small {
+  font-size: 11px;
+}
+.w2a1-a-trade-columns__other {
+  grid-column: 1 / -1;
+}

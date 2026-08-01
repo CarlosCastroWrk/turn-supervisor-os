@@ -61,29 +61,37 @@ export function TrackBCrewListPage({
           </div>
         ) : crews.map((crew) => {
           const TradeIcon = tradeIcons[crew.trade];
+          const phone = crew.phone?.trim();
           return (
-            <button
-              className="w2a1b-contact"
-              key={crew.id}
-              type="button"
-              onClick={() => onEdit(crew)}
-            >
-              <span className="w2a1b-avatar" aria-hidden="true">
-                {getTrackBCrewInitials(crew.name)}
-              </span>
-              <span className="w2a1b-contact__copy">
-                <strong>{crew.name}</strong>
-                <span>
-                  <TradeIcon aria-hidden="true" size={16} />
-                  {crew.trade}
-                  {crew.phone ? ` · ${crew.phone}` : ''}
+            <div className="w2a1b-contact-row" key={crew.id}>
+              <button
+                className="w2a1b-contact"
+                type="button"
+                onClick={() => onEdit(crew)}
+              >
+                <span className="w2a1b-avatar" aria-hidden="true">
+                  {getTrackBCrewInitials(crew.name)}
                 </span>
-              </span>
-              <span className={`w2a1b-contact__status ${crew.activeToday ? 'is-active' : ''}`}>
-                {crew.activeToday ? <Check aria-hidden="true" size={15} /> : null}
-                {crew.activeToday ? 'Active today' : 'Not active'}
-              </span>
-            </button>
+                <span className="w2a1b-contact__copy">
+                  <strong>{crew.name}</strong>
+                  <span>
+                    <TradeIcon aria-hidden="true" size={16} />
+                    {crew.trade}
+                    {phone ? ` · ${phone}` : ''}
+                  </span>
+                </span>
+                <span className={`w2a1b-contact__status ${crew.activeToday ? 'is-active' : ''}`}>
+                  {crew.activeToday ? <Check aria-hidden="true" size={15} /> : null}
+                  {crew.activeToday ? 'Active today' : 'Not active'}
+                </span>
+              </button>
+              {phone ? (
+                <span className="w2a1b-contact-actions">
+                  <a aria-label={`Call ${crew.name}`} href={`tel:${phone}`}>Call</a>
+                  <a aria-label={`Text ${crew.name}`} href={`sms:${phone}`}>Text</a>
+                </span>
+              ) : null}
+            </div>
           );
         })}
       </section>

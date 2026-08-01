@@ -1531,6 +1531,28 @@ function LaunchOperationalApp({
     setMoreStatus(`${draft.name} saved to this personal project.`);
   }, [crewEditor, setData]);
 
+  // Quick-add a crew mid-flow (e.g. during Start Day) — creates and returns the
+  // new crew's id so the caller can activate it for today immediately.
+  const addDayCrew = useCallback((name: string, trade: 'paint' | 'clean'): string => {
+    const timestamp = nowISO();
+    const id = createId('crew');
+    setData((current) => addCrewMember(current, {
+      active: true,
+      assignedLocation: '',
+      company: '',
+      createdAt: timestamp,
+      id,
+      language: '',
+      name,
+      notes: '',
+      phone: '',
+      projectId: current.activeProjectId,
+      trade: trade === 'paint' ? 'Painter' : 'Cleaner',
+      updatedAt: timestamp,
+    }));
+    return id;
+  }, [setData]);
+
   const handleMoreNavigation = useCallback((destination: TrackBToolDestination) => {
     setMoreStatus('Personal workspace · paper remains authoritative');
     if (destination === 'official-pds-forms') {
@@ -2188,6 +2210,7 @@ function LaunchOperationalApp({
             contacts={activeProjectContacts}
             crewOptions={fastStartDayCrewOptions}
             currentDate={currentDate}
+            onAddCrew={addDayCrew}
             onCancel={() => setHomeMode('day')}
             onStartDay={startFastDay}
             projectId={activeProject.id}

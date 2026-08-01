@@ -911,3 +911,30 @@
   color: var(--turn-color-ready, #237a45);
   font-weight: 800;
 }
+
+/* Quick-add a crew inline during Start Day. */
+.w2a21a-add-crew {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.w2a21a-add-crew input {
+  flex: 1 1 auto;
+  min-block-size: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--turn-color-divider, var(--border, #d8dee6));
+  padding: 0 12px;
+  font-size: 16px;
+  background: var(--turn-color-page, #fff);
+  color: var(--turn-color-ink, #141a22);
+}
+.w2a21a-add-crew button {
+  flex: 0 0 auto;
+  min-block-size: 40px;
+  padding-inline: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--turn-color-primary, #0072dc);
+  background: transparent;
+  color: var(--turn-color-primary, #0072dc);
+  font-weight: 700;
+}

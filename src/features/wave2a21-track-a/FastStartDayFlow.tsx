@@ -33,6 +33,7 @@ export interface FastStartDayFlowProps {
   readonly currentDate: string;
   readonly currentStep?: number;
   readonly draft?: FastStartDayDraft;
+  readonly onAddCrew?: (name: string, trade: 'paint' | 'clean') => string;
   readonly onCancel: () => void;
   readonly onDraftChange?: (draft: FastStartDayDraft) => void;
   readonly onStepChange?: (step: number) => void;
@@ -66,6 +67,7 @@ export function FastStartDayFlow({
   currentDate,
   currentStep,
   draft: controlledDraft,
+  onAddCrew,
   onCancel,
   onDraftChange,
   onStepChange,
@@ -146,6 +148,25 @@ export function FastStartDayFlow({
         explicitStartConfirmation: false,
       };
     });
+  };
+
+  const [newCrewName, setNewCrewName] = useState<{ paint: string; clean: string }>({
+    paint: '',
+    clean: '',
+  });
+  const addCrewForTrade = (trade: 'paint' | 'clean') => {
+    const name = newCrewName[trade].trim();
+    if (!name || !onAddCrew) return;
+    const id = onAddCrew(name, trade);
+    updateDraft((current) => ({
+      ...current,
+      activeCrewIdsByTrade: {
+        ...current.activeCrewIdsByTrade,
+        [trade]: [...current.activeCrewIdsByTrade[trade], id],
+      },
+      explicitStartConfirmation: false,
+    }));
+    setNewCrewName((current) => ({ ...current, [trade]: '' }));
   };
 
   const continueFlow = () => {
@@ -363,6 +384,33 @@ export function FastStartDayFlow({
                         {crew.name}
                       </label>
                     ))}
+                    {onAddCrew ? (
+                      <div className="w2a21a-add-crew">
+                        <input
+                          aria-label={`Add a ${crewTradeLabel[trade]} crew`}
+                          onChange={(event) => setNewCrewName((current) => ({
+                            ...current,
+                            [trade]: event.target.value,
+                          }))}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              addCrewForTrade(trade);
+                            }
+                          }}
+                          placeholder={`Add ${crewTradeLabel[trade].toLowerCase()} crew`}
+                          type="text"
+                          value={newCrewName[trade]}
+                        />
+                        <button
+                          disabled={!newCrewName[trade].trim()}
+                          onClick={() => addCrewForTrade(trade)}
+                          type="button"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    ) : null}
                   </fieldset>
                 ))
               ) : (

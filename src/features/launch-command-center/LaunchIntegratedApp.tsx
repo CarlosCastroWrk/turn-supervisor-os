@@ -2415,18 +2415,37 @@ function LaunchOperationalApp({
                 .map(([unitId, trades]) =>
                   `${unitNumberById.get(unitId) ?? unitId} (${[...trades].join(' + ')})`)
                 .join(', ');
+              // Per-crew breakdown of who reported how many beds (the property
+              // manager counts in beds = bedrooms). Crew attribution lives on the
+              // field events, scoped to this day by date.
+              const bedsByCrew = new Map<string, number>();
+              for (const event of trackCState.events) {
+                if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
+                if (event.recordedAt.slice(0, 10) !== historySession.date) continue;
+                bedsByCrew.set(event.crewId, (bedsByCrew.get(event.crewId) ?? 0) + 1);
+              }
+              const crewBreakdown = [...bedsByCrew.entries()]
+                .map(([crewId, count]) => {
+                  const name = crewRecords.find((crew) => crew.id === crewId)?.name ?? crewId;
+                  return `${name} — ${count} bed${count === 1 ? '' : 's'}`;
+                })
+                .join(' · ');
               return (
                 <GroupedInsetSection
                   key={historySession.daySessionId}
                   label={`Day ${daySessions.length - index} · ${historySession.date}${
                     historySession.status === 'closed' ? '' : ' · open'}`}
                 >
-                  <GroupedInsetRow label="Crew reported complete" value={String(crewComplete)} />
-                  <GroupedInsetRow label="Passed my inspection" value={String(passes)} />
+                  <GroupedInsetRow
+                    detail={crewBreakdown || undefined}
+                    label="Crew reported beds complete"
+                    value={String(crewComplete)}
+                  />
+                  <GroupedInsetRow label="Beds I passed" value={String(passes)} />
                   <GroupedInsetRow label="Callbacks opened" value={String(callbacks)} />
                   <GroupedInsetRow
                     detail={acceptedLabel || undefined}
-                    label="Property accepted"
+                    label="Units property accepted"
                     value={String(acceptedByUnit.size)}
                   />
                 </GroupedInsetSection>

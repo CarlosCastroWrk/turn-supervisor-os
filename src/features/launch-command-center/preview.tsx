@@ -133,7 +133,7 @@ export function Preview() {
     />
   ) : (
     <section className="lcc-preview-slot" aria-label={`${activeDestination} integration slot`}>
-      <h1>{activeDestination === 'turnboard' ? 'TurnBoard' : activeDestination === 'activity' ? 'Activity' : 'More'}</h1>
+      <h1>{activeDestination === 'turnboard' ? 'TurnBoard' : activeDestination === 'crews' ? 'Activity' : 'More'}</h1>
       <p>Developer Preview slot only. The integration agent supplies the accepted host-owned surface.</p>
     </section>
   );
@@ -142,7 +142,7 @@ export function Preview() {
     <LaunchCommandCenterShell
       activeDestination={activeDestination}
       contentFocusKey={activeDestination}
-      contentTitle={activeDestination === 'home' ? 'Home' : activeDestination === 'turnboard' ? 'TurnBoard' : activeDestination === 'activity' ? 'Activity' : 'More'}
+      contentTitle={activeDestination === 'home' ? 'Home' : activeDestination === 'turnboard' ? 'TurnBoard' : activeDestination === 'crews' ? 'Activity' : 'More'}
       dateLabel={LAUNCH_SYNTHETIC_CONTEXT.dateLabel}
       notificationCount={LAUNCH_SYNTHETIC_NOTIFICATIONS.filter((item) => !item.read).length}
       onNavigate={(destination) => {

@@ -62,7 +62,7 @@ const previewRows = [
 export function PreviewList({
   kind,
 }: {
-  kind: 'activity' | 'turnboard';
+  kind: 'crews' | 'turnboard';
 }) {
   const rows = Array.from({ length: 6 }, (_, groupIndex) =>
     previewRows.map(([unit, scope, state]) => [
@@ -150,8 +150,8 @@ export function TrackAPreview() {
     </>
   ) : route === 'turnboard' ? (
     <PreviewList kind="turnboard" />
-  ) : route === 'activity' ? (
-    <PreviewList kind="activity" />
+  ) : route === 'crews' ? (
+    <PreviewList kind="turnboard" />
   ) : route === 'more' ? (
     <ThemeAwareMorePage
       onNavigate={() => undefined}
@@ -199,7 +199,7 @@ export function TrackAPreview() {
       <Wave2A2UnifiedShell
         activeDestination={activeDestination}
         backgroundInert={overlayOpen}
-        contentContained={route === 'turnboard' || route === 'activity'}
+        contentContained={route === 'turnboard' || route === 'crews'}
         contentDialogOpen={overlayOpen}
         contentFocusKey={route}
         contentTitle={route === 'turnboard'

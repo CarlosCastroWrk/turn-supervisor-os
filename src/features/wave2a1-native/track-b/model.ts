@@ -1,7 +1,6 @@
 export type TrackBToolDestination =
   | 'backup-restore'
   | 'crews'
-  | 'daily-goal'
   | 'day-history'
   | 'official-pds-forms'
   | 'privacy'
@@ -10,7 +9,8 @@ export type TrackBToolDestination =
   | 'setup'
   | 'storage'
   | 'sync'
-  | 'unit-import';
+  | 'unit-import'
+  | 'activity';
 
 export type TrackBMoreAction = TrackBToolDestination | 'sign-out';
 
@@ -32,6 +32,7 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     label: 'Work',
     items: [
       { id: 'crews', label: 'Crews', detail: 'People available for Paint and Clean' },
+      { id: 'activity', label: 'Activity', detail: 'Every update, in order \u2014 the receipts' },
       {
         id: 'day-history',
         label: 'Day History',

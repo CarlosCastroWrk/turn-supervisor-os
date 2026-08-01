@@ -4,7 +4,7 @@ export const LAUNCH_PRIMARY_NAVIGATION = [
   { id: 'home', label: 'Home', kind: 'destination' },
   { id: 'turnboard', label: 'TurnBoard', kind: 'destination' },
   { id: 'plus', label: 'Add', kind: 'action' },
-  { id: 'activity', label: 'Activity', kind: 'destination' },
+  { id: 'crews', label: 'Crews', kind: 'destination' },
   { id: 'more', label: 'More', kind: 'destination' },
 ] as const;
 

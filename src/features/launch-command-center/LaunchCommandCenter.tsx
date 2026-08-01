@@ -34,7 +34,7 @@ import {
 import './launchCommandCenter.css';
 
 const navigationIcons: Record<LaunchPrimaryDestination, ReactNode> = {
-  activity: <Activity size={20} aria-hidden="true" />,
+  crews: <Users aria-hidden="true" size={22} />,
   home: <Home size={20} aria-hidden="true" />,
   more: <MoreHorizontal size={21} aria-hidden="true" />,
   turnboard: <ListChecks size={20} aria-hidden="true" />,

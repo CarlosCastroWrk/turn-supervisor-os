@@ -278,13 +278,12 @@ const boardViewForRoute = (view: AppView): BoardFirstView => {
 
 const primaryDestinationForRoute = (view: AppView): LaunchPrimaryDestination => {
   if (view === 'dashboard') return 'home';
+  if (view === 'crews') return 'crews';
   if (
     view === 'units'
     || view === 'unitDetail'
-    || view === 'crews'
     || view === 'assignments'
   ) return 'turnboard';
-  if (view === 'activity') return 'activity';
   return 'more';
 };
 
@@ -1305,6 +1304,18 @@ function LaunchOperationalApp({
   }, [openDestination]);
 
   const handlePrimaryNavigation = useCallback((destination: LaunchPrimaryDestination) => {
+    if (destination === 'crews') {
+      // Crews is a first-class tab: land on the crew command view directly.
+      clearLegacyCaptureHistoryState();
+      setPlusOpen(false);
+      setSelectedActivity(null);
+      setCaptureOpen(false);
+      setCrewEditor(null);
+      setMoreDetailPage(null);
+      setHomeMode('day');
+      navigate('crews');
+      return;
+    }
     const tab = destination as TrackCPrimaryTab;
     const decision = selectTrackCPrimaryTab(tabRouteMemoryRef.current, tab);
     // The More tab must land on the More menu, never restore a remembered
@@ -1599,6 +1610,10 @@ function LaunchOperationalApp({
       navigate('reports');
       return;
     }
+    if (destination === 'activity') {
+      navigate('activity');
+      return;
+    }
     if (destination === 'setup') {
       try {
         const projectActive = launchProjection.project?.mode === 'real';
@@ -1648,10 +1663,6 @@ function LaunchOperationalApp({
         setSetupStatus('Unit import is unavailable. Nothing was changed.');
       }
       navigate('setup');
-      return;
-    }
-    if (destination === 'daily-goal') {
-      navigate('dashboard');
       return;
     }
     if (destination === 'sync') {

@@ -14,6 +14,7 @@ import { CalendarDays,
   SlidersHorizontal,
   UserRound,
   Users,
+  Activity,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
@@ -30,9 +31,9 @@ import {
 
 const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   'backup-restore': <Archive size={21} />,
+  activity: <Activity aria-hidden="true" size={21} />,
   'day-history': <CalendarDays size={21} />,
   crews: <Users size={21} />,
-  'daily-goal': <Flag size={21} />,
   'official-pds-forms': <FileText size={21} />,
   privacy: <ShieldCheck size={21} />,
   profile: <UserRound size={21} />,

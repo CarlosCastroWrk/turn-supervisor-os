@@ -128,7 +128,7 @@ test('light on-brand content meets AA contrast through the shared brand token', 
 });
 
 test('unified shell owns only the approved primary hierarchy', () => {
-  const order = ['Home', 'TurnBoard', 'Plus', 'Activity', 'More'];
+  const order = ['Home', 'TurnBoard', 'Plus', 'Crews', 'More'];
   let previousIndex = -1;
   for (const label of order) {
     const index = shellSource.indexOf(`label: '${label}'`);

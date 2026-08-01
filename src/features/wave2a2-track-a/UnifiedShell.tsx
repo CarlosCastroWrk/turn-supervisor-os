@@ -1,5 +1,4 @@
 import {
-  Activity,
   Bell,
   Home,
   ListChecks,
@@ -7,6 +6,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import {
   useLayoutEffect,
@@ -33,9 +33,9 @@ const navigationItems: readonly {
   },
   { id: 'plus', label: 'Plus', icon: <Plus aria-hidden="true" size={24} /> },
   {
-    id: 'activity',
-    label: 'Activity',
-    icon: <Activity aria-hidden="true" size={21} />,
+    id: 'crews',
+    label: 'Crews',
+    icon: <Users aria-hidden="true" size={21} />,
   },
   {
     id: 'more',

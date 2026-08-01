@@ -400,15 +400,22 @@ export function projectTodayTaskForSession(
 }
 
 export function calculateTodayTaskProgress(task: TodayTask | null): TodayTaskProgress {
-  const target = task?.sections.length ?? 0;
-  const actual = task?.sections.filter((section) => (
-    everyTrade(section, (state) => wasInspected(state.inspection))
-  )).length ?? 0;
+  // Los reads daily progress in UNITS, not raw section rows ("2 of 40 units"),
+  // so count distinct units and mark a unit done only when all of its released
+  // sections are inspected.
+  const sections = task?.sections ?? [];
+  const unitIds = [...new Set(sections.map((section) => section.unitId))];
+  const target = unitIds.length;
+  const actual = unitIds.filter((unitId) => {
+    const unitSections = sections.filter((section) => section.unitId === unitId);
+    return unitSections.length > 0
+      && unitSections.every((section) => everyTrade(section, (state) => wasInspected(state.inspection)));
+  }).length;
   const percentage = target === 0 ? 0 : Math.min(100, Math.round((actual / target) * 100));
 
   return {
     actual,
-    copy: `${actual} of ${target} released ${target === 1 ? 'section' : 'sections'} inspected by Los`,
+    copy: `${actual} of ${target} released ${target === 1 ? 'unit' : 'units'} inspected by Los`,
     metric: 'sections',
     milestone: 'los-inspected',
     percentage,

@@ -1047,7 +1047,7 @@ function DayTaskHome({
               </span>
               <span>
                 <small>Metric · Milestone</small>
-                <strong>Sections · Los inspected</strong>
+                <strong>Units · Los inspected</strong>
               </span>
             </div>
             <p>{progress.copy}</p>
@@ -1062,15 +1062,6 @@ function DayTaskHome({
               <span style={{ width: `${progress.percentage}%` }} />
             </div>
             <small>{progress.percentage}% of today’s confirmed release</small>
-            {onOpenTaskDetail ? (
-              <button
-                className="w2a2b-primary-button"
-                onClick={onOpenTaskDetail}
-                type="button"
-              >
-                Open Today’s Task
-              </button>
-            ) : null}
           </section>
         )}
       </section>

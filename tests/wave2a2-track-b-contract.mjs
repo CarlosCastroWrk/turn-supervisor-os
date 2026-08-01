@@ -275,14 +275,14 @@ test('progress names one section metric, one Los-inspected milestone, actual, an
   const progress = calculateTodayTaskProgress(task);
 
   assert.deepEqual(progress, {
-    actual: 48,
-    copy: '48 of 112 released sections inspected by Los',
+    actual: 16,
+    copy: '16 of 40 released units inspected by Los',
     metric: 'sections',
     milestone: 'los-inspected',
-    percentage: 43,
+    percentage: 40,
     scope: 'today-confirmed-release',
     scopeLabel: 'Today’s confirmed release',
-    target: 112,
+    target: 40,
   });
 });
 

@@ -384,7 +384,19 @@ export function NativeHomeSummaryPage({
           ) : (
             <section className="w2a1-a-section" aria-labelledby="w2a1-a-summary-results">
               <h2 id="w2a1-a-summary-results">
-                {destination.records.length} {destination.records.length === 1 ? 'Unit' : 'Units'}
+                {(() => {
+                  // Records are Unit+Trade jobs. Show "N Units" when it's one job
+                  // per unit, else "X units · Y trades" so 1 unit / 2 trades never
+                  // reads as "2 Units".
+                  const unitCount = new Set(
+                    destination.records.map((record) => record.destinationId),
+                  ).size;
+                  const jobCount = destination.records.length;
+                  if (unitCount === jobCount) {
+                    return `${unitCount} ${unitCount === 1 ? 'Unit' : 'Units'}`;
+                  }
+                  return `${unitCount} ${unitCount === 1 ? 'unit' : 'units'} · ${jobCount} ${jobCount === 1 ? 'trade' : 'trades'}`;
+                })()}
               </h2>
               <div className="w2a1-a-inset-list">
                 {destination.records.map((record) => (

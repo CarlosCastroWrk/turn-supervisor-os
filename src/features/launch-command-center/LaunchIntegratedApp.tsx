@@ -2046,6 +2046,11 @@ function LaunchOperationalApp({
               setData((current) =>
                 applyTrackCWalkDraftChange(current, draft));
             },
+            onOpenTurnSignOff: () => {
+              // Open the Official PDS Forms surface (the company sign-off destinations).
+              navigate('more');
+              setMoreDetailPage('forms');
+            },
           }}
         />
       )}

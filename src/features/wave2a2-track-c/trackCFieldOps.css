@@ -2118,3 +2118,40 @@ select.track-c-trade-change {
   font-weight: 700;
   text-decoration: none;
 }
+
+/* Crews tab: inline add-crew + expandable contact chips. */
+.track-c-add-crew {
+  display: block;
+  inline-size: calc(100% - 20px);
+  margin: 0 10px 10px;
+  min-height: 44px;
+  border: 1px dashed var(--track-c-blue);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--track-c-blue);
+  font-weight: 700;
+  font-size: 14px;
+}
+.track-c-contact-chip { flex-direction: column; align-items: stretch; padding: 0; }
+.track-c-contact-chip__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  inline-size: 100%;
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+}
+.track-c-contact-chip__hint { color: var(--track-c-blue); font-weight: 700; }
+.track-c-contact-chip__detail {
+  padding: 0 14px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.track-c-contact-chip__detail p { margin: 0; font-size: 13px; color: var(--track-c-muted); }
+.track-c-contact-chip__nophone { font-size: 12.5px; }

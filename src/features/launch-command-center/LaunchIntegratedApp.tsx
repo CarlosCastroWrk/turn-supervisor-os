@@ -2117,6 +2117,11 @@ function LaunchOperationalApp({
           onCrewContactRequested={() => {
             setMoreStatus('No message was sent. Crew contact remains a manual external action.');
           }}
+          onAddCrewRequested={() => {
+            setCrewEditor({ mode: 'add' });
+            setMoreDetailPage('crews');
+            navigate('more');
+          }}
           onCrewEditRequested={(crewId) => {
             setCrewEditor({ crewId, mode: 'edit' });
             navigate('crews', undefined, { crewId });

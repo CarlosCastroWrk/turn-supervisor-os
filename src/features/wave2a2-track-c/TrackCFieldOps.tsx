@@ -52,6 +52,7 @@ export interface TrackCFieldOpsProps {
   readonly onDialogOpenChange?: (open: boolean) => void;
   readonly onStateChange?: (state: TrackCState, reason: string) => void;
   readonly onCrewEditRequested?: (crewId: string) => void;
+  readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly propertyContacts?: readonly {
     id: string;
@@ -75,6 +76,7 @@ export const TrackCFieldOps = ({
   onDialogOpenChange,
   onStateChange,
   onCrewEditRequested,
+  onAddCrewRequested,
   crewDirectory,
   propertyContacts,
   onCrewContactRequested,
@@ -456,6 +458,7 @@ export const TrackCFieldOps = ({
             }}
             onContactCrew={onCrewContactRequested}
             crewDirectory={crewDirectory}
+            onAddCrewRequested={onAddCrewRequested}
             onAssignCrew={(crewId) => {
               const crew = state.crews.find((candidate) => candidate.id === crewId);
               if (crew) setAssignInitialTrade(crew.trade);

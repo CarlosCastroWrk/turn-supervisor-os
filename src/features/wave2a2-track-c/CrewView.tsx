@@ -6,7 +6,7 @@ import {
   Pencil,
   Phone,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   TrackCCrewDetail,
   TrackCState,
@@ -27,6 +27,7 @@ interface CrewViewProps {
   readonly onEditCrew?: (crewId: string) => void;
   readonly onContactCrew?: (crewId: string) => void;
   readonly onAssignCrew?: (crewId: string) => void;
+  readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly propertyContacts?: readonly {
     id: string;
@@ -205,10 +206,12 @@ export const CrewView = ({
   onEditCrew,
   onContactCrew,
   onAssignCrew,
+  onAddCrewRequested,
   crewDirectory,
   propertyContacts,
 }: CrewViewProps) => {
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
+  const [expandedContactId, setExpandedContactId] = useState<string>();
   // Beds + common areas each crew reported complete TODAY — the 5-second
   // payroll glance.
   const todayByCrew = useMemo(() => {
@@ -270,22 +273,61 @@ export const CrewView = ({
         </div>
         <span>{crews.filter((item) => item.crew.activeToday).length} active</span>
       </header>
+      {onAddCrewRequested ? (
+        <button
+          className="track-c-add-crew"
+          data-track-c-critical-target="true"
+          onClick={onAddCrewRequested}
+          type="button"
+        >
+          Add crew — name, number, or from phone contacts
+        </button>
+      ) : null}
       {propertyContacts && propertyContacts.length > 0 ? (
         <div className="track-c-contact-strip" aria-label="Property contacts">
-          {propertyContacts.map((contact) => (
-            <div className="track-c-contact-chip" key={contact.id}>
-              <span>
-                <strong>{contact.name}</strong>
-                <small>{contact.role || 'Property contact'}</small>
-              </span>
-              {contact.phone ? (
-                <span className="track-c-contact-chip__actions">
-                  <a aria-label={`Call ${contact.name}`} href={`tel:${contact.phone}`}>Call</a>
-                  <a aria-label={`Text ${contact.name}`} href={`sms:${contact.phone}`}>Text</a>
-                </span>
-              ) : null}
-            </div>
-          ))}
+          {propertyContacts.map((contact) => {
+            const open = expandedContactId === contact.id;
+            const walkedUnits = new Set(
+              state.completedWalks
+                .filter((walk) => walk.propertyContact === contact.name)
+                .flatMap((walk) => (walk.outcomes ?? [])
+                  .filter((outcome) => outcome.outcome === 'accepted')
+                  .map((outcome) => outcome.target.unitId)),
+            ).size;
+            return (
+              <div className={`track-c-contact-chip ${open ? 'is-open' : ''}`} key={contact.id}>
+                <button
+                  aria-expanded={open}
+                  className="track-c-contact-chip__main"
+                  onClick={() => setExpandedContactId(open ? undefined : contact.id)}
+                  type="button"
+                >
+                  <span>
+                    <strong>{contact.name}</strong>
+                    <small>{contact.role || 'Property contact'}</small>
+                  </span>
+                  <small className="track-c-contact-chip__hint">{open ? 'Hide' : 'Open'}</small>
+                </button>
+                {open ? (
+                  <div className="track-c-contact-chip__detail">
+                    <p>
+                      Walked together: {walkedUnits} unit{walkedUnits === 1 ? '' : 's'} accepted this Turn.
+                    </p>
+                    {contact.phone ? (
+                      <span className="track-c-contact-chip__actions">
+                        <a aria-label={`Call ${contact.name}`} href={`tel:${contact.phone}`}>Call</a>
+                        <a aria-label={`Text ${contact.name}`} href={`sms:${contact.phone}`}>Text</a>
+                      </span>
+                    ) : (
+                      <p className="track-c-contact-chip__nophone">
+                        No number yet — add it in Project Setup → Contacts.
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       ) : null}
       <div className="track-c-crew-list">

@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Check,
   ChevronRight,
   CircleAlert,
   Droplets,
@@ -24,6 +25,7 @@ import {
   projectTrackCTradeProgress,
   searchTrackCCompactUnits,
   trackCCrewName,
+  trackCUnitMakeupLabel,
 } from './projections';
 
 interface BoardViewProps {
@@ -260,7 +262,13 @@ const CompactUnitRow = ({
   >
     <div className="track-c-unit-row__identity">
       <strong>{unit.unitNumber}</strong>
-      <span>{unit.unitType} · {unit.locationLabel}</span>
+      <span>
+        {unit.unitType}
+        {(() => {
+          const full = state.units.find((candidate) => candidate.id === unit.unitId);
+          return full ? ` · ${trackCUnitMakeupLabel(full)}` : '';
+        })()}
+      </span>
     </div>
     <div className="track-c-unit-row__trades">
       <CompactTrade progress={unit.paint} state={state} />
@@ -301,28 +309,55 @@ const WorkSection = ({
     work.access !== 'clear' ||
     work.sourceConfidence !== 'confirmed' ||
     work.assignmentConflict;
+  // One-tap inspection right on the row — no dropdown needed for the two moves
+  // Los makes hundreds of times a day.
+  const quickActions = !isSelected && !blocked && work.inspection === 'needs-los-inspection';
   return (
     <div className={`track-c-section-row ${isSelected ? 'is-open' : ''}`}>
-      <button
-        aria-label={`${trackCSectionLabel(work.section)}: ${executionLabel(work)}`}
-        aria-expanded={isSelected}
-        className="track-c-section-row__trigger"
-        data-track-c-critical-target="true"
-        onClick={onSelect}
-        type="button"
-      >
-        <span className="track-c-section-row__section">
-          {trackCSectionLabel(work.section)}
-        </span>
-        <span
-          className={`track-c-section-row__state ${
-            ['Passed', 'Accepted'].includes(compactSectionStatus(work)) ? 'is-passed' : ''
-          }`}
+      <div className="track-c-section-row__bar">
+        <button
+          aria-label={`${trackCSectionLabel(work.section)}: ${executionLabel(work)}`}
+          aria-expanded={isSelected}
+          className="track-c-section-row__trigger"
+          data-track-c-critical-target="true"
+          onClick={onSelect}
+          type="button"
         >
-          {compactSectionStatus(work)}
-        </span>
-        <ChevronRight aria-hidden="true" size={17} />
-      </button>
+          <span className="track-c-section-row__section">
+            {trackCSectionLabel(work.section)}
+          </span>
+          <span
+            className={`track-c-section-row__state ${
+              ['Passed', 'Accepted'].includes(compactSectionStatus(work)) ? 'is-passed' : ''
+            }`}
+          >
+            {compactSectionStatus(work)}
+          </span>
+          <ChevronRight aria-hidden="true" size={17} />
+        </button>
+        {quickActions ? (
+          <div className="track-c-section-row__quick">
+            <button
+              aria-label={`Record Los pass — ${trackCSectionLabel(work.section)}`}
+              className="is-pass"
+              data-track-c-critical-target="true"
+              onClick={() => onAction('record-los-pass')}
+              type="button"
+            >
+              <Check aria-hidden="true" size={18} />
+            </button>
+            <button
+              aria-label={`Open callback — ${trackCSectionLabel(work.section)}`}
+              className="is-callback"
+              data-track-c-critical-target="true"
+              onClick={() => onAction('open-callback')}
+              type="button"
+            >
+              <CircleAlert aria-hidden="true" size={18} />
+            </button>
+          </div>
+        ) : null}
+      </div>
       {isSelected ? (
         <div className="track-c-section-row__detail">
           <p className="track-c-section-row__detail-status">
@@ -440,7 +475,7 @@ const UnitDetail = ({
         </button>
         <div>
           <h1 ref={headingRef} tabIndex={-1}>Unit {unit.unitNumber}</h1>
-          <p>{unit.unitType} · {unit.locationLabel}</p>
+          <p>{unit.unitType} · {trackCUnitMakeupLabel(unit)}</p>
         </div>
       </header>
       <p className="track-c-detail__truth">

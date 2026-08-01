@@ -1980,3 +1980,40 @@ select.track-c-trade-change {
   font-weight: 600;
   font-size: 14px;
 }
+
+/* Inline one-tap inspect actions on a section row. */
+.track-c-section-row__bar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.track-c-section-row__bar .track-c-section-row__trigger {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.track-c-section-row__quick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.track-c-section-row__quick button {
+  inline-size: 44px;
+  block-size: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--track-c-divider, #d8dee6);
+  background: transparent;
+  padding: 0;
+}
+.track-c-section-row__quick .is-pass {
+  color: var(--track-c-green, #237a45);
+  border-color: color-mix(in srgb, var(--track-c-green, #237a45) 45%, transparent);
+}
+.track-c-section-row__quick .is-callback {
+  color: #b07414;
+  border-color: color-mix(in srgb, #b07414 45%, transparent);
+}

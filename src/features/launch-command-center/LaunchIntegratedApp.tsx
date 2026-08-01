@@ -154,6 +154,7 @@ import {
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
 import { addCrewMember, archiveProject, updateCrewMember } from '../../lib/actions';
+import { useAiAuth } from '../../lib/ai/useAiAuth';
 import { createId, nowISO } from '../../lib/constants';
 import {
   buildAppHash,
@@ -437,6 +438,8 @@ function LaunchOperationalApp({
   const [loginPassword, setLoginPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const [authFeedback, setAuthFeedback] = useState<string>();
+  const aiAuth = useAiAuth();
+  const [aiLoginSkipped, setAiLoginSkipped] = useState(false);
   const [online, setOnline] = useState(
     () => typeof navigator === 'undefined' || navigator.onLine,
   );
@@ -1990,6 +1993,61 @@ function LaunchOperationalApp({
     );
   }
 
+  // Login-first: open on a clean sign-in page before showing the app — but
+  // NEVER trap the field. Once signed in, the session persists across reloads
+  // (online or offline); the skip link keeps a dead-zone launch usable.
+  if (aiAuth.available && aiAuth.ready && !aiAuth.signedIn && !aiLoginSkipped) {
+    return (
+      <Wave2A2StandaloneRoute routeName="login" theme={theme}>
+        <LaunchLoginSurface
+          busy={aiAuth.busy}
+          email={loginEmail}
+          online={online}
+          onEmailChange={setLoginEmail}
+          onForgotPassword={() => {
+            if (!online) {
+              setAuthFeedback('Reconnect before requesting a password reset. Saved field data is not deleted.');
+              return;
+            }
+            if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim())) {
+              setAuthFeedback('Enter a valid email before requesting a password reset.');
+              return;
+            }
+            setAuthBusy(true);
+            setAuthFeedback(undefined);
+            void authAdapter.requestPasswordReset(loginEmail.trim()).then((result) => {
+              setAuthFeedback(
+                result.ok
+                  ? 'Password-reset request sent. Check the email address you entered.'
+                  : result.error,
+              );
+            }).finally(() => setAuthBusy(false));
+          }}
+          onPasswordChange={setLoginPassword}
+          onSubmit={() => {
+            if (!/^\S+@\S+\.\S+$/u.test(loginEmail.trim()) || !loginPassword) {
+              setAuthFeedback('Enter a valid email and password.');
+              return;
+            }
+            setAuthFeedback(undefined);
+            void aiAuth.signIn(loginEmail.trim(), loginPassword).then((ok) => {
+              if (ok) setLoginPassword('');
+            });
+          }}
+          password={loginPassword}
+          sessionMessage={authFeedback ?? aiAuth.error ?? undefined}
+        />
+        <button
+          className="lcc-login-skip"
+          onClick={() => setAiLoginSkipped(true)}
+          type="button"
+        >
+          Continue without signing in — field logging works fully offline
+        </button>
+      </Wave2A2StandaloneRoute>
+    );
+  }
+
   const editingCrew = crewEditor?.mode === 'edit'
     ? crewRecords.find((crew) => crew.id === crewEditor.crewId)
     : undefined;
@@ -2158,7 +2216,7 @@ function LaunchOperationalApp({
               onClick={() => handleMoreNavigation('setup')}
               type="button"
             >
-              {setupDraft ? 'Continue Property Setup' : 'Set Up Your Property'}
+              {setupDraft ? 'Continue Property Setup' : 'Start Property Setup'}
             </button>
             <button
               className="lcc-welcome__secondary"
@@ -2576,6 +2634,25 @@ function LaunchOperationalApp({
               value={storagePersistence === 'persistent' ? 'Granted' : 'Best effort'}
             />
           </GroupedInsetSection>
+          {aiAuth.available && aiAuth.signedIn ? (
+            <GroupedInsetSection
+              label="Account"
+              footer="Sign-in powers photo import and AI assist. Field logging never needs it."
+            >
+              <GroupedInsetRow label="Signed in as" value={aiAuth.email ?? ''} />
+              <button
+                className="lcc-day-history-pdf"
+                disabled={aiAuth.busy}
+                onClick={() => {
+                  void aiAuth.signOut().then(() =>
+                    setMoreStatus('Signed out. Photo import will ask for sign-in again.'));
+                }}
+                type="button"
+              >
+                Sign out
+              </button>
+            </GroupedInsetSection>
+          ) : null}
           {launchProjection.project?.mode === 'real' ? (
             <GroupedInsetSection
               label="Start fresh"

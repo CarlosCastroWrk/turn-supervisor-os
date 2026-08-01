@@ -1172,3 +1172,17 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Escape hatch under the login panel — the field app never traps offline. */
+.lcc-login-skip {
+  display: block;
+  margin: 14px auto 0;
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  background: transparent;
+  color: var(--lcc-muted, #64748b);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+}

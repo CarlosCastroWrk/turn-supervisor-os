@@ -970,3 +970,29 @@ button.w2a2b-done-toggle {
   padding: 10px 12px;
   overflow-wrap: anywhere;
 }
+
+/* "N ready to walk" banner — know when it's worth grabbing the property contact. */
+.w2a2b-walk-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: calc(100% - 20px);
+  margin: 0 10px 10px;
+  min-block-size: 52px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--turn-color-ready, #237a45) 40%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--turn-color-ready, #237a45) 10%, transparent);
+  color: var(--turn-color-ink, #141a22);
+  text-align: start;
+}
+.w2a2b-walk-banner strong {
+  color: var(--turn-color-ready, #237a45);
+  font-size: 15.5px;
+  flex: 0 0 auto;
+}
+.w2a2b-walk-banner span {
+  flex: 1 1 auto;
+  font-size: 13px;
+  color: var(--turn-color-ink-soft, #45505f);
+}

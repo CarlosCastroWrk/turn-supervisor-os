@@ -518,3 +518,16 @@ export const TRACK_C_PROJECTION_INVARIANTS = Object.freeze({
   statsSource: 'confirmed-events-only',
   trades: TRACK_C_TRADES,
 });
+
+// "1 common area · 2 beds" — the standard unit descriptor Los and the property
+// manager use, replacing derived building/floor noise.
+export const trackCUnitMakeupLabel = (unit: TrackCUnit): string => {
+  const sections = new Set(unit.workFacts.map((fact) => fact.section));
+  const beds = [...sections].filter((section) => section !== 'common').length;
+  const commons = sections.has('common') ? 1 : 0;
+  const parts = [
+    commons > 0 ? `${commons} common area` : '',
+    beds > 0 ? `${beds} bed${beds === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
+  return parts.join(' · ') || unit.unitType;
+};

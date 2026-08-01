@@ -1215,6 +1215,18 @@ function DayTaskHome({
         <div className="w2a2b-section-heading">
           <h2 id="w2a2b-current-title">Current work</h2>
         </div>
+        {active && counts['ready-to-walk'] >= 4 ? (
+          <button
+            className="w2a2b-walk-banner"
+            data-track-b-critical-target="true"
+            onClick={() => onAction('start-walk')}
+            type="button"
+          >
+            <strong>{counts['ready-to-walk']} ready to walk</strong>
+            <span>Worth grabbing your property contact — start the walk</span>
+            <ChevronRight aria-hidden="true" size={18} />
+          </button>
+        ) : null}
         <div className="w2a2b-inset-list">
           {queueOrder.map((queueId) => {
             const queue = selectTodayTaskQueue(task, queueId);

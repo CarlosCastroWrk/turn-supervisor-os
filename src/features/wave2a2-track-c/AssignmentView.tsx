@@ -23,6 +23,7 @@ import {
 } from './operations';
 import {
   projectTrackCAssignmentEligibleUnits,
+  trackCUnitMakeupLabel,
 } from './projections';
 
 interface AssignmentViewProps {
@@ -225,7 +226,7 @@ export const AssignmentView = ({
               />
               <span>
                 <strong>Unit {unit.unitNumber}</strong>
-                <small>{unit.unitType} · {unit.locationLabel}</small>
+                <small>{unit.unitType} · {trackCUnitMakeupLabel(unit)}</small>
               </span>
             </label>
           ))}

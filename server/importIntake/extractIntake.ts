@@ -83,17 +83,23 @@ const JSON_SCHEMA = {
 const promptFor = (request: IntakeRequest) => {
   const shared = `You read PDS student-housing TurnBoard sheets for a supervisor named Los.
 Sheet layout (one band per trade, titled Painting or Cleaning; ignore Carpet):
-columns are Bldg | Unit Type | Unit # | Comn | A | B | C | D | E | crew name | PDS Approved.
-Unit Type is the BED COUNT (0, 2, 3, 4, or 5; "S" or "Studio" means 0). A
-blacked-out section cell means that room is not part of this unit's scope —
+columns are Bldg | Unit Type | Unit # | Town-home | Comn | A | B | C | D | E | F
+| crew name | PDS Approved. Some sheets omit Town-home or F.
+Unit Type is the BED COUNT: "S" means STUDIO (bedCount 0, common area only);
+otherwise 2, 3, 4, or 5. Studios usually also carry an "S" mark in the
+Town-home column — that mark confirms Studio, it is not a released section.
+A blacked-out section cell means that room is not part of this unit's scope —
 occupied or nonexistent — and is never worked, released, or counted. A 3-bed
-unit has Comn+A+B+C with D/E blacked; a 5-bed has no blackouts; a 2-bed has
-C/D/E blacked. STUDIO RULE: if ALL letter cells (A through E) are blacked out,
-the unit is a STUDIO — bedCount 0, common area only. NEVER invent beds for a
-studio; a blacked cell is never a bed.
+unit has Comn+A+B+C with D/E/F blacked; a 2-bed has C/D/E/F blacked.
+STUDIO RULE: Unit Type "S", or ALL letter cells blacked, means STUDIO —
+bedCount 0, common area only. NEVER invent beds for a studio; a blacked cell
+is never a bed. The F column is NOT tracked by the app: never output F as a
+section; if an F cell is white (in scope) on a unit, add an uncertainty naming
+the unit and "has an F room not tracked". The Bldg column sometimes has typos
+(e.g. 0 instead of 5) — building is informational only; trust the Unit #.
 bedCount is REQUIRED on every row: read the Unit Type column, then verify it
-against the blackout pattern (bedCount = 5 minus the number of blacked
-letter cells). If the two disagree or are unreadable, output your best value
+against the blackout pattern (bedCount = number of white letter cells among
+A-E). If the two disagree or are unreadable, output your best value
 with confidence "low" and add an uncertainty naming the unit.
 Marks inside white cells: a single slash = the property released that section;
 an X = Los already passed it; a written crew name = assigned.

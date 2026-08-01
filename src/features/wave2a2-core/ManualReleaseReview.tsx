@@ -322,6 +322,12 @@ export function ManualReleaseReview({
           <strong>{selected.size} section{selected.size === 1 ? '' : 's'} selected</strong>
         </div>
 
+        {!query.trim() && selected.size === 0 ? (
+          <p className="w2a2-core-caption">
+            Import from a photo or paste the message above — or search a unit
+            number to pick sections by hand.
+          </p>
+        ) : (
         <div className="w2a2-core-release__units">
           {matchingUnits.visible.map((unit) => (
             <section className="w2a2-core-release__unit" key={unit.id}>
@@ -360,6 +366,7 @@ export function ManualReleaseReview({
             </section>
           ))}
         </div>
+        )}
 
         {matchingUnits.total > matchingUnits.visible.length ? (
           <p className="w2a2-core-caption">

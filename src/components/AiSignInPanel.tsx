@@ -10,25 +10,9 @@ export function AiSignInPanel({ purpose = 'photo import' }: { purpose?: string }
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  if (!auth.available || !auth.ready) return null;
-
-  if (auth.signedIn) {
-    return (
-      <div className="ai-signin ai-signin--in" role="status">
-        <span className="ai-signin__who">
-          Signed in as <strong>{auth.email}</strong>
-        </span>
-        <button
-          className="ai-signin__out"
-          disabled={auth.busy}
-          onClick={() => void auth.signOut()}
-          type="button"
-        >
-          Sign out
-        </button>
-      </div>
-    );
-  }
+  // Signed in: stay invisible — the flow should feel native, and who's signed
+  // in lives in More → Storage (account section), not inside Start Day.
+  if (!auth.available || !auth.ready || auth.signedIn) return null;
 
   const submit = () => {
     if (!/^\S+@\S+\.\S+$/u.test(email.trim()) || !password) return;

@@ -2045,3 +2045,76 @@ select.track-c-trade-change {
   font-size: 14px;
   font-weight: 700;
 }
+
+/* Crew command cards: at a glance + act right there. */
+.track-c-crew-card {
+  border-bottom: 1px solid var(--track-c-border);
+  background: var(--track-c-surface);
+}
+.track-c-crew-card .track-c-crew-row {
+  border-bottom: 0;
+}
+.track-c-crew-card__actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 12px;
+}
+.track-c-crew-card__actions button,
+.track-c-crew-card__actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--track-c-blue);
+  background: transparent;
+  color: var(--track-c-blue);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.track-c-crew-card__actions button:first-child {
+  background: var(--track-c-blue);
+  color: #fff;
+}
+.track-c-contact-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 10px 10px;
+}
+.track-c-contact-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--track-c-border);
+  border-radius: 12px;
+  background: var(--track-c-surface);
+}
+.track-c-contact-chip strong {
+  display: block;
+  font-size: 14.5px;
+}
+.track-c-contact-chip small {
+  color: var(--track-c-muted);
+  font-size: 12px;
+}
+.track-c-contact-chip__actions {
+  display: flex;
+  gap: 6px;
+}
+.track-c-contact-chip__actions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--track-c-blue);
+  color: var(--track-c-blue);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}

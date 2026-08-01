@@ -32,12 +32,14 @@ interface AssignmentViewProps {
   readonly initialTrade?: TrackCTrade;
   readonly now: () => string;
   readonly onBack?: () => void;
+  readonly initialCrewId?: string;
   readonly onStateChange: (state: TrackCState, reason: string) => void;
 }
 
 export const AssignmentView = ({
   state,
   createId,
+  initialCrewId,
   initialTrade,
   now,
   onBack,
@@ -52,7 +54,7 @@ export const AssignmentView = ({
     () => projectTrackCAssignmentEligibleUnits(state, trade),
     [state, trade],
   );
-  const [crewId, setCrewId] = useState('');
+  const [crewId, setCrewId] = useState(initialCrewId ?? '');
   const [unitIds, setUnitIds] = useState<readonly string[]>([]);
   const [sectionMode, setSectionMode] = useState<'all-released' | 'specific'>(
     'all-released',

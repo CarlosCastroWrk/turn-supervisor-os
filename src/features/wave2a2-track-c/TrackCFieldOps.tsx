@@ -52,6 +52,13 @@ export interface TrackCFieldOpsProps {
   readonly onDialogOpenChange?: (open: boolean) => void;
   readonly onStateChange?: (state: TrackCState, reason: string) => void;
   readonly onCrewEditRequested?: (crewId: string) => void;
+  readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
+  readonly propertyContacts?: readonly {
+    id: string;
+    name: string;
+    role?: string;
+    phone?: string;
+  }[];
   readonly onCrewContactRequested?: (crewId: string) => void;
   readonly onNavigate?: (route: TrackCRouteState) => void;
   readonly onRequestUnitNote?: () => void;
@@ -68,6 +75,8 @@ export const TrackCFieldOps = ({
   onDialogOpenChange,
   onStateChange,
   onCrewEditRequested,
+  crewDirectory,
+  propertyContacts,
   onCrewContactRequested,
   onNavigate,
   onRequestUnitNote,
@@ -83,6 +92,7 @@ export const TrackCFieldOps = ({
   const [noticeAction, setNoticeAction] = useState<{ label: string; view: TrackCView }>();
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
   const [assignInitialTrade, setAssignInitialTrade] = useState<TrackCTrade>();
+  const [assignInitialCrew, setAssignInitialCrew] = useState<string>();
   const shellRef = useRef<HTMLDivElement>(null);
   const mirrorDialogRef = useRef<HTMLElement>(null);
   const mirrorCancelRef = useRef<HTMLButtonElement>(null);
@@ -124,7 +134,7 @@ export const TrackCFieldOps = ({
     setNotice(undefined);
     setNoticeAction(undefined);
     setMirrorTarget(undefined);
-    if (nextView !== 'assign') setAssignInitialTrade(undefined);
+    if (nextView !== 'assign') { setAssignInitialTrade(undefined); setAssignInitialCrew(undefined); }
   };
 
   const runSectionAction = (
@@ -445,6 +455,14 @@ export const TrackCFieldOps = ({
               setLocalSelectedCrewId(undefined);
             }}
             onContactCrew={onCrewContactRequested}
+            crewDirectory={crewDirectory}
+            onAssignCrew={(crewId) => {
+              const crew = state.crews.find((candidate) => candidate.id === crewId);
+              if (crew) setAssignInitialTrade(crew.trade);
+              setAssignInitialCrew(crewId);
+              navigate('assign');
+            }}
+            propertyContacts={propertyContacts}
             onEditCrew={onCrewEditRequested}
             onOpenCrew={(crewId) => {
               onNavigate?.({ crewId, view: 'crews' });
@@ -457,8 +475,9 @@ export const TrackCFieldOps = ({
         {view === 'assign' ? (
           <AssignmentView
             createId={createId}
+            initialCrewId={assignInitialCrew}
             initialTrade={assignInitialTrade}
-            key={assignInitialTrade ?? 'default'}
+            key={`${assignInitialTrade ?? 'any'}:${assignInitialCrew ?? 'any'}`}
             now={now}
             onBack={() => navigate('board')}
             onStateChange={commitState}

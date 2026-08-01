@@ -26,6 +26,14 @@ interface CrewViewProps {
   readonly onCloseCrew: () => void;
   readonly onEditCrew?: (crewId: string) => void;
   readonly onContactCrew?: (crewId: string) => void;
+  readonly onAssignCrew?: (crewId: string) => void;
+  readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
+  readonly propertyContacts?: readonly {
+    id: string;
+    name: string;
+    role?: string;
+    phone?: string;
+  }[];
 }
 
 const CrewWorkList = ({
@@ -196,8 +204,48 @@ export const CrewView = ({
   onCloseCrew,
   onEditCrew,
   onContactCrew,
+  onAssignCrew,
+  crewDirectory,
+  propertyContacts,
 }: CrewViewProps) => {
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
+  // Beds + common areas each crew reported complete TODAY — the 5-second
+  // payroll glance.
+  const todayByCrew = useMemo(() => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const map = new Map<string, { beds: number; commons: number }>();
+    for (const event of state.events) {
+      if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
+      if (event.recordedAt.slice(0, 10) !== today) continue;
+      const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
+      line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
+      map.set(event.crewId, line);
+    }
+    return map;
+  }, [state.events]);
+  // Prefilled, organized text from the crew's REAL current assignments —
+  // bilingual-lite so it works for Spanish- and English-speaking crews.
+  const composeBody = (crewId: string, crewName: string) => {
+    const detail = projectTrackCCrewDetail(state, crewId);
+    const byUnit = new Map<string, string[]>();
+    for (const work of detail?.currentWork ?? []) {
+      const unit = trackCUnitForTarget(state, work);
+      if (!unit) continue;
+      const sections = byUnit.get(unit.unitNumber) ?? [];
+      sections.push(work.section === 'common' ? 'Común/Common' : work.section);
+      byUnit.set(unit.unitNumber, sections);
+    }
+    const lines = [...byUnit.entries()]
+      .sort((left, right) => left[0].localeCompare(right[0], undefined, { numeric: true }))
+      .map(([unitNumber, sections]) => `• Unit ${unitNumber}: ${[...new Set(sections)].join(', ')}`);
+    return [
+      `Hola ${crewName}! Hoy / Today:`,
+      ...(lines.length > 0 ? lines : ['(No units assigned yet — te aviso / I will text you the units.)']),
+      'Avísame cuando termines cada uno / Text me as you finish each one.',
+      'Gracias! Great work.',
+    ].join('\n');
+  };
 
   if (selectedCrewId) {
     return (
@@ -222,34 +270,84 @@ export const CrewView = ({
         </div>
         <span>{crews.filter((item) => item.crew.activeToday).length} active</span>
       </header>
+      {propertyContacts && propertyContacts.length > 0 ? (
+        <div className="track-c-contact-strip" aria-label="Property contacts">
+          {propertyContacts.map((contact) => (
+            <div className="track-c-contact-chip" key={contact.id}>
+              <span>
+                <strong>{contact.name}</strong>
+                <small>{contact.role || 'Property contact'}</small>
+              </span>
+              {contact.phone ? (
+                <span className="track-c-contact-chip__actions">
+                  <a aria-label={`Call ${contact.name}`} href={`tel:${contact.phone}`}>Call</a>
+                  <a aria-label={`Text ${contact.name}`} href={`sms:${contact.phone}`}>Text</a>
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="track-c-crew-list">
         {crews.map(({ crew, stats }) => {
           const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;
+          const today = todayByCrew.get(crew.id);
+          const todayLabel = today
+            ? [
+              today.beds > 0 ? `${today.beds} bed${today.beds === 1 ? '' : 's'}` : '',
+              today.commons > 0 ? `${today.commons} common` : '',
+            ].filter(Boolean).join(' · ')
+            : '';
+          const phone = crewDirectory?.[crew.id]?.phone?.trim();
           return (
-            <button
-              aria-label={`Open ${crew.name} detail`}
-              className="track-c-crew-row"
-              data-track-c-critical-target="true"
-              key={crew.id}
-              onClick={() => onOpenCrew(crew.id)}
-              type="button"
-            >
-              <span className={`track-c-crew-row__icon is-${crew.trade}`}>
-                <Icon aria-hidden="true" size={20} />
-              </span>
-              <span className="track-c-crew-row__identity">
-                <strong>{crew.name}</strong>
-                <small>
-                  {crew.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
-                  {crew.activeToday ? 'Active today' : 'Not active today'}
-                </small>
-              </span>
-              <span className="track-c-crew-row__stats">
-                <strong>{stats.currentAssignments}</strong> current
-                <small>{stats.crewReportedComplete} complete · {stats.needsLosInspection} need Los</small>
-              </span>
-              <ChevronRight aria-hidden="true" size={18} />
-            </button>
+            <div className="track-c-crew-card" key={crew.id}>
+              <button
+                aria-label={`Open ${crew.name} detail`}
+                className="track-c-crew-row"
+                data-track-c-critical-target="true"
+                onClick={() => onOpenCrew(crew.id)}
+                type="button"
+              >
+                <span className={`track-c-crew-row__icon is-${crew.trade}`}>
+                  <Icon aria-hidden="true" size={20} />
+                </span>
+                <span className="track-c-crew-row__identity">
+                  <strong>{crew.name}</strong>
+                  <small>
+                    {crew.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
+                    {crew.activeToday ? 'Active today' : 'Not active today'}
+                    {todayLabel ? ` · today: ${todayLabel}` : ''}
+                  </small>
+                </span>
+                <span className="track-c-crew-row__stats">
+                  <strong>{stats.currentAssignments}</strong> current
+                  <small>{stats.crewReportedComplete} complete · {stats.needsLosInspection} need Los</small>
+                </span>
+                <ChevronRight aria-hidden="true" size={18} />
+              </button>
+              <div className="track-c-crew-card__actions">
+                {onAssignCrew ? (
+                  <button
+                    data-track-c-critical-target="true"
+                    onClick={() => onAssignCrew(crew.id)}
+                    type="button"
+                  >
+                    Assign units
+                  </button>
+                ) : null}
+                {phone ? (
+                  <>
+                    <a aria-label={`Call ${crew.name}`} href={`tel:${phone}`}>Call</a>
+                    <a
+                      aria-label={`Text ${crew.name} today's assignments`}
+                      href={`sms:${phone}&body=${encodeURIComponent(composeBody(crew.id, crew.name))}`}
+                    >
+                      Text
+                    </a>
+                  </>
+                ) : null}
+              </div>
+            </div>
           );
         })}
       </div>

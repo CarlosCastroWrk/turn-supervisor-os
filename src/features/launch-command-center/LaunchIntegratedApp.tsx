@@ -2102,6 +2102,15 @@ function LaunchOperationalApp({
       ) : (
         <TrackCFieldOps
           embedded
+          crewDirectory={Object.fromEntries(
+            crewRecords.map((crew) => [crew.id, { phone: crew.phone }]),
+          )}
+          propertyContacts={activeProjectContacts.map((contact) => ({
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone,
+            role: contact.title,
+          }))}
           initialState={activeFieldState}
           onRequestUnitNote={openUnitNote}
           initialView={trackCRouteState.view}

@@ -2708,6 +2708,38 @@ function LaunchOperationalApp({
               </button>
             </GroupedInsetSection>
           ) : null}
+          <GroupedInsetSection
+            label="Total fresh start"
+            footer="Erases every project, draft, and record saved on this phone (test data included). Sign-in and appearance are kept. This cannot be undone — export a backup first if anything matters."
+          >
+            <button
+              className="lcc-archive-project"
+              onClick={() => {
+                const sure = window.confirm(
+                  'Erase EVERYTHING on this phone and start completely fresh?\n\n'
+                  + 'Every project, roster, day, and draft on this device will be gone. '
+                  + 'This cannot be undone.',
+                );
+                if (!sure) return;
+                const again = window.confirm('Last check — erase all Turn OS data on this phone?');
+                if (!again) return;
+                try {
+                  // Keep sign-in (sb-*) and appearance; wipe every app record/draft.
+                  const keep = (key: string) =>
+                    key.startsWith('sb-') || key.startsWith('turn-os:appearance');
+                  for (const key of Object.keys(window.localStorage)) {
+                    if (!keep(key)) window.localStorage.removeItem(key);
+                  }
+                  window.sessionStorage.clear();
+                } finally {
+                  window.location.replace('/');
+                }
+              }}
+              type="button"
+            >
+              Erase everything on this phone — start over
+            </button>
+          </GroupedInsetSection>
         </NativeDetailShell>
       ) : (
         <ThemeAwareMorePage

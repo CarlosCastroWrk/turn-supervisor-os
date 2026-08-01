@@ -1010,3 +1010,28 @@ button.w2a2b-done-toggle {
   margin: 0;
   font-weight: 700;
 }
+
+/* Day badge: done/released units at a glance, pinned to the header. */
+.w2a2b-home-header--compact {
+  position: relative;
+}
+.w2a2b-day-badge {
+  position: absolute;
+  inset-inline-end: 10px;
+  inset-block-start: 4px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--turn-color-brand-soft, #e7f0fb);
+  color: var(--turn-color-brand, #0072dc);
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.w2a2b-day-badge small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--turn-color-ink-soft, #45505f);
+}

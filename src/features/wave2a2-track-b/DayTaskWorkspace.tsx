@@ -1097,6 +1097,12 @@ function DayTaskHome({
     <section className="w2a2b-home" data-testid="track-b-home">
       <header className="w2a2b-home-header w2a2b-home-header--compact">
         <h1>Home</h1>
+        {task ? (
+          <span aria-label="Units done today of units released today" className="w2a2b-day-badge">
+            {acceptedToday.length}/{new Set(task.sections.map((section) => section.unitId)).size}
+            <small>units</small>
+          </span>
+        ) : null}
         {dayNumber ? (
           <p className="w2a2b-day-brief">
             Day {dayNumber}
@@ -1182,8 +1188,8 @@ function DayTaskHome({
         </div>
         <div className="w2a2b-inset-list">
           {[
-            ['import-work', 'Import today’s work', <FileUp aria-hidden="true" size={20} />],
-            ['assign-crews', 'Assign crews', <Users aria-hidden="true" size={20} />],
+            // One import entry lives on Today's Task; crews assign from the
+            // Crews tab — Field actions stay lean: walk and close.
             ['start-walk', 'Start walk', <Footprints aria-hidden="true" size={20} />],
           ].map(([id, label, icon]) => (
             <button

@@ -94,8 +94,9 @@ unit has Comn+A+B+C with D/E/F blacked; a 2-bed has C/D/E/F blacked.
 STUDIO RULE: Unit Type "S", or ALL letter cells blacked, means STUDIO —
 bedCount 0, common area only. NEVER invent beds for a studio; a blacked cell
 is never a bed. The F column is NOT tracked by the app: never output F as a
-section; if an F cell is white (in scope) on a unit, add an uncertainty naming
-the unit and "has an F room not tracked". The Bldg column sometimes has typos
+section. If any units show a white (in-scope) F cell, add AT MOST ONE summary
+uncertainty ("N units show an F room not tracked") — never one note per unit.
+The Bldg column sometimes has typos
 (e.g. 0 instead of 5) — building is informational only; trust the Unit #.
 bedCount is REQUIRED on every row: read the Unit Type column, then verify it
 against the blackout pattern (bedCount = number of white letter cells among

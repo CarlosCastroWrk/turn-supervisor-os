@@ -218,7 +218,8 @@ const validateUnits = (draft: ProjectActivationDraft): readonly string[] => {
     ) {
       errors.push('Every Unit requires an ID, number, building, and floor.');
     }
-    if (![1, 2, 3, 4, 5].includes(unit.unitType)) {
+    if (![0, 1, 2, 3, 4, 5].includes(unit.unitType)) {
+      // 0 = Studio (common area only).
       errors.push(`Unit ${unit.unitNumber || '(missing number)'} has an unsupported Unit type.`);
     }
   }

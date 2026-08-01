@@ -71,6 +71,17 @@ const setupUnitType = (value: string | number): TrackASetupUnit['unitType'] => {
 const unitTypeLabel = (unitType: TrackASetupUnit['unitType']) =>
   (unitType === 0 ? 'Studio' : `${unitType}BR`);
 
+// "2026-08-02" → "August 2, 2026" for human-facing review copy.
+const friendlyDate = (iso: string | undefined): string => {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/u.test(iso)) return iso ?? '';
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 
 export function ProjectSetupFlow({
   activationErrors = [],
@@ -162,6 +173,15 @@ export function ProjectSetupFlow({
           return;
         }
       }
+    }
+    // Collapse repetitive per-unit "F room" notes into one line — a wall of
+    // 40 identical sentences is noise, not review guidance.
+    const fRoomNotes = uncertainties.filter((note) => /F room/iu.test(note));
+    if (fRoomNotes.length > 1) {
+      const keep = uncertainties.filter((note) => !/F room/iu.test(note));
+      keep.push(`${fRoomNotes.length} units show an F room the app does not track (noted, nothing to fix).`);
+      uncertainties.length = 0;
+      uncertainties.push(...keep);
     }
     if (additions.length > 0) setSetupUnits([...setupUnits, ...additions]);
     const bedBreakdown = ([0, 1, 2, 3, 4, 5] as const)
@@ -819,7 +839,11 @@ export function ProjectSetupFlow({
                 <h2>Property</h2>
                 <button onClick={() => onStepChange(0)} type="button">Edit Property</button>
               </div>
-              <p>{draft.project.propertyName || 'Not set'} · {draft.project.startDate || 'No start date'} to {draft.project.endDate || 'No end date'}</p>
+              <p>
+                {draft.project.propertyName || 'Not set'} ·{' '}
+                {friendlyDate(draft.project.startDate) || 'No start date'} to{' '}
+                {friendlyDate(draft.project.endDate) || 'No end date'}
+              </p>
             </div>
             <div className="w2a21a-setup__review-section">
               <div>

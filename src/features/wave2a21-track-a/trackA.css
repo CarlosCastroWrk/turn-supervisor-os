@@ -938,3 +938,33 @@
   color: var(--turn-color-primary, #0072dc);
   font-weight: 700;
 }
+
+/* Minimal step tracker: quiet dots, one accent on the current step, no boxes. */
+.w2a21a-setup__steps li {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.w2a21a-setup__steps button {
+  min-block-size: 46px;
+  gap: 4px;
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
+}
+.w2a21a-setup__steps span {
+  block-size: 26px;
+  inline-size: 26px;
+  border: 1.5px solid var(--turn-color-divider, #d8dee6);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  transition: background 120ms ease-out, border-color 120ms ease-out;
+}
+.w2a21a-setup__steps [aria-current='step'] span {
+  background: var(--turn-color-brand, #0072dc);
+  border-color: var(--turn-color-brand, #0072dc);
+  color: #fff;
+}
+.w2a21a-setup__steps button:disabled {
+  opacity: 0.45;
+}

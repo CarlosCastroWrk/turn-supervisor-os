@@ -2216,7 +2216,7 @@ function LaunchOperationalApp({
               onClick={() => handleMoreNavigation('setup')}
               type="button"
             >
-              {setupDraft ? 'Continue Property Setup' : 'Start Property Setup'}
+              Start Property Setup
             </button>
             <button
               className="lcc-welcome__secondary"

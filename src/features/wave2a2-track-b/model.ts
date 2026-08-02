@@ -16,6 +16,7 @@ import type {
   TodayTaskQueueId,
   TodayTaskSection,
   TodayTaskTradeState,
+  TrackBTrade,
 } from './types';
 
 export const START_DAY_STEPS = [
@@ -399,29 +400,56 @@ export function projectTodayTaskForSession(
   };
 }
 
-export function calculateTodayTaskProgress(task: TodayTask | null): TodayTaskProgress {
-  // Los reads daily progress in UNITS, not raw section rows ("2 of 40 units"),
-  // so count distinct units and mark a unit done only when all of its released
-  // sections are inspected.
+export interface TodayTaskTradeProgress {
+  trade: TrackBTrade;
+  actual: number;
+  target: number;
+}
+
+// Paint and Clean release on different days (paint first, cleans follow), so a
+// unit-grain count reads "0 done" even when every clean is finished. Progress
+// is therefore TRADE-grain everywhere: each trade counts only the units it was
+// actually released for.
+export function calculateTodayTaskTradeProgress(
+  task: TodayTask | null,
+): TodayTaskTradeProgress[] {
   const sections = task?.sections ?? [];
-  const unitIds = [...new Set(sections.map((section) => section.unitId))];
-  const target = unitIds.length;
-  const actual = unitIds.filter((unitId) => {
-    const unitSections = sections.filter((section) => section.unitId === unitId);
-    return unitSections.length > 0
-      && unitSections.every((section) => everyTrade(section, (state) => wasInspected(state.inspection)));
-  }).length;
+  return (['Paint', 'Clean'] as const).flatMap((trade) => {
+    const tradeSections = sections.filter((section) =>
+      section.tradeStates.some((state) => state.trade === trade));
+    const unitIds = [...new Set(tradeSections.map((section) => section.unitId))];
+    if (unitIds.length === 0) return [];
+    const actual = unitIds.filter((unitId) =>
+      tradeSections
+        .filter((section) => section.unitId === unitId)
+        .every((section) => section.tradeStates
+          .filter((state) => state.trade === trade)
+          .every((state) => wasInspected(state.inspection)))).length;
+    return [{ actual, target: unitIds.length, trade }];
+  });
+}
+
+export function calculateTodayTaskProgress(task: TodayTask | null): TodayTaskProgress {
+  const trades = calculateTodayTaskTradeProgress(task);
+  const target = trades.reduce((sum, line) => sum + line.target, 0);
+  const actual = trades.reduce((sum, line) => sum + line.actual, 0);
   const percentage = target === 0 ? 0 : Math.min(100, Math.round((actual / target) * 100));
+  const copy = trades.length === 0
+    ? 'Nothing released yet today'
+    : `${trades
+      .map((line) => `${line.trade} ${line.actual}/${line.target}`)
+      .join(' · ')} units inspected by Los`;
 
   return {
     actual,
-    copy: `${actual} of ${target} released ${target === 1 ? 'unit' : 'units'} inspected by Los`,
+    copy,
     metric: 'sections',
     milestone: 'los-inspected',
     percentage,
     scope: 'today-confirmed-release',
     scopeLabel: 'Today’s confirmed release',
     target,
+    trades,
   };
 }
 

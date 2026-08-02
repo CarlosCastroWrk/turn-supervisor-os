@@ -430,16 +430,22 @@ export function NativeHomeSummaryPage({
                 if (paint.length === 0 && clean.length === 0) {
                   return <div className="w2a1-a-inset-list">{other.map(row)}</div>;
                 }
+                // A trade with nothing in the queue gets no column — an empty
+                // "Clean · 0" next to real Paint work is noise, not truth.
                 return (
                   <div className="w2a1-a-trade-columns">
-                    <div>
-                      <h3>Paint · {paint.length}</h3>
-                      <div className="w2a1-a-inset-list">{paint.map(row)}</div>
-                    </div>
-                    <div>
-                      <h3>Clean · {clean.length}</h3>
-                      <div className="w2a1-a-inset-list">{clean.map(row)}</div>
-                    </div>
+                    {paint.length > 0 ? (
+                      <div>
+                        <h3>Paint · {paint.length}</h3>
+                        <div className="w2a1-a-inset-list">{paint.map(row)}</div>
+                      </div>
+                    ) : null}
+                    {clean.length > 0 ? (
+                      <div>
+                        <h3>Clean · {clean.length}</h3>
+                        <div className="w2a1-a-inset-list">{clean.map(row)}</div>
+                      </div>
+                    ) : null}
                     {other.length > 0 ? (
                       <div className="w2a1-a-trade-columns__other">
                         <div className="w2a1-a-inset-list">{other.map(row)}</div>

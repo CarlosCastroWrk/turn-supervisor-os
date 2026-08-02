@@ -255,3 +255,30 @@
   font-weight: 700;
 }
 .lcc-day-pager button:disabled { opacity: 0.4; }
+
+.lcc-walk-request {
+  align-items: center;
+  background: #eaf3fb;
+  border: 1.5px solid #0877d1;
+  border-radius: 12px;
+  color: #12294b;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 10px;
+  margin: 8px;
+  padding: 10px 12px;
+}
+
+.lcc-walk-request > span { flex: 1; }
+
+.lcc-walk-request > button {
+  background: #0877d1;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  min-block-size: 40px;
+  padding: 6px 12px;
+}

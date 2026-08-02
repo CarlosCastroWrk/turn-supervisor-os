@@ -274,15 +274,21 @@ test('progress names one section metric, one Los-inspected milestone, actual, an
   const task = createSyntheticTodayTask();
   const progress = calculateTodayTaskProgress(task);
 
+  // Trade-grain (Aug 1): paint releases first, cleans follow — each trade
+  // counts its own units so a finished clean day never reads "0 done".
   assert.deepEqual(progress, {
-    actual: 16,
-    copy: '16 of 40 released units inspected by Los',
+    actual: 32,
+    copy: 'Paint 16/40 · Clean 16/40 units inspected by Los',
     metric: 'sections',
     milestone: 'los-inspected',
     percentage: 40,
     scope: 'today-confirmed-release',
     scopeLabel: 'Today’s confirmed release',
-    target: 40,
+    target: 80,
+    trades: [
+      { actual: 16, target: 40, trade: 'Paint' },
+      { actual: 16, target: 40, trade: 'Clean' },
+    ],
   });
 });
 

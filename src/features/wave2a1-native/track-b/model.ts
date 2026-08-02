@@ -61,7 +61,7 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     label: 'Project',
     items: [
       { id: 'setup', label: 'Project Setup', detail: 'Property, dates, contacts, crews, roster \u2014 edit anytime' },
-      { id: 'unit-import', label: 'Unit Import', detail: 'Add Units from TurnBoard photos or paste' },
+      { id: 'unit-import', label: 'Add Today’s Work', detail: 'Quick-add grid, photo, or paste — what Joseph released' },
     ],
   },
   {

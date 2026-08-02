@@ -17,6 +17,7 @@ import {
   createManualReleaseBatch,
   type ManualReleaseSelection,
 } from './appDataAdapters';
+import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
 import './acceptedCore.css';
 
 interface ManualReleaseReviewProps {
@@ -50,6 +51,9 @@ export function ManualReleaseReview({
     () => new Map(),
   );
   const [confirmed, setConfirmed] = useState(false);
+  // Joseph releases paint first and cleans follow later, so the quick grid
+  // needs a per-trade scope — one tap must not release the other trade.
+  const [tradeScope, setTradeScope] = useState<'both' | 'Paint' | 'Clean'>('both');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -326,20 +330,36 @@ export function ManualReleaseReview({
           <div className="w2a2-core-quickgrid" aria-label="Tap Units the property released">
             <p className="w2a2-core-caption">
               Tap the Units Joseph released — one tap selects the whole Unit
-              (all sections, both trades). Search above for partial releases,
-              or import from a photo / paste.
+              for the trades below. Search above for partial releases, or
+              import from a photo / paste.
             </p>
+            <div className="w2a2-core-quickgrid__scope" role="group" aria-label="Trades to release">
+              {([['both', 'Paint + Clean'], ['Paint', 'Paint only'], ['Clean', 'Clean only']] as const)
+                .map(([value, label]) => (
+                  <button
+                    aria-pressed={tradeScope === value}
+                    className={tradeScope === value ? 'is-selected' : undefined}
+                    key={value}
+                    onClick={() => setTradeScope(value)}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+            </div>
             <div className="w2a2-core-quickgrid__units">
               {[...roster.units]
                 .sort((left, right) =>
                   left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
                 .map((unit) => {
                   const unitSelections = unit.applicableSections.flatMap((section) =>
-                    section.trades.map((trade) => ({
-                      section: section.id as FieldSection,
-                      trade: toFieldTrade(trade),
-                      unitId: unit.id,
-                    })));
+                    section.trades
+                      .filter((trade) => tradeScope === 'both' || trade === tradeScope)
+                      .map((trade) => ({
+                        section: section.id as FieldSection,
+                        trade: toFieldTrade(trade),
+                        unitId: unit.id,
+                      })));
                   const allOn = unitSelections.length > 0
                     && unitSelections.every((candidate) => selected.has(selectionKey(candidate)));
                   return (
@@ -423,6 +443,20 @@ export function ManualReleaseReview({
             Paper remains authoritative.
           </span>
         </label>
+
+        {selected.size > 0 ? (
+          <p className="w2a2-core-caption w2a2-core-proof-reminder">
+            Tony's rule: submit proof whenever you receive units.{' '}
+            <a
+              href={OFFICIAL_PDS_LINKS.find((link) => link.id === 'backup-safety')?.url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Open the Backup Safety Submission Box
+            </a>
+            {' '}— the Home card keeps the copy-paste summary ready after you confirm.
+          </p>
+        ) : null}
 
         {error ? <p className="w2a2-core-error" role="alert">{error}</p> : null}
 

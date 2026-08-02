@@ -29,7 +29,7 @@ test('More preserves the approved grouped information architecture', () => {
       },
       {
         label: 'Project',
-        items: ['Project Setup', 'Unit Import'],
+        items: ['Project Setup', 'Add Today’s Work'],
       },
       {
         label: 'Data and Safety',

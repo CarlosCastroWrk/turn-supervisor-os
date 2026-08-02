@@ -487,3 +487,31 @@
 .w2a2-core-portal__status {
   font-weight: 700;
 }
+
+.w2a2-core-quickgrid__scope {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+
+.w2a2-core-quickgrid__scope > button {
+  background: #fff;
+  border: 1.5px solid #d9dde3;
+  border-radius: 999px;
+  color: #66707c;
+  font-size: 14px;
+  font-weight: 750;
+  min-block-size: 40px;
+  padding: 6px 14px;
+}
+
+.w2a2-core-quickgrid__scope > button.is-selected {
+  background: #0877d1;
+  border-color: #0877d1;
+  color: #fff;
+}
+
+.w2a2-core-proof-reminder a {
+  color: #0877d1;
+  font-weight: 750;
+}

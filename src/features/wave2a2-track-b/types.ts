@@ -210,6 +210,7 @@ export interface TodayTaskProgress {
   scope: 'today-confirmed-release';
   scopeLabel: string;
   target: number;
+  trades: readonly { trade: TrackBTrade; actual: number; target: number }[];
 }
 
 export interface EndDaySummary {

@@ -166,6 +166,7 @@ const projection: CanonicalFieldProjection = {
     progress: {
       actual: 2,
       copy: '2 of 4 released sections inspected by Los.',
+      trades: [{ actual: 2, target: 4, trade: 'Paint' as const }],
       metric: 'sections',
       milestone: 'los-inspected',
       percentage: 50,

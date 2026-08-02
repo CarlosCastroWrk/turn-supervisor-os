@@ -12,7 +12,7 @@
     --green: #237a45; --amber: #9b5b00; --red: #b4232d;
   }
   * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding-bottom: 40px; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding-bottom: 90px; }
   header { background: var(--navy); color: #fff; padding: max(14px, env(safe-area-inset-top)) 16px 14px; position: sticky; top: 0; z-index: 2; }
   header h1 { font-size: 19px; font-weight: 800; }
   header p { color: #b9c6da; font-size: 13px; margin-top: 2px; }
@@ -25,12 +25,12 @@
   .filters button { background: var(--card); border: 1.5px solid var(--border); border-radius: 999px; color: var(--muted); flex-shrink: 0; font-size: 14px; font-weight: 700; min-height: 38px; padding: 6px 14px; }
   .filters button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
   input[type=search] { background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; font-size: 16px; margin-bottom: 10px; min-height: 44px; padding: 8px 14px; width: 100%; }
-  .unit { align-items: center; background: var(--card); border-radius: 12px; display: flex; gap: 10px; justify-content: space-between; margin-bottom: 6px; padding: 10px 14px; }
+  .unit { align-items: center; background: var(--card); border: 2px solid transparent; border-radius: 12px; display: flex; gap: 10px; justify-content: space-between; margin-bottom: 6px; padding: 10px 14px; }
+  .unit.picked { border-color: var(--blue); }
   .unit strong { font-size: 17px; min-width: 56px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
   .chip { border-radius: 999px; font-size: 12px; font-weight: 800; padding: 3px 10px; }
-  .chip.approved { background: #e2f2e8; color: var(--green); }
-  .chip.passed { background: #e2f2e8; color: var(--green); }
+  .chip.approved, .chip.passed { background: #e2f2e8; color: var(--green); }
   .chip.crew-done { background: #eaf3fb; color: var(--blue); }
   .chip.working { background: #fdf3e4; color: var(--amber); }
   .chip.open { background: #eef0f3; color: var(--muted); }
@@ -39,66 +39,84 @@
   .meta { color: var(--muted); font-size: 13px; margin: 8px 2px 12px; text-align: center; }
   .empty { background: var(--card); border-radius: 14px; color: var(--muted); margin-top: 30px; padding: 30px 20px; text-align: center; }
   footer { color: var(--muted); font-size: 12px; margin-top: 18px; text-align: center; }
+  .walkbar { background: var(--navy); border-radius: 16px; bottom: max(12px, env(safe-area-inset-bottom)); box-shadow: 0 8px 24px rgba(0,0,0,.25); color: #fff; display: none; gap: 10px; left: 50%; max-width: 540px; padding: 12px; position: fixed; transform: translateX(-50%); width: calc(100% - 24px); z-index: 3; }
+  .walkbar.show { display: flex; align-items: center; }
+  .walkbar strong { flex: 1; font-size: 15px; }
+  .walkbar button { background: var(--blue); border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 800; min-height: 42px; padding: 8px 12px; }
+  .walkbar button.ghost { background: transparent; border: 1.5px solid #5b6b83; }
+  .hint { color: var(--muted); font-size: 13px; margin: 2px 2px 10px; text-align: center; }
 </style>
 </head>
 <body>
 <header>
   <h1 id="prop">Turn Progress</h1>
-  <p id="sub">Live view from Los's Turn OS · read-only</p>
+  <p id="sub">Live view · read-only</p>
 </header>
 <main>
   <p class="meta" id="updated"></p>
   <div class="counts" id="counts" hidden>
     <div class="count"><strong id="cWorking">0</strong><small>In progress</small></div>
-    <div class="count"><strong id="cCrewDone">0</strong><small>Crew done</small></div>
-    <div class="count"><strong id="cPassed">0</strong><small>Los passed</small></div>
+    <div class="count"><strong id="cPaintDone">0</strong><small>Paint done</small></div>
+    <div class="count"><strong id="cCleanDone">0</strong><small>Clean done</small></div>
     <div class="count"><strong id="cApproved">0</strong><small>Approved</small></div>
   </div>
   <div class="filters" id="filters" hidden>
     <button data-f="all" class="on">All</button>
     <button data-f="ready">Ready to walk</button>
+    <button data-f="paint-done">Paint done</button>
+    <button data-f="clean-done">Clean done</button>
     <button data-f="approved">Approved</button>
     <button data-f="working">In progress</button>
     <button data-f="cb">Callbacks</button>
   </div>
   <input type="search" id="q" placeholder="Search unit number…" hidden>
+  <p class="hint" id="pickHint" hidden>Tap units to select them, then request a walk below.</p>
   <div id="list"></div>
-  <div class="empty" id="empty" hidden>No portal update published yet. Ask Los to tap “Update portal” in Turn OS.</div>
-  <footer>Statuses: paint / clean per unit. “Ready to walk” = Los inspected and passed. Refreshes automatically.</footer>
+  <div class="empty" id="empty" hidden>No update published yet — the board appears here as soon as work is recorded.</div>
+  <footer>Paint / clean status per unit. “Ready to walk” = inspected and passed by the supervisor. Updates automatically.</footer>
 </main>
+<div class="walkbar" id="walkbar">
+  <strong id="walkCount">0 selected</strong>
+  <button class="ghost" id="walkClear" type="button">Clear</button>
+  <button id="walkJoseph" type="button">Joseph — request walk</button>
+  <button id="walkPaige" type="button">Paige</button>
+</div>
 <script>
 (() => {
   const token = new URLSearchParams(location.search).get('k') || '';
   const LABELS = { approved: 'Approved', passed: 'Passed', 'crew-done': 'Crew done', working: 'Working', open: 'Released', none: '—' };
+  const DONE = ['passed', 'approved'];
   let units = [];
   let filter = 'all';
   let query = '';
+  const picked = new Set();
 
   const el = (id) => document.getElementById(id);
 
   const tradeChip = (trade, status) =>
     `<span class="chip ${status}">${trade} ${LABELS[status] || status}</span>`;
 
-  const unitStatus = (u) => {
-    const best = ['approved', 'passed', 'crew-done', 'working', 'open']
-      .find((s) => u.p === s || u.c === s);
-    return best || 'none';
-  };
-
   const matches = (u) => {
     if (query && !u.n.toLowerCase().includes(query)) return false;
     if (filter === 'all') return u.p !== 'none' || u.c !== 'none';
     if (filter === 'cb') return Boolean(u.cb);
     if (filter === 'ready') return u.p === 'passed' || u.c === 'passed';
+    if (filter === 'paint-done') return DONE.includes(u.p);
+    if (filter === 'clean-done') return DONE.includes(u.c);
     if (filter === 'approved') return u.p === 'approved' || u.c === 'approved';
     if (filter === 'working') return ['working', 'crew-done'].includes(u.p) || ['working', 'crew-done'].includes(u.c);
     return true;
   };
 
+  const renderBar = () => {
+    el('walkCount').textContent = `${picked.size} selected`;
+    el('walkbar').classList.toggle('show', picked.size > 0);
+  };
+
   const render = () => {
     const rows = units.filter(matches);
     el('list').innerHTML = rows.map((u) => `
-      <div class="unit">
+      <div class="unit${picked.has(u.n) ? ' picked' : ''}" data-n="${u.n}">
         <strong>${u.n}${u.partial ? '<small style="color:#9b5b00"> partial</small>' : ''}</strong>
         <span class="chips">
           ${tradeChip('Paint', u.p)}
@@ -107,6 +125,7 @@
         </span>
       </div>`).join('')
       || '<div class="empty">Nothing matches this view yet.</div>';
+    renderBar();
   };
 
   const load = async () => {
@@ -122,14 +141,16 @@
       units = (p.units || []).slice().sort((a, b) =>
         a.n.localeCompare(b.n, undefined, { numeric: true }));
       el('prop').textContent = `${p.propertyName} — Turn Progress`;
+      el('sub').textContent = `Live from ${(p.supervisor || 'the supervisor').split(' ')[0]}'s Turn OS · read-only`;
       el('empty').hidden = true;
       el('counts').hidden = false;
       el('filters').hidden = false;
       el('q').hidden = false;
+      el('pickHint').hidden = false;
       const count = (pred) => units.filter(pred).length;
-      el('cWorking').textContent = count((u) => ['working'].includes(u.p) || ['working'].includes(u.c));
-      el('cCrewDone').textContent = count((u) => u.p === 'crew-done' || u.c === 'crew-done');
-      el('cPassed').textContent = count((u) => u.p === 'passed' || u.c === 'passed');
+      el('cWorking').textContent = count((u) => ['working', 'crew-done'].includes(u.p) || ['working', 'crew-done'].includes(u.c));
+      el('cPaintDone').textContent = count((u) => DONE.includes(u.p));
+      el('cCleanDone').textContent = count((u) => DONE.includes(u.c));
       el('cApproved').textContent = count((u) => u.p === 'approved' || u.c === 'approved');
       const updated = new Date(body.updatedAt);
       el('updated').textContent = `Updated ${updated.toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`;
@@ -152,9 +173,38 @@
     query = event.target.value.trim().toLowerCase();
     render();
   });
+  el('list').addEventListener('click', (event) => {
+    const row = event.target.closest('.unit');
+    if (!row) return;
+    const n = row.dataset.n;
+    if (picked.has(n)) picked.delete(n); else picked.add(n);
+    render();
+  });
+  el('walkClear').addEventListener('click', () => { picked.clear(); render(); });
+
+  const requestWalk = async (name) => {
+    if (picked.size === 0) return;
+    const unitsList = [...picked].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    try {
+      const response = await fetch(`/api/portal/request-walk?k=${encodeURIComponent(token)}`, {
+        body: JSON.stringify({ name, units: unitsList }),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      });
+      const body = await response.json();
+      if (!response.ok) { alert(body.error || 'Could not send. Text the supervisor instead.'); return; }
+      picked.clear();
+      render();
+      el('updated').textContent = `Walk request sent — ${name} · ${unitsList.join(', ')}`;
+    } catch {
+      alert('Could not send. Text the supervisor instead.');
+    }
+  };
+  el('walkJoseph').addEventListener('click', () => void requestWalk('Joseph'));
+  el('walkPaige').addEventListener('click', () => void requestWalk('Paige'));
 
   load();
-  setInterval(load, 60000);
+  setInterval(load, 45000);
 })();
 </script>
 </body>

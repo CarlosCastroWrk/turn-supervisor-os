@@ -21,6 +21,7 @@ const tradeStatusSchema = z.enum([
 
 export const portalSnapshotSchema = z.object({
   propertyName: z.string().min(1).max(120),
+  supervisor: z.string().max(60).optional(),
   generatedAt: z.string().min(10).max(40),
   units: z
     .array(
@@ -104,4 +105,63 @@ export const readPortalSnapshot = async (): Promise<
     const row = result.rows[0];
     if (!row) return undefined;
     return { payload: row.payload, updatedAt: new Date(row.updated_at).toISOString() };
+  });
+
+// Walk requests ride the same single-row store under a second id. Joseph or
+// Paige taps units on the portal and asks for a walk; Los sees it on Home.
+
+const WALK_REQUEST_ID = 'walk-requests';
+const MAX_WALK_REQUESTS = 20;
+
+export const walkRequestSchema = z.object({
+  name: z.string().min(1).max(40),
+  units: z.array(z.string().min(1).max(12)).min(1).max(40),
+});
+
+export interface WalkRequestEntry {
+  at: string;
+  name: string;
+  units: string[];
+}
+
+const readWalkRequestRow = async (
+  client: pg.Client,
+): Promise<WalkRequestEntry[]> => {
+  const result = await client.query<{ payload: { items?: WalkRequestEntry[] } }>(
+    'select payload from public.portal_snapshots where id = $1 limit 1',
+    [WALK_REQUEST_ID],
+  );
+  return result.rows[0]?.payload?.items ?? [];
+};
+
+export const appendWalkRequest = async (
+  entry: z.infer<typeof walkRequestSchema>,
+): Promise<void> =>
+  withPortalDb(async (client) => {
+    const items = await readWalkRequestRow(client);
+    const next = [
+      { at: new Date().toISOString(), name: entry.name, units: entry.units },
+      ...items,
+    ].slice(0, MAX_WALK_REQUESTS);
+    await client.query(
+      `insert into public.portal_snapshots (id, payload, updated_at)
+       values ($1, $2::jsonb, now())
+       on conflict (id) do update
+         set payload = excluded.payload, updated_at = now()`,
+      [WALK_REQUEST_ID, JSON.stringify({ items: next })],
+    );
+  });
+
+export const listWalkRequests = async (): Promise<WalkRequestEntry[]> =>
+  withPortalDb(readWalkRequestRow);
+
+export const clearWalkRequests = async (): Promise<void> =>
+  withPortalDb(async (client) => {
+    await client.query(
+      `insert into public.portal_snapshots (id, payload, updated_at)
+       values ($1, $2::jsonb, now())
+       on conflict (id) do update
+         set payload = excluded.payload, updated_at = now()`,
+      [WALK_REQUEST_ID, JSON.stringify({ items: [] })],
+    );
   });

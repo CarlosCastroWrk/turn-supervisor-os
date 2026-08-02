@@ -1,4 +1,4 @@
-import { AlertTriangle, Download, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download, Footprints, RefreshCw } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -96,7 +96,7 @@ import {
 import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
-import { PortalPage } from '../wave2a2-core/PortalPage';
+import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
 import {
   applyDayTaskStateChange,
   applyTrackCStateChange,
@@ -357,6 +357,14 @@ function LaunchOperationalApp({
   const [route, setRoute] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
   );
+  const routeRef = useRef(route);
+  routeRef.current = route;
+  // When a unit is opened from a Home queue (Needs Crew, Working, …), Back
+  // must return to that queue — not dump Los on the TurnBoard.
+  const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | undefined>(undefined);
+  const [walkRequests, setWalkRequests] = useState<
+    { at: string; name: string; units: string[] }[]
+  >([]);
   const [captureOpen, setCaptureOpen] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).captureRequested
       || historyRequestsCapture(),
@@ -1267,6 +1275,10 @@ function LaunchOperationalApp({
 
   const openDestination = useCallback((destinationId: string) => {
     if (destinationId.startsWith('unit:')) {
+      unitDetailOriginRef.current =
+        routeRef.current.view === 'dashboard' && routeRef.current.homeSummary
+          ? routeRef.current.homeSummary
+          : undefined;
       navigate('unitDetail', destinationId.slice('unit:'.length));
       return;
     }
@@ -1656,25 +1668,10 @@ function LaunchOperationalApp({
       return;
     }
     if (destination === 'unit-import') {
-      // Unit Import lives in the setup flow's Units step — open there (not Assign Crews).
-      try {
-        const nextDraft = setupDraft && !setupActivationCommittedRef.current
-          ? setupDraft
-          : createProjectActivationDraft(data, nowISO(), 'Los');
-        setSetupDraft(nextDraft);
-        setSetupStep(3); // 0 Property · 1 Contacts · 2 Crews · 3 Units · 4 Review
-        saveSetupDraft(nextDraft, 3);
-        setupActivationCommittedRef.current = false;
-        setSetupErrors([]);
-        setSetupStatus('Add or import Units for your roster.');
-      } catch (error) {
-        setSetupDraft(null);
-        setSetupErrors([
-          error instanceof Error ? error.message : 'Unit import is unavailable.',
-        ]);
-        setSetupStatus('Unit import is unavailable. Nothing was changed.');
-      }
-      navigate('setup');
+      // Day-to-day imports mean "record what Joseph released TODAY" — open the
+      // quick-add / photo / paste review, not the roster setup step. Roster
+      // additions live in Project Setup → Units.
+      handleQuickAction('import-work');
       return;
     }
     if (destination === 'sync') {
@@ -1682,7 +1679,7 @@ function LaunchOperationalApp({
       return;
     }
     navigate('export');
-  }, [data, launchProjection.project?.mode, launchProjection.propertyName, navigate, saveSetupDraft, setupDraft]);
+  }, [data, handleQuickAction, launchProjection.project?.mode, launchProjection.propertyName, navigate, saveSetupDraft, setupDraft]);
 
   const activateProject = useCallback(async () => {
     if (!setupDraft || setupActivationInFlightRef.current) return;
@@ -1879,8 +1876,104 @@ function LaunchOperationalApp({
     </section>
   ) : null;
 
+  // LIVE portal: once Los has published the portal once, every committed
+  // field change republishes automatically (debounced) — Joseph and Paige see
+  // the board move without Los tapping anything.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    if (!window.localStorage.getItem('turn-os:portal-share-url')) return undefined;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const client = getSupabaseClient();
+          const session = client ? (await client.auth.getSession()).data.session : null;
+          if (!session?.access_token) return;
+          await fetch('/api/portal/publish', {
+            body: JSON.stringify({
+              generatedAt: new Date().toISOString(),
+              propertyName: launchProjection.propertyName,
+              supervisor: launchProjection.project?.supervisorName?.trim() || 'Los',
+              units: buildPortalUnits(trackCState),
+            }),
+            headers: {
+              authorization: `Bearer ${session.access_token}`,
+              'content-type': 'application/json',
+            },
+            method: 'POST',
+          });
+          window.localStorage.setItem('turn-os:portal-last-published', new Date().toISOString());
+        } catch {
+          // Offline or signed out — the next change retries automatically.
+        }
+      })();
+    }, 20_000);
+    return () => window.clearTimeout(timer);
+  }, [launchProjection.project?.supervisorName, launchProjection.propertyName, trackCState]);
+
+  // Walk requests from the portal (Joseph/Paige) surface on Home.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    let cancelled = false;
+    const fetchRequests = async () => {
+      try {
+        const client = getSupabaseClient();
+        const session = client ? (await client.auth.getSession()).data.session : null;
+        if (!session?.access_token) return;
+        const response = await fetch('/api/portal/requests', {
+          headers: { authorization: `Bearer ${session.access_token}` },
+        });
+        if (!response.ok) return;
+        const body = await response.json() as { items?: { at: string; name: string; units: string[] }[] };
+        if (!cancelled && Array.isArray(body.items)) setWalkRequests(body.items);
+      } catch {
+        // Offline — fine, this is a courtesy signal.
+      }
+    };
+    void fetchRequests();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void fetchRequests();
+    }, 180_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const walkRequestAlert = walkRequests.length > 0 ? (
+    <div className="lcc-host-alert lcc-walk-request" role="status">
+      <Footprints aria-hidden="true" size={18} />
+      <span>
+        {walkRequests.slice(0, 2).map((request) =>
+          `${request.name} wants to walk: ${request.units.join(', ')}`).join(' · ')}
+        {walkRequests.length > 2 ? ` · +${walkRequests.length - 2} more` : ''}
+      </span>
+      <button
+        onClick={() => {
+          void (async () => {
+            try {
+              const client = getSupabaseClient();
+              const session = client ? (await client.auth.getSession()).data.session : null;
+              if (!session?.access_token) return;
+              await fetch('/api/portal/requests', {
+                headers: { authorization: `Bearer ${session.access_token}` },
+                method: 'DELETE',
+              });
+              setWalkRequests([]);
+            } catch {
+              setWalkRequests([]);
+            }
+          })();
+        }}
+        type="button"
+      >
+        Got it
+      </button>
+    </div>
+  ) : null;
+
   const hostAlerts = (
     <>
+      {walkRequestAlert}
       {saveAlert}
       {cacheAlert}
       {repositoryAlert}
@@ -2163,6 +2256,12 @@ function LaunchOperationalApp({
             }
             if (nextRoute.unitId) {
               navigate('unitDetail', nextRoute.unitId, { unitSurface: 'board' });
+              return;
+            }
+            if (unitDetailOriginRef.current) {
+              const homeSummary = unitDetailOriginRef.current;
+              unitDetailOriginRef.current = undefined;
+              navigate('dashboard', undefined, { homeSummary });
               return;
             }
             navigate('units');
@@ -2523,6 +2622,7 @@ function LaunchOperationalApp({
         <PortalPage
           onBack={() => setMoreDetailPage(null)}
           propertyName={launchProjection.propertyName}
+          supervisor={launchProjection.project?.supervisorName?.trim() || 'Los'}
           state={activeFieldState ?? trackCState}
         />
       ) : moreDetailPage === 'profile' ? (

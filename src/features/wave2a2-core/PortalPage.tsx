@@ -56,10 +56,12 @@ export const buildPortalUnits = (state: TrackCState): PortalUnitLine[] =>
 export const PortalPage = ({
   onBack,
   propertyName,
+  supervisor,
   state,
 }: {
   onBack: () => void;
   propertyName: string;
+  supervisor?: string;
   state: TrackCState;
 }) => {
   const [busy, setBusy] = useState(false);
@@ -84,6 +86,7 @@ export const PortalPage = ({
       const payload = {
         generatedAt: new Date().toISOString(),
         propertyName,
+        supervisor: supervisor?.trim() || undefined,
         units: buildPortalUnits(state),
       };
       const response = await fetch('/api/portal/publish', {
@@ -163,8 +166,10 @@ export const PortalPage = ({
       )}
       {status ? <p aria-live="polite" className="w2a2-core-portal__status">{status}</p> : null}
       <p className="w2a2-core-portal__footnote">
-        The portal only changes when you tap Update — a good rhythm is after
-        each walk and at end of day.
+        After the first Update, the portal stays LIVE on its own — every change
+        you record republishes automatically within about half a minute. Joseph
+        and Paige can also tap units on the portal and request a walk; that
+        shows up at the top of your Home.
       </p>
     </section>
   );

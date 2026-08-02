@@ -44,6 +44,23 @@ test('portal setup rejects an unauthenticated caller (401)', async () => {
   assert.equal(response.status, 401);
 });
 
+test('walk requests need the share token to write and Los auth to read', async () => {
+  const requestWalk = (await import('../api/portal/request-walk.ts')).default;
+  const requests = (await import('../api/portal/requests.ts')).default;
+  const write = await requestWalk.fetch(
+    new Request('https://turn-supervisor-os.vercel.app/api/portal/request-walk?k=wrong', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Joseph', units: ['1205'] }),
+    }),
+  );
+  assert.equal(write.status, 401);
+  const read = await requests.fetch(
+    new Request('https://turn-supervisor-os.vercel.app/api/portal/requests'),
+  );
+  assert.equal(read.status, 401);
+});
+
 test('portal view never serves data when the token env is unset', async () => {
   // With TURN_OS_PORTAL_TOKEN absent in tests, every candidate must fail —
   // an unconfigured portal is a closed portal.

@@ -2278,3 +2278,12 @@ select.track-c-trade-change {
 .track-c-crew-ai-draft:disabled {
   opacity: 0.6;
 }
+
+.track-c-signal.is-clean-next {
+  background: #fdf3e4;
+  border-radius: 999px;
+  color: #9b5b00;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 9px;
+}

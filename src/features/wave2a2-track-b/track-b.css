@@ -1035,3 +1035,19 @@ button.w2a2b-done-toggle {
   font-weight: 700;
   color: var(--turn-color-ink-soft, #45505f);
 }
+
+.w2a2b-summary-details > summary {
+  color: #0877d1;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  min-block-size: 40px;
+  padding: 8px 0;
+}
+
+.w2a2b-choice-group--inline > label {
+  border-bottom: none;
+  display: inline-flex;
+  margin-inline-end: 14px;
+  padding: 4px 0;
+}

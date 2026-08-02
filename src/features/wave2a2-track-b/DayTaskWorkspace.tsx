@@ -850,25 +850,36 @@ export function EndDayFlow({
         <h2>
           {(() => {
             const sections = task?.sections ?? [];
-            const unitCount = new Set(sections.map((section) => section.unitId)).size;
+            if (sections.length === 0) {
+              return `${summary.releasedToday} released Paint and Clean sections`;
+            }
+            const tradeLine = (['Paint', 'Clean'] as const).flatMap((trade) => {
+              const released = new Set(sections
+                .filter((section) => section.tradeStates.some((state) => state.trade === trade))
+                .map((section) => section.unitId)).size;
+              if (released === 0) return [];
+              const done = acceptedToday.filter((unit) => unit.trades.includes(trade)).length;
+              return [`${trade} ${done}/${released}`];
+            }).join(' · ');
             const commons = sections.filter((section) => section.sectionId === 'common').length;
             const beds = sections.length - commons;
-            return sections.length > 0
-              ? `${unitCount} unit${unitCount === 1 ? '' : 's'} released · ${beds} bed${beds === 1 ? '' : 's'} · ${commons} common area${commons === 1 ? '' : 's'}`
-              : `${summary.releasedToday} released Paint and Clean sections`;
+            return `${tradeLine} units · ${beds} bed${beds === 1 ? '' : 's'} · ${commons} common`;
           })()}
         </h2>
         <p className="w2a2b-grain-copy">
           Counts cover Paint and Clean. Notes and photos count events.
         </p>
-        <div className="w2a2b-summary-grid">
-          {(Object.keys(END_DAY_SUMMARY_LABELS) as (keyof typeof END_DAY_SUMMARY_LABELS)[]).map((key) => (
-            <div key={key}>
-              <span>{END_DAY_SUMMARY_LABELS[key]}</span>
-              <strong>{summary[key]}</strong>
-            </div>
-          ))}
-        </div>
+        <details className="w2a2b-summary-details">
+          <summary>Full counts</summary>
+          <div className="w2a2b-summary-grid">
+            {(Object.keys(END_DAY_SUMMARY_LABELS) as (keyof typeof END_DAY_SUMMARY_LABELS)[]).map((key) => (
+              <div key={key}>
+                <span>{END_DAY_SUMMARY_LABELS[key]}</span>
+                <strong>{summary[key]}</strong>
+              </div>
+            ))}
+          </div>
+        </details>
         {acceptedToday.length > 0 ? (
           <div className="w2a2b-done-list w2a2b-endday-accepted">
             <small>Units the property accepted today</small>
@@ -903,7 +914,7 @@ export function EndDayFlow({
         </section>
       ) : null}
 
-      <fieldset className="w2a2b-choice-group">
+      <fieldset className="w2a2b-choice-group w2a2b-choice-group--inline">
         <legend>Clipboard / wall-board review</legend>
         {(['reviewed', 'not-reviewed'] as const).map((status) => (
           <label key={status}>
@@ -918,7 +929,7 @@ export function EndDayFlow({
         ))}
       </fieldset>
 
-      <fieldset className="w2a2b-choice-group">
+      <fieldset className="w2a2b-choice-group w2a2b-choice-group--inline">
         <legend>End Day key / access status</legend>
         <p className="w2a2b-safety-note">
           Opening observation: {keyStatusLabel[session.keyStatus]}. This End Day field is separate.
@@ -936,6 +947,8 @@ export function EndDayFlow({
         ))}
       </fieldset>
 
+      <details className="w2a2b-summary-details">
+      <summary>Notes (optional)</summary>
       <label className="w2a2b-field">
         <span>End-of-day property check-in <small>Optional</small></span>
         <input
@@ -957,6 +970,7 @@ export function EndDayFlow({
           value={review.endNote}
         />
       </label>
+      </details>
       <label className="w2a2b-explicit-confirm">
         <input
           checked={review.explicitConfirmation}
@@ -1097,12 +1111,24 @@ function DayTaskHome({
     <section className="w2a2b-home" data-testid="track-b-home">
       <header className="w2a2b-home-header w2a2b-home-header--compact">
         <h1>Home</h1>
-        {task ? (
-          <span aria-label="Units done today of units released today" className="w2a2b-day-badge">
-            {acceptedToday.length}/{new Set(task.sections.map((section) => section.unitId)).size}
-            <small>units</small>
-          </span>
-        ) : null}
+        {task ? (() => {
+          // Per-trade "done today" — paint releases first, cleans follow, so a
+          // unit-grain count would hide a finished clean day behind open paint.
+          const badgeLines = (['Paint', 'Clean'] as const).flatMap((trade) => {
+            const released = new Set(task.sections
+              .filter((section) => section.tradeStates.some((state) => state.trade === trade))
+              .map((section) => section.unitId)).size;
+            if (released === 0) return [];
+            const done = acceptedToday
+              .filter((unit) => unit.trades.includes(trade)).length;
+            return [`${trade} ${done}/${released}`];
+          });
+          return badgeLines.length > 0 ? (
+            <span aria-label="Units done today of units released today, by trade" className="w2a2b-day-badge">
+              {badgeLines.join(' · ')}
+            </span>
+          ) : null;
+        })() : null}
         {dayNumber ? (
           <p className="w2a2b-day-brief">
             Day {dayNumber}
@@ -1117,7 +1143,6 @@ function DayTaskHome({
               : ''}
           </p>
         ) : null}
-        <p><strong>{propertyName}</strong><span aria-hidden="true"> · </span>{currentDate}</p>
       </header>
 
       <section className="w2a2b-day-status" aria-labelledby="w2a2b-day-status-title">
@@ -1188,8 +1213,10 @@ function DayTaskHome({
         </div>
         <div className="w2a2b-inset-list">
           {[
-            // One import entry lives on Today's Task; crews assign from the
-            // Crews tab — Field actions stay lean: walk and close.
+            // Quick add covers Joseph's mid-day releases: it opens the tap
+            // grid of roster units. Crews assign from the Crews tab — Field
+            // actions stay lean: add, walk, close.
+            ['import-work', 'Quick add units — new release from Joseph', <ClipboardList aria-hidden="true" size={20} />],
             ['start-walk', 'Start walk', <Footprints aria-hidden="true" size={20} />],
           ].map(([id, label, icon]) => (
             <button

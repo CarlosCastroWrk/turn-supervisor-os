@@ -251,10 +251,12 @@ const CompactUnitRow = ({
   state,
   unit,
   onOpen,
+  cleanNext = false,
 }: {
   state: TrackCState;
   unit: TrackCCompactUnitProjection;
   onOpen: () => void;
+  cleanNext?: boolean;
 }) => (
   <button
     aria-label={`Open Unit ${unit.unitNumber}`}
@@ -279,6 +281,9 @@ const CompactUnitRow = ({
       <CompactTrade progress={unit.paint} state={state} />
       <CompactTrade progress={unit.clean} state={state} />
     </div>
+    {cleanNext ? (
+      <span className="track-c-signal is-clean-next">Clean next</span>
+    ) : null}
     {unit.signal !== 'none' ? (
       <span className={`track-c-signal is-${unit.signal}`}>
         {unit.signal === 'needs-me' ? (
@@ -692,16 +697,38 @@ export const BoardView = ({
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
   const unitWorkHas = (unitId: string, predicate: (work: TrackCWorkProjection) => boolean) =>
     projectTrackCUnitWork(state, unitId).some(predicate);
-  const isApproved = (unitId: string) =>
-    unitWorkHas(unitId, (work) => work.property === 'property-accepted');
+  // Approved means the WHOLE released unit is accepted — a unit with clean
+  // accepted but paint still open is working inventory, not approved.
+  const isApproved = (unitId: string) => {
+    const released = projectTrackCUnitWork(state, unitId)
+      .filter((work) => work.release === 'released');
+    return released.length > 0
+      && released.every((work) => work.property === 'property-accepted');
+  };
   const isWorking = (unitId: string) =>
     unitWorkHas(unitId, (work) =>
       work.release === 'released'
       && (work.execution === 'working' || work.execution === 'assigned'));
   const hasCallback = (unitId: string) =>
     unitWorkHas(unitId, (work) => work.callbackOpen);
+  // Paint finished but clean not done yet — these turn over first (they are
+  // already painted), so they sort to the top and get a "Clean next" tag.
+  const isCleanNext = (unitId: string) => {
+    const work = projectTrackCUnitWork(state, unitId);
+    const paint = work.filter((item) => item.trade === 'paint' && item.release === 'released');
+    const clean = work.filter((item) => item.trade === 'clean');
+    const paintDone = paint.length > 0 && paint.every((item) =>
+      item.property === 'property-accepted' || item.inspection === 'los-passed');
+    const cleanDone = clean.some((item) => item.release === 'released')
+      && clean.filter((item) => item.release === 'released')
+        .every((item) => item.property === 'property-accepted');
+    return paintDone && !cleanDone;
+  };
   const units = useMemo(() => {
-    const matches = searchTrackCCompactUnits(state, query);
+    const prioritized = (list: readonly TrackCCompactUnitProjection[]) =>
+      [...list].sort((left, right) =>
+        Number(isCleanNext(right.unitId)) - Number(isCleanNext(left.unitId)));
+    const matches = prioritized(searchTrackCCompactUnits(state, query));
     if (scope === 'all') return matches;
     if (scope === 'approved') return matches.filter((unit) => isApproved(unit.unitId));
     if (scope === 'working') return matches.filter((unit) => isWorking(unit.unitId));
@@ -800,6 +827,7 @@ export const BoardView = ({
         {units.length > 0 ? (
           units.map((unit) => (
             <CompactUnitRow
+              cleanNext={isCleanNext(unit.unitId)}
               key={unit.unitId}
               onOpen={() => onOpenUnit(unit.unitId)}
               state={state}

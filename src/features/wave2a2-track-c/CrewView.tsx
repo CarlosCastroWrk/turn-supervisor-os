@@ -64,18 +64,37 @@ const CrewWorkList = ({
           </header>
           {group.work.length > 0 ? (
             <ul>
-              {group.work.slice(0, 8).map((work) => {
-                const unit = trackCUnitForTarget(state, work);
-                return (
-                  <li key={`${group.label}:${work.id}`}>
-                    <strong>Unit {unit?.unitNumber ?? work.unitId}</strong>
-                    <span>
-                      {work.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
-                      {trackCSectionLabel(work.section)}
-                    </span>
-                  </li>
-                );
-              })}
+              {(() => {
+                // Unit grain — one line per unit per trade with its sections
+                // folded in ("Unit 406 · Paint — Common, A, B, C"), so the
+                // scroll stays short.
+                const byUnit = new Map<string, {
+                  sections: string[];
+                  trade: string;
+                  unitNumber: string;
+                }>();
+                for (const work of group.work) {
+                  const unit = trackCUnitForTarget(state, work);
+                  const key = `${work.unitId}:${work.trade}`;
+                  const line = byUnit.get(key) ?? {
+                    sections: [],
+                    trade: work.trade === 'paint' ? 'Paint' : 'Clean',
+                    unitNumber: unit?.unitNumber ?? work.unitId,
+                  };
+                  line.sections.push(trackCSectionLabel(work.section));
+                  byUnit.set(key, line);
+                }
+                return [...byUnit.entries()]
+                  .sort((left, right) => left[1].unitNumber.localeCompare(
+                    right[1].unitNumber, undefined, { numeric: true }))
+                  .slice(0, 10)
+                  .map(([key, line]) => (
+                    <li key={`${group.label}:${key}`}>
+                      <strong>Unit {line.unitNumber}</strong>
+                      <span>{line.trade} — {[...new Set(line.sections)].join(', ')}</span>
+                    </li>
+                  ));
+              })()}
             </ul>
           ) : (
             <p>No confirmed events in this group.</p>
@@ -227,6 +246,23 @@ export const CrewView = ({
     }
     return map;
   }, [state.events]);
+  // Pay-week totals (week runs Sunday -> Saturday 5pm; counted from Sunday).
+  const weekByCrew = useMemo(() => {
+    const now = new Date();
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - now.getDay());
+    sunday.setHours(0, 0, 0, 0);
+    const startIso = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+    const map = new Map<string, { beds: number; commons: number }>();
+    for (const event of state.events) {
+      if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
+      if (event.recordedAt.slice(0, 10) < startIso) continue;
+      const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
+      line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
+      map.set(event.crewId, line);
+    }
+    return map;
+  }, [state.events]);
   // Prefilled, organized text from the crew's REAL current assignments —
   // bilingual-lite so it works for Spanish- and English-speaking crews.
   const composeBody = (crewId: string, crewName: string) => {
@@ -340,6 +376,10 @@ export const CrewView = ({
               today.commons > 0 ? `${today.commons} common` : '',
             ].filter(Boolean).join(' · ')
             : '';
+          const week = weekByCrew.get(crew.id);
+          const weekLabel = week && (week.beds > 0 || week.commons > 0)
+            ? `wk ${week.beds} bed${week.beds === 1 ? '' : 's'}${week.commons > 0 ? ` + ${week.commons} common` : ''}`
+            : '';
           const phone = crewDirectory?.[crew.id]?.phone?.trim();
           return (
             <div className="track-c-crew-card" key={crew.id}>
@@ -359,6 +399,7 @@ export const CrewView = ({
                     {crew.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
                     {crew.activeToday ? 'Active today' : 'Not active today'}
                     {todayLabel ? ` · today: ${todayLabel}` : ''}
+                    {weekLabel ? ` · ${weekLabel}` : ''}
                   </small>
                 </span>
                 <span className="track-c-crew-row__stats">

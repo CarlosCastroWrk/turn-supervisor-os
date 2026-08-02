@@ -235,3 +235,23 @@
   background: var(--turn-color-brand, #0072dc);
   color: #fff;
 }
+
+/* Day History pager: one day at a time, arrows to move. */
+.lcc-day-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 10px;
+}
+.lcc-day-pager strong { font-size: 16px; }
+.lcc-day-pager button {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid var(--turn-color-divider, #d8dee6);
+  background: var(--turn-color-elevated, #fff);
+  color: var(--turn-color-brand, #0072dc);
+  font-weight: 700;
+}
+.lcc-day-pager button:disabled { opacity: 0.4; }

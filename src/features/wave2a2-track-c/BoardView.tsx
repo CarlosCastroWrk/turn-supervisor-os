@@ -666,13 +666,23 @@ export const BoardView = ({
   onRequestMirror,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<'released' | 'approved' | 'all'>('released');
+  const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
+  const unitWorkHas = (unitId: string, predicate: (work: TrackCWorkProjection) => boolean) =>
+    projectTrackCUnitWork(state, unitId).some(predicate);
   const isApproved = (unitId: string) =>
-    projectTrackCUnitWork(state, unitId).some((work) => work.property === 'property-accepted');
+    unitWorkHas(unitId, (work) => work.property === 'property-accepted');
+  const isWorking = (unitId: string) =>
+    unitWorkHas(unitId, (work) =>
+      work.release === 'released'
+      && (work.execution === 'working' || work.execution === 'assigned'));
+  const hasCallback = (unitId: string) =>
+    unitWorkHas(unitId, (work) => work.callbackOpen);
   const units = useMemo(() => {
     const matches = searchTrackCCompactUnits(state, query);
     if (scope === 'all') return matches;
     if (scope === 'approved') return matches.filter((unit) => isApproved(unit.unitId));
+    if (scope === 'working') return matches.filter((unit) => isWorking(unit.unitId));
+    if (scope === 'callbacks') return matches.filter((unit) => hasCallback(unit.unitId));
     return matches.filter((unit) =>
       state.units.find((candidate) => candidate.id === unit.unitId)
         ?.workFacts.some((fact) => fact.release === 'released'));
@@ -682,6 +692,10 @@ export const BoardView = ({
     unit.workFacts.some((fact) => fact.release === 'released')).length, [state.units]);
   const approvedCount = useMemo(() => state.units.filter((unit) =>
     isApproved(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  const workingCount = useMemo(() => state.units.filter((unit) =>
+    isWorking(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  const callbackCount = useMemo(() => state.units.filter((unit) =>
+    hasCallback(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (selectedUnitId) {
     return (
@@ -716,6 +730,20 @@ export const BoardView = ({
           type="button"
         >
           Released · {releasedCount}
+        </button>
+        <button
+          aria-pressed={scope === 'working'}
+          onClick={() => setScope('working')}
+          type="button"
+        >
+          Working · {workingCount}
+        </button>
+        <button
+          aria-pressed={scope === 'callbacks'}
+          onClick={() => setScope('callbacks')}
+          type="button"
+        >
+          Callbacks · {callbackCount}
         </button>
         <button
           aria-pressed={scope === 'approved'}

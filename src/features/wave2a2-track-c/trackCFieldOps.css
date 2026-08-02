@@ -2160,3 +2160,13 @@ select.track-c-trade-change {
   border-color: #b07414;
   color: #8a5a10;
 }
+
+/* Five scope pills need to wrap or scroll on a phone. */
+.track-c-board-scope {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.track-c-board-scope::-webkit-scrollbar { display: none; }
+.track-c-board-scope button { flex: 0 0 auto; }

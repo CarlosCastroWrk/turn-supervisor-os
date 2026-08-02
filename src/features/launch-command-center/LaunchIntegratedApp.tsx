@@ -442,6 +442,7 @@ function LaunchOperationalApp({
   const [aiLoginSkipped, setAiLoginSkipped] = useState(false);
   // Device-local stamp: has today's release proof been submitted to the
   // official Backup Safety Submission Box? (No schema impact — Turn freeze.)
+  const [historyDayOffset, setHistoryDayOffset] = useState(0);
   const [releaseProofDate, setReleaseProofDate] = useState<string | null>(() => (
     typeof window === 'undefined' ? null : window.localStorage.getItem('turn-os:release-proof-date')
   ));
@@ -2575,9 +2576,31 @@ function LaunchOperationalApp({
         >
           {daySessions.length === 0 ? (
             <p className="lcc-host-status">No Day Sessions yet — start your first day.</p>
-          ) : [...daySessions]
-            .sort((left, right) => right.date.localeCompare(left.date))
-            .map((historySession, index) => {
+          ) : (() => {
+            const sorted = [...daySessions]
+              .sort((left, right) => right.date.localeCompare(left.date));
+            const index = Math.min(historyDayOffset, sorted.length - 1);
+            return [
+              <div className="lcc-day-pager" key="pager">
+                <button
+                  aria-label="Older day"
+                  disabled={index >= sorted.length - 1}
+                  onClick={() => setHistoryDayOffset(Math.min(index + 1, sorted.length - 1))}
+                  type="button"
+                >
+                  ← Day {sorted.length - Math.min(index + 1, sorted.length - 1)}
+                </button>
+                <strong>Day {sorted.length - index}</strong>
+                <button
+                  aria-label="Newer day"
+                  disabled={index <= 0}
+                  onClick={() => setHistoryDayOffset(Math.max(index - 1, 0))}
+                  type="button"
+                >
+                  Day {sorted.length - Math.max(index - 1, 0)} →
+                </button>
+              </div>,
+              ...[sorted[index]].map((historySession) => {
               const sessionEvents = dayEvents.filter((event) =>
                 event.daySessionId === historySession.daySessionId);
               const callbacks = sessionEvents.filter((event) =>
@@ -2666,7 +2689,8 @@ function LaunchOperationalApp({
                   </button>
                 </GroupedInsetSection>
               );
-            })}
+              })];
+          })()}
         </NativeDetailShell>
       ) : moreDetailPage === 'storage' ? (
         <NativeDetailShell

@@ -2422,3 +2422,54 @@ select.track-c-trade-change {
   padding: 6px 0;
   text-align: start;
 }
+
+.track-c-blocked-banner {
+  align-items: center;
+  background: #fbe8ea;
+  border: 1.5px solid var(--track-c-red);
+  border-radius: 12px;
+  color: var(--track-c-red);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 14px;
+  gap: 8px;
+  margin: 8px 10px;
+  padding: 10px 12px;
+}
+
+.track-c-blocked-banner span { flex: 1; min-inline-size: 0; }
+
+.track-c-blocked-banner button {
+  background: var(--track-c-red);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  min-block-size: 40px;
+  padding: 6px 14px;
+}
+
+.track-c-block-link {
+  background: transparent;
+  border: none;
+  color: var(--track-c-muted);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 10px;
+  min-block-size: 36px;
+  padding: 2px 0;
+  text-align: start;
+}
+
+.track-c-signal.is-blocked {
+  align-items: center;
+  background: #fbe8ea;
+  border-radius: 999px;
+  color: var(--track-c-red);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 4px;
+  padding: 3px 9px;
+}

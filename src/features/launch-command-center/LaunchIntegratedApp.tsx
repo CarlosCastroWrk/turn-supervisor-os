@@ -2437,6 +2437,20 @@ function LaunchOperationalApp({
           initialView={trackCRouteState.view}
           unitPhotos={data.photoNotes.filter((photo) =>
             photo.projectId === data.activeProjectId && Boolean(photo.unitId))}
+          onUnblockUnit={(unitId, trade) => {
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === unitId)?.unitNumber ?? '';
+            const saved = commitDataNow((current) =>
+              setUnitReleaseRestriction(current, unitId, undefined, trade));
+            setMoreStatus(saved
+              ? `Unit ${unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'} unblocked — back in play.`
+              : 'The unblock could not be saved — try again.');
+          }}
+          onRequestBlock={(unitId, trade) => {
+            setBlockReason('');
+            setBlockTrade(trade);
+            setBlockDialog({ unitId });
+          }}
           onCommitUnitPhoto={(photo) =>
             // Photos are dispute evidence — persist synchronously like field
             // events so a crash can't lose a photo the UI said was saved.

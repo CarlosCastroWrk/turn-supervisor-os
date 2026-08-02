@@ -60,6 +60,8 @@ interface BoardViewProps {
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -253,12 +255,14 @@ const CompactUnitRow = ({
   unit,
   onOpen,
   cleanNext = false,
+  blocked = false,
   trade,
 }: {
   state: TrackCState;
   unit: TrackCCompactUnitProjection;
   onOpen: () => void;
   cleanNext?: boolean;
+  blocked?: boolean;
   trade?: TrackCTrade;
 }) => (
   <button
@@ -284,6 +288,11 @@ const CompactUnitRow = ({
       {trade !== 'clean' ? <CompactTrade progress={unit.paint} state={state} /> : null}
       {trade !== 'paint' ? <CompactTrade progress={unit.clean} state={state} /> : null}
     </div>
+    {blocked ? (
+      <span className="track-c-signal is-blocked">
+        <ShieldAlert aria-hidden="true" size={13} /> Blocked
+      </span>
+    ) : null}
     {cleanNext ? (
       <span className="track-c-signal is-clean-next">Clean next</span>
     ) : null}
@@ -452,6 +461,8 @@ const UnitDetail = ({
   onCommitUnitPhoto,
   focusTrade,
   onPdsApprove,
+  onUnblockUnit,
+  onRequestBlock,
 }: {
   state: TrackCState;
   unitId: string;
@@ -467,6 +478,8 @@ const UnitDetail = ({
   onCommitUnitPhoto?: BoardViewProps['onCommitUnitPhoto'];
   focusTrade?: TrackCTrade;
   onPdsApprove?: BoardViewProps['onPdsApprove'];
+  onUnblockUnit?: BoardViewProps['onUnblockUnit'];
+  onRequestBlock?: BoardViewProps['onRequestBlock'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -647,6 +660,38 @@ const UnitDetail = ({
                   <small>{progress.conciseLabel}</small>
                 )}
             </header>
+            {(() => {
+              const blockedItems = tradeWork.filter((item) =>
+                item.release === 'released' && item.access !== 'clear');
+              if (blockedItems.length > 0) {
+                const reason = (blockedItems[0].restrictionLabel ?? '')
+                  .replace(/^Blocked — /u, '') || 'no reason recorded';
+                return (
+                  <div className="track-c-blocked-banner" role="status">
+                    <ShieldAlert aria-hidden="true" size={16} />
+                    <span><strong>Blocked</strong> — {reason}</span>
+                    {onUnblockUnit ? (
+                      <button
+                        data-track-c-critical-target="true"
+                        onClick={() => onUnblockUnit(unitId, trade)}
+                        type="button"
+                      >
+                        Unblock {tradeLabel(trade)}
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              }
+              return onRequestBlock && tradeWork.some((item) => item.release === 'released') ? (
+                <button
+                  className="track-c-block-link"
+                  onClick={() => onRequestBlock(unitId, trade)}
+                  type="button"
+                >
+                  Block {tradeLabel(trade)} — locked out / occupied / hold
+                </button>
+              ) : null;
+            })()}
             {canRecordTradeComplete ? (
               <button
                 className="track-c-trade-complete"
@@ -732,6 +777,8 @@ export const BoardView = ({
   unitPhotos,
   onCommitUnitPhoto,
   onPdsApprove,
+  onUnblockUnit,
+  onRequestBlock,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
@@ -838,6 +885,8 @@ export const BoardView = ({
       <UnitDetail
         focusTrade={focusTrade ?? boardTrade}
         onPdsApprove={onPdsApprove}
+        onUnblockUnit={onUnblockUnit}
+        onRequestBlock={onRequestBlock}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onChangeCrew={onChangeCrew}
@@ -931,6 +980,8 @@ export const BoardView = ({
         {units.length > 0 ? (
           units.map((unit) => (
             <CompactUnitRow
+              blocked={tradeWorkFor(unit.unitId).some((item) =>
+                item.release === 'released' && item.access !== 'clear')}
               cleanNext={boardTrade === 'clean' && isCleanNext(unit.unitId)}
               key={unit.unitId}
               onOpen={() => {

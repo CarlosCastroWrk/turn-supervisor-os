@@ -70,6 +70,8 @@ export interface TrackCFieldOpsProps {
   readonly walkIntegration?: TrackCWalkIntegration;
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: (photo: PhotoNote) => boolean | Promise<boolean>;
+  readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
 }
 
 export const TrackCFieldOps = ({
@@ -91,6 +93,8 @@ export const TrackCFieldOps = ({
   walkIntegration,
   unitPhotos,
   onCommitUnitPhoto,
+  onUnblockUnit,
+  onRequestBlock,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
   const [localView, setLocalView] = useState<TrackCView>(initialView);
@@ -475,6 +479,8 @@ export const TrackCFieldOps = ({
             unitPhotos={unitPhotos}
             onCommitUnitPhoto={onCommitUnitPhoto}
             onPdsApprove={pdsApprove}
+            onUnblockUnit={onUnblockUnit}
+            onRequestBlock={onRequestBlock}
           />
         ) : null}
         {view === 'crews' ? (

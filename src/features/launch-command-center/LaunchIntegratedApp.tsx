@@ -98,6 +98,7 @@ import {
 import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
+import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
 import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
 import {
   applyDayTaskStateChange,
@@ -113,6 +114,7 @@ import {
   projectTodayTask,
   projectTrackCState,
   projectTrackCWalkDraft,
+  setUnitReleaseRestriction,
 } from '../wave2a2-core/appDataAdapters';
 import {
   adaptAppDataForTrackA,
@@ -203,7 +205,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'portal' | 'profile' | 'privacy' | 'storage' | null;
+type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -374,6 +376,9 @@ function LaunchOperationalApp({
   // Same rule for crews: opened from Home's "Crews right now" → Back returns
   // to Home, not the Crews tab.
   const crewOriginHomeRef = useRef(false);
+  // Context-aware Block Unit: Plus on a unit already knows WHICH unit.
+  const [blockDialog, setBlockDialog] = useState<{ unitId?: string } | null>(null);
+  const [blockReason, setBlockReason] = useState('');
   const [walkRequests, setWalkRequests] = useState<
     { at: string; name: string; units: string[] }[]
   >([]);
@@ -917,28 +922,67 @@ function LaunchOperationalApp({
     () => [...persistedActivity, ...boardSessionActivity],
     [boardSessionActivity, persistedActivity],
   );
+  const noteSearchResults = useMemo<NativeSearchResult[]>(() => {
+    const unitNumberById = new Map(data.units.map((unit) => [unit.id, unit.unitNumber]));
+    return data.activityLogs
+      .filter((entry) =>
+        entry.projectId === data.activeProjectId
+        && entry.action === 'Added personal note')
+      .slice(0, 200)
+      .map((entry) => {
+        const unitNumber = entry.entityType === 'Unit'
+          ? unitNumberById.get(entry.entityId)
+          : undefined;
+        return {
+          destinationId: entry.entityType === 'Unit' ? `unit:${entry.entityId}` : 'activity',
+          id: `note:${entry.id}`,
+          keywords: ['note', ...(unitNumber ? [unitNumber] : [])],
+          meta: `Note${unitNumber ? ` · Unit ${unitNumber}` : ''}`,
+          title: entry.note.length > 80 ? `${entry.note.slice(0, 80)}…` : entry.note,
+        };
+      });
+  }, [data.activeProjectId, data.activityLogs, data.units]);
   const nativeSearchGroups = useMemo<NativeSearchGroup[]>(() => {
-    if (canonicalConsumers) return canonicalConsumers.searchGroups.map((group) => ({
-      ...group,
-      results: group.results.map((result) => ({ ...result })),
-    }));
-    if (requiresCanonicalPersonalProjection) return [];
+    // Personal notes always ride the activity group so Search finds them.
+    const withNotes = (groups: NativeSearchGroup[]): NativeSearchGroup[] => {
+      if (noteSearchResults.length === 0) return groups;
+      const activity = groups.find((group) => group.id === 'activity');
+      if (!activity) {
+        return [...groups, { id: 'activity', results: noteSearchResults }];
+      }
+      const known = new Set(activity.results.map((result) => result.id));
+      return groups.map((group) => group.id !== 'activity' ? group : {
+        ...group,
+        results: [
+          ...noteSearchResults.filter((result) => !known.has(result.id)),
+          ...group.results,
+        ],
+      });
+    };
+    if (canonicalConsumers) {
+      return withNotes(canonicalConsumers.searchGroups.map((group) => ({
+        ...group,
+        results: group.results.map((result) => ({ ...result })),
+      })));
+    }
+    if (requiresCanonicalPersonalProjection) return withNotes([]);
     const groupIds = {
       crews: 'crews',
       'notes-activity': 'activity',
       units: 'units',
     } as const;
-    return launchProjection.searchGroups.flatMap((group) => {
+    return withNotes(launchProjection.searchGroups.flatMap((group) => {
       const id = groupIds[group.id as keyof typeof groupIds];
       if (!id) return [];
       return [{
         id,
         results: group.results.map((result) => ({ ...result })),
       }];
-    });
+    }));
   }, [
     canonicalConsumers,
     launchProjection.searchGroups,
+    noteSearchResults,
     requiresCanonicalPersonalProjection,
   ]);
   const nativeNotifications = useMemo<NativeNotificationItem[]>(
@@ -1585,7 +1629,10 @@ function LaunchOperationalApp({
   ) => {
     setPlusOpen(false);
     if (action === 'blocker') {
-      navigate('issues');
+      setBlockReason('');
+      setBlockDialog({
+        unitId: routeRef.current.view === 'unitDetail' ? routeRef.current.unitId : undefined,
+      });
       return;
     }
     if (action === 'import-work') {
@@ -1661,6 +1708,10 @@ function LaunchOperationalApp({
     }
     if (destination === 'portal') {
       setMoreDetailPage('portal');
+      return;
+    }
+    if (destination === 'my-notes') {
+      setMoreDetailPage('my-notes');
       return;
     }
     if (
@@ -2017,6 +2068,87 @@ function LaunchOperationalApp({
       </button>
     </div>
   ) : null;
+
+  const blockDialogElement = blockDialog ? (() => {
+    const releasedUnits = trackCState.units
+      .filter((unit) => unit.workFacts.some((fact) => fact.release === 'released'))
+      .sort((left, right) =>
+        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+    const selectedId = blockDialog.unitId
+      ?? (releasedUnits.length === 1 ? releasedUnits[0].id : undefined);
+    const selected = releasedUnits.find((unit) => unit.id === selectedId);
+    const currentlyBlocked = selected?.workFacts.some((fact) => fact.access !== 'clear');
+    const commitBlock = (reason: string | undefined) => {
+      if (!selectedId) return;
+      const saved = commitDataNow((current) =>
+        setUnitReleaseRestriction(current, selectedId, reason));
+      if (saved) {
+        setMoreStatus(reason === undefined
+          ? `Unit ${selected?.unitNumber ?? ''} unblocked — back in the working queues.`
+          : `Unit ${selected?.unitNumber ?? ''} marked blocked — it sits in Waiting until you unblock it.`);
+      }
+      setBlockDialog(null);
+    };
+    return (
+      <div aria-modal="true" className="lcc-block-dialog" role="dialog">
+        <div className="lcc-block-dialog__card">
+          <h2>{selected ? `Block Unit ${selected.unitNumber}` : 'Block a unit'}</h2>
+          {!blockDialog.unitId ? (
+            <select
+              aria-label="Which unit is blocked?"
+              onChange={(event) =>
+                setBlockDialog({ unitId: event.target.value || undefined })}
+              value={selectedId ?? ''}
+            >
+              <option value="">Which unit?</option>
+              {releasedUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>Unit {unit.unitNumber}</option>
+              ))}
+            </select>
+          ) : null}
+          <div className="lcc-block-dialog__reasons">
+            {['Locked out — no key', 'Occupied — do not enter', 'Maintenance in unit', 'Paint after Turn'].map((reason) => (
+              <button
+                aria-pressed={blockReason === reason}
+                className={blockReason === reason ? 'is-selected' : undefined}
+                key={reason}
+                onClick={() => setBlockReason(reason)}
+                type="button"
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
+          <input
+            aria-label="Reason"
+            onChange={(event) => setBlockReason(event.target.value)}
+            placeholder="Or type the reason"
+            value={blockReason}
+          />
+          <div className="lcc-block-dialog__actions">
+            <button onClick={() => setBlockDialog(null)} type="button">Cancel</button>
+            {currentlyBlocked ? (
+              <button
+                className="is-clear"
+                onClick={() => commitBlock(undefined)}
+                type="button"
+              >
+                Unblock
+              </button>
+            ) : null}
+            <button
+              className="is-primary"
+              disabled={!selectedId}
+              onClick={() => commitBlock(blockReason)}
+              type="button"
+            >
+              Mark blocked
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  })() : null;
 
   const hostAlerts = (
     <>
@@ -2677,6 +2809,19 @@ function LaunchOperationalApp({
         )
       ) : moreDetailPage === 'forms' ? (
         <OfficialPdsFormsPage onBack={() => setMoreDetailPage(null)} />
+      ) : moreDetailPage === 'my-notes' ? (
+        <MyNotesPage
+          data={data}
+          onBack={() => setMoreDetailPage(null)}
+          onNewNote={() => {
+            setPlusInitialScreen('note');
+            setPlusOpen(true);
+          }}
+          onOpenUnit={(unitId) => {
+            setMoreDetailPage(null);
+            navigate('unitDetail', unitId);
+          }}
+        />
       ) : moreDetailPage === 'portal' ? (
         <PortalPage
           onBack={() => setMoreDetailPage(null)}
@@ -3218,6 +3363,7 @@ function LaunchOperationalApp({
           onSave={(nextData) => setData(nextData)}
           open={plusOpen}
         />
+        {blockDialogElement}
         <PersonalActivityDetailSheet
           item={selectedActivityView}
           onDismiss={() => {

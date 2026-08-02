@@ -1175,3 +1175,37 @@ export function applyTrackCStateChange(
     walkSessions: nextWalks,
   };
 }
+
+// Blocking a unit = stamping a restriction on its released items so the
+// existing access logic routes it to Waiting. Clearing passes undefined.
+// The reason is prefixed with "Blocked" so accessFromRestriction always
+// recognizes it regardless of the free-text wording.
+export function setUnitReleaseRestriction(
+  data: AppData,
+  unitId: string,
+  reason: string | undefined,
+): AppData {
+  const restriction = reason === undefined
+    ? undefined
+    : `Blocked — ${reason.trim() || 'no reason recorded'}`;
+  return {
+    ...data,
+    dailyReleaseBatches: data.dailyReleaseBatches.map((batch) =>
+      batch.projectId !== data.activeProjectId
+        || !batch.items.some((item) => item.unitId === unitId)
+        ? batch
+        : {
+          ...batch,
+          items: batch.items.map((item) =>
+            item.unitId === unitId
+              ? restriction === undefined
+                ? (() => {
+                  const next = { ...item };
+                  delete next.restriction;
+                  return next;
+                })()
+                : { ...item, restriction }
+              : item),
+        }),
+  };
+}

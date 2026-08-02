@@ -45,6 +45,7 @@
   .walkbar button { background: var(--blue); border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 800; min-height: 42px; padding: 8px 12px; }
   .walkbar button.ghost { background: transparent; border: 1.5px solid #5b6b83; }
   .hint { color: var(--muted); font-size: 13px; margin: 2px 2px 10px; text-align: center; }
+  .group-h { color: var(--navy); font-size: 15px; font-weight: 800; margin: 16px 2px 8px; }
 </style>
 </head>
 <body>
@@ -113,9 +114,7 @@
     el('walkbar').classList.toggle('show', picked.size > 0);
   };
 
-  const render = () => {
-    const rows = units.filter(matches);
-    el('list').innerHTML = rows.map((u) => `
+  const unitRow = (u) => `
       <div class="unit${picked.has(u.n) ? ' picked' : ''}" data-n="${u.n}">
         <strong>${u.n}${u.partial ? '<small style="color:#9b5b00"> partial</small>' : ''}</strong>
         <span class="chips">
@@ -123,8 +122,40 @@
           ${tradeChip('Clean', u.c)}
           ${u.cb ? '<span class="chip cb">Callback</span>' : ''}
         </span>
-      </div>`).join('')
-      || '<div class="empty">Nothing matches this view yet.</div>';
+      </div>`;
+
+  // One home per unit, ordered the way a property manager reads the day:
+  // needs attention -> ready for you -> moving -> waiting -> finished.
+  const classify = (u) => {
+    if (u.cb) return 'cb';
+    if (u.p === 'passed' || u.c === 'passed') return 'ready';
+    if (['working', 'crew-done'].includes(u.p) || ['working', 'crew-done'].includes(u.c)) return 'progress';
+    const active = [u.p, u.c].filter((s) => s !== 'none');
+    if (active.length > 0 && active.every((s) => s === 'approved')) return 'done';
+    return 'open';
+  };
+
+  const SECTIONS = [
+    ['cb', '🔴 Callbacks'],
+    ['ready', '🟢 Ready for your walk'],
+    ['progress', '🔵 Being worked on'],
+    ['open', '⚪ Released — not started'],
+    ['done', '✅ Fully approved'],
+  ];
+
+  const render = () => {
+    const rows = units.filter(matches);
+    if (filter === 'all') {
+      el('list').innerHTML = SECTIONS.map(([key, label]) => {
+        const group = rows.filter((u) => classify(u) === key);
+        if (group.length === 0) return '';
+        return `<h2 class="group-h">${label} · ${group.length}</h2>${group.map(unitRow).join('')}`;
+      }).join('')
+        || '<div class="empty">Nothing recorded yet today.</div>';
+    } else {
+      el('list').innerHTML = rows.map(unitRow).join('')
+        || '<div class="empty">Nothing matches this view yet.</div>';
+    }
     renderBar();
   };
 

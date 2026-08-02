@@ -282,3 +282,94 @@
   min-block-size: 40px;
   padding: 6px 12px;
 }
+
+.lcc-block-dialog {
+  align-items: center;
+  background: rgba(17, 19, 24, 0.45);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 60;
+}
+
+.lcc-block-dialog__card {
+  background: #fff;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+  padding: 18px;
+  width: 100%;
+}
+
+.lcc-block-dialog__card h2 {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.lcc-block-dialog__card select,
+.lcc-block-dialog__card input {
+  border: 1.5px solid #d9dde3;
+  border-radius: 12px;
+  font-size: 16px;
+  min-block-size: 46px;
+  padding: 8px 12px;
+}
+
+.lcc-block-dialog__reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lcc-block-dialog__reasons > button {
+  background: #fff;
+  border: 1.5px solid #d9dde3;
+  border-radius: 999px;
+  color: #66707c;
+  font-size: 14px;
+  font-weight: 750;
+  min-block-size: 40px;
+  padding: 6px 12px;
+}
+
+.lcc-block-dialog__reasons > button.is-selected {
+  background: #9b5b00;
+  border-color: #9b5b00;
+  color: #fff;
+}
+
+.lcc-block-dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.lcc-block-dialog__actions > button {
+  background: #fff;
+  border: 1.5px solid #d9dde3;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 750;
+  min-block-size: 46px;
+  padding: 8px 14px;
+}
+
+.lcc-block-dialog__actions > button.is-primary {
+  background: #9b5b00;
+  border-color: #9b5b00;
+  color: #fff;
+}
+
+.lcc-block-dialog__actions > button.is-clear {
+  border-color: #237a45;
+  color: #237a45;
+}
+
+.lcc-block-dialog__actions > button:disabled {
+  opacity: 0.5;
+}

@@ -1340,6 +1340,44 @@ const validateEmbeddedPhotos = (
   }
 };
 
+// Release-scope editing can legitimately empty a confirmed batch (every
+// "mark not released" strips items; every re-release makes a new mini-batch).
+// An empty confirmed batch carries no evidence and fails validation — repair
+// it on load instead of locking Los's REAL Turn behind recovery mode.
+const repairStoredCandidate = (candidate: unknown): unknown => {
+  if (!candidate || typeof candidate !== 'object') return candidate;
+  const data = candidate as {
+    dailyReleaseBatches?: { id?: unknown; status?: unknown; items?: unknown[] }[];
+    daySessions?: { releaseBatchIds?: unknown[] }[];
+  };
+  if (!Array.isArray(data.dailyReleaseBatches)) return candidate;
+  const emptyIds = new Set(
+    data.dailyReleaseBatches
+      .filter((batch) => batch
+        && batch.status === 'confirmed'
+        && Array.isArray(batch.items)
+        && batch.items.length === 0
+        && typeof batch.id === 'string')
+      .map((batch) => batch.id as string),
+  );
+  if (emptyIds.size === 0) return candidate;
+  return {
+    ...data,
+    dailyReleaseBatches: data.dailyReleaseBatches
+      .filter((batch) => !(typeof batch?.id === 'string' && emptyIds.has(batch.id))),
+    daySessions: Array.isArray(data.daySessions)
+      ? data.daySessions.map((session) =>
+        session && Array.isArray(session.releaseBatchIds)
+          ? {
+            ...session,
+            releaseBatchIds: session.releaseBatchIds
+              .filter((id) => !(typeof id === 'string' && emptyIds.has(id))),
+          }
+          : session)
+      : data.daySessions,
+  };
+};
+
 export const parseStoredAppData = (textValue: string): {
   readonly data: AppData;
   readonly warnings: readonly StoredAppDataValidationIssue[];
@@ -1354,7 +1392,7 @@ export const parseStoredAppData = (textValue: string): {
     );
   }
 
-  const candidate = backupCandidate(parsed);
+  const candidate = repairStoredCandidate(backupCandidate(parsed));
   const structure = appDataStructureSchema.safeParse(candidate);
   if (!structure.success) {
     const issues = structure.error.issues.map(toStoredIssue);

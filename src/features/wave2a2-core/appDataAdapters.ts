@@ -1219,6 +1219,29 @@ export function setUnitReleaseRestriction(
 // confirmed adjustment batch attached to the ACTIVE day session so every
 // projection sees them; nothing is deleted from history on un-release beyond
 // the release rows themselves.
+
+// Removing release rows can empty a batch; an empty confirmed batch is
+// invalid and carries no evidence, so drop it and its session references.
+const dropEmptyReleaseBatches = (data: AppData): AppData => {
+  const emptyIds = new Set(data.dailyReleaseBatches
+    .filter((batch) => batch.items.length === 0)
+    .map((batch) => batch.id));
+  if (emptyIds.size === 0) return data;
+  return {
+    ...data,
+    dailyReleaseBatches: data.dailyReleaseBatches
+      .filter((batch) => !emptyIds.has(batch.id)),
+    daySessions: data.daySessions.map((session) =>
+      session.releaseBatchIds.some((id) => emptyIds.has(id))
+        ? {
+          ...session,
+          releaseBatchIds: session.releaseBatchIds
+            .filter((id) => !emptyIds.has(id)),
+        }
+        : session),
+  };
+};
+
 export function setSectionReleaseState(
   data: AppData,
   input: {
@@ -1231,7 +1254,7 @@ export function setSectionReleaseState(
   },
 ): AppData {
   if (!input.released) {
-    return {
+    return dropEmptyReleaseBatches({
       ...data,
       dailyReleaseBatches: data.dailyReleaseBatches.map((batch) =>
         batch.projectId !== data.activeProjectId
@@ -1243,7 +1266,7 @@ export function setSectionReleaseState(
                 && item.trade === input.trade
                 && item.section === input.section)),
           }),
-    };
+    });
   }
   const session = data.daySessions.find((candidate) =>
     candidate.projectId === data.activeProjectId
@@ -1307,7 +1330,7 @@ export function setTradeReleaseState(
   },
 ): AppData {
   if (!input.released) {
-    return {
+    return dropEmptyReleaseBatches({
       ...data,
       dailyReleaseBatches: data.dailyReleaseBatches.map((batch) =>
         batch.projectId !== data.activeProjectId
@@ -1317,7 +1340,7 @@ export function setTradeReleaseState(
             items: batch.items.filter((item) =>
               !(item.unitId === input.unitId && item.trade === input.trade)),
           }),
-    };
+    });
   }
   const session = data.daySessions.find((candidate) =>
     candidate.projectId === data.activeProjectId

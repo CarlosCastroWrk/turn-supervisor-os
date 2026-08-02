@@ -75,3 +75,27 @@ test('trade-scoped unblock leaves the other trade blocked', () => {
     clean: 'occupied-restricted', paint: 'clear',
   });
 });
+
+test('stored payload with empty confirmed batches loads via repair instead of recovery mode', async () => {
+  const { parseStoredAppData } = await import('../src/lib/backups.ts');
+  const { data } = buildData();
+  const withEmpties: AppData = {
+    ...data,
+    dailyReleaseBatches: [
+      ...data.dailyReleaseBatches,
+      // What release-scope toggling leaves behind: confirmed, zero items.
+      { ...data.dailyReleaseBatches[0], id: 'b-empty-1', items: [] },
+      { ...data.dailyReleaseBatches[0], id: 'b-empty-2', items: [] },
+    ],
+    daySessions: data.daySessions.map((session) => ({
+      ...session,
+      releaseBatchIds: [...session.releaseBatchIds, 'b-empty-1', 'b-empty-2'],
+    })),
+  };
+  const parsed = parseStoredAppData(JSON.stringify(withEmpties));
+  assert.deepEqual(
+    parsed.data.dailyReleaseBatches.map((batch) => batch.id),
+    ['b1'],
+  );
+  assert.deepEqual(parsed.data.daySessions[0].releaseBatchIds, ['b1']);
+});

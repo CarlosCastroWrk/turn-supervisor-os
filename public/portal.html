@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Turn Progress</title>
+<style>
+  :root {
+    --navy: #12294b; --blue: #0877d1; --bg: #f2f2f7; --card: #ffffff;
+    --text: #111318; --muted: #66707c; --border: #d9dde3;
+    --green: #237a45; --amber: #9b5b00; --red: #b4232d;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; padding-bottom: 40px; }
+  header { background: var(--navy); color: #fff; padding: max(14px, env(safe-area-inset-top)) 16px 14px; position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 19px; font-weight: 800; }
+  header p { color: #b9c6da; font-size: 13px; margin-top: 2px; }
+  main { margin: 0 auto; max-width: 560px; padding: 12px; }
+  .counts { display: grid; gap: 8px; grid-template-columns: repeat(4, 1fr); margin-bottom: 10px; }
+  .count { background: var(--card); border-radius: 12px; padding: 10px 6px; text-align: center; }
+  .count strong { display: block; font-size: 20px; }
+  .count small { color: var(--muted); font-size: 11px; }
+  .filters { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .filters button { background: var(--card); border: 1.5px solid var(--border); border-radius: 999px; color: var(--muted); flex-shrink: 0; font-size: 14px; font-weight: 700; min-height: 38px; padding: 6px 14px; }
+  .filters button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+  input[type=search] { background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; font-size: 16px; margin-bottom: 10px; min-height: 44px; padding: 8px 14px; width: 100%; }
+  .unit { align-items: center; background: var(--card); border-radius: 12px; display: flex; gap: 10px; justify-content: space-between; margin-bottom: 6px; padding: 10px 14px; }
+  .unit strong { font-size: 17px; min-width: 56px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .chip { border-radius: 999px; font-size: 12px; font-weight: 800; padding: 3px 10px; }
+  .chip.approved { background: #e2f2e8; color: var(--green); }
+  .chip.passed { background: #e2f2e8; color: var(--green); }
+  .chip.crew-done { background: #eaf3fb; color: var(--blue); }
+  .chip.working { background: #fdf3e4; color: var(--amber); }
+  .chip.open { background: #eef0f3; color: var(--muted); }
+  .chip.none { background: #f6f7f8; color: #aab3bc; }
+  .chip.cb { background: #fbe8ea; color: var(--red); }
+  .meta { color: var(--muted); font-size: 13px; margin: 8px 2px 12px; text-align: center; }
+  .empty { background: var(--card); border-radius: 14px; color: var(--muted); margin-top: 30px; padding: 30px 20px; text-align: center; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 18px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="prop">Turn Progress</h1>
+  <p id="sub">Live view from Los's Turn OS · read-only</p>
+</header>
+<main>
+  <p class="meta" id="updated"></p>
+  <div class="counts" id="counts" hidden>
+    <div class="count"><strong id="cWorking">0</strong><small>In progress</small></div>
+    <div class="count"><strong id="cCrewDone">0</strong><small>Crew done</small></div>
+    <div class="count"><strong id="cPassed">0</strong><small>Los passed</small></div>
+    <div class="count"><strong id="cApproved">0</strong><small>Approved</small></div>
+  </div>
+  <div class="filters" id="filters" hidden>
+    <button data-f="all" class="on">All</button>
+    <button data-f="ready">Ready to walk</button>
+    <button data-f="approved">Approved</button>
+    <button data-f="working">In progress</button>
+    <button data-f="cb">Callbacks</button>
+  </div>
+  <input type="search" id="q" placeholder="Search unit number…" hidden>
+  <div id="list"></div>
+  <div class="empty" id="empty" hidden>No portal update published yet. Ask Los to tap “Update portal” in Turn OS.</div>
+  <footer>Statuses: paint / clean per unit. “Ready to walk” = Los inspected and passed. Refreshes automatically.</footer>
+</main>
+<script>
+(() => {
+  const token = new URLSearchParams(location.search).get('k') || '';
+  const LABELS = { approved: 'Approved', passed: 'Passed', 'crew-done': 'Crew done', working: 'Working', open: 'Released', none: '—' };
+  let units = [];
+  let filter = 'all';
+  let query = '';
+
+  const el = (id) => document.getElementById(id);
+
+  const tradeChip = (trade, status) =>
+    `<span class="chip ${status}">${trade} ${LABELS[status] || status}</span>`;
+
+  const unitStatus = (u) => {
+    const best = ['approved', 'passed', 'crew-done', 'working', 'open']
+      .find((s) => u.p === s || u.c === s);
+    return best || 'none';
+  };
+
+  const matches = (u) => {
+    if (query && !u.n.toLowerCase().includes(query)) return false;
+    if (filter === 'all') return u.p !== 'none' || u.c !== 'none';
+    if (filter === 'cb') return Boolean(u.cb);
+    if (filter === 'ready') return u.p === 'passed' || u.c === 'passed';
+    if (filter === 'approved') return u.p === 'approved' || u.c === 'approved';
+    if (filter === 'working') return ['working', 'crew-done'].includes(u.p) || ['working', 'crew-done'].includes(u.c);
+    return true;
+  };
+
+  const render = () => {
+    const rows = units.filter(matches);
+    el('list').innerHTML = rows.map((u) => `
+      <div class="unit">
+        <strong>${u.n}${u.partial ? '<small style="color:#9b5b00"> partial</small>' : ''}</strong>
+        <span class="chips">
+          ${tradeChip('Paint', u.p)}
+          ${tradeChip('Clean', u.c)}
+          ${u.cb ? '<span class="chip cb">Callback</span>' : ''}
+        </span>
+      </div>`).join('')
+      || '<div class="empty">Nothing matches this view yet.</div>';
+  };
+
+  const load = async () => {
+    try {
+      const response = await fetch(`/api/portal/view?k=${encodeURIComponent(token)}`);
+      const body = await response.json();
+      if (!response.ok) {
+        el('sub').textContent = body.error || 'This link is not valid.';
+        return;
+      }
+      if (body.empty) { el('empty').hidden = false; return; }
+      const p = body.payload;
+      units = (p.units || []).slice().sort((a, b) =>
+        a.n.localeCompare(b.n, undefined, { numeric: true }));
+      el('prop').textContent = `${p.propertyName} — Turn Progress`;
+      el('empty').hidden = true;
+      el('counts').hidden = false;
+      el('filters').hidden = false;
+      el('q').hidden = false;
+      const count = (pred) => units.filter(pred).length;
+      el('cWorking').textContent = count((u) => ['working'].includes(u.p) || ['working'].includes(u.c));
+      el('cCrewDone').textContent = count((u) => u.p === 'crew-done' || u.c === 'crew-done');
+      el('cPassed').textContent = count((u) => u.p === 'passed' || u.c === 'passed');
+      el('cApproved').textContent = count((u) => u.p === 'approved' || u.c === 'approved');
+      const updated = new Date(body.updatedAt);
+      el('updated').textContent = `Updated ${updated.toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`;
+      render();
+    } catch {
+      el('sub').textContent = 'Could not reach the portal. Pull to refresh.';
+    }
+  };
+
+  el('filters').addEventListener('click', (event) => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    filter = button.dataset.f;
+    for (const other of el('filters').querySelectorAll('button')) {
+      other.classList.toggle('on', other === button);
+    }
+    render();
+  });
+  el('q').addEventListener('input', (event) => {
+    query = event.target.value.trim().toLowerCase();
+    render();
+  });
+
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

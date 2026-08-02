@@ -3,6 +3,7 @@ export type TrackBToolDestination =
   | 'crews'
   | 'day-history'
   | 'official-pds-forms'
+  | 'portal'
   | 'privacy'
   | 'profile'
   | 'reports-and-proof'
@@ -47,6 +48,11 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
         id: 'official-pds-forms',
         label: 'Official PDS Forms',
         detail: 'Open reviewed company destinations when configured',
+      },
+      {
+        id: 'portal',
+        label: 'Property Portal',
+        detail: 'Read-only live board link for Joseph and Paige',
       },
     ],
   },

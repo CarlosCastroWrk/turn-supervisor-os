@@ -408,3 +408,82 @@
   border-color: var(--turn-color-brand, #0072dc);
   color: #fff;
 }
+
+.w2a2-core-portal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.w2a2-core-portal__header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.w2a2-core-portal__header h1 {
+  align-items: center;
+  display: inline-flex;
+  font-size: 19px;
+  font-weight: 800;
+  gap: 8px;
+  margin: 0;
+}
+
+.w2a2-core-portal__header > button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  display: inline-flex;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+}
+
+.w2a2-core-portal__copy,
+.w2a2-core-portal__footnote {
+  color: var(--track-c-muted, #66707c);
+  font-size: 14px;
+  margin: 0;
+}
+
+.w2a2-core-portal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.w2a2-core-portal__actions > button {
+  align-items: center;
+  background: #0877d1;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 15px;
+  font-weight: 750;
+  gap: 8px;
+  justify-content: center;
+  min-block-size: 48px;
+  padding: 10px 14px;
+}
+
+.w2a2-core-portal__actions > button:nth-child(2) {
+  background: #fff;
+  border: 1.5px solid #0877d1;
+  color: #0877d1;
+}
+
+.w2a2-core-portal__actions > button:disabled {
+  opacity: 0.55;
+}
+
+.w2a2-core-portal__stamp,
+.w2a2-core-portal__status {
+  font-size: 13px;
+  margin: 0;
+}
+
+.w2a2-core-portal__status {
+  font-weight: 700;
+}

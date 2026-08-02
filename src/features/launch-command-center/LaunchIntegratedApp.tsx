@@ -96,6 +96,7 @@ import {
 import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
+import { PortalPage } from '../wave2a2-core/PortalPage';
 import {
   applyDayTaskStateChange,
   applyTrackCStateChange,
@@ -200,7 +201,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'profile' | 'privacy' | 'storage' | null;
+type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'portal' | 'profile' | 'privacy' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -1599,6 +1600,10 @@ function LaunchOperationalApp({
       setMoreDetailPage('forms');
       return;
     }
+    if (destination === 'portal') {
+      setMoreDetailPage('portal');
+      return;
+    }
     if (
       destination === 'profile'
       || destination === 'privacy'
@@ -2514,6 +2519,12 @@ function LaunchOperationalApp({
         )
       ) : moreDetailPage === 'forms' ? (
         <OfficialPdsFormsPage onBack={() => setMoreDetailPage(null)} />
+      ) : moreDetailPage === 'portal' ? (
+        <PortalPage
+          onBack={() => setMoreDetailPage(null)}
+          propertyName={launchProjection.propertyName}
+          state={activeFieldState ?? trackCState}
+        />
       ) : moreDetailPage === 'profile' ? (
         <ProfilePrivacyScrollRegion kind="profile">
           <TrackBProfilePage

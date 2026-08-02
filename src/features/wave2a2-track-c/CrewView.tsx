@@ -554,7 +554,15 @@ export const CrewView = ({
                   </small>
                 </span>
                 <span className="track-c-crew-row__stats">
-                  <strong>{stats.currentAssignments}</strong> current
+                  {(() => {
+                    // "Current" = sections still in front of the crew, not
+                    // everything short of property acceptance.
+                    const activeNow = projectTrackCCrewDetail(state, crew.id)
+                      ?.currentWork.filter((work) =>
+                        ['assigned', 'working'].includes(work.execution)
+                        && !work.callbackOpen).length ?? 0;
+                    return <><strong>{activeNow}</strong> now</>;
+                  })()}
                   <small>{stats.crewReportedComplete} complete · {stats.needsLosInspection} need Los</small>
                 </span>
                 <ChevronRight aria-hidden="true" size={18} />

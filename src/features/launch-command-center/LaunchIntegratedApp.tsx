@@ -170,6 +170,7 @@ import {
   routeForNavigation,
   type AppNavigate,
 } from '../../lib/routing';
+import { clearPhotoBlobs } from '../../lib/photoStorage';
 import { estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
 import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
@@ -3226,7 +3227,7 @@ function LaunchOperationalApp({
           >
             <button
               className="lcc-archive-project"
-              onClick={() => {
+              onClick={async () => {
                 const sure = window.confirm(
                   'Erase EVERYTHING on this phone and start completely fresh?\n\n'
                   + 'Every project, roster, day, and draft on this device will be gone. '
@@ -3236,13 +3237,15 @@ function LaunchOperationalApp({
                 const again = window.confirm('Last check — erase all Turn OS data on this phone?');
                 if (!again) return;
                 try {
-                  // Keep sign-in (sb-*) and appearance; wipe every app record/draft.
+                  // Keep sign-in (sb-*) and appearance; wipe every app record/draft
+                  // AND the photo files in IndexedDB — fresh start means fresh.
                   const keep = (key: string) =>
                     key.startsWith('sb-') || key.startsWith('turn-os:appearance');
                   for (const key of Object.keys(window.localStorage)) {
                     if (!keep(key)) window.localStorage.removeItem(key);
                   }
                   window.sessionStorage.clear();
+                  await clearPhotoBlobs().catch(() => undefined);
                 } finally {
                   window.location.replace('/');
                 }

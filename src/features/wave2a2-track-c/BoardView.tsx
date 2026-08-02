@@ -535,6 +535,13 @@ const UnitDetail = ({
   // From a trade board the unit page IS that board's page — the other trade
   // stays one tap away, while notes/photos/change orders remain shared.
   const [showOtherTrade, setShowOtherTrade] = useState(false);
+  // PDS approval is heavyweight truth with no undo — it takes two taps.
+  const [pdsConfirmTrade, setPdsConfirmTrade] = useState<TrackCTrade>();
+  useEffect(() => {
+    if (!pdsConfirmTrade) return undefined;
+    const timer = window.setTimeout(() => setPdsConfirmTrade(undefined), 5000);
+    return () => window.clearTimeout(timer);
+  }, [pdsConfirmTrade]);
   useEffect(() => {
     setShowOtherTrade(false);
   }, [unitId, focusTrade]);
@@ -777,12 +784,21 @@ const UnitDetail = ({
               && item.inspection === 'los-passed'
               && item.property !== 'property-accepted') ? (
                 <button
-                  className="track-c-trade-complete track-c-pds-approve"
+                  className={`track-c-trade-complete track-c-pds-approve ${pdsConfirmTrade === trade ? 'is-arming' : ''}`}
                   data-track-c-critical-target="true"
-                  onClick={() => onPdsApprove(unitId, trade)}
+                  onClick={() => {
+                    if (pdsConfirmTrade === trade) {
+                      setPdsConfirmTrade(undefined);
+                      onPdsApprove(unitId, trade);
+                      return;
+                    }
+                    setPdsConfirmTrade(trade);
+                  }}
                   type="button"
                 >
-                  PDS approved — walked {tradeLabel(trade)} with the property
+                  {pdsConfirmTrade === trade
+                    ? `Tap again to confirm — ${tradeLabel(trade)} accepted by the property`
+                    : `PDS approved — walked ${tradeLabel(trade)} with the property`}
                 </button>
               ) : null}
             <div className="track-c-section-list">

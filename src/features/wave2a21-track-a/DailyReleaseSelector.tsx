@@ -277,9 +277,13 @@ export function DailyReleaseSelector({
                     })}
                     type="button"
                   >
-                    {draft.selectedUnitIds.length === rosterUnits.length
-                      ? 'Clear all'
-                      : `Select all ${rosterUnits.length}`}
+                    {(() => {
+                      const available = rosterUnits
+                        .filter((unit) => !(doneUnitIds?.has(unit.id) ?? false)).length;
+                      return draft.selectedUnitIds.length === available
+                        ? 'Clear all'
+                        : `Select all ${available}`;
+                    })()}
                   </button>
                 ) : null}
               </div>

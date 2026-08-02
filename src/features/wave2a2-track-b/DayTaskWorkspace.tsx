@@ -951,9 +951,15 @@ export function EndDayFlow({
           accepted: number;
           crewDone: number;
         }>();
+        // Sections count once (repeat events must not inflate wall-board
+        // marks) and assignment events carry the crew in reportedBy.
+        const seenDone = new Set<string>();
+        const seenPassed = new Set<string>();
+        const seenAccepted = new Set<string>();
         for (const event of todayEvents) {
           if (!event.unitId || !event.trade) continue;
           const key = `${event.unitId}:${event.trade}`;
+          const sectionKey = `${key}:${event.sectionId ?? ''}`;
           const line = byUnitTrade.get(key) ?? {
             accepted: 0,
             assigned: new Set<string>(),
@@ -964,14 +970,23 @@ export function EndDayFlow({
             unitNumber: unitNumbers?.get(event.unitId) ?? event.unitId,
           };
           if (event.eventType === 'assignment-confirmed') {
-            const name = event.actorType === 'crew'
-              ? crewName.get(event.actorId)
-              : undefined;
-            line.assigned.add(name ?? 'crew');
+            const name = crewName.get(event.reportedBy ?? event.actorId)
+              ?? crewName.get(event.actorId);
+            if (name) line.assigned.add(name);
           }
-          if (event.eventType === 'crew-reported-complete') line.crewDone += 1;
-          if (event.eventType === 'los-passed' || event.eventType === 'callback-resolved') line.passed += 1;
-          if (event.eventType === 'property-accepted') line.accepted += 1;
+          if (event.eventType === 'crew-reported-complete' && !seenDone.has(sectionKey)) {
+            seenDone.add(sectionKey);
+            line.crewDone += 1;
+          }
+          if ((event.eventType === 'los-passed' || event.eventType === 'callback-resolved')
+            && !seenPassed.has(sectionKey)) {
+            seenPassed.add(sectionKey);
+            line.passed += 1;
+          }
+          if (event.eventType === 'property-accepted' && !seenAccepted.has(sectionKey)) {
+            seenAccepted.add(sectionKey);
+            line.accepted += 1;
+          }
           byUnitTrade.set(key, line);
         }
         const lines = [...byUnitTrade.values()]
@@ -1247,13 +1262,14 @@ function DayTaskHome({
           // Per-trade "done today" — paint releases first, cleans follow, so a
           // unit-grain count would hide a finished clean day behind open paint.
           const badgeLines = (['Paint', 'Clean'] as const).flatMap((trade) => {
-            const released = new Set(task.sections
+            const releasedUnitIds = new Set(task.sections
               .filter((section) => section.tradeStates.some((state) => state.trade === trade))
-              .map((section) => section.unitId)).size;
-            if (released === 0) return [];
+              .map((section) => section.unitId));
+            if (releasedUnitIds.size === 0) return [];
             const done = acceptedToday
-              .filter((unit) => unit.trades.includes(trade)).length;
-            return [`${trade} ${done}/${released}`];
+              .filter((unit) => unit.trades.includes(trade)
+                && releasedUnitIds.has(unit.unitId)).length;
+            return [`${trade} ${done}/${releasedUnitIds.size}`];
           });
           return badgeLines.length > 0 ? (
             <span aria-label="Units done today of units released today, by trade" className="w2a2b-day-badge">

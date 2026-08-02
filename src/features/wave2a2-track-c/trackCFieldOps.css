@@ -2503,3 +2503,8 @@ select.track-c-trade-change {
   justify-content: center;
   text-decoration: none;
 }
+
+.track-c-pds-approve.is-arming {
+  background: var(--track-c-green);
+  color: #fff;
+}

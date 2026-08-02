@@ -606,8 +606,9 @@ const ACTIVE_DAY_SESSION_STATUSES = new Set(['active', 'ending', 'reopened']);
 
 export function appendManualReleaseBatchToActiveDay(
   data: AppData,
-  batch: AppDailyReleaseBatch,
+  inputBatch: AppDailyReleaseBatch,
 ): AppData {
+  let batch = inputBatch;
   const activeSessions = data.daySessions.filter((session) =>
     session.projectId === data.activeProjectId
     && ACTIVE_DAY_SESSION_STATUSES.has(session.status));
@@ -623,6 +624,21 @@ export function appendManualReleaseBatchToActiveDay(
   ) {
     throw new Error('Released work must match the active project and Day Session.');
   }
+
+  // Re-confirming an already-released scope must not create duplicate rows:
+  // drop items already in this session's batches; refuse an all-duplicate save.
+  const alreadyReleased = new Set(data.dailyReleaseBatches
+    .filter((candidate) =>
+      candidate.projectId === data.activeProjectId
+      && activeSession.releaseBatchIds.includes(candidate.id))
+    .flatMap((candidate) => candidate.items
+      .map((item) => `${item.unitId}:${item.trade}:${item.section}`)));
+  const freshItems = batch.items.filter((item) =>
+    !alreadyReleased.has(`${item.unitId}:${item.trade}:${item.section}`));
+  if (freshItems.length === 0) {
+    throw new Error('Everything selected is already released today — nothing was added twice.');
+  }
+  batch = { ...batch, items: freshItems };
 
   const roster = projectPropertyRoster(data);
   const rosterUnits = new Map(roster.units.map((unit) => [unit.id, unit]));

@@ -55,13 +55,23 @@ export const portalStoreConfigured = () => Boolean(connectionString());
 export const withPortalDb = async <T>(
   run: (client: pg.Client) => Promise<T>,
 ): Promise<T> => {
-  const cs = connectionString();
-  if (!cs) throw new Error('portal-store-unconfigured');
+  const raw = connectionString();
+  if (!raw) throw new Error('portal-store-unconfigured');
+  // pg lets sslmode in the URL win over the ssl option, which re-enables CA
+  // verification Supabase's provider chain cannot pass — strip it and set
+  // ssl explicitly (still encrypted, verification relaxed).
+  let cs = raw;
+  try {
+    const url = new URL(raw);
+    url.searchParams.delete('sslmode');
+    url.searchParams.delete('ssl');
+    cs = url.toString();
+  } catch {
+    cs = raw.replace(/([?&])sslmode=[^&]*&?/, '$1').replace(/[?&]$/, '');
+  }
   const local = /localhost|127\.0\.0\.1/.test(cs);
   const client = new pg.Client({
     connectionString: cs,
-    // Supabase serves a provider-signed chain that Node's default CA set
-    // rejects; encryption still applies.
     ssl: local ? undefined : { rejectUnauthorized: false },
   });
   await client.connect();

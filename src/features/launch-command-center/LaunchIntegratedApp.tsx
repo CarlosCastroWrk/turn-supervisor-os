@@ -2916,7 +2916,7 @@ function LaunchOperationalApp({
       ) : moreDetailPage === 'profile' ? (
         <ProfilePrivacyScrollRegion kind="profile">
           <TrackBProfilePage
-            appVersion="0.1.0"
+            appVersion={`0.1.0 · build ${import.meta.env.VITE_ALPHA_GIT_SHA?.trim() || "dev"}`}
             currentProperty={launchProjection.propertyName}
             dataPermissions={[
               {

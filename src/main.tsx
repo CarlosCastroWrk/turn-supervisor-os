@@ -31,7 +31,27 @@ createRoot(document.getElementById('root') as HTMLElement).render(
 );
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('/service-worker.js').catch((error) => {
-    console.warn('Service worker registration failed', error);
-  });
+  navigator.serviceWorker.register('/service-worker.js')
+    .then((registration) => {
+      // Field phones must pick up fixes on the next foreground, not two
+      // launches later: check for a new build every time the app comes back,
+      // and when one is installed, activate + reload once (data is untouched
+      // — deploys ship code only).
+      // The worker itself skipWaiting()s on install and claims clients, so a
+      // fresh check is all that's needed for the new build to take over.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          void registration.update().catch(() => undefined);
+        }
+      });
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (reloaded) return;
+        reloaded = true;
+        window.location.reload();
+      });
+    })
+    .catch((error) => {
+      console.warn('Service worker registration failed', error);
+    });
 }

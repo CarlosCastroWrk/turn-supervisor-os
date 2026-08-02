@@ -2072,14 +2072,27 @@ function LaunchOperationalApp({
   ) : null;
 
   const blockDialogElement = blockDialog ? (() => {
-    const releasedUnits = trackCState.units
-      .filter((unit) => unit.workFacts.some((fact) => fact.release === 'released'))
+    // Ground truth comes straight from the release batches — the same rows
+    // the block writes to — so Unblock always shows when a block exists.
+    const unitNumberById = new Map(data.units.map((unit) => [unit.id, unit.unitNumber]));
+    const releaseUnitIds = new Set(data.dailyReleaseBatches
+      .filter((batch) => batch.projectId === data.activeProjectId)
+      .flatMap((batch) => batch.items.map((item) => item.unitId)));
+    const releasedUnits = [...releaseUnitIds]
+      .map((unitId) => ({
+        id: unitId,
+        unitNumber: unitNumberById.get(unitId) ?? unitId,
+      }))
       .sort((left, right) =>
         left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
     const selectedId = blockDialog.unitId
       ?? (releasedUnits.length === 1 ? releasedUnits[0].id : undefined);
     const selected = releasedUnits.find((unit) => unit.id === selectedId);
-    const currentlyBlocked = selected?.workFacts.some((fact) => fact.access !== 'clear');
+    const blockedTrades = new Set(data.dailyReleaseBatches
+      .filter((batch) => batch.projectId === data.activeProjectId)
+      .flatMap((batch) => batch.items
+        .filter((item) => item.unitId === selectedId && item.restriction?.trim())
+        .map((item) => item.trade)));
     const commitBlock = (reason: string | undefined) => {
       if (!selectedId) return;
       const tradeScope = blockTrade === 'both' ? undefined : blockTrade;
@@ -2088,7 +2101,7 @@ function LaunchOperationalApp({
       if (saved) {
         setMoreStatus(reason === undefined
           ? `Unit ${selected?.unitNumber ?? ''} unblocked — back in the working queues.`
-          : `Unit ${selected?.unitNumber ?? ''} marked blocked — it sits in Waiting until you unblock it.`);
+          : `Unit ${selected?.unitNumber ?? ''} marked blocked — it sits in Waiting / Blocked until you unblock it.`);
       }
       setBlockDialog(null);
     };
@@ -2142,9 +2155,16 @@ function LaunchOperationalApp({
             placeholder="Or type the reason"
             value={blockReason}
           />
+          {blockedTrades.size > 0 ? (
+            <p className="lcc-block-dialog__current">
+              Currently blocked: {[...blockedTrades]
+                .map((trade) => trade === 'paint' ? 'Paint' : 'Clean').join(' + ')}.
+              Unblock uses the trade choice above (Paint + Clean clears everything).
+            </p>
+          ) : null}
           <div className="lcc-block-dialog__actions">
             <button onClick={() => setBlockDialog(null)} type="button">Cancel</button>
-            {currentlyBlocked ? (
+            {blockedTrades.size > 0 ? (
               <button
                 className="is-clear"
                 onClick={() => commitBlock(undefined)}

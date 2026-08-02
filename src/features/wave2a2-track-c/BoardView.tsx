@@ -479,6 +479,12 @@ const UnitDetail = ({
     () => (unitPhotos ?? []).filter((photo) => photo.unitId === unitId),
     [unitPhotos, unitId],
   );
+  // From a trade board the unit page IS that board's page — the other trade
+  // stays one tap away, while notes/photos/change orders remain shared.
+  const [showOtherTrade, setShowOtherTrade] = useState(false);
+  useEffect(() => {
+    setShowOtherTrade(false);
+  }, [unitId, focusTrade]);
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -547,6 +553,7 @@ const UnitDetail = ({
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
           Number(right === focusTrade) - Number(left === focusTrade))
+        .filter((trade) => !focusTrade || showOtherTrade || trade === focusTrade)
         .map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);
@@ -696,6 +703,15 @@ const UnitDetail = ({
           </section>
         );
       })}
+      {focusTrade && !showOtherTrade ? (
+        <button
+          className="track-c-show-other-trade"
+          onClick={() => setShowOtherTrade(true)}
+          type="button"
+        >
+          Show {focusTrade === 'paint' ? 'Clean' : 'Paint'} for this unit too
+        </button>
+      ) : null}
       <UnitPhotoStrip photos={photosForUnit} unitNumber={unit.unitNumber} />
     </article>
   );
@@ -774,19 +790,42 @@ export const BoardView = ({
         Number(isCleanNext(right.unitId)) - Number(isCleanNext(left.unitId)));
     const matches = prioritized(searchTrackCCompactUnits(state, query));
     if (scope === 'all') return matches;
-    if (scope === 'approved') return matches.filter((unit) => isApproved(unit.unitId));
+    if (scope === 'approved') {
+      const latestAccepted = (unitId: string) =>
+        state.events
+          .filter((event) =>
+            event.eventType === 'property-accepted'
+            && event.target.unitId === unitId
+            && event.target.trade === boardTrade)
+          .reduce((latest, event) =>
+            event.recordedAt > latest ? event.recordedAt : latest, '');
+      return matches
+        .filter((unit) => isApproved(unit.unitId))
+        .sort((left, right) =>
+          latestAccepted(right.unitId).localeCompare(latestAccepted(left.unitId)));
+    }
     if (scope === 'working') return matches.filter((unit) => isWorking(unit.unitId));
     if (scope === 'callbacks') return matches.filter((unit) => hasCallback(unit.unitId));
-    return matches.filter((unit) =>
-      state.units.find((candidate) => candidate.id === unit.unitId)
-        ?.workFacts.some((fact) =>
-          fact.trade === boardTrade && fact.release === 'released'));
+    // Released = still IN PLAY for this trade: not blocked, not fully
+    // accepted. Finished units live under Approved; blocked under Waiting.
+    return matches.filter((unit) => {
+      const work = tradeWorkFor(unit.unitId)
+        .filter((item) => item.release === 'released');
+      if (work.length === 0) return false;
+      if (work.every((item) => item.property === 'property-accepted')) return false;
+      return work.some((item) =>
+        item.access === 'clear' && item.property !== 'property-accepted');
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardTrade, query, scope, state]);
-  const releasedCount = useMemo(() => state.units.filter((unit) =>
-    unit.workFacts.some((fact) =>
-      fact.trade === boardTrade && fact.release === 'released')).length,
-  [boardTrade, state.units]);
+  const releasedCount = useMemo(() => state.units.filter((unit) => {
+    const work = projectTrackCUnitWork(state, unit.id)
+      .filter((item) => item.trade === boardTrade && item.release === 'released');
+    if (work.length === 0) return false;
+    if (work.every((item) => item.property === 'property-accepted')) return false;
+    return work.some((item) =>
+      item.access === 'clear' && item.property !== 'property-accepted');
+  }).length, [boardTrade, state]);
   const approvedCount = useMemo(() => state.units.filter((unit) =>
     isApproved(unit.id)).length, [boardTrade, state]); // eslint-disable-line react-hooks/exhaustive-deps
   const workingCount = useMemo(() => state.units.filter((unit) =>

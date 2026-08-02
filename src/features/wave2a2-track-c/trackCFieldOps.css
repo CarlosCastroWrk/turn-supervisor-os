@@ -2410,3 +2410,15 @@ select.track-c-trade-change {
   border-color: var(--track-c-green);
   color: var(--track-c-green);
 }
+
+.track-c-show-other-trade {
+  background: transparent;
+  border: none;
+  color: var(--track-c-blue);
+  font-size: 14px;
+  font-weight: 750;
+  margin: 0 8px 8px;
+  min-block-size: 44px;
+  padding: 6px 0;
+  text-align: start;
+}

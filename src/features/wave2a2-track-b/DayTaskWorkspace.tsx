@@ -735,8 +735,10 @@ interface EndDayFlowProps {
     unitNumber: string;
   }[];
   acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
+  crews?: readonly TrackBCrewOption[];
   events: readonly DaySessionEvent[];
   now: () => string;
+  unitNumbers?: ReadonlyMap<string, string>;
   onCancel: () => void;
   onClosed: (
     session: DaySession,
@@ -755,7 +757,9 @@ export function EndDayFlow({
   activeWalkSessionId,
   acceptedToday = [],
   acceptedWalkMeta,
+  crews = [],
   events,
+  unitNumbers,
   now,
   onCancel,
   onClosed,
@@ -776,6 +780,14 @@ export function EndDayFlow({
     propertyReviewStatus: 'not-reviewed',
   });
   const [errors, setErrors] = useState<readonly string[]>([]);
+  const [transferConfirmed, setTransferConfirmed] = useState(false);
+  const hasTransferMarks = useMemo(() => events.some((event) =>
+    event.daySessionId === session.daySessionId
+    && localEventDate(event.recordedAt) === session.date
+    && Boolean(event.unitId && event.trade)
+    && ['assignment-confirmed', 'crew-reported-complete', 'los-passed',
+      'callback-resolved', 'property-accepted'].includes(event.eventType)),
+  [events, session.date, session.daySessionId]);
   const [warnings, setWarnings] = useState<readonly string[]>(
     summary.unresolvedSectionTradeIds.length > 0
       ? [`${summary.unresolvedSectionTradeIds.length} released Paint and Clean sections remain unresolved.`]
@@ -922,6 +934,97 @@ export function EndDayFlow({
         </section>
       ) : null}
 
+      {(() => {
+        // TurnBoard transfer: everything that moved TODAY, in wall-board
+        // language (name = assigned · X = done · CC = approved) so the
+        // physical board gets updated in one pass before the day closes.
+        const crewName = new Map(crews.map((crew) => [crew.id, crew.name]));
+        const todayEvents = events.filter((event) =>
+          event.daySessionId === session.daySessionId
+          && localEventDate(event.recordedAt) === session.date);
+        const byUnitTrade = new Map<string, {
+          unitId: string;
+          unitNumber: string;
+          trade: string;
+          assigned: Set<string>;
+          passed: number;
+          accepted: number;
+          crewDone: number;
+        }>();
+        for (const event of todayEvents) {
+          if (!event.unitId || !event.trade) continue;
+          const key = `${event.unitId}:${event.trade}`;
+          const line = byUnitTrade.get(key) ?? {
+            accepted: 0,
+            assigned: new Set<string>(),
+            crewDone: 0,
+            passed: 0,
+            trade: event.trade,
+            unitId: event.unitId,
+            unitNumber: unitNumbers?.get(event.unitId) ?? event.unitId,
+          };
+          if (event.eventType === 'assignment-confirmed') {
+            const name = event.actorType === 'crew'
+              ? crewName.get(event.actorId)
+              : undefined;
+            line.assigned.add(name ?? 'crew');
+          }
+          if (event.eventType === 'crew-reported-complete') line.crewDone += 1;
+          if (event.eventType === 'los-passed' || event.eventType === 'callback-resolved') line.passed += 1;
+          if (event.eventType === 'property-accepted') line.accepted += 1;
+          byUnitTrade.set(key, line);
+        }
+        const lines = [...byUnitTrade.values()]
+          .filter((line) => line.assigned.size > 0 || line.passed > 0
+            || line.accepted > 0 || line.crewDone > 0)
+          .sort((left, right) =>
+            left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true })
+            || left.trade.localeCompare(right.trade));
+        if (lines.length === 0) return null;
+        return (
+          <section className="w2a2b-review-card w2a2b-transfer-card">
+            <span className="w2a2b-eyebrow">TurnBoard transfer — before you close</span>
+            <h2>Copy today onto the wall board</h2>
+            <ul className="w2a2b-transfer-list">
+              {lines.map((line) => {
+                const meta = acceptedWalkMeta?.[line.unitId];
+                const marks = [
+                  line.assigned.size > 0
+                    ? `write ${[...line.assigned].join(' + ').toUpperCase()}`
+                    : '',
+                  line.crewDone > 0 || line.passed > 0
+                    ? `X — ${Math.max(line.crewDone, line.passed)} section${Math.max(line.crewDone, line.passed) === 1 ? '' : 's'} done`
+                    : '',
+                  line.accepted > 0
+                    ? `CC — approved${meta ? ` with ${meta.contact}` : ''}`
+                    : '',
+                ].filter(Boolean).join('   ·   ');
+                return (
+                  <li key={`${line.unitId}:${line.trade}`}>
+                    <strong>{line.unitNumber} · {line.trade}</strong>
+                    <span>{marks}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            <label className="w2a2b-explicit-confirm">
+              <input
+                checked={transferConfirmed}
+                onChange={(event) => setTransferConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>I copied these marks onto the physical TurnBoard.</span>
+            </label>
+            {!transferConfirmed ? (
+              <p className="w2a2b-grain-copy">
+                Required — Tony pays off the wall board, so it must match before
+                the day closes.
+              </p>
+            ) : null}
+          </section>
+        );
+      })()}
+
       <fieldset className="w2a2b-choice-group w2a2b-choice-group--inline">
         <legend>Clipboard / wall-board review</legend>
         {(['reviewed', 'not-reviewed'] as const).map((status) => (
@@ -1011,7 +1114,8 @@ export function EndDayFlow({
         <button
           className="w2a2b-primary-button"
           data-track-b-critical-target="true"
-          disabled={Boolean(activeWalkSessionId) || !review.explicitConfirmation || saving}
+          disabled={Boolean(activeWalkSessionId) || !review.explicitConfirmation
+            || (hasTransferMarks && !transferConfirmed) || saving}
           onClick={() => void finish()}
           type="button"
         >
@@ -1862,6 +1966,9 @@ export function DayTaskWorkspace({
         activeWalkSessionId={activeWalkSessionId}
         acceptedToday={acceptedToday}
         acceptedWalkMeta={acceptedWalkMeta}
+        crews={crews}
+        unitNumbers={new Map(propertyRoster.units.map((unit) =>
+          [unit.id, unit.unitNumber]))}
         events={events}
         now={now}
         onCancel={() => setView({ id: 'home' })}

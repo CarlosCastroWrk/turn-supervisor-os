@@ -373,3 +373,10 @@
 .lcc-block-dialog__actions > button:disabled {
   opacity: 0.5;
 }
+
+.lcc-block-dialog__current {
+  color: #9b5b00;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}

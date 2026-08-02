@@ -1061,3 +1061,36 @@ button.w2a2b-done-toggle {
 
 .w2a2b-row-icon.is-crew-paint { background: #eaf3fb; color: #0877d1; }
 .w2a2b-row-icon.is-crew-clean { background: #e2f2e8; color: #237a45; }
+
+.w2a2b-transfer-card {
+  border: 2px solid #12294b;
+}
+
+.w2a2b-transfer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+
+.w2a2b-transfer-list li {
+  background: #f7f8fa;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+}
+
+.w2a2b-transfer-list strong {
+  font-size: 15px;
+  text-transform: capitalize;
+}
+
+.w2a2b-transfer-list span {
+  color: #444c56;
+  font-size: 13.5px;
+  font-weight: 650;
+}

@@ -625,6 +625,12 @@ export function appendManualReleaseBatchToActiveDay(
     throw new Error('Released work must match the active project and Day Session.');
   }
 
+  // Same batch re-sent (retry after a save the UI missed) stays a clean
+  // idempotent no-op — the duplicate-scope guard below is only for NEW batches.
+  if (data.dailyReleaseBatches.some((candidate) => candidate.id === batch.id)
+    && activeSession.releaseBatchIds.includes(batch.id)) {
+    return data;
+  }
   // Re-confirming an already-released scope must not create duplicate rows:
   // drop items already in this session's batches; refuse an all-duplicate save.
   const alreadyReleased = new Set(data.dailyReleaseBatches

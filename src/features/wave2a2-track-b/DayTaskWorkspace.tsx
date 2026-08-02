@@ -1141,11 +1141,16 @@ export function EndDayFlow({
   );
 }
 
-export interface HomeCrewNowLine {
-  id: string;
-  name: string;
+export interface LiveBoardLine {
+  unitId: string;
+  unitNumber: string;
   trade: 'paint' | 'clean';
-  units: string[];
+  crewNames: string[];
+  stage: 'needs-crew' | 'working' | 'crew-done' | 'passed' | 'callback';
+  done: number;
+  total: number;
+  passedAgo?: string;
+  noCrewOnRoster?: boolean;
 }
 
 export interface HomeGlance {
@@ -1155,7 +1160,8 @@ export interface HomeGlance {
 }
 
 interface DayTaskHomeProps {
-  crewsNow?: readonly HomeCrewNowLine[];
+  liveBoard?: readonly LiveBoardLine[];
+  onAdvanceUnitTrade?: (unitId: string, trade: 'paint' | 'clean') => void;
   glance?: HomeGlance;
   onOpenCrew?: (crewId: string) => void;
   currentDate: string;
@@ -1197,7 +1203,8 @@ function DayTaskHome({
   onStartDay,
   propertyName,
   rosterCount,
-  crewsNow,
+  liveBoard,
+  onAdvanceUnitTrade,
   glance,
   onOpenCrew,
   scopeErrors,
@@ -1341,41 +1348,61 @@ function DayTaskHome({
         ) : null}
       </section>
 
-      {crewsNow && crewsNow.length > 0 ? (
-        <section className="w2a2b-section" aria-labelledby="w2a2b-crews-now-title">
+      {liveBoard && liveBoard.length > 0 ? (
+        <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
           <div className="w2a2b-section-heading">
-            <h2 id="w2a2b-crews-now-title">Crews right now</h2>
+            <h2 id="w2a2b-live-title">Live board</h2>
+            <button
+              className="w2a2b-live-add"
+              onClick={() => onAction('import-work')}
+              type="button"
+            >
+              + Joseph gave me units
+            </button>
           </div>
-          <div className="w2a2b-inset-list">
-            {crewsNow.map((crew) => (
-              <button
-                data-track-b-critical-target="true"
-                key={crew.id}
-                onClick={() => onOpenCrew?.(crew.id)}
-                type="button"
-              >
-                <span className={`w2a2b-row-icon is-crew-${crew.trade}`}>
-                  {crew.trade === 'paint'
-                    ? <Paintbrush aria-hidden="true" size={20} />
-                    : <Droplets aria-hidden="true" size={20} />}
-                </span>
-                <span className="w2a2b-crew-now">
-                  <strong>{crew.name}</strong>
-                  {crew.units.length > 0 ? (
-                    <span className="w2a2b-crew-now__units">
-                      {crew.units.map((unitNumber) => (
-                        <span className="w2a2b-crew-now__pill" key={unitNumber}>
-                          {unitNumber}
-                        </span>
-                      ))}
-                    </span>
-                  ) : (
-                    <small>{crew.trade === 'paint' ? 'Paint' : 'Clean'} — no units yet today</small>
-                  )}
-                </span>
-                <ChevronRight aria-hidden="true" size={19} />
-              </button>
-            ))}
+          <div className="w2a2b-live-list">
+            {liveBoard.map((line) => {
+              const stageLabel = line.stage === 'callback'
+                ? '⚠ Callback open'
+                : line.stage === 'passed'
+                  ? `🟢 Passed${line.passedAgo ? ` ${line.passedAgo}` : ''} — awaiting walk`
+                  : line.stage === 'crew-done'
+                    ? '🟡 Crew done — tap when I pass it'
+                    : line.stage === 'working'
+                      ? `🔵 Working — tap when ${line.crewNames[0] ?? 'the crew'} finishes`
+                      : line.noCrewOnRoster
+                        ? `⚪ No ${line.trade === 'paint' ? 'Paint' : 'Clean'} crew yet — add one in Crews`
+                        : '⚪ Needs crew — open to assign';
+              const advanceable = (line.stage === 'working' || line.stage === 'crew-done')
+                && Boolean(onAdvanceUnitTrade);
+              return (
+                <div className={`w2a2b-live-card is-${line.stage}`} key={`${line.unitId}:${line.trade}`}>
+                  <button
+                    className="w2a2b-live-card__unit"
+                    onClick={() => onOpenUnit?.(line.unitId)}
+                    type="button"
+                  >
+                    <strong>{line.unitNumber}</strong>
+                    <span>{line.trade === 'paint' ? 'PAINT' : 'CLEAN'}</span>
+                  </button>
+                  <div className="w2a2b-live-card__body">
+                    <small>
+                      {line.crewNames.length > 0 ? line.crewNames.join(' + ') : 'unassigned'}
+                      {' · '}{line.done}/{line.total} sections
+                    </small>
+                    <button
+                      className="w2a2b-live-card__stage"
+                      disabled={!advanceable}
+                      onClick={() => advanceable
+                        && onAdvanceUnitTrade?.(line.unitId, line.trade)}
+                      type="button"
+                    >
+                      {stageLabel}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       ) : null}
@@ -1816,7 +1843,8 @@ export interface DayTaskWorkspaceProps {
     change: DayTaskStateChange,
   ) => boolean | Promise<boolean> | void;
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
-  crewsNow?: readonly HomeCrewNowLine[];
+  liveBoard?: readonly LiveBoardLine[];
+  onAdvanceUnitTrade?: (unitId: string, trade: 'paint' | 'clean') => void;
   glance?: HomeGlance;
   onOpenCrew?: (crewId: string) => void;
   onOpenQueueId?: (queueId: TodayTaskQueueId) => void;
@@ -1857,7 +1885,8 @@ export function DayTaskWorkspace({
   currentDate,
   events: initialEvents = [],
   existingSessions = [],
-  crewsNow,
+  liveBoard,
+  onAdvanceUnitTrade,
   glance,
   onOpenCrew,
   idFactory = createId,
@@ -2067,7 +2096,8 @@ export function DayTaskWorkspace({
       <DayTaskHome
         acceptedToday={acceptedToday}
         acceptedWalkMeta={acceptedWalkMeta}
-        crewsNow={crewsNow}
+        liveBoard={liveBoard}
+        onAdvanceUnitTrade={onAdvanceUnitTrade}
         glance={glance}
         onOpenCrew={onOpenCrew}
         currentDate={currentDate}

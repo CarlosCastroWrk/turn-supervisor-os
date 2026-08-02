@@ -86,11 +86,13 @@ import {
   TrackCFieldOps,
   type TrackCRouteState,
   buildDailyReportData,
+  applyTrackCSectionAction,
   prewarmDailyReportPdf,
   projectTrackCCrewDetail,
   projectTrackCUnitWork,
   projectTrackCWork,
   saveDailyReportPdf,
+  trackCCrewName,
 } from '../wave2a2-track-c';
 import {
   ManualReleaseReview,
@@ -600,24 +602,114 @@ function LaunchOperationalApp({
   const trackCState = useMemo(() => projectTrackCState(data), [data]);
   // Home glance: who's working what right now, and the property at a glance —
   // Los reads this between walks without tapping into queues.
-  const homeCrewsNow = useMemo(() =>
-    trackCState.crews
-      .filter((crew) => crew.activeToday)
-      .map((crew) => {
-        const detail = projectTrackCCrewDetail(trackCState, crew.id);
-        const unitNumbers = new Set<string>();
-        for (const work of detail?.currentWork ?? []) {
-          const unit = trackCState.units.find((candidate) => candidate.id === work.unitId);
-          if (unit) unitNumbers.add(unit.unitNumber);
+  // THE LIVE BOARD: every unit-trade in play, organized by unit like the
+  // wall. One card = unit + trade + crew + stage; tapping the stage advances
+  // the whole trade (crew done → Los passed) with the existing section ops.
+  const liveBoard = useMemo(() => {
+    const lines: {
+      unitId: string;
+      unitNumber: string;
+      trade: 'paint' | 'clean';
+      crewNames: string[];
+      stage: 'needs-crew' | 'working' | 'crew-done' | 'passed' | 'callback';
+      done: number;
+      total: number;
+      passedAgo?: string;
+      noCrewOnRoster?: boolean;
+    }[] = [];
+    const today = localEventDate(new Date().toISOString());
+    for (const unit of trackCState.units) {
+      for (const trade of ['paint', 'clean'] as const) {
+        const work = projectTrackCUnitWork(trackCState, unit.id).filter((item) =>
+          item.trade === trade
+          && item.release === 'released'
+          && item.access === 'clear'
+          && item.property !== 'property-accepted');
+        if (work.length === 0) continue;
+        const crewNames = [...new Set(work
+          .flatMap((item) => item.activeCrewIds)
+          .map((crewId) => trackCCrewName(trackCState, crewId))
+          .filter((name): name is string => Boolean(name)))];
+        const hasCallback = work.some((item) => item.callbackOpen);
+        const allPassed = work.every((item) => item.inspection === 'los-passed');
+        const donePlus = work.filter((item) =>
+          item.execution === 'crew-reported-complete'
+          || item.inspection === 'los-passed').length;
+        const anyActive = work.some((item) =>
+          ['assigned', 'working'].includes(item.execution));
+        const stage = hasCallback
+          ? 'callback' as const
+          : allPassed
+            ? 'passed' as const
+            : donePlus === work.length
+              ? 'crew-done' as const
+              : anyActive || crewNames.length > 0
+                ? 'working' as const
+                : 'needs-crew' as const;
+        let passedAgo: string | undefined;
+        if (stage === 'passed') {
+          const latest = trackCState.events
+            .filter((event) =>
+              event.eventType === 'los-passed'
+              && event.target.unitId === unit.id
+              && event.target.trade === trade)
+            .reduce((max, event) =>
+              event.recordedAt > max ? event.recordedAt : max, '');
+          if (latest) {
+            const day = localEventDate(latest);
+            passedAgo = day === today ? 'today' : day === localEventDate(new Date(Date.now() - 86_400_000).toISOString()) ? 'yesterday' : new Date(latest).toLocaleDateString([], { month: 'short', day: 'numeric' });
+          }
         }
-        return {
-          id: crew.id,
-          name: crew.name,
-          trade: crew.trade,
-          units: [...unitNumbers].sort((left, right) =>
-            left.localeCompare(right, undefined, { numeric: true })),
-        };
-      }), [trackCState]);
+        lines.push({
+          crewNames,
+          done: donePlus,
+          stage,
+          total: work.length,
+          trade,
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+          passedAgo,
+          noCrewOnRoster: stage === 'needs-crew'
+            && !trackCState.crews.some((crew) => crew.trade === trade),
+        });
+      }
+    }
+    return lines.sort((left, right) =>
+      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true })
+      || left.trade.localeCompare(right.trade));
+  }, [trackCState]);
+  const advanceUnitTrade = useCallback((unitId: string, trade: 'paint' | 'clean') => {
+    // One tap moves the whole trade forward: crew reports done, then Los
+    // passes — always through the existing section operations (undo intact).
+    let nextState = trackCState;
+    const work = projectTrackCUnitWork(trackCState, unitId).filter((item) =>
+      item.trade === trade
+      && item.release === 'released'
+      && item.access === 'clear'
+      && !item.callbackOpen
+      && item.property !== 'property-accepted');
+    const pending = work.filter((item) =>
+      ['assigned', 'working'].includes(item.execution));
+    const targets = pending.length > 0
+      ? { action: 'record-crew-complete' as const, items: pending }
+      : {
+        action: 'record-los-pass' as const,
+        items: work.filter((item) => item.inspection === 'needs-los-inspection'),
+      };
+    if (targets.items.length === 0) return;
+    for (const item of targets.items) {
+      const result = applyTrackCSectionAction(nextState, {
+        action: targets.action,
+        eventId: createId(`live-board-${targets.action}`),
+        recordedAt: nowISO(),
+        recordedBy: 'Los',
+        target: { section: item.section, trade: item.trade, unitId: item.unitId },
+      });
+      if (!result.ok) return;
+      nextState = result.value;
+    }
+    commitDataNow((current) => applyTrackCStateChange(current, nextState));
+  }, [commitDataNow, trackCState]);
   const homeGlance = useMemo(() => {
     // These numbers must MATCH the queues below them: blocked units live in
     // Waiting (not "released"), finished units are "approved", and "working"
@@ -2810,7 +2902,8 @@ function LaunchOperationalApp({
         <DayTaskWorkspace
           key={currentDate}
           accountId={operationalScope.accountId}
-          crewsNow={homeCrewsNow}
+          liveBoard={liveBoard}
+          onAdvanceUnitTrade={advanceUnitTrade}
           glance={homeGlance}
           onOpenCrew={(crewId) => {
             crewOriginHomeRef.current = true;

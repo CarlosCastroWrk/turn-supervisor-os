@@ -48,7 +48,8 @@ export function ManualReleaseReview({
   unavailableReason,
 }: ManualReleaseReviewProps) {
   const [query, setQuery] = useState('');
-  const [propertyContact, setPropertyContact] = useState('');
+  // Zero-typing default: Joseph confirms almost every release.
+  const [propertyContact, setPropertyContact] = useState(() => contacts?.[0] ?? '');
   const [selected, setSelected] = useState<Map<string, ManualReleaseSelection>>(
     () => new Map(),
   );

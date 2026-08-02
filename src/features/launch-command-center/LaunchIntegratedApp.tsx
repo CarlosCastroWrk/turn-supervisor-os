@@ -154,6 +154,7 @@ import {
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
 import { addCrewMember, archiveProject, updateCrewMember } from '../../lib/actions';
+import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
 import { useAiAuth } from '../../lib/ai/useAiAuth';
 import { createId, nowISO } from '../../lib/constants';
 import {
@@ -439,6 +440,11 @@ function LaunchOperationalApp({
   const [authFeedback, setAuthFeedback] = useState<string>();
   const aiAuth = useAiAuth();
   const [aiLoginSkipped, setAiLoginSkipped] = useState(false);
+  // Device-local stamp: has today's release proof been submitted to the
+  // official Backup Safety Submission Box? (No schema impact — Turn freeze.)
+  const [releaseProofDate, setReleaseProofDate] = useState<string | null>(() => (
+    typeof window === 'undefined' ? null : window.localStorage.getItem('turn-os:release-proof-date')
+  ));
   const [online, setOnline] = useState(
     () => typeof navigator === 'undefined' || navigator.onLine,
   );
@@ -2171,9 +2177,12 @@ function LaunchOperationalApp({
                 applyTrackCWalkDraftChange(current, draft));
             },
             onOpenTurnSignOff: () => {
-              // Open the Official PDS Forms surface (the company sign-off destinations).
-              navigate('more');
-              setMoreDetailPage('forms');
+              // Straight to the official Turn Sign-Off form — no detour.
+              window.open(
+                OFFICIAL_PDS_LINKS.find((link) => link.id === 'turn-sign-off')?.url,
+                '_blank',
+                'noopener,noreferrer',
+              );
             },
           }}
         />
@@ -2222,6 +2231,54 @@ function LaunchOperationalApp({
   ) : route.view === 'dashboard' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
+      {launchProjection.project?.mode === 'real' && todayTask
+        && releaseProofDate !== currentDate ? (
+        <section className="lcc-release-proof" role="note">
+          <strong>Submit today’s release proof</strong>
+          <p>
+            Joseph released {new Set(todayTask.sections.map((section) => section.unitId)).size} unit(s).
+            Copy the summary, open the Backup Safety Submission Box, paste, submit — that’s your
+            “you told me to work these” receipt.
+          </p>
+          <div>
+            <button
+              onClick={() => {
+                const byUnit = new Map<string, string[]>();
+                for (const section of todayTask.sections) {
+                  const list = byUnit.get(section.unitId) ?? [];
+                  list.push(section.sectionId === 'common' ? 'Common' : section.sectionId);
+                  byUnit.set(section.unitId, list);
+                }
+                const summary = `Release proof — ${currentDate} — ${launchProjection.propertyName}: `
+                  + [...byUnit.entries()]
+                    .map(([unitId, sections]) =>
+                      `Unit ${unitNumberById.get(unitId) ?? unitId} (${[...new Set(sections)].join(', ')})`)
+                    .join('; ')
+                  + `. Released by ${todayTask ? 'property contact' : ''} — recorded in Turn OS.`;
+                void navigator.clipboard?.writeText(summary).catch(() => undefined);
+                setMoreStatus('Release summary copied. Paste it into the Submission Box.');
+              }}
+              type="button"
+            >
+              Copy summary
+            </button>
+            <button
+              onClick={() => {
+                window.open(
+                  OFFICIAL_PDS_LINKS.find((link) => link.id === 'backup-safety')?.url,
+                  '_blank',
+                  'noopener,noreferrer',
+                );
+                window.localStorage.setItem('turn-os:release-proof-date', currentDate);
+                setReleaseProofDate(currentDate);
+              }}
+              type="button"
+            >
+              Open Submission Box
+            </button>
+          </div>
+        </section>
+      ) : null}
       {launchProjection.project?.mode !== 'real' && !demoExplored ? (
         <section aria-labelledby="lcc-welcome-title" className="lcc-welcome">
           <span aria-hidden="true" className="lcc-welcome__mark">

@@ -19,6 +19,7 @@ import {
   trackCSectionLabel,
   trackCWorkKey,
 } from './model';
+import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
 import type { TrackCSectionAction } from './operations';
 import {
   projectTrackCUnitWork,
@@ -491,6 +492,26 @@ const UnitDetail = ({
           Add note or change order to Unit {unit.unitNumber}
         </button>
       ) : null}
+      <button
+        className="track-c-unit-note-button track-c-change-order-flag"
+        data-track-c-critical-target="true"
+        onClick={() => {
+          // One tap: summary on the clipboard, official form open — paste and
+          // submit. Tubs and holes bigger than a quarter are change orders.
+          const summary = `Change order — Unit ${unit.unitNumber} (${trackCUnitMakeupLabel(unit)}). `
+            + 'Reason: tub resurface / wall hole larger than a quarter / other (edit). '
+            + 'Flagged from Turn OS.';
+          void navigator.clipboard?.writeText(summary).catch(() => undefined);
+          window.open(
+            OFFICIAL_PDS_LINKS.find((link) => link.id === 'change-order')?.url,
+            '_blank',
+            'noopener,noreferrer',
+          );
+        }}
+        type="button"
+      >
+        Flag change order (tub · hole &gt; quarter) — summary copied, form opens
+      </button>
       {TRACK_C_TRADES.map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);

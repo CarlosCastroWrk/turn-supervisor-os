@@ -2155,3 +2155,8 @@ select.track-c-trade-change {
 }
 .track-c-contact-chip__detail p { margin: 0; font-size: 13px; color: var(--track-c-muted); }
 .track-c-contact-chip__nophone { font-size: 12.5px; }
+
+.track-c-change-order-flag {
+  border-color: #b07414;
+  color: #8a5a10;
+}

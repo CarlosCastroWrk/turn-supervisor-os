@@ -210,3 +210,28 @@
   font-size: 15.5px;
   text-align: center;
 }
+
+/* Daily release-proof ritual card. */
+.lcc-release-proof {
+  margin: 10px 12px 0;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--turn-color-brand, #0072dc) 35%, transparent);
+  border-radius: 14px;
+  background: var(--turn-color-brand-soft, #e7f0fb);
+}
+.lcc-release-proof strong { font-size: 15.5px; }
+.lcc-release-proof p { margin: 4px 0 10px; font-size: 13.5px; color: var(--turn-color-ink-soft, #45505f); }
+.lcc-release-proof div { display: flex; gap: 8px; }
+.lcc-release-proof button {
+  flex: 1 1 auto;
+  min-height: 44px;
+  border-radius: 11px;
+  border: 1px solid var(--turn-color-brand, #0072dc);
+  background: transparent;
+  color: var(--turn-color-brand, #0072dc);
+  font-weight: 700;
+}
+.lcc-release-proof button:last-child {
+  background: var(--turn-color-brand, #0072dc);
+  color: #fff;
+}

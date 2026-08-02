@@ -243,6 +243,7 @@ export const CrewView = ({
   // event ledger (schema freeze), so a lost entry costs nothing operationally.
   const [contactLog, setContactLog] = useState(() => readContactLog());
   const [aiDraftingCrewId, setAiDraftingCrewId] = useState<string>();
+  const [aiLanguagePickCrewId, setAiLanguagePickCrewId] = useState<string>();
   // Beds + common areas each crew reported complete TODAY — the 5-second
   // payroll glance.
   const todayByCrew = useMemo(() => {
@@ -308,7 +309,9 @@ export const CrewView = ({
     crewName: string,
     trade: 'paint' | 'clean',
     phone: string,
+    language: 'english' | 'spanish',
   ) => {
+    setAiLanguagePickCrewId(undefined);
     setAiDraftingCrewId(crewId);
     try {
       const detail = projectTrackCCrewDetail(state, crewId);
@@ -325,7 +328,14 @@ export const CrewView = ({
         .map(([unitNumber, sections]) => ({ sections: [...new Set(sections)], unitNumber }));
       let body: string;
       try {
-        body = await requestComposedText({ crewName, trade, units });
+        body = await requestComposedText({
+          crewName,
+          trade,
+          units,
+          language,
+          // Rocky is also Los's runner — his texts carry the day-overview line.
+          isRunner: crewName.trim().toLowerCase().startsWith('rocky'),
+        });
         logContact(crewId, crewName, 'ai-text');
       } catch {
         body = composeBody(crewId, crewName);
@@ -361,6 +371,27 @@ export const CrewView = ({
         <span>{crews.filter((item) => item.crew.activeToday).length} active</span>
       </header>
       {(() => {
+        // Pay weeks run Sunday -> Saturday 5 PM. Week 2 = Aug 2-8 (week 1 was
+        // the short Jul 31 - Aug 1 start). Colors follow Los's wall board.
+        const WEEK2_START = new Date(2026, 7, 2);
+        const now = new Date();
+        const weekNumber = now < WEEK2_START
+          ? 1
+          : Math.floor((now.getTime() - WEEK2_START.getTime()) / (7 * 86_400_000)) + 2;
+        const colors: Record<number, string> = { 1: 'yellow', 2: 'green', 3: 'pink' };
+        const sunday = new Date(now);
+        sunday.setDate(now.getDate() - now.getDay());
+        const saturday = new Date(sunday);
+        saturday.setDate(sunday.getDate() + 6);
+        const fmt = (date: Date) =>
+          date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        return (
+          <p className="track-c-week-line">
+            Pay week {weekNumber}{colors[weekNumber] ? ` · ${colors[weekNumber]} on the board` : ''} · {fmt(sunday)} → {fmt(saturday)} 5 PM
+          </p>
+        );
+      })()}
+      {(() => {
         const today = contactsToday(contactLog);
         if (today.length === 0) return null;
         const seen = new Set<string>();
@@ -392,13 +423,16 @@ export const CrewView = ({
         <div className="track-c-contact-strip" aria-label="Property contacts">
           {propertyContacts.map((contact) => {
             const open = expandedContactId === contact.id;
-            const walkedUnits = new Set(
+            const walkedByTrade = (trade: 'paint' | 'clean') => new Set(
               state.completedWalks
                 .filter((walk) => walk.propertyContact === contact.name)
                 .flatMap((walk) => (walk.outcomes ?? [])
-                  .filter((outcome) => outcome.outcome === 'accepted')
+                  .filter((outcome) => outcome.outcome === 'accepted'
+                    && outcome.target.trade === trade)
                   .map((outcome) => outcome.target.unitId)),
             ).size;
+            const walkedPaint = walkedByTrade('paint');
+            const walkedClean = walkedByTrade('clean');
             return (
               <div className={`track-c-contact-chip ${open ? 'is-open' : ''}`} key={contact.id}>
                 <button
@@ -416,7 +450,7 @@ export const CrewView = ({
                 {open ? (
                   <div className="track-c-contact-chip__detail">
                     <p>
-                      Walked together: {walkedUnits} unit{walkedUnits === 1 ? '' : 's'} accepted this Turn.
+                      Walked together this Turn: Paint {walkedPaint} · Clean {walkedClean} units accepted.
                     </p>
                     {contact.phone ? (
                       <span className="track-c-contact-chip__actions">
@@ -510,17 +544,35 @@ export const CrewView = ({
                       Text
                     </a>
                     {composeEnabled() ? (
-                      <button
-                        aria-label={`AI-drafted text for ${crew.name}`}
-                        className="track-c-crew-ai-draft"
-                        disabled={aiDraftingCrewId === crew.id}
-                        onClick={() =>
-                          void openAiDraft(crew.id, crew.name, crew.trade, phone)}
-                        type="button"
-                      >
-                        <Sparkles aria-hidden="true" size={14} />
-                        {aiDraftingCrewId === crew.id ? 'Drafting…' : 'AI text'}
-                      </button>
+                      aiLanguagePickCrewId === crew.id ? (
+                        <span className="track-c-ai-lang" role="group" aria-label="Draft language">
+                          <button
+                            onClick={() =>
+                              void openAiDraft(crew.id, crew.name, crew.trade, phone, 'spanish')}
+                            type="button"
+                          >
+                            Español
+                          </button>
+                          <button
+                            onClick={() =>
+                              void openAiDraft(crew.id, crew.name, crew.trade, phone, 'english')}
+                            type="button"
+                          >
+                            English
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          aria-label={`AI-drafted text for ${crew.name}`}
+                          className="track-c-crew-ai-draft"
+                          disabled={aiDraftingCrewId === crew.id}
+                          onClick={() => setAiLanguagePickCrewId(crew.id)}
+                          type="button"
+                        >
+                          <Sparkles aria-hidden="true" size={14} />
+                          {aiDraftingCrewId === crew.id ? 'Drafting…' : 'AI text'}
+                        </button>
+                      )
                     ) : null}
                   </>
                 ) : null}
@@ -529,6 +581,80 @@ export const CrewView = ({
           );
         })}
       </div>
+      <details className="track-c-crew-totals">
+        <summary>Crew totals — payroll receipts</summary>
+        {(() => {
+          // Per crew, per day: beds + commons reported complete (the pay
+          // basis: did the work = gets paid). Sun-Sat pay-week totals + Turn
+          // total. This is Los's receipt when a count gets pushed back on.
+          const byCrew = new Map<string, Map<string, { beds: number; commons: number }>>();
+          for (const event of state.events) {
+            if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
+            const date = event.recordedAt.slice(0, 10);
+            const days = byCrew.get(event.crewId) ?? new Map();
+            const line = days.get(date) ?? { beds: 0, commons: 0 };
+            line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
+            days.set(date, line);
+            byCrew.set(event.crewId, days);
+          }
+          const fmtLine = (line: { beds: number; commons: number }) =>
+            [
+              line.beds > 0 ? `${line.beds} bed${line.beds === 1 ? '' : 's'}` : '',
+              line.commons > 0 ? `${line.commons} common` : '',
+            ].filter(Boolean).join(' + ') || '0';
+          const buildText = () => state.crews.map((crew) => {
+            const days = [...(byCrew.get(crew.id) ?? new Map()).entries()]
+              .sort((left, right) => left[0].localeCompare(right[0]));
+            const total = days.reduce((sum, [, line]) =>
+              ({ beds: sum.beds + line.beds, commons: sum.commons + line.commons }),
+              { beds: 0, commons: 0 });
+            return [
+              `${crew.name} (${crew.trade === 'paint' ? 'Paint' : 'Clean'})`,
+              ...days.map(([date, line]) => `  ${date}: ${fmtLine(line)}`),
+              `  Turn total: ${fmtLine(total)}`,
+            ].join('\n');
+          }).join('\n');
+          return (
+            <div className="track-c-crew-totals__body">
+              {state.crews.map((crew) => {
+                const days = [...(byCrew.get(crew.id) ?? new Map()).entries()]
+                  .sort((left, right) => right[0].localeCompare(left[0]));
+                const total = days.reduce((sum, [, line]) =>
+                  ({ beds: sum.beds + line.beds, commons: sum.commons + line.commons }),
+                  { beds: 0, commons: 0 });
+                return (
+                  <section key={crew.id}>
+                    <header>
+                      <strong>{crew.name}</strong>
+                      <span>{crew.trade === 'paint' ? 'Paint' : 'Clean'} · Turn total {fmtLine(total)}</span>
+                    </header>
+                    {days.length > 0 ? (
+                      <ul>
+                        {days.map(([date, line]) => (
+                          <li key={date}>
+                            <span>{new Date(`${date}T12:00:00`).toLocaleDateString([], {
+                              weekday: 'short', month: 'short', day: 'numeric',
+                            })}</span>
+                            <strong>{fmtLine(line)}</strong>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : <p>No completed work reported yet.</p>}
+                  </section>
+                );
+              })}
+              <button
+                onClick={() => {
+                  void navigator.clipboard?.writeText(buildText()).catch(() => undefined);
+                }}
+                type="button"
+              >
+                Copy totals — paste anywhere
+              </button>
+            </div>
+          );
+        })()}
+      </details>
       <p className="track-c-boundary-copy track-c-view-footnote">
         Open Crew Detail before Edit. Stats come only from confirmed personal
         events.

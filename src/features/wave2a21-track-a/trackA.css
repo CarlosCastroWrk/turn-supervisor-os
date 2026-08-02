@@ -968,3 +968,16 @@
 .w2a21a-setup__steps button:disabled {
   opacity: 0.45;
 }
+
+.w2a21a-start-day__back {
+  background: transparent;
+  border: none;
+  color: #0877d1;
+  font-size: 15px;
+  font-weight: 750;
+  margin: 0 0 4px;
+  min-block-size: 40px;
+  padding: 0;
+  text-align: start;
+  width: fit-content;
+}

@@ -19,17 +19,17 @@
   main { margin: 0 auto; max-width: 560px; padding: 12px; }
   .counts { display: grid; gap: 8px; grid-template-columns: repeat(4, 1fr); margin-bottom: 10px; }
   .count { background: var(--card); border-radius: 12px; padding: 10px 6px; text-align: center; }
-  .count strong { display: block; font-size: 20px; }
-  .count small { color: var(--muted); font-size: 11px; }
+  .count strong { display: block; font-size: 24px; }
+  .count small { color: var(--muted); font-size: 12.5px; }
   .filters { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
   .filters button { background: var(--card); border: 1.5px solid var(--border); border-radius: 999px; color: var(--muted); flex-shrink: 0; font-size: 14px; font-weight: 700; min-height: 38px; padding: 6px 14px; }
   .filters button.on { background: var(--blue); border-color: var(--blue); color: #fff; }
   input[type=search] { background: var(--card); border: 1.5px solid var(--border); border-radius: 12px; font-size: 16px; margin-bottom: 10px; min-height: 44px; padding: 8px 14px; width: 100%; }
   .unit { align-items: center; background: var(--card); border: 2px solid transparent; border-radius: 12px; display: flex; gap: 10px; justify-content: space-between; margin-bottom: 6px; padding: 10px 14px; }
   .unit.picked { border-color: var(--blue); }
-  .unit strong { font-size: 17px; min-width: 56px; }
+  .unit strong { font-size: 20px; min-width: 64px; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
-  .chip { border-radius: 999px; font-size: 12px; font-weight: 800; padding: 3px 10px; }
+  .chip { border-radius: 999px; font-size: 13.5px; font-weight: 800; padding: 5px 12px; }
   .chip.approved, .chip.passed { background: #e2f2e8; color: var(--green); }
   .chip.crew-done { background: #eaf3fb; color: var(--blue); }
   .chip.working { background: #fdf3e4; color: var(--amber); }
@@ -73,7 +73,7 @@
   <p class="hint" id="pickHint" hidden>Tap units to select them, then request a walk below.</p>
   <div id="list"></div>
   <div class="empty" id="empty" hidden>No update published yet — the board appears here as soon as work is recorded.</div>
-  <footer>Paint / clean status per unit. “Ready to walk” = inspected and passed by the supervisor. Updates automatically.</footer>
+  <footer>Green = done. Orange = being worked on. “Ready to walk” = the supervisor passed it and it's ready for your walk. This page updates by itself.</footer>
 </main>
 <div class="walkbar" id="walkbar">
   <strong id="walkCount">0 selected</strong>

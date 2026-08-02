@@ -22,6 +22,8 @@ const accessToken = async (): Promise<string | null> => {
 export const requestComposedText = async (payload: {
   crewName: string;
   trade: 'paint' | 'clean';
+  language: 'english' | 'spanish';
+  isRunner?: boolean;
   units: ComposeUnitLine[];
   instruction?: string;
 }): Promise<string> => {

@@ -515,3 +515,15 @@
   color: #0877d1;
   font-weight: 750;
 }
+
+.w2a2-core-sectionmode-toggle {
+  background: transparent;
+  border: none;
+  color: #0877d1;
+  font-size: 14px;
+  font-weight: 750;
+  margin: 0 0 8px;
+  min-block-size: 40px;
+  padding: 4px 0;
+  text-align: start;
+}

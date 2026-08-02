@@ -1051,3 +1051,13 @@ button.w2a2b-done-toggle {
   margin-inline-end: 14px;
   padding: 4px 0;
 }
+
+.w2a2b-glance-line {
+  color: #66707c;
+  font-size: 13px;
+  font-weight: 650;
+  margin: 2px 0 0;
+}
+
+.w2a2b-row-icon.is-crew-paint { background: #eaf3fb; color: #0877d1; }
+.w2a2b-row-icon.is-crew-clean { background: #e2f2e8; color: #237a45; }

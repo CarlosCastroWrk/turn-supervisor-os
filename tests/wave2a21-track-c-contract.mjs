@@ -194,7 +194,7 @@ test('primary Plus keeps Note and manual Release available while blocking unacce
       `${action} must not appear in the primary Plus sheet or enter a legacy route.`,
     );
   }
-  assert.match(plusSource, /label:\s*'Add Release Batch'/u);
+  assert.match(plusSource, /label:\s*'Quick Add Units'/u);
   assert.match(hostSource, /setHomeMode\('manual-release'\)/u);
   assert.match(plusSource, /actionAvailability\?\.\[action\]/u);
   assert.match(plusSource, /disabled=\{unavailable\}/u);

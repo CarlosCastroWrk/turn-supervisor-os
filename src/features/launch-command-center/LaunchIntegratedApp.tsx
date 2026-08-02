@@ -87,6 +87,8 @@ import {
   type TrackCRouteState,
   buildDailyReportData,
   prewarmDailyReportPdf,
+  projectTrackCCrewDetail,
+  projectTrackCUnitWork,
   projectTrackCWork,
   saveDailyReportPdf,
 } from '../wave2a2-track-c';
@@ -577,6 +579,41 @@ function LaunchOperationalApp({
     [activeDaySession, data],
   );
   const trackCState = useMemo(() => projectTrackCState(data), [data]);
+  // Home glance: who's working what right now, and the property at a glance —
+  // Los reads this between walks without tapping into queues.
+  const homeCrewsNow = useMemo(() =>
+    trackCState.crews
+      .filter((crew) => crew.activeToday)
+      .map((crew) => {
+        const detail = projectTrackCCrewDetail(trackCState, crew.id);
+        const unitNumbers = new Set<string>();
+        for (const work of detail?.currentWork ?? []) {
+          const unit = trackCState.units.find((candidate) => candidate.id === work.unitId);
+          if (unit) unitNumbers.add(unit.unitNumber);
+        }
+        return {
+          id: crew.id,
+          name: crew.name,
+          trade: crew.trade,
+          units: [...unitNumbers].sort((left, right) =>
+            left.localeCompare(right, undefined, { numeric: true })),
+        };
+      }), [trackCState]);
+  const homeGlance = useMemo(() => {
+    let released = 0;
+    let working = 0;
+    let approved = 0;
+    for (const unit of trackCState.units) {
+      const work = projectTrackCUnitWork(trackCState, unit.id)
+        .filter((item) => item.release === 'released');
+      if (work.length === 0) continue;
+      released += 1;
+      if (work.every((item) => item.property === 'property-accepted')) approved += 1;
+      else if (work.some((item) =>
+        ['assigned', 'working', 'crew-reported-complete'].includes(item.execution))) working += 1;
+    }
+    return { approved, released, working };
+  }, [trackCState]);
   const acceptedWalkMeta = useMemo(() => {
     const meta: Record<string, { at?: string; contact: string }> = {};
     for (const walk of trackCState.completedWalks) {
@@ -2529,6 +2566,9 @@ function LaunchOperationalApp({
         <DayTaskWorkspace
           key={currentDate}
           accountId={operationalScope.accountId}
+          crewsNow={homeCrewsNow}
+          glance={homeGlance}
+          onOpenCrew={(crewId) => navigate('crews', undefined, { crewId })}
           activeWalkSessionId={trackCState.activeWalk?.id}
           crews={dayCrewOptions}
           currentDate={currentDate}
@@ -2699,23 +2739,25 @@ function LaunchOperationalApp({
             const index = Math.min(historyDayOffset, sorted.length - 1);
             return [
               <div className="lcc-day-pager" key="pager">
-                <button
-                  aria-label="Older day"
-                  disabled={index >= sorted.length - 1}
-                  onClick={() => setHistoryDayOffset(Math.min(index + 1, sorted.length - 1))}
-                  type="button"
-                >
-                  ← Day {sorted.length - Math.min(index + 1, sorted.length - 1)}
-                </button>
+                {index < sorted.length - 1 ? (
+                  <button
+                    aria-label="Older day"
+                    onClick={() => setHistoryDayOffset(index + 1)}
+                    type="button"
+                  >
+                    ← Day {sorted.length - (index + 1)}
+                  </button>
+                ) : <span />}
                 <strong>Day {sorted.length - index}</strong>
-                <button
-                  aria-label="Newer day"
-                  disabled={index <= 0}
-                  onClick={() => setHistoryDayOffset(Math.max(index - 1, 0))}
-                  type="button"
-                >
-                  Day {sorted.length - Math.max(index - 1, 0)} →
-                </button>
+                {index > 0 ? (
+                  <button
+                    aria-label="Newer day"
+                    onClick={() => setHistoryDayOffset(index - 1)}
+                    type="button"
+                  >
+                    Day {sorted.length - (index - 1)} →
+                  </button>
+                ) : <span />}
               </div>,
               ...[sorted[index]].map((historySession) => {
               const sessionEvents = dayEvents.filter((event) =>

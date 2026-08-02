@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ClipboardList,
   FileUp,
+  Droplets,
   Footprints,
   LogOut,
   Paintbrush,
@@ -1014,7 +1015,23 @@ export function EndDayFlow({
   );
 }
 
+export interface HomeCrewNowLine {
+  id: string;
+  name: string;
+  trade: 'paint' | 'clean';
+  units: string[];
+}
+
+export interface HomeGlance {
+  released: number;
+  working: number;
+  approved: number;
+}
+
 interface DayTaskHomeProps {
+  crewsNow?: readonly HomeCrewNowLine[];
+  glance?: HomeGlance;
+  onOpenCrew?: (crewId: string) => void;
   currentDate: string;
   onAction: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
   onEndDay: () => void;
@@ -1054,6 +1071,9 @@ function DayTaskHome({
   onStartDay,
   propertyName,
   rosterCount,
+  crewsNow,
+  glance,
+  onOpenCrew,
   scopeErrors,
   session,
   task,
@@ -1129,18 +1149,39 @@ function DayTaskHome({
             </span>
           ) : null;
         })() : null}
-        {dayNumber ? (
-          <p className="w2a2b-day-brief">
-            Day {dayNumber}
-            {counts.callbacks > 0
-              ? ` · ${counts.callbacks} callback${counts.callbacks === 1 ? '' : 's'} open`
-              : ''}
-            {counts['ready-to-walk'] > 0
-              ? ` · ${counts['ready-to-walk']} ready to walk`
-              : ''}
-            {counts.callbacks === 0 && counts['ready-to-walk'] === 0
-              ? ' · nothing carried over'
-              : ''}
+        {(() => {
+          // A new calendar day means a NEW day number — never show yesterday's
+          // "Day 1" on Sunday morning.
+          const openToday = Boolean(session
+            && session.date === currentDate && session.status !== 'closed');
+          if (!openToday) {
+            return (
+              <p className="w2a2b-day-brief">
+                Day {(dayNumber ?? 0) + 1} · not started — tap Start Day
+                {counts.callbacks > 0
+                  ? ` · ${counts.callbacks} callback${counts.callbacks === 1 ? '' : 's'} carried over`
+                  : ''}
+              </p>
+            );
+          }
+          return dayNumber ? (
+            <p className="w2a2b-day-brief">
+              Day {dayNumber}
+              {counts.callbacks > 0
+                ? ` · ${counts.callbacks} callback${counts.callbacks === 1 ? '' : 's'} open`
+                : ''}
+              {counts['ready-to-walk'] > 0
+                ? ` · ${counts['ready-to-walk']} ready to walk`
+                : ''}
+              {counts.callbacks === 0 && counts['ready-to-walk'] === 0
+                ? ' · nothing carried over'
+                : ''}
+            </p>
+          ) : null;
+        })()}
+        {glance ? (
+          <p className="w2a2b-glance-line">
+            {rosterCount} in roster · {glance.released} released · {glance.working} working · {glance.approved} approved
           </p>
         ) : null}
       </header>
@@ -1171,6 +1212,39 @@ function DayTaskHome({
         ) : null}
       </section>
 
+      {crewsNow && crewsNow.length > 0 ? (
+        <section className="w2a2b-section" aria-labelledby="w2a2b-crews-now-title">
+          <div className="w2a2b-section-heading">
+            <h2 id="w2a2b-crews-now-title">Crews right now</h2>
+          </div>
+          <div className="w2a2b-inset-list">
+            {crewsNow.map((crew) => (
+              <button
+                data-track-b-critical-target="true"
+                key={crew.id}
+                onClick={() => onOpenCrew?.(crew.id)}
+                type="button"
+              >
+                <span className={`w2a2b-row-icon is-crew-${crew.trade}`}>
+                  {crew.trade === 'paint'
+                    ? <Paintbrush aria-hidden="true" size={20} />
+                    : <Droplets aria-hidden="true" size={20} />}
+                </span>
+                <span>
+                  <strong>{crew.name}</strong>
+                  <small>
+                    {crew.trade === 'paint' ? 'Paint' : 'Clean'}
+                    {crew.units.length > 0
+                      ? ` — ${crew.units.join(', ')}`
+                      : ' — no units yet today'}
+                  </small>
+                </span>
+                <ChevronRight aria-hidden="true" size={19} />
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <section className="w2a2b-section" aria-labelledby="w2a2b-current-title">
         <div className="w2a2b-section-heading">
           <h2 id="w2a2b-current-title">Current work</h2>
@@ -1328,7 +1402,15 @@ function DayTaskHome({
             <span>
               <small>Property accepted with you on the walk</small>
               <h2 id="w2a2b-done-title">
-                Done today · {acceptedToday.length} Unit{acceptedToday.length === 1 ? '' : 's'}
+                {(() => {
+                  const tradeCounts = (['Paint', 'Clean'] as const)
+                    .map((trade) => [trade, acceptedToday
+                      .filter((unit) => unit.trades.includes(trade)).length] as const)
+                    .filter(([, count]) => count > 0)
+                    .map(([trade, count]) => `${count} ${trade}`)
+                    .join(' · ');
+                  return `Done today · ${acceptedToday.length} Unit${acceptedToday.length === 1 ? '' : 's'}${tradeCounts ? ` · ${tradeCounts}` : ''}`;
+                })()}
               </h2>
             </span>
             <span aria-hidden="true" className="w2a2b-done-toggle__chevron">
@@ -1600,6 +1682,9 @@ export interface DayTaskWorkspaceProps {
     change: DayTaskStateChange,
   ) => boolean | Promise<boolean> | void;
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
+  crewsNow?: readonly HomeCrewNowLine[];
+  glance?: HomeGlance;
+  onOpenCrew?: (crewId: string) => void;
   onOpenQueueId?: (queueId: TodayTaskQueueId) => void;
   onOpenTaskDetail?: () => void;
   onOpenActiveWalk?: (
@@ -1638,6 +1723,9 @@ export function DayTaskWorkspace({
   currentDate,
   events: initialEvents = [],
   existingSessions = [],
+  crewsNow,
+  glance,
+  onOpenCrew,
   idFactory = createId,
   initialView = 'home',
   initialSession,
@@ -1842,6 +1930,9 @@ export function DayTaskWorkspace({
       <DayTaskHome
         acceptedToday={acceptedToday}
         acceptedWalkMeta={acceptedWalkMeta}
+        crewsNow={crewsNow}
+        glance={glance}
+        onOpenCrew={onOpenCrew}
         currentDate={currentDate}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>

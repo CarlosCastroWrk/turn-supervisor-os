@@ -239,6 +239,14 @@ export function FastStartDayFlow({
       data-fast-start-day="true"
     >
       <header className="w2a21a-start-day__header">
+        <button
+          aria-label="Cancel Start Day and go back"
+          className="w2a21a-start-day__back"
+          onClick={onCancel}
+          type="button"
+        >
+          ← Back
+        </button>
         <p>Personal field record</p>
         <h1 id="w2a21a-start-day-title">Start Day</h1>
         <p>

@@ -8,6 +8,8 @@ import { z } from 'zod';
 export const composeRequestSchema = z.object({
   crewName: z.string().min(1).max(80),
   trade: z.enum(['paint', 'clean']),
+  language: z.enum(['english', 'spanish']).default('spanish'),
+  isRunner: z.boolean().optional(),
   units: z
     .array(
       z.object({
@@ -32,21 +34,24 @@ const anthropicKey = () =>
   process.env.claudeTurnOskey?.trim() || process.env.ANTHROPIC_API_KEY?.trim();
 
 const promptFor = (request: ComposeRequest) => {
+  const commonWord = request.language === 'spanish' ? 'Común' : 'Common';
   const unitLines = request.units.length > 0
     ? request.units
-        .map((unit) => `- Unit ${unit.unitNumber}: ${unit.sections.join(', ') || 'whole unit'}`)
+        .map((unit) => `- ${unit.unitNumber} — ${(unit.sections.length > 0 ? unit.sections : ['whole unit'])
+          .map((section) => (section === 'common' ? commonWord : section)).join(' — ')}`)
         .join('\n')
-    : '(no units assigned yet — say you will text the list soon)';
+    : '(no units assigned yet — say the list is coming soon)';
   return `You draft ONE short SMS text message from Los, the Turn supervisor at a student-housing property, to ${request.crewName}, the lead of a ${request.trade} crew.
 
 Rules:
-- Bilingual-lite: Spanish first with the short English equivalent where useful. Most crew leads speak Spanish.
-- Warm, respectful, encouraging — Los depends on these crews. One brief encouragement, no long speeches, at most one emoji.
-- List today's units clearly, one per line, with sections. "common" means the common area — write it as "Común/Common". Letters A–E are bedrooms.
+- Write ONLY in ${request.language === 'spanish' ? 'Spanish' : 'English'}. Do not mix languages or translate.
+- Tone: calm, plain, respectful — how a steady supervisor texts someone he works with every day. No hype, no pep talk, no exclamation stacking, no emoji.
+- List today's units one per line, exactly in this shape: "1706 — ${commonWord} — A — C". Letters A–E are bedrooms; "${commonWord}" is the common area.
 - Ask them to text Los as each unit is finished.
-${request.trade === 'clean' ? '- One short reminder of the inspection standard: shower heads with no stains, zero hair, corners, floors not sticky, sinks wiped dry.' : '- One short reminder: holes bigger than a quarter and tubs are change orders — flag them to Los, do not just fix or skip.'}
+${request.trade === 'clean' ? '- One short line on the standard: shower heads clean, no hair, corners, floors not sticky, sinks wiped dry.' : '- One short line: holes bigger than a quarter and tubs are change orders — tell Los first, do not fix or skip.'}
+${request.isRunner ? '- This lead is also Los\'s runner: add one short line asking him to keep an eye on the overall day and flag anything Los should see.' : ''}
 ${request.instruction ? `- Los also wants this said (rephrase naturally): ${request.instruction}` : ''}
-- Under 550 characters total. Plain text only — no markdown, no headings, no quotes around the message.
+- Under 450 characters total. Plain text only — no markdown, no headings, no quotes around the message.
 
 Today's units for ${request.crewName}:
 ${unitLines}

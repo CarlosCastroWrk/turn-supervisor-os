@@ -54,6 +54,9 @@ export function ManualReleaseReview({
   // Joseph releases paint first and cleans follow later, so the quick grid
   // needs a per-trade scope — one tap must not release the other trade.
   const [tradeScope, setTradeScope] = useState<'both' | 'Paint' | 'Clean'>('both');
+  // Searching filters the SAME tap grid; the per-section checkbox view is an
+  // explicit choice, never a surprise interface swap.
+  const [sectionMode, setSectionMode] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -219,7 +222,7 @@ export function ManualReleaseReview({
           <ArrowLeft aria-hidden="true" size={22} />
         </button>
         <div>
-          <h1>Manual release review</h1>
+          <h1>Quick add units</h1>
           <p>{currentDate} · personal Turn OS copy</p>
         </div>
       </header>
@@ -326,12 +329,11 @@ export function ManualReleaseReview({
           <strong>{selected.size} section{selected.size === 1 ? '' : 's'} selected</strong>
         </div>
 
-        {!query.trim() && selected.size === 0 ? (
+        {!sectionMode ? (
           <div className="w2a2-core-quickgrid" aria-label="Tap Units the property released">
             <p className="w2a2-core-caption">
               Tap the Units Joseph released — one tap selects the whole Unit
-              for the trades below. Search above for partial releases, or
-              import from a photo / paste.
+              for the trades below. Type a number above to jump to it.
             </p>
             <div className="w2a2-core-quickgrid__scope" role="group" aria-label="Trades to release">
               {([['both', 'Paint + Clean'], ['Paint', 'Paint only'], ['Clean', 'Clean only']] as const)
@@ -347,8 +349,17 @@ export function ManualReleaseReview({
                   </button>
                 ))}
             </div>
+            <button
+              className="w2a2-core-sectionmode-toggle"
+              onClick={() => setSectionMode(true)}
+              type="button"
+            >
+              Need part of a unit? Pick sections instead
+            </button>
             <div className="w2a2-core-quickgrid__units">
               {[...roster.units]
+                .filter((unit) => !query.trim()
+                  || unit.unitNumber.toLowerCase().includes(query.trim().toLowerCase()))
                 .sort((left, right) =>
                   left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
                 .map((unit) => {
@@ -383,6 +394,13 @@ export function ManualReleaseReview({
           </div>
         ) : (
         <div className="w2a2-core-release__units">
+          <button
+            className="w2a2-core-sectionmode-toggle"
+            onClick={() => setSectionMode(false)}
+            type="button"
+          >
+            ← Back to the tap grid (whole units)
+          </button>
           {matchingUnits.visible.map((unit) => (
             <section className="w2a2-core-release__unit" key={unit.id}>
               <header>

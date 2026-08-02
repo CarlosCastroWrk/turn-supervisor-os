@@ -65,16 +65,22 @@ interface PlusItem {
 
 const PLUS_ITEMS: readonly PlusItem[] = [
   {
+    action: 'import-work',
+    description: 'Joseph released more units — tap them on the grid',
+    icon: <FolderUp aria-hidden="true" size={20} />,
+    label: 'Quick Add Units',
+  },
+  {
     action: 'note',
-    description: 'Save a personal Activity note',
+    description: 'Save a note — find it later in Activity or Search',
     icon: <MessageSquare aria-hidden="true" size={20} />,
     label: 'Note',
   },
   {
     action: 'blocker',
-    description: 'Open the existing blocker flow',
+    description: 'Locked out or blocked unit — record why',
     icon: <AlertTriangle aria-hidden="true" size={20} />,
-    label: 'Blocker',
+    label: 'Blocked Unit',
   },
   {
     action: 'camera',
@@ -99,12 +105,6 @@ const PLUS_ITEMS: readonly PlusItem[] = [
     description: 'Open the existing text intake',
     icon: <ClipboardPaste aria-hidden="true" size={20} />,
     label: 'Paste Text',
-  },
-  {
-    action: 'import-work',
-    description: 'Record another manual Daily Release batch',
-    icon: <FolderUp aria-hidden="true" size={20} />,
-    label: 'Add Release Batch',
   },
 ];
 

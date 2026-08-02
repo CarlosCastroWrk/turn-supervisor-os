@@ -1,7 +1,10 @@
-import pg from 'pg';
 import { verifyCaptureUser } from '../../server/ai/captureAuth.js';
 import { CaptureRouteError } from '../../server/ai/captureHandler.js';
-import { portalTokenMatches } from '../../server/portal/portalShared.js';
+import {
+  portalStoreConfigured,
+  portalTokenMatches,
+  withPortalDb,
+} from '../../server/portal/portalShared.js';
 
 // One-shot, idempotent portal-store setup. Runs ONLY this fixed DDL — there is
 // no path to arbitrary SQL. Caller must be the signed-in allowed user OR hold
@@ -46,21 +49,15 @@ const handler = async (request: Request): Promise<Response> => {
   if (!(await authorized(request))) {
     return json(401, { error: 'Not authorized.' });
   }
-  const connectionString = process.env.POSTGRES_URL_NON_POOLING?.trim()
-    || process.env.POSTGRES_URL?.trim();
-  if (!connectionString) {
+  if (!portalStoreConfigured()) {
     return json(503, { error: 'Database connection is not configured.' });
   }
-  const client = new pg.Client({ connectionString });
   try {
-    await client.connect();
-    await client.query(PORTAL_DDL);
+    await withPortalDb((client) => client.query(PORTAL_DDL));
     return json(200, { ok: true });
   } catch (error) {
     console.error('portal-setup-failed', error);
     return json(502, { error: 'Portal setup failed.' });
-  } finally {
-    await client.end().catch(() => undefined);
   }
 };
 

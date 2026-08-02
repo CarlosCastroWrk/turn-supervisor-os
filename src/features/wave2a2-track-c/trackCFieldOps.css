@@ -2254,3 +2254,27 @@ select.track-c-trade-change {
   justify-content: center;
   width: 84px;
 }
+
+.track-c-contacted-today {
+  color: var(--track-c-muted);
+  font-size: 13px;
+  margin: 0 10px 8px;
+}
+
+.track-c-crew-ai-draft {
+  align-items: center;
+  background: var(--track-c-blue);
+  border: 1.5px solid var(--track-c-blue);
+  border-radius: 10px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 750;
+  gap: 5px;
+  min-block-size: 40px;
+  padding: 6px 12px;
+}
+
+.track-c-crew-ai-draft:disabled {
+  opacity: 0.6;
+}

@@ -5,8 +5,16 @@ import {
   Paintbrush,
   Pencil,
   Phone,
+  Sparkles,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { composeEnabled, requestComposedText } from '../../lib/composeClient';
+import {
+  appendContactLog,
+  contactsToday,
+  lastContactTodayFor,
+  readContactLog,
+} from '../../lib/contactLog';
 import type {
   TrackCCrewDetail,
   TrackCState,
@@ -231,6 +239,10 @@ export const CrewView = ({
 }: CrewViewProps) => {
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   const [expandedContactId, setExpandedContactId] = useState<string>();
+  // Device-local "who did I contact today" receipts — deliberately outside the
+  // event ledger (schema freeze), so a lost entry costs nothing operationally.
+  const [contactLog, setContactLog] = useState(() => readContactLog());
+  const [aiDraftingCrewId, setAiDraftingCrewId] = useState<string>();
   // Beds + common areas each crew reported complete TODAY — the 5-second
   // payroll glance.
   const todayByCrew = useMemo(() => {
@@ -285,6 +297,45 @@ export const CrewView = ({
       'Gracias! Great work.',
     ].join('\n');
   };
+  const logContact = (crewId: string, name: string, kind: 'call' | 'text' | 'ai-text') => {
+    setContactLog(appendContactLog({ crewId, kind, name }));
+  };
+  // AI-personalized draft: Sonnet writes the bilingual text from the crew's
+  // REAL current assignments; the phone's Messages composer opens with it and
+  // nothing sends until Los taps send. Falls back to the standard template.
+  const openAiDraft = async (
+    crewId: string,
+    crewName: string,
+    trade: 'paint' | 'clean',
+    phone: string,
+  ) => {
+    setAiDraftingCrewId(crewId);
+    try {
+      const detail = projectTrackCCrewDetail(state, crewId);
+      const byUnit = new Map<string, string[]>();
+      for (const work of detail?.currentWork ?? []) {
+        const unit = trackCUnitForTarget(state, work);
+        if (!unit) continue;
+        const sections = byUnit.get(unit.unitNumber) ?? [];
+        sections.push(work.section === 'common' ? 'common' : work.section);
+        byUnit.set(unit.unitNumber, sections);
+      }
+      const units = [...byUnit.entries()]
+        .sort((left, right) => left[0].localeCompare(right[0], undefined, { numeric: true }))
+        .map(([unitNumber, sections]) => ({ sections: [...new Set(sections)], unitNumber }));
+      let body: string;
+      try {
+        body = await requestComposedText({ crewName, trade, units });
+        logContact(crewId, crewName, 'ai-text');
+      } catch {
+        body = composeBody(crewId, crewName);
+        logContact(crewId, crewName, 'text');
+      }
+      window.location.href = `sms:${phone}&body=${encodeURIComponent(body)}`;
+    } finally {
+      setAiDraftingCrewId(undefined);
+    }
+  };
 
   if (selectedCrewId) {
     return (
@@ -309,6 +360,24 @@ export const CrewView = ({
         </div>
         <span>{crews.filter((item) => item.crew.activeToday).length} active</span>
       </header>
+      {(() => {
+        const today = contactsToday(contactLog);
+        if (today.length === 0) return null;
+        const seen = new Set<string>();
+        const names = today.filter((entry) => {
+          if (seen.has(entry.crewId)) return false;
+          seen.add(entry.crewId);
+          return true;
+        });
+        return (
+          <p className="track-c-contacted-today">
+            Contacted today:{' '}
+            {names.map((entry) =>
+              `${entry.name} ${new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`)
+              .join(' · ')}
+          </p>
+        );
+      })()}
       {onAddCrewRequested ? (
         <button
           className="track-c-add-crew"
@@ -381,6 +450,11 @@ export const CrewView = ({
             ? `wk ${week.beds} bed${week.beds === 1 ? '' : 's'}${week.commons > 0 ? ` + ${week.commons} common` : ''}`
             : '';
           const phone = crewDirectory?.[crew.id]?.phone?.trim();
+          const contactedToday = lastContactTodayFor(contactLog, crew.id);
+          const contactedLabel = contactedToday
+            ? `${contactedToday.kind === 'call' ? 'called' : 'texted'} ${new Date(contactedToday.at)
+              .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+            : '';
           return (
             <div className="track-c-crew-card" key={crew.id}>
               <button
@@ -400,6 +474,7 @@ export const CrewView = ({
                     {crew.activeToday ? 'Active today' : 'Not active today'}
                     {todayLabel ? ` · today: ${todayLabel}` : ''}
                     {weekLabel ? ` · ${weekLabel}` : ''}
+                    {contactedLabel ? ` · ✓ ${contactedLabel}` : ''}
                   </small>
                 </span>
                 <span className="track-c-crew-row__stats">
@@ -420,13 +495,33 @@ export const CrewView = ({
                 ) : null}
                 {phone ? (
                   <>
-                    <a aria-label={`Call ${crew.name}`} href={`tel:${phone}`}>Call</a>
+                    <a
+                      aria-label={`Call ${crew.name}`}
+                      href={`tel:${phone}`}
+                      onClick={() => logContact(crew.id, crew.name, 'call')}
+                    >
+                      Call
+                    </a>
                     <a
                       aria-label={`Text ${crew.name} today's assignments`}
                       href={`sms:${phone}&body=${encodeURIComponent(composeBody(crew.id, crew.name))}`}
+                      onClick={() => logContact(crew.id, crew.name, 'text')}
                     >
                       Text
                     </a>
+                    {composeEnabled() ? (
+                      <button
+                        aria-label={`AI-drafted text for ${crew.name}`}
+                        className="track-c-crew-ai-draft"
+                        disabled={aiDraftingCrewId === crew.id}
+                        onClick={() =>
+                          void openAiDraft(crew.id, crew.name, crew.trade, phone)}
+                        type="button"
+                      >
+                        <Sparkles aria-hidden="true" size={14} />
+                        {aiDraftingCrewId === crew.id ? 'Drafting…' : 'AI text'}
+                      </button>
+                    ) : null}
                   </>
                 ) : null}
               </div>

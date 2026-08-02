@@ -65,7 +65,7 @@ const queueMetadata: Record<TodayTaskQueueId, Pick<TodayTaskQueue, 'emptyMessage
     emptyMessage: 'No released sections are ready for a property walk.',
     label: 'Ready to walk',
   },
-  waiting: { emptyMessage: 'No released sections are waiting.', label: 'Waiting' },
+  waiting: { emptyMessage: 'Nothing is waiting or blocked.', label: 'Waiting / Blocked' },
   working: { emptyMessage: 'No released sections are currently working.', label: 'Working' },
 };
 

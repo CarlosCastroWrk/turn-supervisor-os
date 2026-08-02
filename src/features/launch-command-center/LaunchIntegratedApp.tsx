@@ -379,6 +379,7 @@ function LaunchOperationalApp({
   // Context-aware Block Unit: Plus on a unit already knows WHICH unit.
   const [blockDialog, setBlockDialog] = useState<{ unitId?: string } | null>(null);
   const [blockReason, setBlockReason] = useState('');
+  const [blockTrade, setBlockTrade] = useState<'paint' | 'clean' | 'both'>('both');
   const [walkRequests, setWalkRequests] = useState<
     { at: string; name: string; units: string[] }[]
   >([]);
@@ -1630,6 +1631,7 @@ function LaunchOperationalApp({
     setPlusOpen(false);
     if (action === 'blocker') {
       setBlockReason('');
+      setBlockTrade('both');
       setBlockDialog({
         unitId: routeRef.current.view === 'unitDetail' ? routeRef.current.unitId : undefined,
       });
@@ -2080,8 +2082,9 @@ function LaunchOperationalApp({
     const currentlyBlocked = selected?.workFacts.some((fact) => fact.access !== 'clear');
     const commitBlock = (reason: string | undefined) => {
       if (!selectedId) return;
+      const tradeScope = blockTrade === 'both' ? undefined : blockTrade;
       const saved = commitDataNow((current) =>
-        setUnitReleaseRestriction(current, selectedId, reason));
+        setUnitReleaseRestriction(current, selectedId, reason, tradeScope));
       if (saved) {
         setMoreStatus(reason === undefined
           ? `Unit ${selected?.unitNumber ?? ''} unblocked — back in the working queues.`
@@ -2106,6 +2109,20 @@ function LaunchOperationalApp({
               ))}
             </select>
           ) : null}
+          <div className="lcc-block-dialog__reasons lcc-block-dialog__trades">
+            {([['paint', 'Paint only'], ['clean', 'Clean only'], ['both', 'Paint + Clean']] as const)
+              .map(([value, label]) => (
+                <button
+                  aria-pressed={blockTrade === value}
+                  className={blockTrade === value ? 'is-selected' : undefined}
+                  key={value}
+                  onClick={() => setBlockTrade(value)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+          </div>
           <div className="lcc-block-dialog__reasons">
             {['Locked out — no key', 'Occupied — do not enter', 'Maintenance in unit', 'Paint after Turn'].map((reason) => (
               <button

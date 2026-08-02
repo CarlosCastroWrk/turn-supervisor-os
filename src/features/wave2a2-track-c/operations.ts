@@ -18,6 +18,7 @@ import {
 import { trackCWorkKey } from './model';
 import {
   projectTrackCAssignmentEligibility,
+  projectTrackCUnitWork,
   projectTrackCWalkCandidates,
   projectTrackCWork,
 } from './projections';
@@ -1006,3 +1007,49 @@ export const TRACK_C_OPERATION_BOUNDARY = Object.freeze({
   legalSignature: false,
   wholeUnitDone: false,
 });
+
+export interface TrackCDirectAcceptanceInput {
+  readonly unitId: string;
+  readonly trade: TrackCTrade;
+  readonly recordedAt: string;
+  readonly recordedBy: string;
+  readonly idFactory: (prefix: string) => string;
+  readonly contactName?: string;
+}
+
+// "PDS approved" from inside the unit: Los walked this trade with the
+// property (Tony/Joseph/Paige) outside a formal walk session. Accepts every
+// Los-passed section of the trade using the SAME property-accepted event the
+// walk flow writes — no new event type, paper and payroll untouched.
+export const recordTrackCDirectPropertyAcceptance = (
+  state: TrackCState,
+  input: TrackCDirectAcceptanceInput,
+): TrackCResult<TrackCState> => {
+  const eligible = projectTrackCUnitWork(state, input.unitId).filter((work) =>
+    work.trade === input.trade
+    && work.release === 'released'
+    && work.inspection === 'los-passed'
+    && work.property !== 'property-accepted');
+  if (eligible.length === 0) {
+    return error(
+      'invalid-transition',
+      'Nothing is ready: sections need your pass first, or they are already accepted.',
+    );
+  }
+  const summary = input.contactName?.trim()
+    ? `PDS approved — walked with ${input.contactName.trim()}. Paper and payroll remain unchanged.`
+    : 'PDS approved — walked with the property. Paper and payroll remain unchanged.';
+  return {
+    ok: true,
+    value: appendEvents(state, eligible.map((work) => confirmedEvent({
+      id: input.idFactory('event'),
+      eventType: 'property-accepted',
+      target: { section: work.section, trade: work.trade, unitId: work.unitId },
+      recordedAt: input.recordedAt,
+      recordedBy: input.recordedBy,
+      sourceType: 'property-walk-observation',
+      sourceLabel: 'Unit page · PDS approved',
+      summary,
+    }))),
+  };
+};

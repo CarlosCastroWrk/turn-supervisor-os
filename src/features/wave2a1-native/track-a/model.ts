@@ -2,7 +2,7 @@ export const NATIVE_HOME_SUMMARIES = [
   { id: 'needs-crew', label: 'Needs Crew' },
   { id: 'working', label: 'Working' },
   { id: 'needs-inspection', label: 'Needs Inspection' },
-  { id: 'waiting', label: 'Waiting' },
+  { id: 'waiting', label: 'Waiting / Blocked' },
   { id: 'callbacks', label: 'Callbacks' },
   { id: 'ready-to-walk', label: 'Ready to walk' },
 ] as const;

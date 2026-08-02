@@ -26,6 +26,7 @@ import {
   changeTrackCCrew,
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
+  recordTrackCDirectPropertyAcceptance,
   recordTrackCPersonalPdsMirror,
   type TrackCSectionAction,
 } from './operations';
@@ -251,6 +252,24 @@ export const TrackCFieldOps = ({
     commitState(nextState, `trade-${trade}-crew-complete`);
   };
 
+  const pdsApprove = (unitId: string, trade: TrackCTrade) => {
+    const result = recordTrackCDirectPropertyAcceptance(state, {
+      idFactory: createId,
+      recordedAt: now(),
+      recordedBy: 'Los',
+      trade,
+      unitId,
+    });
+    if (!result.ok) {
+      setNotice(result.error.message);
+      return;
+    }
+    setNotice(
+      `${trade === 'paint' ? 'Paint' : 'Clean'} PDS approved for this unit — it counts as walked and accepted.`,
+    );
+    commitState(result.value, `pds-approved-${trade}`);
+  };
+
   const quickAssign = (
     unitId: string,
     trade: TrackCTrade,
@@ -455,6 +474,7 @@ export const TrackCFieldOps = ({
             state={state}
             unitPhotos={unitPhotos}
             onCommitUnitPhoto={onCommitUnitPhoto}
+            onPdsApprove={pdsApprove}
           />
         ) : null}
         {view === 'crews' ? (

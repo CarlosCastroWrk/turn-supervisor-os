@@ -1184,20 +1184,23 @@ export function setUnitReleaseRestriction(
   data: AppData,
   unitId: string,
   reason: string | undefined,
+  trade?: 'paint' | 'clean',
 ): AppData {
   const restriction = reason === undefined
     ? undefined
     : `Blocked — ${reason.trim() || 'no reason recorded'}`;
+  const applies = (item: { unitId: string; trade: string }) =>
+    item.unitId === unitId && (!trade || item.trade === trade);
   return {
     ...data,
     dailyReleaseBatches: data.dailyReleaseBatches.map((batch) =>
       batch.projectId !== data.activeProjectId
-        || !batch.items.some((item) => item.unitId === unitId)
+        || !batch.items.some(applies)
         ? batch
         : {
           ...batch,
           items: batch.items.map((item) =>
-            item.unitId === unitId
+            applies(item)
               ? restriction === undefined
                 ? (() => {
                   const next = { ...item };

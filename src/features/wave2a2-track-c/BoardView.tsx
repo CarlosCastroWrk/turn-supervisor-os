@@ -59,6 +59,7 @@ interface BoardViewProps {
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
+  readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -252,11 +253,13 @@ const CompactUnitRow = ({
   unit,
   onOpen,
   cleanNext = false,
+  trade,
 }: {
   state: TrackCState;
   unit: TrackCCompactUnitProjection;
   onOpen: () => void;
   cleanNext?: boolean;
+  trade?: TrackCTrade;
 }) => (
   <button
     aria-label={`Open Unit ${unit.unitNumber}`}
@@ -278,8 +281,8 @@ const CompactUnitRow = ({
       </span>
     </div>
     <div className="track-c-unit-row__trades">
-      <CompactTrade progress={unit.paint} state={state} />
-      <CompactTrade progress={unit.clean} state={state} />
+      {trade !== 'clean' ? <CompactTrade progress={unit.paint} state={state} /> : null}
+      {trade !== 'paint' ? <CompactTrade progress={unit.clean} state={state} /> : null}
     </div>
     {cleanNext ? (
       <span className="track-c-signal is-clean-next">Clean next</span>
@@ -447,6 +450,8 @@ const UnitDetail = ({
   onRequestMirror,
   unitPhotos,
   onCommitUnitPhoto,
+  focusTrade,
+  onPdsApprove,
 }: {
   state: TrackCState;
   unitId: string;
@@ -460,6 +465,8 @@ const UnitDetail = ({
   onRequestMirror: BoardViewProps['onRequestMirror'];
   unitPhotos?: BoardViewProps['unitPhotos'];
   onCommitUnitPhoto?: BoardViewProps['onCommitUnitPhoto'];
+  focusTrade?: TrackCTrade;
+  onPdsApprove?: BoardViewProps['onPdsApprove'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -537,7 +544,10 @@ const UnitDetail = ({
           unitNumber={unit.unitNumber}
         />
       ) : null}
-      {TRACK_C_TRADES.map((trade) => {
+      {[...TRACK_C_TRADES]
+        .sort((left, right) =>
+          Number(right === focusTrade) - Number(left === focusTrade))
+        .map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);
         const progress = projectTrackCTradeProgress(state, unitId, trade);
@@ -640,6 +650,19 @@ const UnitDetail = ({
                 Crew reports {tradeLabel(trade)} complete
               </button>
             ) : null}
+            {onPdsApprove && tradeWork.some((item) =>
+              item.release === 'released'
+              && item.inspection === 'los-passed'
+              && item.property !== 'property-accepted') ? (
+                <button
+                  className="track-c-trade-complete track-c-pds-approve"
+                  data-track-c-critical-target="true"
+                  onClick={() => onPdsApprove(unitId, trade)}
+                  type="button"
+                >
+                  PDS approved — walked {tradeLabel(trade)} with the property
+                </button>
+              ) : null}
             <div className="track-c-section-list">
               {tradeWork.map((item) => {
                 const key = trackCWorkKey(item);
@@ -692,15 +715,36 @@ export const BoardView = ({
   onRequestMirror,
   unitPhotos,
   onCommitUnitPhoto,
+  onPdsApprove,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
+  // The wall board keeps Paint and Clean as separate boards — mirror that.
+  const [boardTrade, setBoardTrade] = useState<TrackCTrade>(() => {
+    try {
+      const stored = window.localStorage.getItem('turn-os:board-trade');
+      return stored === 'clean' ? 'clean' : 'paint';
+    } catch {
+      return 'paint';
+    }
+  });
+  const pickBoardTrade = (trade: TrackCTrade) => {
+    setBoardTrade(trade);
+    try {
+      window.localStorage.setItem('turn-os:board-trade', trade);
+    } catch {
+      // Storage full — the toggle still works for this session.
+    }
+  };
+  const [focusTrade, setFocusTrade] = useState<TrackCTrade>();
+  const tradeWorkFor = (unitId: string) =>
+    projectTrackCUnitWork(state, unitId).filter((work) => work.trade === boardTrade);
   const unitWorkHas = (unitId: string, predicate: (work: TrackCWorkProjection) => boolean) =>
-    projectTrackCUnitWork(state, unitId).some(predicate);
-  // Approved means the WHOLE released unit is accepted — a unit with clean
-  // accepted but paint still open is working inventory, not approved.
+    tradeWorkFor(unitId).some(predicate);
+  // Approved on a trade board = every released section of THIS trade accepted
+  // (the wall board keeps Paint and Clean separate, so we do too).
   const isApproved = (unitId: string) => {
-    const released = projectTrackCUnitWork(state, unitId)
+    const released = tradeWorkFor(unitId)
       .filter((work) => work.release === 'released');
     return released.length > 0
       && released.every((work) => work.property === 'property-accepted');
@@ -735,21 +779,26 @@ export const BoardView = ({
     if (scope === 'callbacks') return matches.filter((unit) => hasCallback(unit.unitId));
     return matches.filter((unit) =>
       state.units.find((candidate) => candidate.id === unit.unitId)
-        ?.workFacts.some((fact) => fact.release === 'released'));
+        ?.workFacts.some((fact) =>
+          fact.trade === boardTrade && fact.release === 'released'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, scope, state]);
+  }, [boardTrade, query, scope, state]);
   const releasedCount = useMemo(() => state.units.filter((unit) =>
-    unit.workFacts.some((fact) => fact.release === 'released')).length, [state.units]);
+    unit.workFacts.some((fact) =>
+      fact.trade === boardTrade && fact.release === 'released')).length,
+  [boardTrade, state.units]);
   const approvedCount = useMemo(() => state.units.filter((unit) =>
-    isApproved(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+    isApproved(unit.id)).length, [boardTrade, state]); // eslint-disable-line react-hooks/exhaustive-deps
   const workingCount = useMemo(() => state.units.filter((unit) =>
-    isWorking(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+    isWorking(unit.id)).length, [boardTrade, state]); // eslint-disable-line react-hooks/exhaustive-deps
   const callbackCount = useMemo(() => state.units.filter((unit) =>
-    hasCallback(unit.id)).length, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+    hasCallback(unit.id)).length, [boardTrade, state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (selectedUnitId) {
     return (
       <UnitDetail
+        focusTrade={focusTrade ?? boardTrade}
+        onPdsApprove={onPdsApprove}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onChangeCrew={onChangeCrew}
@@ -775,6 +824,22 @@ export const BoardView = ({
         </div>
         <span>{units.length} Units</span>
       </header>
+      <div className="track-c-board-trade" role="group" aria-label="Paint or Clean board">
+        <button
+          aria-pressed={boardTrade === 'paint'}
+          onClick={() => pickBoardTrade('paint')}
+          type="button"
+        >
+          <Paintbrush aria-hidden="true" size={15} /> Paint board
+        </button>
+        <button
+          aria-pressed={boardTrade === 'clean'}
+          onClick={() => pickBoardTrade('clean')}
+          type="button"
+        >
+          <Droplets aria-hidden="true" size={15} /> Clean board
+        </button>
+      </div>
       <div className="track-c-board-scope" role="group" aria-label="Board scope">
         <button
           aria-pressed={scope === 'released'}
@@ -827,10 +892,14 @@ export const BoardView = ({
         {units.length > 0 ? (
           units.map((unit) => (
             <CompactUnitRow
-              cleanNext={isCleanNext(unit.unitId)}
+              cleanNext={boardTrade === 'clean' && isCleanNext(unit.unitId)}
               key={unit.unitId}
-              onOpen={() => onOpenUnit(unit.unitId)}
+              onOpen={() => {
+                setFocusTrade(boardTrade);
+                onOpenUnit(unit.unitId);
+              }}
               state={state}
+              trade={boardTrade}
               unit={unit}
             />
           ))

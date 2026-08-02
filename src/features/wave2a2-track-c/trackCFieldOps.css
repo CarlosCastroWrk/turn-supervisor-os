@@ -2376,3 +2376,37 @@ select.track-c-trade-change {
   padding: 8px 12px;
   width: 100%;
 }
+
+.track-c-board-trade {
+  display: flex;
+  gap: 8px;
+  padding: 0 10px 8px;
+}
+
+.track-c-board-trade > button {
+  align-items: center;
+  background: var(--track-c-surface);
+  border: 1.5px solid var(--track-c-border);
+  border-radius: 12px;
+  color: var(--track-c-muted);
+  display: inline-flex;
+  flex: 1;
+  font-size: 15px;
+  font-weight: 800;
+  gap: 6px;
+  justify-content: center;
+  min-block-size: 44px;
+  padding: 8px 12px;
+}
+
+.track-c-board-trade > button[aria-pressed='true'] {
+  background: var(--track-c-blue);
+  border-color: var(--track-c-blue);
+  color: #fff;
+}
+
+.track-c-pds-approve {
+  background: #e2f2e8;
+  border-color: var(--track-c-green);
+  color: var(--track-c-green);
+}

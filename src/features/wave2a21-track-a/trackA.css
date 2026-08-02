@@ -981,3 +981,13 @@
   text-align: start;
   width: fit-content;
 }
+
+.w2a21a-release__search input {
+  border: 1.5px solid #d9dde3;
+  border-radius: 12px;
+  font-size: 16px;
+  margin: 0 0 8px;
+  min-block-size: 46px;
+  padding: 8px 14px;
+  width: 100%;
+}

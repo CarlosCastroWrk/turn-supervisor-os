@@ -62,6 +62,10 @@ interface BoardViewProps {
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onSetSectionRelease?: (
+    target: TrackCWorkTarget,
+    released: boolean,
+  ) => void;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -317,6 +321,7 @@ const WorkSection = ({
   onSelect,
   onAction,
   onRequestMirror,
+  onToggleRelease,
 }: {
   state: TrackCState;
   work: TrackCWorkProjection;
@@ -324,6 +329,7 @@ const WorkSection = ({
   onSelect: () => void;
   onAction: (action: TrackCSectionAction) => void;
   onRequestMirror: () => void;
+  onToggleRelease?: (released: boolean) => void;
 }) => {
   const actions = actionsFor(work);
   const blocked =
@@ -385,11 +391,36 @@ const WorkSection = ({
           <p className="track-c-section-row__detail-status">
             {executionLabel(work)}
           </p>
+          {onToggleRelease
+            && work.release === 'released'
+            && work.activeCrewIds.length === 0
+            && work.execution !== 'crew-reported-complete'
+            && work.inspection === 'not-ready'
+            && work.property !== 'property-accepted' ? (
+              <button
+                className="track-c-release-toggle is-remove"
+                onClick={() => onToggleRelease(false)}
+                type="button"
+              >
+                Joseph didn’t release this — mark not released
+              </button>
+            ) : null}
           {work.release === 'unreleased' && !work.assignmentConflict ? (
-            <p className="track-c-section-row__note">
-              Not released yet. This section appears here when the property
-              releases it.
-            </p>
+            <>
+              <p className="track-c-section-row__note">
+                Not released yet.
+              </p>
+              {onToggleRelease ? (
+                <button
+                  className="track-c-release-toggle"
+                  data-track-c-critical-target="true"
+                  onClick={() => onToggleRelease(true)}
+                  type="button"
+                >
+                  Joseph released this — mark released
+                </button>
+              ) : null}
+            </>
           ) : blocked ? (
             <p className="track-c-section-row__warning">
               <ShieldAlert aria-hidden="true" size={16} />
@@ -463,6 +494,7 @@ const UnitDetail = ({
   onPdsApprove,
   onUnblockUnit,
   onRequestBlock,
+  onSetSectionRelease,
 }: {
   state: TrackCState;
   unitId: string;
@@ -480,6 +512,7 @@ const UnitDetail = ({
   onPdsApprove?: BoardViewProps['onPdsApprove'];
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
   onRequestBlock?: BoardViewProps['onRequestBlock'];
+  onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -722,6 +755,16 @@ const UnitDetail = ({
                   <WorkSection
                     isSelected={selectedKey === key}
                     key={key}
+                    onToggleRelease={onSetSectionRelease
+                      ? (released) => onSetSectionRelease(
+                        {
+                          unitId: item.unitId,
+                          trade: item.trade,
+                          section: item.section,
+                        },
+                        released,
+                      )
+                      : undefined}
                     onAction={(action) =>
                       onSectionAction(
                         {
@@ -779,6 +822,7 @@ export const BoardView = ({
   onPdsApprove,
   onUnblockUnit,
   onRequestBlock,
+  onSetSectionRelease,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
@@ -887,6 +931,7 @@ export const BoardView = ({
         onPdsApprove={onPdsApprove}
         onUnblockUnit={onUnblockUnit}
         onRequestBlock={onRequestBlock}
+        onSetSectionRelease={onSetSectionRelease}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onChangeCrew={onChangeCrew}

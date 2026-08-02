@@ -42,6 +42,7 @@ export function DailyReleaseSelector({
   rosterUnits,
 }: DailyReleaseSelectorProps) {
   const [exactUnitInput, setExactUnitInput] = useState('');
+  const [gridQuery, setGridQuery] = useState('');
   const [exactUnitErrors, setExactUnitErrors] = useState<readonly string[]>([]);
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeStatus, setIntakeStatus] = useState('');
@@ -282,8 +283,22 @@ export function DailyReleaseSelector({
                   </button>
                 ) : null}
               </div>
+              <label className="w2a21a-release__search">
+                <span className="sr-only">Search units</span>
+                <input
+                  autoComplete="off"
+                  inputMode="search"
+                  onChange={(event) => setGridQuery(event.target.value)}
+                  placeholder="Type a unit number — no scrolling"
+                  value={gridQuery}
+                />
+              </label>
               <div className="w2a21a-release__roster-grid">
-                {rosterUnits.map((unit) => {
+                {rosterUnits
+                  .filter((unit) => !gridQuery.trim()
+                    || unit.unitNumber.toLowerCase()
+                      .includes(gridQuery.trim().toLowerCase()))
+                  .map((unit) => {
                   const checked = draft.selectedUnitIds.includes(unit.id);
                   const done = doneUnitIds?.has(unit.id) ?? false;
                   return (

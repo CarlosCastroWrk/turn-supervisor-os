@@ -114,6 +114,7 @@ import {
   projectTodayTask,
   projectTrackCState,
   projectTrackCWalkDraft,
+  setSectionReleaseState,
   setUnitReleaseRestriction,
 } from '../wave2a2-core/appDataAdapters';
 import {
@@ -2450,6 +2451,23 @@ function LaunchOperationalApp({
             setBlockReason('');
             setBlockTrade(trade);
             setBlockDialog({ unitId });
+          }}
+          onSetSectionRelease={(target, released) => {
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
+            const saved = commitDataNow((current) => setSectionReleaseState(current, {
+              idFactory: createId,
+              nowIso: nowISO(),
+              released,
+              section: target.section,
+              trade: target.trade,
+              unitId: target.unitId,
+            }));
+            setMoreStatus(saved
+              ? released
+                ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} ${target.trade === 'paint' ? 'Paint' : 'Clean'} marked released.`
+                : `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} ${target.trade === 'paint' ? 'Paint' : 'Clean'} marked NOT released.`
+              : 'Start the day first, then adjust the release from the unit page.');
           }}
           onCommitUnitPhoto={(photo) =>
             // Photos are dispute evidence — persist synchronously like field

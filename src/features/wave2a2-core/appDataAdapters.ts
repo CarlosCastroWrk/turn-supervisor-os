@@ -1212,3 +1212,82 @@ export function setUnitReleaseRestriction(
         }),
   };
 }
+
+// Joseph releases at room grain ("307 — A, B, C only"). These two paths keep
+// the app's release scope editable from the unit page: drop a section he
+// didn't release, add it back the day he does. Re-releases ride a small
+// confirmed adjustment batch attached to the ACTIVE day session so every
+// projection sees them; nothing is deleted from history on un-release beyond
+// the release rows themselves.
+export function setSectionReleaseState(
+  data: AppData,
+  input: {
+    unitId: string;
+    trade: 'paint' | 'clean';
+    section: DailyReleaseItem['section'];
+    released: boolean;
+    nowIso: string;
+    idFactory: (prefix: string) => string;
+  },
+): AppData {
+  if (!input.released) {
+    return {
+      ...data,
+      dailyReleaseBatches: data.dailyReleaseBatches.map((batch) =>
+        batch.projectId !== data.activeProjectId
+          ? batch
+          : {
+            ...batch,
+            items: batch.items.filter((item) =>
+              !(item.unitId === input.unitId
+                && item.trade === input.trade
+                && item.section === input.section)),
+          }),
+    };
+  }
+  const session = data.daySessions.find((candidate) =>
+    candidate.projectId === data.activeProjectId
+    && ['active', 'ending', 'reopened'].includes(candidate.status));
+  if (!session) return data;
+  const alreadyReleased = data.dailyReleaseBatches.some((batch) =>
+    batch.projectId === data.activeProjectId
+    && session.releaseBatchIds.includes(batch.id)
+    && batch.items.some((item) =>
+      item.unitId === input.unitId
+      && item.trade === input.trade
+      && item.section === input.section));
+  if (alreadyReleased) return data;
+  const batch = {
+    id: input.idFactory('release'),
+    projectId: data.activeProjectId,
+    date: session.date,
+    propertyContact: session.propertyContact || 'Property',
+    sourceType: 'manual' as const,
+    sourceLabel: 'Unit page adjustment',
+    status: 'confirmed' as const,
+    items: [{
+      id: input.idFactory('release-item'),
+      unitId: input.unitId,
+      trade: input.trade,
+      section: input.section,
+      sourceExcerpt: 'Released later — added from the unit page.',
+    }],
+    uncertainties: [],
+    confirmedBy: 'Los',
+    confirmedAt: input.nowIso,
+    createdAt: input.nowIso,
+    updatedAt: input.nowIso,
+  };
+  return {
+    ...data,
+    dailyReleaseBatches: [...data.dailyReleaseBatches, batch],
+    daySessions: data.daySessions.map((candidate) =>
+      candidate.id === session.id
+        ? {
+          ...candidate,
+          releaseBatchIds: [...candidate.releaseBatchIds, batch.id],
+          updatedAt: input.nowIso,
+        }
+        : candidate),
+  };
+}

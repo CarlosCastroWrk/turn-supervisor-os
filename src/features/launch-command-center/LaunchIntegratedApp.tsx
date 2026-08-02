@@ -230,11 +230,13 @@ const TRACK_C_TAB_ROOTS = {
 } as const;
 
 const trackCTabForRoute = (view: AppView): TrackCPrimaryTab => {
-  if (view === 'activity') return 'activity';
+  // Crews is its own first-class tab now — routing it under the 'activity'
+  // memory slot keeps it OUT of TurnBoard's remembered route, so tapping
+  // TurnBoard always lands on the board (the "tap TurnBoard, get Crews" bug).
+  if (view === 'activity' || view === 'crews') return 'activity';
   if (
     view === 'units'
     || view === 'unitDetail'
-    || view === 'crews'
     || view === 'assignments'
   ) return 'turnboard';
   if (
@@ -339,6 +341,11 @@ export function LaunchIntegratedApp() {
   return <LaunchOperationalApp persistence={persistence} />;
 }
 
+const localEventDate = (iso: string) => {
+  const date = new Date(iso);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 function LaunchOperationalApp({
   persistence,
 }: {
@@ -364,6 +371,9 @@ function LaunchOperationalApp({
   // When a unit is opened from a Home queue (Needs Crew, Working, …), Back
   // must return to that queue — not dump Los on the TurnBoard.
   const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | undefined>(undefined);
+  // Same rule for crews: opened from Home's "Crews right now" → Back returns
+  // to Home, not the Crews tab.
+  const crewOriginHomeRef = useRef(false);
   const [walkRequests, setWalkRequests] = useState<
     { at: string; name: string; units: string[] }[]
   >([]);
@@ -2281,6 +2291,11 @@ function LaunchOperationalApp({
               return;
             }
             if (nextRoute.view === 'crews') {
+              if (!nextRoute.crewId && crewOriginHomeRef.current) {
+                crewOriginHomeRef.current = false;
+                navigate('dashboard');
+                return;
+              }
               navigate('crews', undefined, { crewId: nextRoute.crewId });
               return;
             }
@@ -2543,6 +2558,7 @@ function LaunchOperationalApp({
       ) : homeMode === 'manual-release' ? (
         <ManualReleaseReview
           actor="Los"
+          contacts={activeProjectContacts.map((contact) => contact.name)}
           currentDate={activeDaySession?.date ?? currentDate}
           onBack={() => setHomeMode('day')}
           onConfirm={(batch) => {
@@ -2568,7 +2584,10 @@ function LaunchOperationalApp({
           accountId={operationalScope.accountId}
           crewsNow={homeCrewsNow}
           glance={homeGlance}
-          onOpenCrew={(crewId) => navigate('crews', undefined, { crewId })}
+          onOpenCrew={(crewId) => {
+            crewOriginHomeRef.current = true;
+            navigate('crews', undefined, { crewId });
+          }}
           activeWalkSessionId={trackCState.activeWalk?.id}
           crews={dayCrewOptions}
           currentDate={currentDate}
@@ -2783,7 +2802,7 @@ function LaunchOperationalApp({
                 commons > 0 ? `${commons} common area${commons === 1 ? '' : 's'}` : '',
               ].filter(Boolean).join(' · ') || '0';
               const dayFieldEvents = trackCState.events.filter((event) =>
-                event.recordedAt.slice(0, 10) === historySession.date);
+                localEventDate(event.recordedAt) === historySession.date);
               const completeSplit = { beds: 0, commons: 0 };
               const passSplit = { beds: 0, commons: 0 };
               const crewSplit = new Map<string, { beds: number; commons: number }>();

@@ -527,3 +527,55 @@
   padding: 4px 0;
   text-align: start;
 }
+
+.w2a2-core-boundary-line {
+  margin: 0 0 8px;
+}
+
+.w2a2-core-intake-details {
+  background: #eaf3fb;
+  border: 1.5px solid #bcd9f2;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  padding: 4px 12px;
+}
+
+.w2a2-core-intake-details > summary {
+  align-items: center;
+  color: #0877d1;
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 750;
+  gap: 6px;
+  min-block-size: 42px;
+}
+
+.w2a2-core-intake-details .w2a2-core-intake {
+  border: none;
+  margin: 0;
+  padding: 0 0 10px;
+}
+
+.w2a2-core-contact-picks {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+
+.w2a2-core-contact-picks > button {
+  background: #fff;
+  border: 1.5px solid #d9dde3;
+  border-radius: 999px;
+  color: #66707c;
+  font-size: 14px;
+  font-weight: 750;
+  min-block-size: 40px;
+  padding: 6px 16px;
+}
+
+.w2a2-core-contact-picks > button.is-selected {
+  background: #0877d1;
+  border-color: #0877d1;
+  color: #fff;
+}

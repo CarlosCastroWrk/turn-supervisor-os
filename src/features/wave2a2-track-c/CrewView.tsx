@@ -45,6 +45,11 @@ interface CrewViewProps {
   }[];
 }
 
+const localEventDate = (iso: string) => {
+  const date = new Date(iso);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 const CrewWorkList = ({
   detail,
   state,
@@ -252,7 +257,7 @@ export const CrewView = ({
     const map = new Map<string, { beds: number; commons: number }>();
     for (const event of state.events) {
       if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-      if (event.recordedAt.slice(0, 10) !== today) continue;
+      if (localEventDate(event.recordedAt) !== today) continue;
       const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
       line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
       map.set(event.crewId, line);
@@ -269,7 +274,7 @@ export const CrewView = ({
     const map = new Map<string, { beds: number; commons: number }>();
     for (const event of state.events) {
       if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-      if (event.recordedAt.slice(0, 10) < startIso) continue;
+      if (localEventDate(event.recordedAt) < startIso) continue;
       const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
       line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
       map.set(event.crewId, line);
@@ -450,7 +455,7 @@ export const CrewView = ({
                 {open ? (
                   <div className="track-c-contact-chip__detail">
                     <p>
-                      Walked together this Turn: Paint {walkedPaint} · Clean {walkedClean} units accepted.
+                      Walked: Paint {walkedPaint} · Clean {walkedClean} accepted
                     </p>
                     {contact.phone ? (
                       <span className="track-c-contact-chip__actions">
@@ -590,7 +595,7 @@ export const CrewView = ({
           const byCrew = new Map<string, Map<string, { beds: number; commons: number }>>();
           for (const event of state.events) {
             if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-            const date = event.recordedAt.slice(0, 10);
+            const date = localEventDate(event.recordedAt);
             const days = byCrew.get(event.crewId) ?? new Map();
             const line = days.get(date) ?? { beds: 0, commons: 0 };
             line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;

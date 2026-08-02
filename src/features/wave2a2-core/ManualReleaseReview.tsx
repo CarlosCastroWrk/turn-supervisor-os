@@ -22,6 +22,7 @@ import './acceptedCore.css';
 
 interface ManualReleaseReviewProps {
   actor: string;
+  contacts?: readonly string[];
   currentDate: string;
   onBack: () => void;
   onConfirm: (batch: DailyReleaseBatch) => boolean | Promise<boolean>;
@@ -39,6 +40,7 @@ const toFieldTrade = (trade: 'Paint' | 'Clean'): FieldTrade =>
 
 export function ManualReleaseReview({
   actor,
+  contacts,
   currentDate,
   onBack,
   onConfirm,
@@ -228,28 +230,21 @@ export function ManualReleaseReview({
       </header>
 
       <div className="w2a2-core-page__scroll" data-turn-scroll-region="primary">
-        <section className="w2a2-core-boundary" role="note">
-          <strong>Record exactly what the property released.</strong>
-          <p>
-            Select only Units, sections, and Paint/Clean work the property actually
-            released.
-            {intakeEnabled()
-              ? ' Imported suggestions are proposals only — your review decides.'
-              : ' This does not read a file, photo, paper mark, or official system.'}
-          </p>
-        </section>
+        <p className="w2a2-core-caption w2a2-core-boundary-line" role="note">
+          Record exactly what the property released — your review decides.
+          {intakeEnabled()
+            ? ''
+            : ' This does not read a file, photo, paper mark, or official system.'}
+        </p>
 
         {unavailableReason ? (
           <p className="w2a2-core-error" role="alert">{unavailableReason}</p>
         ) : null}
 
         {intakeEnabled() ? (
+          <details className="w2a2-core-intake-details">
+          <summary><Camera aria-hidden="true" size={15} /> Import from photo or pasted message</summary>
           <section className="w2a2-core-intake">
-            <strong>Import the release</strong>
-            <p>
-              Photo of the TurnBoard or Joseph’s message. You review everything
-              before it counts.
-            </p>
             <div className="w2a2-core-intake__actions">
               <button
                 disabled={intakeBusy}
@@ -296,10 +291,29 @@ export function ManualReleaseReview({
               <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
             ) : null}
           </section>
+          </details>
         ) : null}
 
         <label className="w2a2-core-field">
           <span>Property contact</span>
+          {contacts && contacts.length > 0 ? (
+            <span className="w2a2-core-contact-picks">
+              {contacts.map((name) => (
+                <button
+                  aria-pressed={propertyContact === name}
+                  className={propertyContact === name ? 'is-selected' : undefined}
+                  key={name}
+                  onClick={() => {
+                    setPropertyContact(name);
+                    setError('');
+                  }}
+                  type="button"
+                >
+                  {name}
+                </button>
+              ))}
+            </span>
+          ) : null}
           <input
             autoComplete="off"
             onChange={(event) => {

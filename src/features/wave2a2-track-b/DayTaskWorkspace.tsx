@@ -74,6 +74,13 @@ const queueOrder: readonly TodayTaskQueueId[] = [
   'ready-to-walk',
 ];
 
+// Events are stamped in UTC; evening work must still count as TODAY on the
+// wall clock — every date comparison uses the local calendar day.
+const localEventDate = (iso: string) => {
+  const date = new Date(iso);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 const queueIcons: Readonly<Record<TodayTaskQueueId, ReactNode>> = {
   callbacks: <RotateCcw aria-hidden="true" size={20} />,
   'needs-crew': <Users aria-hidden="true" size={20} />,
@@ -1789,7 +1796,7 @@ export function DayTaskWorkspace({
     const byUnit = new Map<string, { trades: Set<string>; unitId: string }>();
     for (const event of events) {
       if (event.eventType !== 'property-accepted') continue;
-      if (!event.unitId || !event.recordedAt.startsWith(currentDate)) continue;
+      if (!event.unitId || localEventDate(event.recordedAt) !== currentDate) continue;
       const entry = byUnit.get(event.unitId)
         ?? { trades: new Set<string>(), unitId: event.unitId };
       if (event.trade) entry.trades.add(event.trade);

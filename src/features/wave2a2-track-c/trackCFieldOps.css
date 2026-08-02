@@ -2149,11 +2149,20 @@ select.track-c-trade-change {
 .track-c-contact-chip__detail {
   padding: 0 14px 12px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px 10px;
 }
-.track-c-contact-chip__detail p { margin: 0; font-size: 13px; color: var(--track-c-muted); }
+.track-c-contact-chip__detail p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--track-c-muted);
+  flex: 1 1 55%;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.track-c-contact-chip__actions { flex-shrink: 0; }
 .track-c-contact-chip__nophone { font-size: 12.5px; }
 
 .track-c-change-order-flag {

@@ -385,3 +385,26 @@
   margin: 0;
   padding: 10px 12px;
 }
+
+/* Mid-day quick-add: tap unit numbers, whole unit selected. */
+.w2a2-core-quickgrid__units {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.w2a2-core-quickgrid__units button {
+  min-height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--turn-color-divider, #d8dee6);
+  background: var(--turn-color-elevated, #fff);
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--turn-color-ink, #141a22);
+}
+.w2a2-core-quickgrid__units button.is-selected {
+  background: var(--turn-color-brand, #0072dc);
+  border-color: var(--turn-color-brand, #0072dc);
+  color: #fff;
+}

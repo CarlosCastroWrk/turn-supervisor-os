@@ -323,10 +323,44 @@ export function ManualReleaseReview({
         </div>
 
         {!query.trim() && selected.size === 0 ? (
-          <p className="w2a2-core-caption">
-            Import from a photo or paste the message above — or search a unit
-            number to pick sections by hand.
-          </p>
+          <div className="w2a2-core-quickgrid" aria-label="Tap Units the property released">
+            <p className="w2a2-core-caption">
+              Tap the Units Joseph released — one tap selects the whole Unit
+              (all sections, both trades). Search above for partial releases,
+              or import from a photo / paste.
+            </p>
+            <div className="w2a2-core-quickgrid__units">
+              {[...roster.units]
+                .sort((left, right) =>
+                  left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
+                .map((unit) => {
+                  const unitSelections = unit.applicableSections.flatMap((section) =>
+                    section.trades.map((trade) => ({
+                      section: section.id as FieldSection,
+                      trade: toFieldTrade(trade),
+                      unitId: unit.id,
+                    })));
+                  const allOn = unitSelections.length > 0
+                    && unitSelections.every((candidate) => selected.has(selectionKey(candidate)));
+                  return (
+                    <button
+                      aria-pressed={allOn}
+                      className={allOn ? 'is-selected' : undefined}
+                      key={unit.id}
+                      onClick={() => {
+                        for (const candidate of unitSelections) {
+                          const has = selected.has(selectionKey(candidate));
+                          if (allOn === has) toggle(candidate);
+                        }
+                      }}
+                      type="button"
+                    >
+                      {unit.unitNumber}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
         ) : (
         <div className="w2a2-core-release__units">
           {matchingUnits.visible.map((unit) => (

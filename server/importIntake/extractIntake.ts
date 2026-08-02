@@ -122,6 +122,17 @@ them from bedCount). Skip artifact rows.`;
     : '';
   return `${shared}
 
+ALTERNATE SOURCE — JOSEPH'S SCHEDULE SHEET: the property manager also hands a
+personal schedule grid (columns = dates like 3-Aug..16-Aug; cells = UNIT-ROOM
+codes like "1806-A"; a separate sheet exists per trade and commons may be on a
+different list). Color rules for that sheet: ORANGE/highlighted cells = RELEASED
+TO WORK TODAY (this is the release); dark green = already done (exclude);
+light green = transfer (exclude); blue = early move-in (exclude); yellow =
+ignore. If the photo is this grid, extract ONLY the orange cells, group the
+room letters by unit (1806-A + 1806-B -> unit 1806, sections A,B; include
+'common' only when explicitly shown), and note in uncertainties that commons
+were not listed if none appear.
+
 TASK: Extract TODAY'S RELEASED work only — units whose white cells show
 release slashes, or units the message says are released today. For each unit
 report which trades were released and which sections (empty sections array

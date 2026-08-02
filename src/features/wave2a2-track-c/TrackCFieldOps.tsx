@@ -76,6 +76,11 @@ export interface TrackCFieldOpsProps {
     target: TrackCWorkTarget,
     released: boolean,
   ) => void;
+  readonly onSetTradeRelease?: (
+    unitId: string,
+    trade: TrackCTrade,
+    released: boolean,
+  ) => void;
 }
 
 export const TrackCFieldOps = ({
@@ -100,6 +105,7 @@ export const TrackCFieldOps = ({
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
+  onSetTradeRelease,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
   const [localView, setLocalView] = useState<TrackCView>(initialView);
@@ -487,6 +493,7 @@ export const TrackCFieldOps = ({
             onUnblockUnit={onUnblockUnit}
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}
+            onSetTradeRelease={onSetTradeRelease}
           />
         ) : null}
         {view === 'crews' ? (

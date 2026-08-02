@@ -1291,3 +1291,85 @@ export function setSectionReleaseState(
         : candidate),
   };
 }
+
+// Whole-trade release correction from the unit page — Joseph releases in
+// sentences like "1706 paint": one tap must fix a whole trade, not five
+// section rows. Un-release only when every released section of the trade is
+// untouched; release adds every applicable section minus ones already there.
+export function setTradeReleaseState(
+  data: AppData,
+  input: {
+    unitId: string;
+    trade: 'paint' | 'clean';
+    released: boolean;
+    nowIso: string;
+    idFactory: (prefix: string) => string;
+  },
+): AppData {
+  if (!input.released) {
+    return {
+      ...data,
+      dailyReleaseBatches: data.dailyReleaseBatches.map((batch) =>
+        batch.projectId !== data.activeProjectId
+          ? batch
+          : {
+            ...batch,
+            items: batch.items.filter((item) =>
+              !(item.unitId === input.unitId && item.trade === input.trade)),
+          }),
+    };
+  }
+  const session = data.daySessions.find((candidate) =>
+    candidate.projectId === data.activeProjectId
+    && ['active', 'ending', 'reopened'].includes(candidate.status));
+  if (!session) return data;
+  const unit = projectPropertyRoster(data).units
+    .find((candidate) => candidate.id === input.unitId);
+  if (!unit) return data;
+  const tradeName = input.trade === 'paint' ? 'Paint' : 'Clean';
+  const existing = new Set(data.dailyReleaseBatches
+    .filter((batch) =>
+      batch.projectId === data.activeProjectId
+      && session.releaseBatchIds.includes(batch.id))
+    .flatMap((batch) => batch.items
+      .filter((item) => item.unitId === input.unitId && item.trade === input.trade)
+      .map((item) => item.section)));
+  const sections = unit.applicableSections
+    .filter((section) => section.trades.includes(tradeName as 'Paint' | 'Clean'))
+    .map((section) => section.id)
+    .filter((section) => !existing.has(section as FieldSection));
+  if (sections.length === 0) return data;
+  const batch = {
+    id: input.idFactory('release'),
+    projectId: data.activeProjectId,
+    date: session.date,
+    propertyContact: session.propertyContact || 'Property',
+    sourceType: 'manual' as const,
+    sourceLabel: 'Unit page adjustment',
+    status: 'confirmed' as const,
+    items: sections.map((section) => ({
+      id: input.idFactory('release-item'),
+      unitId: input.unitId,
+      trade: input.trade,
+      section: section as FieldSection,
+      sourceExcerpt: `${tradeName} released for the whole unit — added from the unit page.`,
+    })),
+    uncertainties: [],
+    confirmedBy: 'Los',
+    confirmedAt: input.nowIso,
+    createdAt: input.nowIso,
+    updatedAt: input.nowIso,
+  };
+  return {
+    ...data,
+    dailyReleaseBatches: [...data.dailyReleaseBatches, batch],
+    daySessions: data.daySessions.map((candidate) =>
+      candidate.id === session.id
+        ? {
+          ...candidate,
+          releaseBatchIds: [...candidate.releaseBatchIds, batch.id],
+          updatedAt: input.nowIso,
+        }
+        : candidate),
+  };
+}

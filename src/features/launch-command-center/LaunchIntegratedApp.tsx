@@ -115,6 +115,7 @@ import {
   projectTrackCState,
   projectTrackCWalkDraft,
   setSectionReleaseState,
+  setTradeReleaseState,
   setUnitReleaseRestriction,
 } from '../wave2a2-core/appDataAdapters';
 import {
@@ -2451,6 +2452,20 @@ function LaunchOperationalApp({
             setBlockReason('');
             setBlockTrade(trade);
             setBlockDialog({ unitId });
+          }}
+          onSetTradeRelease={(unitId, trade, released) => {
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === unitId)?.unitNumber ?? '';
+            const saved = commitDataNow((current) => setTradeReleaseState(current, {
+              idFactory: createId,
+              nowIso: nowISO(),
+              released,
+              trade,
+              unitId,
+            }));
+            setMoreStatus(saved
+              ? `Unit ${unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'} ${released ? 'released — sections are in play' : 'removed — it was never released'}.`
+              : 'Start the day first, then adjust the release from the unit page.');
           }}
           onSetSectionRelease={(target, released) => {
             const unitNumber = trackCState.units

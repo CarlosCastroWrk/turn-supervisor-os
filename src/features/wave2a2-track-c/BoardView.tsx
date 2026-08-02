@@ -66,6 +66,11 @@ interface BoardViewProps {
     target: TrackCWorkTarget,
     released: boolean,
   ) => void;
+  readonly onSetTradeRelease?: (
+    unitId: string,
+    trade: TrackCTrade,
+    released: boolean,
+  ) => void;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -495,6 +500,7 @@ const UnitDetail = ({
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
+  onSetTradeRelease,
 }: {
   state: TrackCState;
   unitId: string;
@@ -513,6 +519,7 @@ const UnitDetail = ({
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
   onRequestBlock?: BoardViewProps['onRequestBlock'];
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
+  onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -694,6 +701,36 @@ const UnitDetail = ({
                 )}
             </header>
             {(() => {
+              if (!onSetTradeRelease) return null;
+              const releasedItems = tradeWork.filter((item) => item.release === 'released');
+              if (releasedItems.length === 0) {
+                return (
+                  <button
+                    className="track-c-release-toggle"
+                    data-track-c-critical-target="true"
+                    onClick={() => onSetTradeRelease(unitId, trade, true)}
+                    type="button"
+                  >
+                    Joseph released {tradeLabel(trade)} — mark the whole unit released
+                  </button>
+                );
+              }
+              const untouched = releasedItems.every((item) =>
+                item.activeCrewIds.length === 0
+                && item.execution !== 'crew-reported-complete'
+                && item.inspection === 'not-ready'
+                && item.property !== 'property-accepted');
+              return untouched ? (
+                <button
+                  className="track-c-release-toggle is-remove"
+                  onClick={() => onSetTradeRelease(unitId, trade, false)}
+                  type="button"
+                >
+                  {tradeLabel(trade)} wasn’t released — remove it (undo mistake)
+                </button>
+              ) : null;
+            })()}
+            {(() => {
               const blockedItems = tradeWork.filter((item) =>
                 item.release === 'released' && item.access !== 'clear');
               if (blockedItems.length > 0) {
@@ -823,6 +860,7 @@ export const BoardView = ({
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
+  onSetTradeRelease,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
@@ -932,6 +970,7 @@ export const BoardView = ({
         onUnblockUnit={onUnblockUnit}
         onRequestBlock={onRequestBlock}
         onSetSectionRelease={onSetSectionRelease}
+        onSetTradeRelease={onSetTradeRelease}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onChangeCrew={onChangeCrew}

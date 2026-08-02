@@ -3043,21 +3043,34 @@ function LaunchOperationalApp({
               ].filter(Boolean).join(' · ') || '0';
               const dayFieldEvents = trackCState.events.filter((event) =>
                 localEventDate(event.recordedAt) === historySession.date);
+              // A bed counts ONCE even if events repeat (mistap → reopen →
+              // re-report emits duplicates): dedupe by unit+trade+section.
               const completeSplit = { beds: 0, commons: 0 };
               const passSplit = { beds: 0, commons: 0 };
               const crewSplit = new Map<string, { beds: number; commons: number }>();
+              const seenComplete = new Set<string>();
+              const seenCrew = new Set<string>();
+              const seenPass = new Set<string>();
               for (const event of dayFieldEvents) {
                 const isCommon = event.target.section === 'common';
+                const sectionKey = `${event.target.unitId}:${event.target.trade}:${event.target.section}`;
                 if (event.eventType === 'crew-reported-complete') {
-                  completeSplit[isCommon ? 'commons' : 'beds'] += 1;
-                  if (event.crewId) {
+                  if (!seenComplete.has(sectionKey)) {
+                    seenComplete.add(sectionKey);
+                    completeSplit[isCommon ? 'commons' : 'beds'] += 1;
+                  }
+                  if (event.crewId && !seenCrew.has(`${event.crewId}:${sectionKey}`)) {
+                    seenCrew.add(`${event.crewId}:${sectionKey}`);
                     const line = crewSplit.get(event.crewId) ?? { beds: 0, commons: 0 };
                     line[isCommon ? 'commons' : 'beds'] += 1;
                     crewSplit.set(event.crewId, line);
                   }
                 }
                 if (event.eventType === 'los-passed' || event.eventType === 'callback-resolved') {
-                  passSplit[isCommon ? 'commons' : 'beds'] += 1;
+                  if (!seenPass.has(sectionKey)) {
+                    seenPass.add(sectionKey);
+                    passSplit[isCommon ? 'commons' : 'beds'] += 1;
+                  }
                 }
               }
               const crewBreakdown = [...crewSplit.entries()]

@@ -739,6 +739,7 @@
 .track-c-action-row button,
 .track-c-mirror-button,
 .track-c-primary-button,
+.track-c-crew-detail__actions a,
 .track-c-crew-detail__actions button,
 .track-c-mirror-list button {
   align-items: center;
@@ -2492,4 +2493,13 @@ select.track-c-trade-change {
   background: #fff;
   border-color: var(--track-c-border);
   color: var(--track-c-muted);
+}
+
+
+.track-c-crew-detail__actions a {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  text-decoration: none;
 }

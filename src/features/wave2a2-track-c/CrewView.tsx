@@ -123,12 +123,14 @@ const CrewDetail = ({
   onClose,
   onEdit,
   onContact,
+  phone,
 }: {
   state: TrackCState;
   crewId: string;
   onClose: () => void;
   onEdit?: () => void;
   onContact?: () => void;
+  phone?: string;
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const detail = useMemo(
@@ -164,7 +166,17 @@ const CrewDetail = ({
         </div>
       </header>
       <div className="track-c-crew-detail__actions">
-        {onContact ? (
+        {phone ? (
+          <>
+            <a data-track-c-critical-target="true" href={`tel:${phone}`}>
+              <Phone aria-hidden="true" size={17} />
+              Call
+            </a>
+            <a data-track-c-critical-target="true" href={`sms:${phone}`}>
+              Text
+            </a>
+          </>
+        ) : onContact ? (
           <button
             data-track-c-critical-target="true"
             onClick={onContact}
@@ -255,9 +267,14 @@ export const CrewView = ({
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const map = new Map<string, { beds: number; commons: number }>();
+    const seen = new Set<string>();
     for (const event of state.events) {
       if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
+      if (event.confirmation !== 'confirmed') continue;
       if (localEventDate(event.recordedAt) !== today) continue;
+      const key = `${event.crewId}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
       line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
       map.set(event.crewId, line);
@@ -271,10 +288,25 @@ export const CrewView = ({
     sunday.setDate(now.getDate() - now.getDay());
     sunday.setHours(0, 0, 0, 0);
     const startIso = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+    // Pay week = Sunday 00:00 → Saturday 5:00 PM. Work reported after the
+    // Saturday cutoff rolls into the NEXT pay week — same as the wall board.
+    const payWeekSunday = (iso: string) => {
+      const date = new Date(iso);
+      if (date.getDay() === 6 && date.getHours() >= 17) date.setDate(date.getDate() + 1);
+      date.setDate(date.getDate() - date.getDay());
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+    void startIso;
+    const currentWeek = payWeekSunday(new Date().toISOString());
     const map = new Map<string, { beds: number; commons: number }>();
+    const seen = new Set<string>();
     for (const event of state.events) {
       if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-      if (localEventDate(event.recordedAt) < startIso) continue;
+      if (event.confirmation !== 'confirmed') continue;
+      if (payWeekSunday(event.recordedAt) !== currentWeek) continue;
+      const key = `${event.crewId}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
       line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
       map.set(event.crewId, line);
@@ -286,7 +318,10 @@ export const CrewView = ({
   const composeBody = (crewId: string, crewName: string) => {
     const detail = projectTrackCCrewDetail(state, crewId);
     const byUnit = new Map<string, string[]>();
+    // "Today" = work still in front of them — not sections already reported
+    // done or passed, and callbacks get their own conversation.
     for (const work of detail?.currentWork ?? []) {
+      if (!['assigned', 'working'].includes(work.execution) || work.callbackOpen) continue;
       const unit = trackCUnitForTarget(state, work);
       if (!unit) continue;
       const sections = byUnit.get(unit.unitNumber) ?? [];
@@ -322,6 +357,7 @@ export const CrewView = ({
       const detail = projectTrackCCrewDetail(state, crewId);
       const byUnit = new Map<string, string[]>();
       for (const work of detail?.currentWork ?? []) {
+        if (!['assigned', 'working'].includes(work.execution) || work.callbackOpen) continue;
         const unit = trackCUnitForTarget(state, work);
         if (!unit) continue;
         const sections = byUnit.get(unit.unitNumber) ?? [];
@@ -356,6 +392,7 @@ export const CrewView = ({
     return (
       <CrewDetail
         crewId={selectedCrewId}
+        phone={crewDirectory?.[selectedCrewId]?.phone?.trim()}
         onClose={onCloseCrew}
         onContact={
           onContactCrew ? () => onContactCrew(selectedCrewId) : undefined
@@ -593,9 +630,14 @@ export const CrewView = ({
           // basis: did the work = gets paid). Sun-Sat pay-week totals + Turn
           // total. This is Los's receipt when a count gets pushed back on.
           const byCrew = new Map<string, Map<string, { beds: number; commons: number }>>();
+          const seenTotals = new Set<string>();
           for (const event of state.events) {
             if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
+            if (event.confirmation !== 'confirmed') continue;
             const date = localEventDate(event.recordedAt);
+            const totalsKey = `${event.crewId}:${date}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
+            if (seenTotals.has(totalsKey)) continue;
+            seenTotals.add(totalsKey);
             const days = byCrew.get(event.crewId) ?? new Map();
             const line = days.get(date) ?? { beds: 0, commons: 0 };
             line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;

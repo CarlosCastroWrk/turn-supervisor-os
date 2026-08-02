@@ -618,6 +618,9 @@ function LaunchOperationalApp({
         };
       }), [trackCState]);
   const homeGlance = useMemo(() => {
+    // These numbers must MATCH the queues below them: blocked units live in
+    // Waiting (not "released"), finished units are "approved", and "working"
+    // means a crew is actually on it right now.
     let released = 0;
     let working = 0;
     let approved = 0;
@@ -625,10 +628,18 @@ function LaunchOperationalApp({
       const work = projectTrackCUnitWork(trackCState, unit.id)
         .filter((item) => item.release === 'released');
       if (work.length === 0) continue;
+      if (work.every((item) => item.property === 'property-accepted')) {
+        approved += 1;
+        continue;
+      }
+      const inPlay = work.filter((item) =>
+        item.access === 'clear' && item.property !== 'property-accepted');
+      if (inPlay.length === 0) continue;
       released += 1;
-      if (work.every((item) => item.property === 'property-accepted')) approved += 1;
-      else if (work.some((item) =>
-        ['assigned', 'working', 'crew-reported-complete'].includes(item.execution))) working += 1;
+      if (inPlay.some((item) =>
+        ['assigned', 'working', 'crew-reported-complete'].includes(item.execution))) {
+        working += 1;
+      }
     }
     return { approved, released, working };
   }, [trackCState]);

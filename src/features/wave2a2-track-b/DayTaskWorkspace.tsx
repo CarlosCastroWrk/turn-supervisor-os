@@ -1241,6 +1241,7 @@ function DayTaskHome({
   return (
     <section className="w2a2b-home" data-testid="track-b-home">
       <header className="w2a2b-home-header w2a2b-home-header--compact">
+        <div className="w2a2b-home-header__top">
         <h1>Home</h1>
         {task ? (() => {
           // Per-trade "done today" — paint releases first, cleans follow, so a
@@ -1260,6 +1261,7 @@ function DayTaskHome({
             </span>
           ) : null;
         })() : null}
+        </div>
         {(() => {
           // A new calendar day means a NEW day number — never show yesterday's
           // "Day 1" on Sunday morning.
@@ -1341,14 +1343,19 @@ function DayTaskHome({
                     ? <Paintbrush aria-hidden="true" size={20} />
                     : <Droplets aria-hidden="true" size={20} />}
                 </span>
-                <span>
+                <span className="w2a2b-crew-now">
                   <strong>{crew.name}</strong>
-                  <small>
-                    {crew.trade === 'paint' ? 'Paint' : 'Clean'}
-                    {crew.units.length > 0
-                      ? ` — ${crew.units.join(', ')}`
-                      : ' — no units yet today'}
-                  </small>
+                  {crew.units.length > 0 ? (
+                    <span className="w2a2b-crew-now__units">
+                      {crew.units.map((unitNumber) => (
+                        <span className="w2a2b-crew-now__pill" key={unitNumber}>
+                          {unitNumber}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <small>{crew.trade === 'paint' ? 'Paint' : 'Clean'} — no units yet today</small>
+                  )}
                 </span>
                 <ChevronRight aria-hidden="true" size={19} />
               </button>

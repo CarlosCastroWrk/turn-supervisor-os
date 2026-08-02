@@ -10,6 +10,8 @@ export interface IntakeRow {
   building?: string | null;
   trades: readonly ('paint' | 'clean')[];
   sections: readonly ('common' | 'A' | 'B' | 'C' | 'D' | 'E')[];
+  touchUpSections?: readonly ('common' | 'A' | 'B' | 'C' | 'D' | 'E')[];
+  cutInSections?: readonly ('common' | 'A' | 'B' | 'C' | 'D' | 'E')[];
   confidence: 'high' | 'low';
   note?: string | null;
 }

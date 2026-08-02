@@ -2508,3 +2508,24 @@ select.track-c-trade-change {
   background: var(--track-c-green);
   color: #fff;
 }
+
+.track-c-worktype {
+  color: var(--track-c-muted);
+  display: block;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.track-c-worktype.is-touch-up { color: var(--track-c-amber); }
+.track-c-worktype.is-cut-in { color: #0e6f6a; }
+
+.track-c-trade-panel__identity span { font-weight: 800; }
+
+.track-c-crew-group {
+  color: var(--track-c-muted);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 1.2px;
+  margin: 12px 12px 6px;
+}

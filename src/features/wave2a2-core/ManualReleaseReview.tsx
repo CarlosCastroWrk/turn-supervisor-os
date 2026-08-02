@@ -56,7 +56,15 @@ export function ManualReleaseReview({
   const [confirmed, setConfirmed] = useState(false);
   // Joseph releases paint first and cleans follow later, so the quick grid
   // needs a per-trade scope — one tap must not release the other trade.
-  const [tradeScope, setTradeScope] = useState<'both' | 'Paint' | 'Clean'>('both');
+  const [tradeScope, setTradeScope] = useState<'both' | 'Paint' | 'Clean'>(() => {
+    try {
+      const preset = window.localStorage.getItem('turn-os:quickadd-trade');
+      window.localStorage.removeItem('turn-os:quickadd-trade');
+      return preset === 'paint' ? 'Paint' : preset === 'clean' ? 'Clean' : 'both';
+    } catch {
+      return 'both';
+    }
+  });
   // Searching filters the SAME tap grid; the per-section checkbox view is an
   // explicit choice, never a surprise interface swap.
   const [sectionMode, setSectionMode] = useState(false);
@@ -92,10 +100,19 @@ export function ManualReleaseReview({
             ) {
               continue;
             }
+            const sectionId = section.id as FieldSection;
+            const workType = trade === 'paint'
+              ? row.cutInSections?.includes(sectionId as IntakeRow['sections'][number])
+                ? 'cut-in' as const
+                : row.touchUpSections?.includes(sectionId as IntakeRow['sections'][number])
+                  ? 'touch-up' as const
+                  : 'full' as const
+              : undefined;
             const selection: ManualReleaseSelection = {
-              section: section.id as FieldSection,
+              section: sectionId,
               trade: trade as FieldTrade,
               unitId: unit.id,
+              ...(workType ? { workType } : {}),
             };
             const key = selectionKey(selection);
             if (!next.has(key)) {
@@ -164,8 +181,18 @@ export function ManualReleaseReview({
     const key = selectionKey(selection);
     setSelected((current) => {
       const next = new Map(current);
-      if (next.has(key)) next.delete(key);
-      else next.set(key, selection);
+      const existing = next.get(key);
+      if (!existing) {
+        next.set(key, { ...selection, workType: 'full' });
+      } else if (selection.trade !== 'paint') {
+        next.delete(key);
+      } else if ((existing.workType ?? 'full') === 'full') {
+        next.set(key, { ...existing, workType: 'touch-up' });
+      } else if (existing.workType === 'touch-up') {
+        next.set(key, { ...existing, workType: 'cut-in' });
+      } else {
+        next.delete(key);
+      }
       return next;
     });
     pendingBatchRef.current = undefined;
@@ -364,6 +391,54 @@ export function ManualReleaseReview({
                   </button>
                 ))}
             </div>
+            {selected.size > 0 ? (
+              <div className="w2a2-core-selected">
+                <p className="w2a2-core-caption">
+                  Selected — tap a room to cycle: full paint → touch-up → cut-in → off
+                </p>
+                {(() => {
+                  const byUnit = new Map<string, ManualReleaseSelection[]>();
+                  for (const selection of selected.values()) {
+                    const list = byUnit.get(selection.unitId) ?? [];
+                    list.push(selection);
+                    byUnit.set(selection.unitId, list);
+                  }
+                  const numberOf = (unitId: string) =>
+                    roster.units.find((unit) => unit.id === unitId)?.unitNumber ?? unitId;
+                  return [...byUnit.entries()]
+                    .sort((left, right) => numberOf(left[0])
+                      .localeCompare(numberOf(right[0]), undefined, { numeric: true }))
+                    .map(([unitId, list]) => (
+                      <div className="w2a2-core-selected__unit" key={unitId}>
+                        <strong>{numberOf(unitId)}</strong>
+                        <span>
+                          {list
+                            .sort((a, b) => `${a.trade}${a.section}`.localeCompare(`${b.trade}${b.section}`))
+                            .map((selection) => {
+                              const label = selection.section === 'common' ? 'Common' : selection.section;
+                              const kind = selection.trade === 'clean'
+                                ? 'clean'
+                                : selection.workType ?? 'full';
+                              const kindLabel = selection.trade === 'clean'
+                                ? 'clean'
+                                : kind === 'full' ? 'full paint' : kind;
+                              return (
+                                <button
+                                  className={`w2a2-core-typepill is-${kind}`}
+                                  key={selectionKey(selection)}
+                                  onClick={() => toggle(selection)}
+                                  type="button"
+                                >
+                                  {label} · {kindLabel}
+                                </button>
+                              );
+                            })}
+                        </span>
+                      </div>
+                    ));
+                })()}
+              </div>
+            ) : null}
             <button
               className="w2a2-core-sectionmode-toggle"
               onClick={() => setSectionMode(true)}
@@ -394,10 +469,23 @@ export function ManualReleaseReview({
                       className={allOn ? 'is-selected' : undefined}
                       key={unit.id}
                       onClick={() => {
-                        for (const candidate of unitSelections) {
-                          const has = selected.has(selectionKey(candidate));
-                          if (allOn === has) toggle(candidate);
-                        }
+                        setSelected((current) => {
+                          const next = new Map(current);
+                          if (allOn) {
+                            for (const candidate of unitSelections) {
+                              next.delete(selectionKey(candidate));
+                            }
+                          } else {
+                            for (const candidate of unitSelections) {
+                              if (!next.has(selectionKey(candidate))) {
+                                next.set(selectionKey(candidate), { ...candidate, workType: 'full' });
+                              }
+                            }
+                          }
+                          return next;
+                        });
+                        pendingBatchRef.current = undefined;
+                        setError('');
                       }}
                       type="button"
                     >

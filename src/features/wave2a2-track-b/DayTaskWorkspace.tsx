@@ -780,7 +780,40 @@ export function EndDayFlow({
     propertyReviewStatus: 'not-reviewed',
   });
   const [errors, setErrors] = useState<readonly string[]>([]);
-  const [transferConfirmed, setTransferConfirmed] = useState(false);
+  const transferStorageKey = `turn-os:transfer:${session.daySessionId}`;
+  const [copiedMarks, setCopiedMarks] = useState<ReadonlySet<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem(transferStorageKey);
+      return new Set(raw ? JSON.parse(raw) as string[] : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const markCopied = (key: string, copied: boolean) => {
+    setCopiedMarks((current) => {
+      const next = new Set(current);
+      if (copied) next.add(key);
+      else next.delete(key);
+      try {
+        window.localStorage.setItem(transferStorageKey, JSON.stringify([...next]));
+      } catch { /* in-memory still works */ }
+      return next;
+    });
+  };
+  const transferRowKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const event of events) {
+      if (event.daySessionId !== session.daySessionId) continue;
+      if (localEventDate(event.recordedAt) !== session.date) continue;
+      if (!event.unitId || !event.trade) continue;
+      if (!['assignment-confirmed', 'crew-reported-complete', 'los-passed',
+        'callback-resolved', 'property-accepted'].includes(event.eventType)) continue;
+      keys.add(`${event.unitId}:${event.trade}`);
+    }
+    return keys;
+  }, [events, session.date, session.daySessionId]);
+  const transferPendingCount = [...transferRowKeys]
+    .filter((key) => !copiedMarks.has(key)).length;
   const hasTransferMarks = useMemo(() => events.some((event) =>
     event.daySessionId === session.daySessionId
     && localEventDate(event.recordedAt) === session.date
@@ -935,9 +968,9 @@ export function EndDayFlow({
       ) : null}
 
       {(() => {
-        // TurnBoard transfer: everything that moved TODAY, in wall-board
-        // language (name = assigned · X = done · CC = approved) so the
-        // physical board gets updated in one pass before the day closes.
+        // TurnBoard transfer: everything that moved TODAY, unit by unit in
+        // order — check a row and it moves to "Copied", exactly like working
+        // down the wall with a marker.
         const crewName = new Map(crews.map((crew) => [crew.id, crew.name]));
         const todayEvents = events.filter((event) =>
           event.daySessionId === session.daySessionId
@@ -947,12 +980,11 @@ export function EndDayFlow({
           unitNumber: string;
           trade: string;
           assigned: Set<string>;
+          sections: Set<string>;
           passed: number;
           accepted: number;
           crewDone: number;
         }>();
-        // Sections count once (repeat events must not inflate wall-board
-        // marks) and assignment events carry the crew in reportedBy.
         const seenDone = new Set<string>();
         const seenPassed = new Set<string>();
         const seenAccepted = new Set<string>();
@@ -965,10 +997,14 @@ export function EndDayFlow({
             assigned: new Set<string>(),
             crewDone: 0,
             passed: 0,
+            sections: new Set<string>(),
             trade: event.trade,
             unitId: event.unitId,
             unitNumber: unitNumbers?.get(event.unitId) ?? event.unitId,
           };
+          if (event.sectionId) {
+            line.sections.add(event.sectionId === 'common' ? 'Common' : event.sectionId);
+          }
           if (event.eventType === 'assignment-confirmed') {
             const name = crewName.get(event.reportedBy ?? event.actorId)
               ?? crewName.get(event.actorId);
@@ -996,41 +1032,60 @@ export function EndDayFlow({
             left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true })
             || left.trade.localeCompare(right.trade));
         if (lines.length === 0) return null;
+        const rowKey = (line: (typeof lines)[number]) => `${line.unitId}:${line.trade}`;
+        const pending = lines.filter((line) => !copiedMarks.has(rowKey(line)));
+        const copied = lines.filter((line) => copiedMarks.has(rowKey(line)));
+        const describe = (line: (typeof lines)[number]) => {
+          const meta = acceptedWalkMeta?.[line.unitId];
+          const sections = [...line.sections].sort((a, b) =>
+            a === 'Common' ? -1 : b === 'Common' ? 1 : a.localeCompare(b)).join(', ');
+          return [
+            sections,
+            line.assigned.size > 0 ? `write ${[...line.assigned].join(' + ').toUpperCase()}` : '',
+            line.crewDone > 0 || line.passed > 0
+              ? `X — ${Math.max(line.crewDone, line.passed)} done`
+              : '',
+            line.accepted > 0
+              ? `CC — approved${meta ? ` by ${meta.contact}` : ''}`
+              : '',
+          ].filter(Boolean).join('   ·   ');
+        };
         return (
           <section className="w2a2b-review-card w2a2b-transfer-card">
             <span className="w2a2b-eyebrow">TurnBoard transfer — before you close</span>
-            <h2>Copy today onto the wall board</h2>
+            <h2>Copy onto the wall board · {pending.length} left</h2>
             <ul className="w2a2b-transfer-list">
-              {lines.map((line) => {
-                const meta = acceptedWalkMeta?.[line.unitId];
-                const marks = [
-                  line.assigned.size > 0
-                    ? `write ${[...line.assigned].join(' + ').toUpperCase()}`
-                    : '',
-                  line.crewDone > 0 || line.passed > 0
-                    ? `X — ${Math.max(line.crewDone, line.passed)} section${Math.max(line.crewDone, line.passed) === 1 ? '' : 's'} done`
-                    : '',
-                  line.accepted > 0
-                    ? `CC — approved${meta ? ` with ${meta.contact}` : ''}`
-                    : '',
-                ].filter(Boolean).join('   ·   ');
-                return (
-                  <li key={`${line.unitId}:${line.trade}`}>
-                    <strong>{line.unitNumber} · {line.trade}</strong>
-                    <span>{marks}</span>
-                  </li>
-                );
-              })}
+              {pending.map((line) => (
+                <li key={rowKey(line)}>
+                  <label className="w2a2b-transfer-row">
+                    <input
+                      checked={false}
+                      onChange={() => markCopied(rowKey(line), true)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <strong>{line.unitNumber} · {line.trade}</strong>
+                      <small>{describe(line)}</small>
+                    </span>
+                  </label>
+                </li>
+              ))}
             </ul>
-            <label className="w2a2b-explicit-confirm">
-              <input
-                checked={transferConfirmed}
-                onChange={(event) => setTransferConfirmed(event.target.checked)}
-                type="checkbox"
-              />
-              <span>I copied these marks onto the physical TurnBoard.</span>
-            </label>
-            {!transferConfirmed ? (
+            {copied.length > 0 ? (
+              <div className="w2a2b-transfer-copied">
+                <small>✓ Copied to the wall board · {copied.length}</small>
+                {copied.map((line) => (
+                  <button
+                    key={rowKey(line)}
+                    onClick={() => markCopied(rowKey(line), false)}
+                    type="button"
+                  >
+                    {line.unitNumber} · {line.trade} ✓
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {pending.length > 0 ? (
               <p className="w2a2b-grain-copy">
                 Required — Tony pays off the wall board, so it must match before
                 the day closes.
@@ -1130,7 +1185,7 @@ export function EndDayFlow({
           className="w2a2b-primary-button"
           data-track-b-critical-target="true"
           disabled={Boolean(activeWalkSessionId) || !review.explicitConfirmation
-            || (hasTransferMarks && !transferConfirmed) || saving}
+            || (hasTransferMarks && transferPendingCount > 0) || saving}
           onClick={() => void finish()}
           type="button"
         >
@@ -1160,6 +1215,7 @@ export interface HomeGlance {
 }
 
 interface DayTaskHomeProps {
+  supervisorName?: string;
   liveBoard?: readonly LiveBoardLine[];
   onAdvanceUnitTrade?: (unitId: string, trade: 'paint' | 'clean') => void;
   glance?: HomeGlance;
@@ -1203,6 +1259,7 @@ function DayTaskHome({
   onStartDay,
   propertyName,
   rosterCount,
+  supervisorName,
   liveBoard,
   onAdvanceUnitTrade,
   glance,
@@ -1264,7 +1321,7 @@ function DayTaskHome({
     <section className="w2a2b-home" data-testid="track-b-home">
       <header className="w2a2b-home-header w2a2b-home-header--compact">
         <div className="w2a2b-home-header__top">
-        <h1>Home</h1>
+        <h1>{supervisorName?.trim().split(/\s+/)[0] || 'Home'}</h1>
         {task ? (() => {
           // Per-trade "done today" — paint releases first, cleans follow, so a
           // unit-grain count would hide a finished clean day behind open paint.
@@ -1300,9 +1357,14 @@ function DayTaskHome({
               </p>
             );
           }
+          const WEEK2_START = new Date(2026, 7, 2);
+          const nowDate = new Date();
+          const payWeek = nowDate < WEEK2_START
+            ? 1
+            : Math.floor((nowDate.getTime() - WEEK2_START.getTime()) / (7 * 86_400_000)) + 2;
           return dayNumber ? (
             <p className="w2a2b-day-brief">
-              Day {dayNumber}
+              <span className="w2a2b-run-dot" aria-hidden="true" /> Day {dayNumber} · pay wk {payWeek}
               {counts.callbacks > 0
                 ? ` · ${counts.callbacks} callback${counts.callbacks === 1 ? '' : 's'} open`
                 : ''}
@@ -1322,6 +1384,7 @@ function DayTaskHome({
         ) : null}
       </header>
 
+      {active ? null : (
       <section className="w2a2b-day-status" aria-labelledby="w2a2b-day-status-title">
         <span className={`w2a2b-day-status__icon is-${session?.status ?? 'not-started'}`}>
           {active ? <CheckCircle2 aria-hidden="true" size={22} /> : <Play aria-hidden="true" size={22} />}
@@ -1347,210 +1410,112 @@ function DayTaskHome({
           </button>
         ) : null}
       </section>
+      )}
 
+      <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
+        {([
+          ['needs-inspection', 'CHECK', 'a'],
+          ['callbacks', 'CALLBACK', 'r'],
+          ['ready-to-walk', 'WALK', 'g'],
+          ['waiting', 'BLOCKED', 'b'],
+        ] as const).map(([queueId, label, tone]) => (
+          <button
+            className={`w2a2b-needsme__chip is-${tone}`}
+            key={queueId}
+            onClick={() => onOpenQueue(selectTodayTaskQueue(task, queueId))}
+            type="button"
+          >
+            <b>{counts[queueId]}</b>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
       {liveBoard && liveBoard.length > 0 ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
-          <div className="w2a2b-section-heading">
-            <h2 id="w2a2b-live-title">Live board</h2>
-            <button
-              className="w2a2b-live-add"
-              onClick={() => onAction('import-work')}
-              type="button"
-            >
-              + Joseph gave me units
-            </button>
-          </div>
-          <div className="w2a2b-live-list">
-            {liveBoard.map((line) => {
-              const stageLabel = line.stage === 'callback'
-                ? '⚠ Callback open'
-                : line.stage === 'passed'
-                  ? `🟢 Passed${line.passedAgo ? ` ${line.passedAgo}` : ''} — awaiting walk`
-                  : line.stage === 'crew-done'
-                    ? '🟡 Crew done — tap when I pass it'
-                    : line.stage === 'working'
-                      ? `🔵 Working — tap when ${line.crewNames[0] ?? 'the crew'} finishes`
-                      : line.noCrewOnRoster
-                        ? `⚪ No ${line.trade === 'paint' ? 'Paint' : 'Clean'} crew yet — add one in Crews`
-                        : '⚪ Needs crew — open to assign';
-              const advanceable = (line.stage === 'working' || line.stage === 'crew-done')
-                && Boolean(onAdvanceUnitTrade);
-              return (
-                <div className={`w2a2b-live-card is-${line.stage}`} key={`${line.unitId}:${line.trade}`}>
+          {(['paint', 'clean'] as const).map((trade) => {
+            const lines = liveBoard.filter((line) => line.trade === trade);
+            return (
+              <div className="w2a2b-board" key={trade}>
+                <div className="w2a2b-board__head">
+                  <h3>{trade === 'paint' ? '🖌 PAINT' : '💧 CLEAN'} · {lines.length}</h3>
                   <button
-                    className="w2a2b-live-card__unit"
-                    onClick={() => onOpenUnit?.(line.unitId)}
+                    className="w2a2b-live-add"
+                    onClick={() => {
+                      try {
+                        window.localStorage.setItem('turn-os:quickadd-trade', trade);
+                      } catch { /* preset only */ }
+                      onAction('import-work');
+                    }}
                     type="button"
                   >
-                    <strong>{line.unitNumber}</strong>
-                    <span>{line.trade === 'paint' ? 'PAINT' : 'CLEAN'}</span>
+                    + Joseph
                   </button>
-                  <div className="w2a2b-live-card__body">
-                    <small>
-                      {line.crewNames.length > 0 ? line.crewNames.join(' + ') : 'unassigned'}
-                      {' · '}{line.done}/{line.total} sections
-                    </small>
-                    <button
-                      className="w2a2b-live-card__stage"
-                      disabled={!advanceable}
-                      onClick={() => advanceable
-                        && onAdvanceUnitTrade?.(line.unitId, line.trade)}
-                      type="button"
-                    >
-                      {stageLabel}
-                    </button>
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-      <section className="w2a2b-section" aria-labelledby="w2a2b-current-title">
-        <div className="w2a2b-section-heading">
-          <h2 id="w2a2b-current-title">Current work</h2>
-        </div>
-        {active && counts['ready-to-walk'] >= 4 ? (
-          <button
-            className="w2a2b-walk-banner"
-            data-track-b-critical-target="true"
-            onClick={() => onAction('start-walk')}
-            type="button"
-          >
-            <strong>{counts['ready-to-walk']} ready to walk</strong>
-            <span>Worth grabbing your property contact — start the walk</span>
-            <ChevronRight aria-hidden="true" size={18} />
-          </button>
-        ) : null}
-        <div className="w2a2b-inset-list">
-          {queueOrder.map((queueId) => {
-            const queue = selectTodayTaskQueue(task, queueId);
-            return (
-              <button
-                data-track-b-critical-target="true"
-                key={queueId}
-                onClick={() => onOpenQueue(queue)}
-                type="button"
-              >
-                <span className={`w2a2b-row-icon is-${queueId}`}>{queueIcons[queueId]}</span>
-                <span><strong>{queue.label}</strong></span>
-                <em>{counts[queueId]}</em>
-                <ChevronRight aria-hidden="true" size={19} />
-              </button>
+                {lines.length === 0 ? (
+                  <p className="w2a2b-board__empty">Nothing in play.</p>
+                ) : lines.map((line) => {
+                  const stageLabel = line.stage === 'callback'
+                    ? '⚠ Callback open'
+                    : line.stage === 'passed'
+                      ? `🟢 Passed${line.passedAgo ? ` ${line.passedAgo}` : ''} — awaiting walk`
+                      : line.stage === 'crew-done'
+                        ? '🟡 Crew done — tap when I pass it'
+                        : line.stage === 'working'
+                          ? '🔵 Working — tap when crew finishes'
+                          : line.noCrewOnRoster
+                            ? `⚪ No ${trade === 'paint' ? 'Paint' : 'Clean'} crew yet — add one in Crews`
+                            : '⚪ Needs crew — open to assign';
+                  const advanceable = (line.stage === 'working' || line.stage === 'crew-done')
+                    && Boolean(onAdvanceUnitTrade);
+                  return (
+                    <div className={`w2a2b-live-card is-${line.stage}`} key={`${line.unitId}:${line.trade}`}>
+                      <button
+                        className="w2a2b-live-card__unit"
+                        onClick={() => onOpenUnit?.(line.unitId)}
+                        type="button"
+                      >
+                        <strong>{line.unitNumber}</strong>
+                      </button>
+                      <div className="w2a2b-live-card__body">
+                        <small>
+                          <b>{line.crewNames.length > 0 ? line.crewNames.join(' + ') : 'unassigned'}</b>
+                          {' · '}{line.done}/{line.total} sections
+                        </small>
+                        <button
+                          className="w2a2b-live-card__stage"
+                          disabled={!advanceable}
+                          onClick={() => advanceable
+                            && onAdvanceUnitTrade?.(line.unitId, line.trade)}
+                          type="button"
+                        >
+                          {stageLabel}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             );
           })}
-        </div>
-      </section>
-
-      <section className="w2a2b-section" aria-labelledby="w2a2b-actions-title">
-        <div className="w2a2b-section-heading">
-          <h2 id="w2a2b-actions-title">Field actions</h2>
-        </div>
-        <div className="w2a2b-inset-list">
-          {[
-            // Quick add covers Joseph's mid-day releases: it opens the tap
-            // grid of roster units. Crews assign from the Crews tab — Field
-            // actions stay lean: add, walk, close.
-            ['import-work', 'Quick add units — new release from Joseph', <ClipboardList aria-hidden="true" size={20} />],
-            ['start-walk', 'Start walk', <Footprints aria-hidden="true" size={20} />],
-          ].map(([id, label, icon]) => (
-            <button
-              data-track-b-critical-target="true"
-              key={id as string}
-              onClick={() => onAction(id as 'import-work' | 'assign-crews' | 'start-walk')}
-              type="button"
-            >
-              <span className="w2a2b-row-icon">{icon}</span>
-              <span><strong>{label}</strong></span>
-              <ChevronRight aria-hidden="true" size={19} />
-            </button>
-          ))}
-          <button
-            data-track-b-critical-target="true"
-            disabled={!active}
-            onClick={onEndDay}
-            type="button"
-          >
-            <span className="w2a2b-row-icon"><LogOut aria-hidden="true" size={20} /></span>
-            <span>
-              <strong>End day</strong>
-              {!active ? <small>Start a Day Session first</small> : null}
-            </span>
-            <ChevronRight aria-hidden="true" size={19} />
-          </button>
-        </div>
-      </section>
-
-      <section className="w2a2b-section" aria-labelledby="w2a2b-task-title">
-        <div className="w2a2b-section-heading">
-          <span>
-            <small>{rosterCount} Units in property roster</small>
-            <h2 id="w2a2b-task-title">Today’s Task</h2>
-          </span>
-          {task ? (
-            <strong>
-              {(() => {
-                // Los and the property manager count in beds and common areas,
-                // not raw "sections".
-                const unitCount = new Set(task.sections.map((section) => section.unitId)).size;
-                const commonCount = task.sections.filter((section) => section.sectionId === 'common').length;
-                const bedCount = task.sections.length - commonCount;
-                return [
-                  `${unitCount} Unit${unitCount === 1 ? '' : 's'}`,
-                  commonCount > 0 ? `${commonCount} common area${commonCount === 1 ? '' : 's'}` : '',
-                  bedCount > 0 ? `${bedCount} bed${bedCount === 1 ? '' : 's'}` : '',
-                ].filter(Boolean).join(' · ');
-              })()}
-            </strong>
-          ) : null}
-        </div>
-        {scopeErrors.length > 0 ? (
-          <div className="w2a2b-message is-error" role="alert">
-            <p>Today’s Task was rejected because its release selection is not exact.</p>
-            {scopeErrors.map((error) => <p key={error}>{error}</p>)}
-          </div>
-        ) : !task ? (
-          <button
-            className="w2a2b-empty-card w2a2b-empty-card--button"
-            data-track-b-critical-target="true"
-            onClick={() => onAction('import-work')}
-            type="button"
-          >
-            <FileUp aria-hidden="true" size={24} />
-            <span>
-              <strong>Import today’s released work</strong>
-              <small>Only an explicitly confirmed release becomes Today’s Task.</small>
-            </span>
-            <ChevronRight aria-hidden="true" size={19} />
-          </button>
-        ) : (
-          <section className="w2a2b-progress-card">
-            <div>
-              <span>
-                <small>Scope</small>
-                <strong>{progress.scopeLabel}</strong>
-              </span>
-              <span>
-                <small>Metric · Milestone</small>
-                <strong>Units · Los inspected</strong>
-              </span>
-            </div>
-            <p>{progress.copy}</p>
-            <div
-              aria-label={progress.copy}
-              aria-valuemax={progress.target}
-              aria-valuemin={0}
-              aria-valuenow={progress.actual}
-              className="w2a2b-progress"
-              role="progressbar"
-            >
-              <span style={{ width: `${progress.percentage}%` }} />
-            </div>
-            <small>{progress.percentage}% of today’s confirmed release</small>
-          </section>
-        )}
-      </section>
-
+        </section>
+      ) : null}
+      <div className="w2a2b-actionrow">
+        <button
+          data-track-b-critical-target="true"
+          onClick={() => onAction('start-walk')}
+          type="button"
+        >
+          <Footprints aria-hidden="true" size={18} /> Start walk
+        </button>
+        <button
+          data-track-b-critical-target="true"
+          disabled={!active}
+          onClick={onEndDay}
+          type="button"
+        >
+          <LogOut aria-hidden="true" size={18} /> End day
+        </button>
+      </div>
       {acceptedToday.length > 0 ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-done-title">
           <button
@@ -1843,6 +1808,7 @@ export interface DayTaskWorkspaceProps {
     change: DayTaskStateChange,
   ) => boolean | Promise<boolean> | void;
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
+  supervisorName?: string;
   liveBoard?: readonly LiveBoardLine[];
   onAdvanceUnitTrade?: (unitId: string, trade: 'paint' | 'clean') => void;
   glance?: HomeGlance;
@@ -1885,6 +1851,7 @@ export function DayTaskWorkspace({
   currentDate,
   events: initialEvents = [],
   existingSessions = [],
+  supervisorName,
   liveBoard,
   onAdvanceUnitTrade,
   glance,
@@ -2096,6 +2063,7 @@ export function DayTaskWorkspace({
       <DayTaskHome
         acceptedToday={acceptedToday}
         acceptedWalkMeta={acceptedWalkMeta}
+        supervisorName={supervisorName}
         liveBoard={liveBoard}
         onAdvanceUnitTrade={onAdvanceUnitTrade}
         glance={glance}

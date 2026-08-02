@@ -31,6 +31,7 @@ export interface TrackCWorkFact extends TrackCWorkTarget {
   readonly sourceConfidence: TrackCSourceConfidence;
   readonly sourceLabel: string;
   readonly restrictionLabel?: string;
+  readonly workType?: 'full' | 'touch-up' | 'cut-in';
 }
 
 export interface TrackCUnit {

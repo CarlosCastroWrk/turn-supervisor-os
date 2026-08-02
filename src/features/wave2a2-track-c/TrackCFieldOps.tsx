@@ -197,6 +197,10 @@ export const TrackCFieldOps = ({
       // Mid-trade pass: stay quiet so the toast never gets in the way.
       setNotice('');
       setNoticeAction(undefined);
+    } else if (action === 'open-callback') {
+      // Rapid-fire checking must stay silent — the row's state IS the feedback.
+      setNotice('');
+      setNoticeAction(undefined);
     } else {
       setNotice('Personal record saved. Paper and payroll remain unchanged.');
       setNoticeAction(undefined);

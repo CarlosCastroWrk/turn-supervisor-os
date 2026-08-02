@@ -31,6 +31,8 @@ const intakeRowSchema = z.object({
   building: z.string().nullable().optional(),
   trades: z.array(z.enum(['paint', 'clean'])).min(1),
   sections: z.array(z.enum(['common', 'A', 'B', 'C', 'D', 'E'])),
+  touchUpSections: z.array(z.enum(['common', 'A', 'B', 'C', 'D', 'E'])).optional(),
+  cutInSections: z.array(z.enum(['common', 'A', 'B', 'C', 'D', 'E'])).optional(),
   confidence: z.enum(['high', 'low']),
   note: z.string().nullable().optional(),
 });
@@ -63,13 +65,21 @@ const JSON_SCHEMA = {
             items: { enum: ['common', 'A', 'B', 'C', 'D', 'E'], type: 'string' },
             type: 'array',
           },
+          touchUpSections: {
+            items: { enum: ['common', 'A', 'B', 'C', 'D', 'E'], type: 'string' },
+            type: 'array',
+          },
+          cutInSections: {
+            items: { enum: ['common', 'A', 'B', 'C', 'D', 'E'], type: 'string' },
+            type: 'array',
+          },
           trades: {
             items: { enum: ['paint', 'clean'], type: 'string' },
             type: 'array',
           },
           unitNumber: { type: 'string' },
         },
-        required: ['unitNumber', 'bedCount', 'building', 'note', 'trades', 'sections', 'confidence'],
+        required: ['unitNumber', 'bedCount', 'building', 'note', 'trades', 'sections', 'touchUpSections', 'cutInSections', 'confidence'],
         type: 'object',
       },
       type: 'array',
@@ -137,7 +147,9 @@ TASK: Extract TODAY'S RELEASED work only — units whose white cells show
 release slashes, or units the message says are released today. For each unit
 report which trades were released and which sections (empty sections array
 means "all applicable"). Exclude sections with access/occupied notes and
-explain in uncertainties. Do not include units with no release marks.${rosterHint}`;
+explain in uncertainties. Do not include units with no release marks.
+
+WORK TYPES (paint releases only): Joseph marks three kinds of paint work — "full paint" (the default), "touch-up" / "touch ups" / "TU", and "cut-in" / "cut ins" / "cuts". When a message says e.g. "301 A and C full, B and D touch-ups, cut in the common", put B and D in touchUpSections and common in cutInSections; everything released but not listed as touch-up or cut-in is full. If no work types are mentioned, return empty arrays for touchUpSections and cutInSections.${rosterHint}`;
 };
 
 const anthropicKey = () =>

@@ -358,6 +358,13 @@ const WorkSection = ({
         >
           <span className="track-c-section-row__section">
             {trackCSectionLabel(work.section)}
+            {work.trade === 'paint' && work.release === 'released' ? (
+              <em className={`track-c-worktype is-${work.workType ?? 'full'}`}>
+                {work.workType === 'touch-up'
+                  ? 'touch-up'
+                  : work.workType === 'cut-in' ? 'cut-in' : 'full paint'}
+              </em>
+            ) : null}
           </span>
           <span
             className={`track-c-section-row__state ${
@@ -565,7 +572,12 @@ const UnitDetail = ({
           <ArrowLeft aria-hidden="true" size={20} />
         </button>
         <div>
-          <h1 ref={headingRef} tabIndex={-1}>Unit {unit.unitNumber}</h1>
+          <h1 ref={headingRef} tabIndex={-1}>
+            Unit {unit.unitNumber}
+            {focusTrade && !showOtherTrade
+              ? ` · ${focusTrade === 'paint' ? 'Paint' : 'Clean'}`
+              : ''}
+          </h1>
           <p>{unit.unitType} · {trackCUnitMakeupLabel(unit)}</p>
         </div>
       </header>

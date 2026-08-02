@@ -5,10 +5,8 @@ import {
   Paintbrush,
   Pencil,
   Phone,
-  Sparkles,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { composeEnabled, requestComposedText } from '../../lib/composeClient';
 import {
   appendContactLog,
   contactsToday,
@@ -259,8 +257,6 @@ export const CrewView = ({
   // Device-local "who did I contact today" receipts — deliberately outside the
   // event ledger (schema freeze), so a lost entry costs nothing operationally.
   const [contactLog, setContactLog] = useState(() => readContactLog());
-  const [aiDraftingCrewId, setAiDraftingCrewId] = useState<string>();
-  const [aiLanguagePickCrewId, setAiLanguagePickCrewId] = useState<string>();
   // Beds + common areas each crew reported complete TODAY — the 5-second
   // payroll glance.
   const todayByCrew = useMemo(() => {
@@ -325,7 +321,10 @@ export const CrewView = ({
       const unit = trackCUnitForTarget(state, work);
       if (!unit) continue;
       const sections = byUnit.get(unit.unitNumber) ?? [];
-      sections.push(work.section === 'common' ? 'Común/Common' : work.section);
+      const typeNote = work.workType === 'touch-up'
+        ? ' (retoques)'
+        : work.workType === 'cut-in' ? ' (cortes)' : '';
+      sections.push(`${work.section === 'common' ? 'Común/Common' : work.section}${typeNote}`);
       byUnit.set(unit.unitNumber, sections);
     }
     const lines = [...byUnit.entries()]
@@ -341,53 +340,6 @@ export const CrewView = ({
   const logContact = (crewId: string, name: string, kind: 'call' | 'text' | 'ai-text') => {
     setContactLog(appendContactLog({ crewId, kind, name }));
   };
-  // AI-personalized draft: Sonnet writes the bilingual text from the crew's
-  // REAL current assignments; the phone's Messages composer opens with it and
-  // nothing sends until Los taps send. Falls back to the standard template.
-  const openAiDraft = async (
-    crewId: string,
-    crewName: string,
-    trade: 'paint' | 'clean',
-    phone: string,
-    language: 'english' | 'spanish',
-  ) => {
-    setAiLanguagePickCrewId(undefined);
-    setAiDraftingCrewId(crewId);
-    try {
-      const detail = projectTrackCCrewDetail(state, crewId);
-      const byUnit = new Map<string, string[]>();
-      for (const work of detail?.currentWork ?? []) {
-        if (!['assigned', 'working'].includes(work.execution) || work.callbackOpen) continue;
-        const unit = trackCUnitForTarget(state, work);
-        if (!unit) continue;
-        const sections = byUnit.get(unit.unitNumber) ?? [];
-        sections.push(work.section === 'common' ? 'common' : work.section);
-        byUnit.set(unit.unitNumber, sections);
-      }
-      const units = [...byUnit.entries()]
-        .sort((left, right) => left[0].localeCompare(right[0], undefined, { numeric: true }))
-        .map(([unitNumber, sections]) => ({ sections: [...new Set(sections)], unitNumber }));
-      let body: string;
-      try {
-        body = await requestComposedText({
-          crewName,
-          trade,
-          units,
-          language,
-          // Rocky is also Los's runner — his texts carry the day-overview line.
-          isRunner: crewName.trim().toLowerCase().startsWith('rocky'),
-        });
-        logContact(crewId, crewName, 'ai-text');
-      } catch {
-        body = composeBody(crewId, crewName);
-        logContact(crewId, crewName, 'text');
-      }
-      window.location.href = `sms:${phone}&body=${encodeURIComponent(body)}`;
-    } finally {
-      setAiDraftingCrewId(undefined);
-    }
-  };
-
   if (selectedCrewId) {
     return (
       <CrewDetail
@@ -512,7 +464,15 @@ export const CrewView = ({
         </div>
       ) : null}
       <div className="track-c-crew-list">
-        {crews.map(({ crew, stats }) => {
+        {(['paint', 'clean'] as const).map((tradeGroup) => {
+          const group = crews.filter(({ crew }) => crew.trade === tradeGroup);
+          if (group.length === 0) return null;
+          return (
+            <div key={tradeGroup}>
+              <h2 className={`track-c-crew-group is-${tradeGroup}`}>
+                {tradeGroup === 'paint' ? '🖌 PAINT CREWS' : '💧 CLEAN CREWS'}
+              </h2>
+              {group.map(({ crew, stats }) => {
           const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;
           const today = todayByCrew.get(crew.id);
           const todayLabel = today
@@ -523,7 +483,7 @@ export const CrewView = ({
             : '';
           const week = weekByCrew.get(crew.id);
           const weekLabel = week && (week.beds > 0 || week.commons > 0)
-            ? `wk ${week.beds} bed${week.beds === 1 ? '' : 's'}${week.commons > 0 ? ` + ${week.commons} common` : ''}`
+            ? `this week: ${week.beds} bed${week.beds === 1 ? '' : 's'}${week.commons > 0 ? ` · ${week.commons} common` : ''}`
             : '';
           const phone = crewDirectory?.[crew.id]?.phone?.trim();
           const contactedToday = lastContactTodayFor(contactLog, crew.id);
@@ -593,40 +553,13 @@ export const CrewView = ({
                     >
                       Text
                     </a>
-                    {composeEnabled() ? (
-                      aiLanguagePickCrewId === crew.id ? (
-                        <span className="track-c-ai-lang" role="group" aria-label="Draft language">
-                          <button
-                            onClick={() =>
-                              void openAiDraft(crew.id, crew.name, crew.trade, phone, 'spanish')}
-                            type="button"
-                          >
-                            Español
-                          </button>
-                          <button
-                            onClick={() =>
-                              void openAiDraft(crew.id, crew.name, crew.trade, phone, 'english')}
-                            type="button"
-                          >
-                            English
-                          </button>
-                        </span>
-                      ) : (
-                        <button
-                          aria-label={`AI-drafted text for ${crew.name}`}
-                          className="track-c-crew-ai-draft"
-                          disabled={aiDraftingCrewId === crew.id}
-                          onClick={() => setAiLanguagePickCrewId(crew.id)}
-                          type="button"
-                        >
-                          <Sparkles aria-hidden="true" size={14} />
-                          {aiDraftingCrewId === crew.id ? 'Drafting…' : 'AI text'}
-                        </button>
-                      )
-                    ) : null}
+
                   </>
                 ) : null}
               </div>
+            </div>
+              );
+              })}
             </div>
           );
         })}

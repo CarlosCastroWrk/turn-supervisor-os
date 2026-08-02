@@ -528,6 +528,7 @@ export interface ManualReleaseSelection {
   section: FieldSection;
   trade: FieldTrade;
   unitId: string;
+  workType?: 'full' | 'touch-up' | 'cut-in';
 }
 
 export function createManualReleaseBatch(input: {
@@ -571,6 +572,7 @@ export function createManualReleaseBatch(input: {
       sourceExcerpt: 'Explicit manual selection from the existing personal roster.',
       trade: selection.trade,
       unitId: selection.unitId,
+      workType: selection.workType ?? 'full' as const,
     }));
   return {
     confirmedAt: input.recordedAt,
@@ -970,6 +972,7 @@ export function projectTrackCState(data: AppData): TrackCState {
               : 'Not included in a confirmed project Day Session release',
             trade,
             unitId: unit.id,
+            workType: item?.workType,
           };
         })),
     })),

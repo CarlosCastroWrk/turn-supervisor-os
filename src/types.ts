@@ -338,12 +338,15 @@ export interface DaySession {
   updatedAt: string;
 }
 
+export type ReleaseWorkType = 'full' | 'touch-up' | 'cut-in';
+
 export interface DailyReleaseItem {
   id: EntityId;
   unitId: EntityId;
   trade: FieldTrade;
   section: FieldSection;
   restriction?: string;
+  workType?: ReleaseWorkType;
   sourceExcerpt: string;
 }
 

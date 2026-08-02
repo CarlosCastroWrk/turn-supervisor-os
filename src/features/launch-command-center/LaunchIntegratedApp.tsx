@@ -2902,6 +2902,7 @@ function LaunchOperationalApp({
         <DayTaskWorkspace
           key={currentDate}
           accountId={operationalScope.accountId}
+          supervisorName={launchProjection.project?.supervisorName?.trim() || 'Los'}
           liveBoard={liveBoard}
           onAdvanceUnitTrade={advanceUnitTrade}
           glance={homeGlance}

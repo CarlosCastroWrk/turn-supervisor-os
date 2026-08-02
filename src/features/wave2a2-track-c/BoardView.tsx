@@ -20,7 +20,9 @@ import {
   trackCWorkKey,
 } from './model';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
+import type { PhotoNote } from '../../types';
 import type { TrackCSectionAction } from './operations';
+import { UnitPhotoAddButton, UnitPhotoStrip, type UnitPhotoCommitter } from './UnitPhotos';
 import {
   projectTrackCUnitWork,
   projectTrackCTradeProgress,
@@ -55,6 +57,8 @@ interface BoardViewProps {
   ) => void;
   readonly onRequestNote?: () => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
+  readonly unitPhotos?: readonly PhotoNote[];
+  readonly onCommitUnitPhoto?: UnitPhotoCommitter;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -436,6 +440,8 @@ const UnitDetail = ({
   onRequestAssign,
   onRequestNote,
   onRequestMirror,
+  unitPhotos,
+  onCommitUnitPhoto,
 }: {
   state: TrackCState;
   unitId: string;
@@ -447,6 +453,8 @@ const UnitDetail = ({
   onRequestAssign?: BoardViewProps['onRequestAssign'];
   onRequestNote?: BoardViewProps['onRequestNote'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
+  unitPhotos?: BoardViewProps['unitPhotos'];
+  onCommitUnitPhoto?: BoardViewProps['onCommitUnitPhoto'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -454,6 +462,10 @@ const UnitDetail = ({
   const work = useMemo(
     () => projectTrackCUnitWork(state, unitId),
     [state, unitId],
+  );
+  const photosForUnit = useMemo(
+    () => (unitPhotos ?? []).filter((photo) => photo.unitId === unitId),
+    [unitPhotos, unitId],
   );
 
   useEffect(() => {
@@ -512,6 +524,14 @@ const UnitDetail = ({
       >
         Flag change order (tub · hole &gt; quarter) — summary copied, form opens
       </button>
+      {onCommitUnitPhoto ? (
+        <UnitPhotoAddButton
+          onCommitPhoto={onCommitUnitPhoto}
+          projectId={state.propertyId}
+          unitId={unitId}
+          unitNumber={unit.unitNumber}
+        />
+      ) : null}
       {TRACK_C_TRADES.map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);
@@ -648,6 +668,7 @@ const UnitDetail = ({
           </section>
         );
       })}
+      <UnitPhotoStrip photos={photosForUnit} unitNumber={unit.unitNumber} />
     </article>
   );
 };
@@ -664,6 +685,8 @@ export const BoardView = ({
   onRequestAssign,
   onRequestNote,
   onRequestMirror,
+  unitPhotos,
+  onCommitUnitPhoto,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
@@ -710,6 +733,8 @@ export const BoardView = ({
         onTradeComplete={onTradeComplete}
         state={state}
         unitId={selectedUnitId}
+        unitPhotos={unitPhotos}
+        onCommitUnitPhoto={onCommitUnitPhoto}
       />
     );
   }

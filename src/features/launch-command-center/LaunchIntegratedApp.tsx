@@ -153,7 +153,7 @@ import {
 } from '../wave2a21-field-activation/model';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
-import { addCrewMember, archiveProject, updateCrewMember } from '../../lib/actions';
+import { addCrewMember, addPhotoNote, archiveProject, updateCrewMember } from '../../lib/actions';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
 import { useAiAuth } from '../../lib/ai/useAiAuth';
 import { createId, nowISO } from '../../lib/constants';
@@ -2121,6 +2121,12 @@ function LaunchOperationalApp({
           initialState={activeFieldState}
           onRequestUnitNote={openUnitNote}
           initialView={trackCRouteState.view}
+          unitPhotos={data.photoNotes.filter((photo) =>
+            photo.projectId === data.activeProjectId && Boolean(photo.unitId))}
+          onCommitUnitPhoto={(photo) =>
+            // Photos are dispute evidence — persist synchronously like field
+            // events so a crash can't lose a photo the UI said was saved.
+            commitDataNow((current) => addPhotoNote(current, photo))}
           onCrewContactRequested={() => {
             setMoreStatus('No message was sent. Crew contact remains a manual external action.');
           }}

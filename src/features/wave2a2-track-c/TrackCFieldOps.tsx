@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react';
 import { createId as createAppId } from '../../lib/constants';
+import type { PhotoNote } from '../../types';
 import { AssignmentView } from './AssignmentView';
 import { BoardView } from './BoardView';
 import { CrewView } from './CrewView';
@@ -66,6 +67,8 @@ export interface TrackCFieldOpsProps {
   readonly now?: () => string;
   readonly routeState?: TrackCRouteState;
   readonly walkIntegration?: TrackCWalkIntegration;
+  readonly unitPhotos?: readonly PhotoNote[];
+  readonly onCommitUnitPhoto?: (photo: PhotoNote) => boolean | Promise<boolean>;
 }
 
 export const TrackCFieldOps = ({
@@ -85,6 +88,8 @@ export const TrackCFieldOps = ({
   now = () => new Date().toISOString(),
   routeState,
   walkIntegration,
+  unitPhotos,
+  onCommitUnitPhoto,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
   const [localView, setLocalView] = useState<TrackCView>(initialView);
@@ -448,6 +453,8 @@ export const TrackCFieldOps = ({
             onTradeComplete={recordTradeComplete}
             selectedUnitId={selectedUnitId}
             state={state}
+            unitPhotos={unitPhotos}
+            onCommitUnitPhoto={onCommitUnitPhoto}
           />
         ) : null}
         {view === 'crews' ? (

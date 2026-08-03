@@ -21,6 +21,7 @@ export const intakeRequestSchema = z.object({
     }),
   ]),
   rosterUnitNumbers: z.array(z.string()).max(1_000).optional(),
+  requestedDate: z.string().max(40).optional(),
 });
 
 export type IntakeRequest = z.infer<typeof intakeRequestSchema>;
@@ -132,16 +133,37 @@ them from bedCount). Skip artifact rows.`;
     : '';
   return `${shared}
 
-ALTERNATE SOURCE — JOSEPH'S SCHEDULE SHEET: the property manager also hands a
-personal schedule grid (columns = dates like 3-Aug..16-Aug; cells = UNIT-ROOM
-codes like "1806-A"; a separate sheet exists per trade and commons may be on a
-different list). Color rules for that sheet: ORANGE/highlighted cells = RELEASED
-TO WORK TODAY (this is the release); dark green = already done (exclude);
-light green = transfer (exclude); blue = early move-in (exclude); yellow =
-ignore. If the photo is this grid, extract ONLY the orange cells, group the
-room letters by unit (1806-A + 1806-B -> unit 1806, sections A,B; include
-'common' only when explicitly shown), and note in uncertainties that commons
-were not listed if none appear.
+ALTERNATE SOURCE — JOSEPH'S SCHEDULE SHEET (verified against the real
+printout): a printed Excel grid whose header row is DATE columns (3-Aug ...
+16-Aug). Under each date there are TWO subcolumns: a UNIT-ROOM code
+("1706-A"; occasionally a bare unit like "809" meaning the whole unit) and an
+OBJECTIVE written as text: "Full Paint", "Touch Up", "Cut in", "Staff", or
+blank. THE OBJECTIVE TEXT IS THE RELEASE — cell fill colors are status/context,
+not the release. Legend: RED TEXT = transfer out; light green fill = transfer
+in; purple = vendor unit; blue = early move; white with black border = full
+unit; dark green = complete (exclude — already done); orange = in progress;
+yellow = unlisted/context. Handwritten marks: a check = Los already handled it
+(still report it, confidence high); a written crew name is informational.
+RULES for this grid:
+1. Read ONLY the requested date's column (given below). If that column is
+   missing or empty, return no rows and say so in ONE uncertainty.
+2. Group room letters by unit: 1706-A Cut in + 1706-B Cut in -> ONE row, unit
+   1706, sections A,B, cutInSections A,B. Never one row per room.
+3. Objectives map: "Full Paint" -> released full (in sections only);
+   "Touch Up" -> sections + touchUpSections; "Cut in" -> sections +
+   cutInSections; combos like "Full Paint + Cut in" -> full (mention the
+   cut-in in the unit note).
+4. "Staff" is NOT released work — it means Los may walk that room alone and
+   propose work. NEVER put staff rooms in sections. If a unit mixes real work
+   and staff rooms, put the staff rooms in that unit's note as
+   "Staff (walk solo): A, C". If a unit has ONLY staff rooms, do NOT output a
+   row for it; instead add ONE summary uncertainty listing all staff-only
+   units, e.g. "Staff-only (walk solo): 1608, 1605, 1602...".
+5. A room with a blank objective is not released; if its fill is a transfer/
+   vendor/early-move color, ignore it silently, otherwise mention it in the
+   staff-only uncertainty line as "no objective".
+6. This grid is usually PAINT; commons appear only if written. Trades:
+   ["paint"] unless the sheet clearly says cleaning.
 
 TASK: Extract TODAY'S RELEASED work only — units whose white cells show
 release slashes, or units the message says are released today. For each unit
@@ -149,7 +171,11 @@ report which trades were released and which sections (empty sections array
 means "all applicable"). Exclude sections with access/occupied notes and
 explain in uncertainties. Do not include units with no release marks.
 
-WORK TYPES (paint releases only): Joseph marks three kinds of paint work — "full paint" (the default), "touch-up" / "touch ups" / "TU", and "cut-in" / "cut ins" / "cuts". When a message says e.g. "301 A and C full, B and D touch-ups, cut in the common", put B and D in touchUpSections and common in cutInSections; everything released but not listed as touch-up or cut-in is full. If no work types are mentioned, return empty arrays for touchUpSections and cutInSections.${rosterHint}`;
+WORK TYPES (paint releases only): Joseph marks three kinds of paint work — "full paint" (the default), "touch-up" / "touch ups" / "TU", and "cut-in" / "cut ins" / "cuts". When a message says e.g. "301 A and C full, B and D touch-ups, cut in the common", put B and D in touchUpSections and common in cutInSections; everything released but not listed as touch-up or cut-in is full. If no work types are mentioned, return empty arrays for touchUpSections and cutInSections.${rosterHint}${
+    request.requestedDate
+      ? `\nREQUESTED DATE for schedule-grid photos: ${request.requestedDate}. Read only that column.`
+      : ''
+  }`;
 };
 
 const anthropicKey = () =>

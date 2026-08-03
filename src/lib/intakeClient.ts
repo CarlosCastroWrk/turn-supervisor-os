@@ -64,13 +64,18 @@ export const requestIntake = async (payload: {
     | { type: 'image'; mediaType: string; data: string }
     | { type: 'text'; text: string };
   rosterUnitNumbers?: readonly string[];
+  requestedDate?: string;
 }): Promise<IntakeResult> => {
   const token = await accessToken();
   if (!token) {
     throw new Error('Sign in to Sync to use photo import. Paste or manual selection still works.');
   }
   const response = await fetch('/api/importIntake/extract', {
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      requestedDate: payload.requestedDate
+        ?? new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+    }),
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${token}`,

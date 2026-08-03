@@ -78,3 +78,44 @@ export const crewUnitsTextBody = (
     : 'Text me as you finish each unit. Let me know if you have any questions — thank you for your help!';
   return [header, ...lines, footer].join('\n');
 };
+
+// Some crews live on WhatsApp, not iMessage/SMS — a device-local set of crew
+// ids flips every Text action for that crew to a wa.me link (same message).
+const WHATSAPP_KEY = 'turn-os:crew-whatsapp';
+
+export const readWhatsappCrews = (): ReadonlySet<string> => {
+  try {
+    const raw = window.localStorage.getItem(WHATSAPP_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
+};
+
+export const toggleWhatsappCrew = (crewId: string): ReadonlySet<string> => {
+  const next = new Set(readWhatsappCrews());
+  if (next.has(crewId)) next.delete(crewId);
+  else next.add(crewId);
+  try {
+    window.localStorage.setItem(WHATSAPP_KEY, JSON.stringify([...next]));
+  } catch {
+    // Device storage unavailable — the toggle just won't stick.
+  }
+  return next;
+};
+
+// wa.me wants the full number, digits only; bare 10-digit US numbers get the
+// country code added.
+export const crewMessageHref = (
+  phone: string,
+  whatsapp: boolean,
+  body?: string,
+): string => {
+  if (!whatsapp) {
+    return body ? `sms:${phone}&body=${encodeURIComponent(body)}` : `sms:${phone}`;
+  }
+  let digits = phone.replace(/\D/g, '');
+  if (digits.length === 10) digits = `1${digits}`;
+  return `https://wa.me/${digits}${body ? `?text=${encodeURIComponent(body)}` : ''}`;
+};

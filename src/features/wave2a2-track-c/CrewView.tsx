@@ -19,7 +19,14 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
-import { crewUnitsTextBody, readCrewTextLang, type CrewTextSection } from './crewTextTemplates';
+import {
+  crewMessageHref,
+  crewUnitsTextBody,
+  readCrewTextLang,
+  readWhatsappCrews,
+  toggleWhatsappCrew,
+  type CrewTextSection,
+} from './crewTextTemplates';
 import {
   projectTrackCCrewDetail,
   projectTrackCCrewSummaries,
@@ -57,14 +64,18 @@ const CrewDetail = ({
   onClose,
   onEdit,
   onContact,
+  onToggleWhatsapp,
   phone,
+  whatsapp,
 }: {
   state: TrackCState;
   crewId: string;
   onClose: () => void;
   onEdit?: () => void;
   onContact?: () => void;
+  onToggleWhatsapp?: () => void;
   phone?: string;
+  whatsapp?: boolean;
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const detail = useMemo(
@@ -106,9 +117,25 @@ const CrewDetail = ({
               <Phone aria-hidden="true" size={17} />
               Call
             </a>
-            <a data-track-c-critical-target="true" href={`sms:${phone}`}>
-              Text
+            <a
+              data-track-c-critical-target="true"
+              href={crewMessageHref(phone, whatsapp === true)}
+              rel="noreferrer"
+              target={whatsapp ? '_blank' : undefined}
+            >
+              {whatsapp ? 'WhatsApp' : 'Text'}
             </a>
+            {onToggleWhatsapp ? (
+              <button
+                aria-pressed={whatsapp === true}
+                className="track-c-whatsapp-toggle"
+                data-track-c-critical-target="true"
+                onClick={onToggleWhatsapp}
+                type="button"
+              >
+                {whatsapp ? 'Uses WhatsApp' : 'Use WhatsApp?'}
+              </button>
+            ) : null}
           </>
         ) : onContact ? (
           <button
@@ -293,6 +320,7 @@ export const CrewView = ({
   // Device-local "who did I contact today" receipts — deliberately outside the
   // event ledger (schema freeze), so a lost entry costs nothing operationally.
   const [contactLog, setContactLog] = useState(() => readContactLog());
+  const [whatsappCrews, setWhatsappCrews] = useState<ReadonlySet<string>>(() => readWhatsappCrews());
   // Beds + common areas each crew reported complete TODAY — the 5-second
   // payroll glance.
   const todayByCrew = useMemo(() => {
@@ -377,7 +405,9 @@ export const CrewView = ({
     return (
       <CrewDetail
         crewId={selectedCrewId}
+        onToggleWhatsapp={() => setWhatsappCrews(toggleWhatsappCrew(selectedCrewId))}
         phone={crewDirectory?.[selectedCrewId]?.phone?.trim()}
+        whatsapp={whatsappCrews.has(selectedCrewId)}
         onClose={onCloseCrew}
         onContact={
           onContactCrew ? () => onContactCrew(selectedCrewId) : undefined
@@ -623,10 +653,12 @@ export const CrewView = ({
                     </a>
                     <a
                       aria-label={`Text ${crew.name} today's assignments`}
-                      href={`sms:${phone}&body=${encodeURIComponent(composeBody(crew.id, crew.name))}`}
+                      href={crewMessageHref(phone, whatsappCrews.has(crew.id), composeBody(crew.id, crew.name))}
                       onClick={() => logContact(crew.id, crew.name, 'text')}
+                      rel="noreferrer"
+                      target={whatsappCrews.has(crew.id) ? '_blank' : undefined}
                     >
-                      Text
+                      {whatsappCrews.has(crew.id) ? 'WhatsApp' : 'Text'}
                     </a>
 
                   </>

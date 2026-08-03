@@ -530,3 +530,10 @@ select:focus-visible {
   color: #fff;
 }
 .track-c-text-prompt button { color: var(--turn-color-secondary); }
+
+/* ---------- WhatsApp crew toggle ---------- */
+.track-c-whatsapp-toggle[aria-pressed="true"] {
+  background: #25d366;
+  border-color: #25d366;
+  color: #fff;
+}

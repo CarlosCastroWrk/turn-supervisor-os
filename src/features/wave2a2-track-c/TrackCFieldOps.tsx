@@ -24,7 +24,9 @@ import type {
 } from './model';
 import { trackCSectionLabel } from './model';
 import {
+  crewMessageHref,
   crewUnitsTextBody,
+  readWhatsappCrews,
   writeCrewTextLang,
   type CrewTextLang,
   type CrewTextSection,
@@ -629,20 +631,26 @@ export const TrackCFieldOps = ({
                 <strong>{unitNumbers.join(', ')}</strong> → {crew.name}
               </span>
               {phone ? (
-                (['es', 'en'] as const).map((lang) => (
-                  <a
-                    data-track-c-critical-target="true"
-                    href={`sms:${phone}&body=${encodeURIComponent(bodyFor(lang))}`}
-                    key={lang}
-                    onClick={() => {
-                      writeCrewTextLang(lang);
-                      appendContactLog({ crewId, kind: 'text', name: crew.name });
-                      dismiss();
-                    }}
-                  >
-                    {lang === 'es' ? 'Español' : 'English'}
-                  </a>
-                ))
+                (['es', 'en'] as const).map((lang) => {
+                  const whatsapp = readWhatsappCrews().has(crewId);
+                  return (
+                    <a
+                      data-track-c-critical-target="true"
+                      href={crewMessageHref(phone, whatsapp, bodyFor(lang))}
+                      key={lang}
+                      onClick={() => {
+                        writeCrewTextLang(lang);
+                        appendContactLog({ crewId, kind: 'text', name: crew.name });
+                        dismiss();
+                      }}
+                      rel="noreferrer"
+                      target={whatsapp ? '_blank' : undefined}
+                    >
+                      {lang === 'es' ? 'Español' : 'English'}
+                      {whatsapp ? ' · WhatsApp' : ''}
+                    </a>
+                  );
+                })
               ) : onCrewContactRequested ? (
                 <button
                   data-track-c-critical-target="true"

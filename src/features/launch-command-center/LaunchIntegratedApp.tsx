@@ -3177,8 +3177,11 @@ function LaunchOperationalApp({
               return (
                 <GroupedInsetSection
                   key={historySession.daySessionId}
-                  label={`Day ${daySessions.length - index} · ${historySession.date}${
-                    historySession.status === 'closed' ? '' : ' · open'}`}
+                  label={`Day ${daySessions.length - index} · ${(() => {
+                    const [y, m, d] = historySession.date.split('-').map(Number);
+                    return new Date(y, (m ?? 1) - 1, d ?? 1)
+                      .toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                  })()}${historySession.status === 'closed' ? '' : ' · open'}`}
                 >
                   <GroupedInsetRow
                     detail={crewBreakdown || undefined}

@@ -1,0 +1,143 @@
+/* ============================================================
+   TURN POLISH — the unification layer.
+   Loaded LAST. One card shape, one pill language, one rhythm,
+   instant touch feedback, purposeful motion. No behavior changes.
+   ============================================================ */
+
+:root {
+  --t-navy: #12294b;
+  --t-blue: #0877d1;
+  --t-blue-soft: #e7f0fb;
+  --t-green: #237a45;
+  --t-green-soft: #e2f2e8;
+  --t-amber: #9b5b00;
+  --t-amber-soft: #fdf3e4;
+  --t-red: #b4232d;
+  --t-red-soft: #fbe8ea;
+  --t-teal: #0e6f6a;
+  --t-ink: #111318;
+  --t-mut: #66707c;
+  --t-line: #d9dde3;
+  --t-bg: #f2f2f7;
+  --t-card: #ffffff;
+  --t-r-card: 14px;
+  --t-r-btn: 12px;
+  --t-r-pill: 999px;
+  --t-shadow: 0 1px 2px rgba(17, 19, 24, 0.05);
+}
+
+/* ---------- One card shape ---------- */
+.w2a2b-section .w2a2b-inset-list,
+.w2a2b-review-card,
+.w2a2b-board,
+.w2a2b-live-card,
+.track-c-detail,
+.track-c-trade-panel,
+.track-c-crew-card,
+.track-c-photos,
+.track-c-crew-totals,
+.w2a2-core-selected,
+.w2a2-core-intake-details,
+.lcc-block-dialog__card,
+.w2a1b-notes__list li {
+  border-radius: var(--t-r-card);
+}
+
+/* ---------- Instant touch feedback, everywhere ---------- */
+button,
+a,
+[role="button"],
+summary {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:active:not(:disabled),
+a:active,
+summary:active,
+label.w2a2b-transfer-row:active {
+  transform: scale(0.975);
+  transition: transform 60ms ease-out;
+}
+
+/* ---------- Purposeful motion (never for reduced-motion users) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a,
+  .w2a2b-live-card,
+  .track-c-section-row,
+  .w2a2b-needsme__chip,
+  .w2a2-core-typepill,
+  .track-c-board-trade > button,
+  .track-c-board-scope > button {
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease,
+      transform 90ms ease-out,
+      opacity 140ms ease;
+  }
+
+  .lcc-host-stack > *,
+  .track-c-detail,
+  .w2a2b-flow-page {
+    animation: turn-enter 180ms ease-out;
+  }
+
+  @keyframes turn-enter {
+    from { opacity: 0.4; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .w2a2b-transfer-copied button {
+    animation: turn-pop 200ms ease-out;
+  }
+
+  @keyframes turn-pop {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* ---------- One pill/button rhythm ---------- */
+.w2a2b-needsme__chip,
+.track-c-board-scope > button,
+.track-c-board-trade > button,
+.w2a2-core-quickgrid__scope > button,
+.w2a2-core-contact-picks > button {
+  border-radius: var(--t-r-btn);
+}
+
+.w2a2b-live-card__stage,
+.track-c-trade-complete,
+.w2a2b-actionrow > button,
+.w2a2b-live-add {
+  border-radius: var(--t-r-btn);
+}
+
+/* ---------- Quiet chrome: consistent muted text ---------- */
+.w2a2b-day-brief,
+.w2a2b-glance-line,
+.strip,
+.track-c-week-line,
+.track-c-contacted-today,
+.w2a2b-board__empty,
+.track-c-photo-status {
+  color: var(--t-mut);
+}
+
+/* ---------- No accidental horizontal scroll, ever ---------- */
+.w2a2b-home,
+.track-c-shell,
+.lcc-host-stack {
+  overflow-x: hidden;
+}
+
+/* ---------- Focus visible for keyboard/assistive use ---------- */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--t-blue);
+  outline-offset: 2px;
+}

@@ -253,7 +253,11 @@ export function ManualReleaseReview({
         </button>
         <div>
           <h1>Quick add units</h1>
-          <p>{currentDate} · personal Turn OS copy</p>
+          <p>{(() => {
+            const [y, m, d] = currentDate.split('-').map(Number);
+            return new Date(y, (m ?? 1) - 1, d ?? 1)
+              .toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+          })()} · personal Turn OS copy</p>
         </div>
       </header>
 

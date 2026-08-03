@@ -45,7 +45,7 @@ export const END_DAY_SUMMARY_LABELS: Readonly<Record<EndDaySummaryCountKey, stri
   propertyAccepted: 'Property accepted · section-trades',
   readyToWalk: 'Ready to walk · section-trades',
   releasedToday: 'Released today · section-trades',
-  waiting: 'Waiting · section-trades',
+  waiting: 'Waiting / Blocked · section-trades',
   working: 'Working · section-trades',
 };
 

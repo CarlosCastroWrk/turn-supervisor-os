@@ -76,6 +76,12 @@ const queueOrder: readonly TodayTaskQueueId[] = [
 
 // Events are stamped in UTC; evening work must still count as TODAY on the
 // wall clock — every date comparison uses the local calendar day.
+const friendlyDay = (isoDate: string) => {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1)
+    .toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+};
+
 const localEventDate = (iso: string) => {
   const date = new Date(iso);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -663,7 +669,7 @@ function DayClosedPage({
     <div className="w2a2b-workspace w2a2b-day-closed">
       <PageHeader onBack={onDone} title="Day closed" />
       <section className="w2a2b-review-card">
-        <span className="w2a2b-eyebrow">{currentDate}</span>
+        <span className="w2a2b-eyebrow">{friendlyDay(currentDate)}</span>
         <h2>The day is closed. Two taps and tonight is safe.</h2>
         {acceptedToday.length > 0 ? (
           <div className="w2a2b-done-list">
@@ -1761,8 +1767,8 @@ function RecoveryPage({ currentDate, now, onChoice, session }: RecoveryPageProps
       </header>
       <section className="w2a2b-review-card">
         <dl>
-          <div><dt>Open session</dt><dd>{session.date}</dd></div>
-          <div><dt>Current date</dt><dd>{currentDate}</dd></div>
+          <div><dt>Open session</dt><dd>{friendlyDay(session.date)}</dd></div>
+          <div><dt>Current date</dt><dd>{friendlyDay(currentDate)}</dd></div>
         </dl>
         <p>Turn OS will not silently create another day.</p>
       </section>

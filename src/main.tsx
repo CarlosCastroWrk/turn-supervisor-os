@@ -4,6 +4,7 @@ import App from './App';
 import { ToastProvider } from './components/ToastProvider';
 import { RootErrorBoundary } from './components/RootErrorBoundary';
 import './styles.css';
+import './styles/turnPolish.css';
 
 // Every unique Vercel deployment URL is a SEPARATE browser storage world — a
 // field supervisor opening one by accident sees an empty app and thinks the

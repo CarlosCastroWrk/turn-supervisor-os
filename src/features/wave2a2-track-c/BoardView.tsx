@@ -340,6 +340,7 @@ const WorkSection = ({
   onRequestMirror,
   onToggleRelease,
   onSetWorkType,
+  unitNumber,
 }: {
   state: TrackCState;
   work: TrackCWorkProjection;
@@ -349,6 +350,7 @@ const WorkSection = ({
   onRequestMirror: () => void;
   onToggleRelease?: (released: boolean) => void;
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in') => void;
+  unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
   // second tap confirms. A HOLD (iOS-style) opens the room menu instead.
@@ -376,13 +378,9 @@ const WorkSection = ({
   const canRemove = Boolean(onToggleRelease)
     && work.release === 'released'
     && work.property !== 'property-accepted';
-  // A room a crew already touched deserves a heads-up on the delete label.
-  const removeWasWorked = work.execution === 'crew-reported-complete'
-    || work.inspection === 'los-passed'
-    || work.callbackOpen;
-  const removeLabel = removeWasWorked
-    ? `Delete ${trackCSectionLabel(work.section)} — a crew already worked it`
-    : `Delete ${trackCSectionLabel(work.section)} from this release`;
+  // Plain, the way Los says it: "delete Common from 1608." No editorializing
+  // about crew work — deleting a room means that room doesn't need this trade.
+  const removeLabel = `Delete ${trackCSectionLabel(work.section)}${unitNumber ? ` from ${unitNumber}` : ''}`;
   const actions = actionsFor(work);
   const blocked =
     work.release !== 'released' ||
@@ -571,12 +569,8 @@ const WorkSection = ({
                 type="button"
               >
                 {confirmRemove
-                  ? `Yes — delete ${trackCSectionLabel(work.section)} from this release`
-                  : removeWasWorked
-                    ? removeLabel
-                    : work.activeCrewIds.length > 0
-                      ? 'Take this room back — unassign + mark not released'
-                      : 'Delete this room from the release'}
+                  ? `Yes — delete ${trackCSectionLabel(work.section)}${unitNumber ? ` from ${unitNumber}` : ''}`
+                  : removeLabel}
               </button>
             ) : null}
           {!canRemove && work.property === 'property-accepted' ? (
@@ -913,10 +907,6 @@ const UnitDetail = ({
               // approved one is protected instead of nuked with the rest.
               const anyAccepted = releasedItems.some((item) =>
                 item.property === 'property-accepted');
-              const anyWorked = releasedItems.some((item) =>
-                item.execution === 'crew-reported-complete'
-                || item.inspection === 'los-passed'
-                || item.callbackOpen);
               if (anyAccepted) {
                 return (
                   <p className="track-c-release-locked">
@@ -932,9 +922,7 @@ const UnitDetail = ({
                   onClick={() => onSetTradeRelease(unitId, trade, false)}
                   type="button"
                 >
-                  {anyWorked
-                    ? `Remove ${tradeLabel(trade)} — a crew already worked some of it`
-                    : `${tradeLabel(trade)} wasn’t released — remove it (undo mistake)`}
+                  Delete all {tradeLabel(trade)} from {unit.unitNumber}
                 </button>
               );
             })()}
@@ -1020,6 +1008,7 @@ const UnitDetail = ({
                   <WorkSection
                     isSelected={selectedKey === key}
                     key={key}
+                    unitNumber={unit.unitNumber}
                     onToggleRelease={onSetSectionRelease
                       ? (released) => onSetSectionRelease(
                         {

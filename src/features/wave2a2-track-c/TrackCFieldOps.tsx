@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react';
 import { createId as createAppId } from '../../lib/constants';
+import { appendContactLog } from '../../lib/contactLog';
 import type { PhotoNote } from '../../types';
 import { AssignmentView } from './AssignmentView';
 import { BoardView } from './BoardView';
@@ -21,6 +22,13 @@ import type {
   TrackCTrade,
   TrackCWorkTarget,
 } from './model';
+import { trackCSectionLabel } from './model';
+import {
+  crewUnitsTextBody,
+  writeCrewTextLang,
+  type CrewTextLang,
+  type CrewTextSection,
+} from './crewTextTemplates';
 import {
   applyTrackCSectionAction,
   changeTrackCCrew,
@@ -113,6 +121,22 @@ export const TrackCFieldOps = ({
   const [localSelectedCrewId, setLocalSelectedCrewId] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [noticeAction, setNoticeAction] = useState<{ label: string; view: TrackCView }>();
+  // "Text them what I just assigned" — assignments pile up per crew until Los
+  // sends the text or dismisses; device-local, never in the ledger.
+  const [textPrompts, setTextPrompts] = useState<Record<string, TrackCWorkTarget[]>>({});
+  const queueTextPrompt = (crewId: string, targets: readonly TrackCWorkTarget[]) => {
+    if (targets.length === 0) return;
+    setTextPrompts((current) => {
+      const seen = new Set(
+        (current[crewId] ?? []).map((target) => `${target.unitId}:${target.trade}:${target.section}`),
+      );
+      const merged = [
+        ...(current[crewId] ?? []),
+        ...targets.filter((target) => !seen.has(`${target.unitId}:${target.trade}:${target.section}`)),
+      ];
+      return { ...current, [crewId]: merged };
+    });
+  };
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
   const [assignInitialTrade, setAssignInitialTrade] = useState<TrackCTrade>();
   const [assignInitialCrew, setAssignInitialCrew] = useState<string>();
@@ -327,6 +351,7 @@ export const TrackCFieldOps = ({
     }
     const crewName = state.crews.find((crew) => crew.id === crewId)?.name ?? 'Crew';
     setNotice(`${crewName} assigned — ${result.value.receipt.assignedTargets.length} section${result.value.receipt.assignedTargets.length === 1 ? '' : 's'} Working.`);
+    queueTextPrompt(crewId, result.value.receipt.assignedTargets);
     commitState(nextState, 'bulk-assignment-confirmed');
   };
 
@@ -349,6 +374,12 @@ export const TrackCFieldOps = ({
     }
     const crewName = state.crews.find((crew) => crew.id === toCrewId)?.name ?? 'New crew';
     setNotice(`${crewName} now owns this work — history from the previous crew is kept.`);
+    queueTextPrompt(
+      toCrewId,
+      projectTrackCUnitWork(result.value, unitId)
+        .filter((work) => work.trade === trade && work.activeCrewIds.includes(toCrewId))
+        .map((work) => ({ section: work.section, trade: work.trade, unitId: work.unitId })),
+    );
     commitState(result.value, 'bulk-assignment-confirmed');
   };
 
@@ -530,6 +561,7 @@ export const TrackCFieldOps = ({
           <AssignmentView
             createId={createId}
             initialCrewId={assignInitialCrew}
+            onAssigned={queueTextPrompt}
             initialTrade={assignInitialTrade}
             key={`${assignInitialTrade ?? 'any'}:${assignInitialCrew ?? 'any'}`}
             now={now}
@@ -557,6 +589,79 @@ export const TrackCFieldOps = ({
           />
         ) : null}
       </ContentElement>
+      {Object.entries(textPrompts)
+        .filter(([, targets]) => targets.length > 0)
+        .map(([crewId, targets]) => {
+          const crew = state.crews.find((candidate) => candidate.id === crewId);
+          if (!crew) return null;
+          const phone = crewDirectory?.[crewId]?.phone?.trim();
+          const byUnit = new Map<string, CrewTextSection[]>();
+          for (const target of targets) {
+            const unit = state.units.find((candidate) => candidate.id === target.unitId);
+            if (!unit) continue;
+            const fact = unit.workFacts.find(
+              (candidate) => candidate.trade === target.trade && candidate.section === target.section,
+            );
+            const sections = byUnit.get(unit.unitNumber) ?? [];
+            sections.push(
+              target.section === 'common'
+                ? { kind: 'common', workType: fact?.workType }
+                : { bed: trackCSectionLabel(target.section), kind: 'bed', workType: fact?.workType },
+            );
+            byUnit.set(unit.unitNumber, sections);
+          }
+          const rows = [...byUnit.entries()].map(([unitNumber, sections]) => ({
+            sections,
+            unitNumber,
+          }));
+          const unitNumbers = rows
+            .map((row) => row.unitNumber)
+            .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+          const bodyFor = (lang: CrewTextLang) => crewUnitsTextBody(crew.name, lang, rows);
+          const dismiss = () => setTextPrompts((current) => {
+            const next = { ...current };
+            delete next[crewId];
+            return next;
+          });
+          return (
+            <div className="track-c-text-prompt" key={crewId} role="status">
+              <span>
+                <strong>{unitNumbers.join(', ')}</strong> → {crew.name}
+              </span>
+              {phone ? (
+                (['es', 'en'] as const).map((lang) => (
+                  <a
+                    data-track-c-critical-target="true"
+                    href={`sms:${phone}&body=${encodeURIComponent(bodyFor(lang))}`}
+                    key={lang}
+                    onClick={() => {
+                      writeCrewTextLang(lang);
+                      appendContactLog({ crewId, kind: 'text', name: crew.name });
+                      dismiss();
+                    }}
+                  >
+                    {lang === 'es' ? 'Español' : 'English'}
+                  </a>
+                ))
+              ) : onCrewContactRequested ? (
+                <button
+                  data-track-c-critical-target="true"
+                  onClick={() => onCrewContactRequested(crewId)}
+                  type="button"
+                >
+                  Add number
+                </button>
+              ) : null}
+              <button
+                aria-label={`Dismiss text reminder for ${crew.name}`}
+                onClick={dismiss}
+                type="button"
+              >
+                Not now
+              </button>
+            </div>
+          );
+        })}
       {notice ? (
         <div
           aria-hidden={mirrorTarget ? true : undefined}

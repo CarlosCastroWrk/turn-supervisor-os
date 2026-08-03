@@ -490,3 +490,43 @@ select:focus-visible {
   min-height: 36px;
 }
 .track-c-unassigned.is-paint .track-c-unassigned__crews button { border-color: color-mix(in srgb, var(--turn-color-brand) 45%, var(--turn-color-divider)); }
+
+/* ---------- "Text them what I just assigned" prompt ---------- */
+.track-c-text-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 10px 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--turn-color-elevated);
+  border: 1px solid color-mix(in srgb, var(--turn-color-brand) 40%, var(--turn-color-divider));
+}
+.track-c-text-prompt > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--turn-color-primary);
+}
+.track-c-text-prompt > span strong { font-variant-numeric: tabular-nums; }
+.track-c-text-prompt a,
+.track-c-text-prompt button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-grouped);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 36px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.track-c-text-prompt a {
+  background: var(--turn-color-brand);
+  border-color: var(--turn-color-brand);
+  color: #fff;
+}
+.track-c-text-prompt button { color: var(--turn-color-secondary); }

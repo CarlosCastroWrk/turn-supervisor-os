@@ -14,6 +14,7 @@ import {
   type TrackCSection,
   type TrackCState,
   type TrackCTrade,
+  type TrackCWorkTarget,
   trackCSectionLabel,
 } from './model';
 import {
@@ -34,6 +35,10 @@ interface AssignmentViewProps {
   readonly onBack?: () => void;
   readonly initialCrewId?: string;
   readonly onStateChange: (state: TrackCState, reason: string) => void;
+  readonly onAssigned?: (
+    crewId: string,
+    targets: readonly TrackCWorkTarget[],
+  ) => void;
 }
 
 export const AssignmentView = ({
@@ -43,6 +48,7 @@ export const AssignmentView = ({
   initialTrade,
   now,
   onBack,
+  onAssigned,
   onStateChange,
 }: AssignmentViewProps) => {
   const [trade, setTrade] = useState<TrackCTrade>(initialTrade ?? 'paint');
@@ -133,6 +139,7 @@ export const AssignmentView = ({
       if (started.ok) nextState = started.value;
     }
     onStateChange(nextState, 'bulk-assignment-confirmed');
+    if (proposal.crewId) onAssigned?.(proposal.crewId, result.value.receipt.assignedTargets);
     setReceipt(result.value.receipt);
     setMessage(
       `${result.value.receipt.assignedTargets.length} assignments saved — crews are Working.`,

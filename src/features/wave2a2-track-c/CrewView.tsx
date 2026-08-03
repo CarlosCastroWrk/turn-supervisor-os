@@ -19,6 +19,7 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
+import { crewUnitsTextBody, readCrewTextLang, type CrewTextSection } from './crewTextTemplates';
 import {
   projectTrackCCrewDetail,
   projectTrackCCrewSummaries,
@@ -348,7 +349,7 @@ export const CrewView = ({
   // bilingual-lite so it works for Spanish- and English-speaking crews.
   const composeBody = (crewId: string, crewName: string) => {
     const detail = projectTrackCCrewDetail(state, crewId);
-    const byUnit = new Map<string, string[]>();
+    const byUnit = new Map<string, CrewTextSection[]>();
     // "Today" = work still in front of them — not sections already reported
     // done or passed, and callbacks get their own conversation.
     for (const work of detail?.currentWork ?? []) {
@@ -356,21 +357,18 @@ export const CrewView = ({
       const unit = trackCUnitForTarget(state, work);
       if (!unit) continue;
       const sections = byUnit.get(unit.unitNumber) ?? [];
-      const typeNote = work.workType === 'touch-up'
-        ? ' (retoques)'
-        : work.workType === 'cut-in' ? ' (cortes)' : '';
-      sections.push(`${work.section === 'common' ? 'Común/Common' : work.section}${typeNote}`);
+      sections.push(
+        work.section === 'common'
+          ? { kind: 'common', workType: work.workType }
+          : { bed: trackCSectionLabel(work.section), kind: 'bed', workType: work.workType },
+      );
       byUnit.set(unit.unitNumber, sections);
     }
-    const lines = [...byUnit.entries()]
-      .sort((left, right) => left[0].localeCompare(right[0], undefined, { numeric: true }))
-      .map(([unitNumber, sections]) => `• Unit ${unitNumber}: ${[...new Set(sections)].join(', ')}`);
-    return [
-      `Hola ${crewName}! Hoy / Today:`,
-      ...(lines.length > 0 ? lines : ['(No units assigned yet — te aviso / I will text you the units.)']),
-      'Avísame cuando termines cada uno / Text me as you finish each one.',
-      'Gracias! Great work.',
-    ].join('\n');
+    const rows = [...byUnit.entries()].map(([unitNumber, sections]) => ({
+      sections,
+      unitNumber,
+    }));
+    return crewUnitsTextBody(crewName, readCrewTextLang(), rows);
   };
   const logContact = (crewId: string, name: string, kind: 'call' | 'text' | 'ai-text') => {
     setContactLog(appendContactLog({ crewId, kind, name }));

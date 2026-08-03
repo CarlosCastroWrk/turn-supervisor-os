@@ -23,6 +23,7 @@ import './acceptedCore.css';
 interface ManualReleaseReviewProps {
   actor: string;
   contacts?: readonly string[];
+  onAttachNotes?: (notes: readonly { unitId: string; text: string }[]) => void;
   currentDate: string;
   onBack: () => void;
   onConfirm: (batch: DailyReleaseBatch) => boolean | Promise<boolean>;
@@ -41,6 +42,7 @@ const toFieldTrade = (trade: 'Paint' | 'Clean'): FieldTrade =>
 export function ManualReleaseReview({
   actor,
   contacts,
+  onAttachNotes,
   currentDate,
   onBack,
   onConfirm,
@@ -77,6 +79,7 @@ export function ManualReleaseReview({
   const [intakeMessage, setIntakeMessage] = useState('');
   const intakeFileRef = useRef<HTMLInputElement>(null);
 
+  const importNotesRef = useRef<Map<string, string>>(new Map());
   const applyIntakeRows = (rows: IntakeRow[], uncertainties: string[]) => {
     const unitByNumber = new Map(roster.units.map((unit) =>
       [unit.unitNumber.toLocaleLowerCase(), unit]));
@@ -89,6 +92,11 @@ export function ManualReleaseReview({
         if (!unit) {
           unmatched.push(row.unitNumber);
           continue;
+        }
+        if (row.note?.trim()) {
+          // Anything the reader can't turn into a pill (color change, key
+          // issues, special instructions) rides along as a unit note.
+          importNotesRef.current.set(unit.id, row.note.trim());
         }
         const trades = row.trades.length > 0 ? row.trades : ['paint', 'clean'];
         for (const trade of trades) {
@@ -227,6 +235,14 @@ export function ManualReleaseReview({
       });
       pendingBatchRef.current = batch;
       const saved = await onConfirm(batch);
+      if (saved && onAttachNotes && importNotesRef.current.size > 0) {
+        const confirmedUnitIds = new Set(batch.items.map((item) => item.unitId));
+        const toAttach = [...importNotesRef.current.entries()]
+          .filter(([unitId]) => confirmedUnitIds.has(unitId))
+          .map(([unitId, text]) => ({ text, unitId }));
+        if (toAttach.length > 0) onAttachNotes(toAttach);
+        importNotesRef.current = new Map();
+      }
       if (!saved) {
         throw new Error('Released work was not durably saved. Retry or edit the release.');
       }

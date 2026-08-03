@@ -1443,7 +1443,7 @@ function DayTaskHome({
             return (
               <div className="w2a2b-board" key={trade}>
                 <div className="w2a2b-board__head">
-                  <h3>{trade === 'paint' ? '🖌 PAINT' : '💧 CLEAN'} · {lines.length}</h3>
+                  <h3>{trade === 'paint' ? 'PAINT' : 'CLEAN'} · {lines.length}</h3>
                   <button
                     className="w2a2b-live-add"
                     onClick={() => {
@@ -1461,16 +1461,16 @@ function DayTaskHome({
                   <p className="w2a2b-board__empty">Nothing in play — tap + Joseph when he releases.</p>
                 ) : lines.map((line) => {
                   const stageLabel = line.stage === 'callback'
-                    ? '⚠ Callback open'
+                    ? 'Callback open'
                     : line.stage === 'passed'
-                      ? `🟢 Passed${line.passedAgo ? ` ${line.passedAgo}` : ''} — awaiting walk`
+                      ? `Passed${line.passedAgo ? ` ${line.passedAgo}` : ''} — awaiting walk`
                       : line.stage === 'crew-done'
-                        ? '🟡 Crew done — tap when I pass it'
+                        ? 'Crew done — tap when I pass it'
                         : line.stage === 'working'
-                          ? '🔵 Working — tap when crew finishes'
+                          ? 'Working — tap when crew finishes'
                           : line.noCrewOnRoster
-                            ? `⚪ No ${trade === 'paint' ? 'Paint' : 'Clean'} crew yet — add one in Crews`
-                            : '⚪ Needs crew — open to assign';
+                            ? `No ${trade === 'paint' ? 'Paint' : 'Clean'} crew yet — add one in Crews`
+                            : 'Needs crew — open to assign';
                   const advanceable = (line.stage === 'working' || line.stage === 'crew-done')
                     && Boolean(onAdvanceUnitTrade);
                   return (
@@ -1494,6 +1494,7 @@ function DayTaskHome({
                             && onAdvanceUnitTrade?.(line.unitId, line.trade)}
                           type="button"
                         >
+                          <i aria-hidden="true" className={`w2a2b-stage-dot is-${line.stage}`} />
                           {stageLabel}
                         </button>
                       </div>

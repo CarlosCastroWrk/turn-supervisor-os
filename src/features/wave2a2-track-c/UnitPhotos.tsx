@@ -84,7 +84,7 @@ const sharePhoto = async (photo: PhotoNote, unitNumber: string, fallbackUrl?: st
   }
 };
 
-export const UnitPhotoAddButton = (props: UnitPhotoSaverInput) => {
+export const UnitPhotoAddButton = (props: UnitPhotoSaverInput & { compact?: boolean }) => {
   const { handleFiles, saving, status } = useUnitPhotoSaver(props);
   const inputRef = useRef<HTMLInputElement>(null);
   return (
@@ -97,7 +97,7 @@ export const UnitPhotoAddButton = (props: UnitPhotoSaverInput) => {
         type="button"
       >
         <Camera aria-hidden="true" size={17} />
-        {saving ? 'Saving photos…' : `Add photo to Unit ${props.unitNumber}`}
+        {saving ? 'Saving…' : props.compact ? 'Photo' : `Add photo to Unit ${props.unitNumber}`}
       </button>
       <input
         accept="image/*"

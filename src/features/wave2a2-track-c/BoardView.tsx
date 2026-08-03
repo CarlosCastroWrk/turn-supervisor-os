@@ -358,13 +358,12 @@ const WorkSection = ({
         >
           <span className="track-c-section-row__section">
             {trackCSectionLabel(work.section)}
-            {work.trade === 'paint' && work.release === 'released' ? (
-              <em className={`track-c-worktype is-${work.workType ?? 'full'}`}>
-                {work.workType === 'touch-up'
-                  ? 'touch-up'
-                  : work.workType === 'cut-in' ? 'cut-in' : 'full paint'}
-              </em>
-            ) : null}
+            {work.trade === 'paint' && work.release === 'released'
+              && work.workType && work.workType !== 'full' ? (
+                <em className={`track-c-worktype is-${work.workType}`}>
+                  {work.workType === 'touch-up' ? 'touch-up' : 'cut-in'}
+                </em>
+              ) : null}
           </span>
           <span
             className={`track-c-section-row__state ${
@@ -584,6 +583,7 @@ const UnitDetail = ({
       <p className="track-c-detail__truth">
         Crew completion, Los inspection, and property acceptance stay separate.
       </p>
+      <div className="track-c-util-row">
       {onRequestNote ? (
         <button
           className="track-c-unit-note-button"
@@ -591,7 +591,7 @@ const UnitDetail = ({
           onClick={onRequestNote}
           type="button"
         >
-          Add note or change order to Unit {unit.unitNumber}
+          Note
         </button>
       ) : null}
       <button
@@ -612,16 +612,18 @@ const UnitDetail = ({
         }}
         type="button"
       >
-        Flag change order (tub · hole &gt; quarter) — summary copied, form opens
+        Change order
       </button>
       {onCommitUnitPhoto ? (
         <UnitPhotoAddButton
+          compact
           onCommitPhoto={onCommitUnitPhoto}
           projectId={state.propertyId}
           unitId={unitId}
           unitNumber={unit.unitNumber}
         />
       ) : null}
+      </div>
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
           Number(right === focusTrade) - Number(left === focusTrade))

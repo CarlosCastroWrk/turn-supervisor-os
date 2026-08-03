@@ -48,73 +48,6 @@ const localEventDate = (iso: string) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const CrewWorkList = ({
-  detail,
-  state,
-}: {
-  detail: TrackCCrewDetail;
-  state: TrackCState;
-}) => {
-  const groups: readonly {
-    label: string;
-    work: readonly TrackCWorkProjection[];
-  }[] = [
-    { label: 'Current work', work: detail.currentWork },
-    { label: 'Crew-reported complete', work: detail.crewCompleteWork },
-    { label: 'Los passed', work: detail.losPassedWork },
-    { label: 'Open callbacks', work: detail.openCallbackWork },
-    { label: 'Property accepted', work: detail.propertyAcceptedWork },
-  ];
-  return (
-    <div className="track-c-crew-work">
-      {groups.map((group) => (
-        <section key={group.label}>
-          <header>
-            <h2>{group.label}</h2>
-            <span>{group.work.length}</span>
-          </header>
-          {group.work.length > 0 ? (
-            <ul>
-              {(() => {
-                // Unit grain — one line per unit per trade with its sections
-                // folded in ("Unit 406 · Paint — Common, A, B, C"), so the
-                // scroll stays short.
-                const byUnit = new Map<string, {
-                  sections: string[];
-                  trade: string;
-                  unitNumber: string;
-                }>();
-                for (const work of group.work) {
-                  const unit = trackCUnitForTarget(state, work);
-                  const key = `${work.unitId}:${work.trade}`;
-                  const line = byUnit.get(key) ?? {
-                    sections: [],
-                    trade: work.trade === 'paint' ? 'Paint' : 'Clean',
-                    unitNumber: unit?.unitNumber ?? work.unitId,
-                  };
-                  line.sections.push(trackCSectionLabel(work.section));
-                  byUnit.set(key, line);
-                }
-                return [...byUnit.entries()]
-                  .sort((left, right) => left[1].unitNumber.localeCompare(
-                    right[1].unitNumber, undefined, { numeric: true }))
-                  .slice(0, 10)
-                  .map(([key, line]) => (
-                    <li key={`${group.label}:${key}`}>
-                      <strong>Unit {line.unitNumber}</strong>
-                      <span>{line.trade} — {[...new Set(line.sections)].join(', ')}</span>
-                    </li>
-                  ));
-              })()}
-            </ul>
-          ) : (
-            <p>No confirmed events in this group.</p>
-          )}
-        </section>
-      ))}
-    </div>
-  );
-};
 const CrewDetail = ({
   state,
   crewId,
@@ -195,47 +128,109 @@ const CrewDetail = ({
           </button>
         ) : null}
       </div>
-      <section className="track-c-stat-grid" aria-label="Confirmed crew event stats">
-        {[
-          ['Current', detail.stats.currentAssignments],
-          ['Crew complete', detail.stats.crewReportedComplete],
-          ['Needs Los', detail.stats.needsLosInspection],
-          ['Los passed', detail.stats.losPassed],
-          ['Callbacks', detail.stats.openCallbacks],
-          ['Accepted', detail.stats.propertyAccepted],
-        ].map(([label, value]) => (
-          <div key={label}>
-            <strong>{value}</strong>
-            <span>{label}</span>
-          </div>
-        ))}
-      </section>
-      <p className="track-c-boundary-copy">
-        Counts use confirmed events only. No ranking, blame, payroll, or payment
-        eligibility is calculated.
-      </p>
-      <CrewWorkList detail={detail} state={state} />
-      <section className="track-c-recent-activity">
-        <header>
-          <Icon aria-hidden="true" size={18} />
-          <h2>Recent confirmed activity</h2>
-        </header>
-        {detail.recentActivity.length > 0 ? (
-          <ol>
-            {detail.recentActivity.map((event) => (
-              <li key={event.id}>
-                <strong>{event.summary}</strong>
-                <span>{new Date(event.recordedAt).toLocaleTimeString([], {
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })} · {event.sourceLabel}</span>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>No confirmed activity.</p>
-        )}
-      </section>
+      {(() => {
+        // Beds + common areas — the recorded language. One row per unit,
+        // latest state only; no triple listing.
+        const localDay = (iso: string) => {
+          const date = new Date(iso);
+          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        };
+        const today = localDay(new Date().toISOString());
+        const doneEvents = state.events.filter((event) =>
+          event.eventType === 'crew-reported-complete'
+          && event.confirmation === 'confirmed'
+          && event.crewId === crewId);
+        const count = (filter: (iso: string) => boolean) => {
+          const seen = new Set<string>();
+          let beds = 0;
+          let commons = 0;
+          for (const event of doneEvents) {
+            if (!filter(event.recordedAt)) continue;
+            const key = `${event.target.unitId}:${event.target.trade}:${event.target.section}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (event.target.section === 'common') commons += 1;
+            else beds += 1;
+          }
+          return { beds, commons };
+        };
+        const sunday = new Date();
+        if (sunday.getDay() === 6 && sunday.getHours() >= 17) sunday.setDate(sunday.getDate() + 1);
+        sunday.setDate(sunday.getDate() - sunday.getDay());
+        const weekStart = localDay(sunday.toISOString());
+        const todayLine = count((iso) => localDay(iso) === today);
+        const weekLine = count((iso) => localDay(iso) >= weekStart);
+        const label = (line: { beds: number; commons: number }) =>
+          line.beds === 0 && line.commons === 0
+            ? '—'
+            : [
+              line.beds > 0 ? `${line.beds} bed${line.beds === 1 ? '' : 's'}` : '',
+              line.commons > 0 ? `${line.commons} common` : '',
+            ].filter(Boolean).join(' · ');
+        const allWork = [
+          ...detail.currentWork,
+          ...detail.crewCompleteWork,
+          ...detail.losPassedWork,
+          ...detail.openCallbackWork,
+          ...detail.propertyAcceptedWork,
+        ];
+        const byUnit = new Map<string, {
+          unitNumber: string;
+          trade: string;
+          sections: Set<string>;
+          rank: number;
+          status: string;
+        }>();
+        const statusOf = (work: (typeof allWork)[number]): [number, string] =>
+          work.property === 'property-accepted' ? [4, 'Approved']
+            : work.callbackOpen ? [3, 'Callback']
+              : work.inspection === 'los-passed' ? [2, 'Los passed']
+                : work.execution === 'crew-reported-complete' ? [1, 'Done — needs Los']
+                  : [0, 'Working'];
+        for (const work of allWork) {
+          const unit = trackCUnitForTarget(state, work);
+          if (!unit) continue;
+          const key = `${work.unitId}:${work.trade}`;
+          const [rank, status] = statusOf(work);
+          const line = byUnit.get(key) ?? {
+            rank: -1,
+            sections: new Set<string>(),
+            status: '',
+            trade: work.trade === 'paint' ? 'Paint' : 'Clean',
+            unitNumber: unit.unitNumber,
+          };
+          line.sections.add(trackCSectionLabel(work.section));
+          if (rank > line.rank) {
+            line.rank = rank;
+            line.status = status;
+          }
+          byUnit.set(key, line);
+        }
+        const rows = [...byUnit.values()].sort((left, right) =>
+          left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+        return (
+          <>
+            <div className="track-c-crew-summary">
+              <div><small>Today</small><strong>{label(todayLine)}</strong></div>
+              <div><small>This week</small><strong>{label(weekLine)}</strong></div>
+            </div>
+            <section className="track-c-crew-units" aria-label="Units">
+              <h2>Units · {rows.length}</h2>
+              {rows.length === 0 ? (
+                <p className="track-c-boundary-copy">Nothing assigned yet.</p>
+              ) : rows.map((row) => (
+                <div className="track-c-crew-units__row" key={`${row.unitNumber}:${row.trade}`}>
+                  <strong>{row.unitNumber}</strong>
+                  <span>
+                    {row.trade} — {[...row.sections].join(', ')}
+                  </span>
+                  <em className={`is-rank-${row.rank}`}>{row.status}</em>
+                </div>
+              ))}
+            </section>
+          </>
+        );
+      })()}
     </article>
   );
 };
@@ -470,7 +465,7 @@ export const CrewView = ({
           return (
             <div key={tradeGroup}>
               <h2 className={`track-c-crew-group is-${tradeGroup}`}>
-                {tradeGroup === 'paint' ? '🖌 PAINT CREWS' : '💧 CLEAN CREWS'}
+                {tradeGroup === 'paint' ? 'PAINT CREWS' : 'CLEAN CREWS'}
               </h2>
               {group.map(({ crew, stats }) => {
           const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;

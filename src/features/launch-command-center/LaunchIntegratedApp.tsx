@@ -100,6 +100,7 @@ import {
 import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
+import { appendPersonalNoteActivity } from '../wave2a1-native/track-c/personalActivity';
 import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
 import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
 import {
@@ -2894,6 +2895,22 @@ function LaunchOperationalApp({
         <ManualReleaseReview
           actor="Los"
           contacts={activeProjectContacts.map((contact) => contact.name)}
+          onAttachNotes={(notes) => {
+            const saved = commitDataNow((current) => {
+              let next = current;
+              for (const note of notes) {
+                const result = appendPersonalNoteActivity(next, {
+                  unitId: note.unitId,
+                  wording: `From Joseph's release: ${note.text}`,
+                });
+                if (result.ok) next = result.data;
+              }
+              return next;
+            });
+            if (saved && notes.length > 0) {
+              setFieldToast(`${notes.length} note${notes.length === 1 ? '' : 's'} from Joseph's message saved to the units.`);
+            }
+          }}
           currentDate={activeDaySession?.date ?? currentDate}
           onBack={() => setHomeMode('day')}
           onConfirm={(batch) => {

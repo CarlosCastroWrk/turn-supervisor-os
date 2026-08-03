@@ -874,6 +874,152 @@ const UnitDetail = ({
   );
 };
 
+// The WALL view — his paper board, page per floor: unit rows with a Paint
+// and a Clean cell carrying the board's own marks ("/" released, name =
+// working, X = crew done, PASS = Los passed, CC = approved in that pay
+// week's color).
+const WALL_WEEK_EPOCH = new Date(2026, 6, 26); // Sunday, week 1 = yellow
+
+const wallWeekIndex = (iso: string): number => {
+  const date = new Date(iso);
+  if (date.getDay() === 6 && date.getHours() >= 17) date.setDate(date.getDate() + 1);
+  date.setDate(date.getDate() - date.getDay());
+  date.setHours(0, 0, 0, 0);
+  const weeks = Math.round((date.getTime() - WALL_WEEK_EPOCH.getTime()) / 604_800_000);
+  return ((weeks % 3) + 3) % 3;
+};
+
+const wallFloorOf = (unitNumber: string): string => {
+  const digits = unitNumber.replace(/\D/g, '');
+  return digits.length >= 3 ? digits.slice(0, -2) : 'Other';
+};
+
+const WallGrid = ({
+  state,
+  onOpenUnitTrade,
+}: {
+  state: TrackCState;
+  onOpenUnitTrade: (unitId: string, trade: TrackCTrade) => void;
+}) => {
+  const floors = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const unit of state.units) {
+      const floor = wallFloorOf(unit.unitNumber);
+      seen.set(floor, (seen.get(floor) ?? 0) + 1);
+    }
+    return [...seen.keys()].sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true }));
+  }, [state.units]);
+  const [floor, setFloor] = useState<string>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:wall-floor') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const activeFloor = floors.includes(floor) ? floor : floors[0];
+  const pickFloor = (next: string) => {
+    setFloor(next);
+    try {
+      window.localStorage.setItem('turn-os:wall-floor', next);
+    } catch {
+      // Session-only then.
+    }
+  };
+  const cellFor = (unitId: string, trade: TrackCTrade) => {
+    const released = projectTrackCUnitWork(state, unitId)
+      .filter((work) => work.trade === trade && work.release === 'released');
+    if (released.length === 0) return { cls: 'is-empty', mark: '—' };
+    if (released.every((work) => work.property === 'property-accepted')) {
+      const latest = state.events
+        .filter((event) =>
+          event.eventType === 'property-accepted'
+          && event.target.unitId === unitId
+          && event.target.trade === trade)
+        .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
+      return {
+        cls: `is-cc wall-wk${latest ? wallWeekIndex(latest) : 1}`,
+        mark: 'CC',
+      };
+    }
+    if (released.some((work) => work.callbackOpen)) return { cls: 'is-cb', mark: 'CB' };
+    const inPlay = released.filter((work) =>
+      work.access === 'clear' && work.property !== 'property-accepted');
+    if (inPlay.length === 0) return { cls: 'is-blocked', mark: 'Wait' };
+    if (inPlay.every((work) =>
+      work.inspection === 'los-passed' || work.property === 'property-accepted')) {
+      return { cls: 'is-passed', mark: 'PASS' };
+    }
+    if (inPlay.every((work) =>
+      work.execution === 'crew-reported-complete'
+      || work.inspection === 'los-passed'
+      || work.property === 'property-accepted')) {
+      return { cls: 'is-done', mark: 'X' };
+    }
+    const crewId = inPlay.find((work) => work.activeCrewIds.length > 0)?.activeCrewIds[0];
+    if (crewId) {
+      const name = state.crews.find((crew) => crew.id === crewId)?.name ?? 'Crew';
+      return { cls: 'is-working', mark: name.split(' ')[0] };
+    }
+    return { cls: 'is-open', mark: '/' };
+  };
+  const rows = state.units
+    .filter((unit) => wallFloorOf(unit.unitNumber) === activeFloor)
+    .sort((left, right) =>
+      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+  return (
+    <div className="track-c-wall">
+      <div className="track-c-wall__floors" role="group" aria-label="Floor">
+        {floors.map((candidate) => (
+          <button
+            aria-pressed={candidate === activeFloor}
+            key={candidate}
+            onClick={() => pickFloor(candidate)}
+            type="button"
+          >
+            {candidate === 'Other' ? 'Other' : `Floor ${candidate}`}
+          </button>
+        ))}
+      </div>
+      <div className="track-c-wall__grid" role="table" aria-label={`Wall board floor ${activeFloor}`}>
+        <div className="track-c-wall__head" role="row">
+          <span role="columnheader">Unit</span>
+          <span role="columnheader">Paint</span>
+          <span role="columnheader">Clean</span>
+        </div>
+        {rows.map((unit) => {
+          const paint = cellFor(unit.id, 'paint');
+          const clean = cellFor(unit.id, 'clean');
+          return (
+            <div className="track-c-wall__row" key={unit.id} role="row">
+              <span className="track-c-wall__unit" role="rowheader">{unit.unitNumber}</span>
+              {([['paint', paint], ['clean', clean]] as const).map(([trade, cell]) => (
+                <button
+                  aria-label={`Unit ${unit.unitNumber} ${trade}: ${cell.mark}`}
+                  className={`track-c-wall__cell ${cell.cls}`}
+                  key={trade}
+                  onClick={() => onOpenUnitTrade(unit.id, trade)}
+                  role="cell"
+                  type="button"
+                >
+                  {cell.mark}
+                </button>
+              ))}
+            </div>
+          );
+        })}
+        {rows.length === 0 ? (
+          <p className="track-c-wall__empty">No units on this floor.</p>
+        ) : null}
+      </div>
+      <p className="track-c-wall__legend">
+        / released · name = working · X = crew done · PASS = Los passed ·
+        CC = approved (color = pay week) · CB = callback · Wait = blocked
+      </p>
+    </div>
+  );
+};
+
 export const BoardView = ({
   state,
   selectedUnitId,
@@ -914,6 +1060,22 @@ export const BoardView = ({
     }
   };
   const [focusTrade, setFocusTrade] = useState<TrackCTrade>();
+  // List = the twin trade boards; Wall = the paper-board grid, floor by floor.
+  const [boardMode, setBoardMode] = useState<'list' | 'wall'>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:board-mode') === 'wall' ? 'wall' : 'list';
+    } catch {
+      return 'list';
+    }
+  });
+  const pickBoardMode = (mode: 'list' | 'wall') => {
+    setBoardMode(mode);
+    try {
+      window.localStorage.setItem('turn-os:board-mode', mode);
+    } catch {
+      // Session-only then.
+    }
+  };
   const tradeWorkFor = (unitId: string) =>
     projectTrackCUnitWork(state, unitId).filter((work) => work.trade === boardTrade);
   const unitWorkHas = (unitId: string, predicate: (work: TrackCWorkProjection) => boolean) =>
@@ -1026,8 +1188,34 @@ export const BoardView = ({
           <h1 id="track-c-board-heading">{state.terminology.boardName}</h1>
           <p>Paper TurnBoard is official</p>
         </div>
-        <span>{units.length} Units</span>
+        <span>{boardMode === 'wall' ? 'Wall board' : `${units.length} Units`}</span>
       </header>
+      <div className="track-c-board-trade track-c-board-mode" role="group" aria-label="Board style">
+        <button
+          aria-pressed={boardMode === 'list'}
+          onClick={() => pickBoardMode('list')}
+          type="button"
+        >
+          Boards
+        </button>
+        <button
+          aria-pressed={boardMode === 'wall'}
+          onClick={() => pickBoardMode('wall')}
+          type="button"
+        >
+          Wall grid
+        </button>
+      </div>
+      {boardMode === 'wall' ? (
+        <WallGrid
+          onOpenUnitTrade={(unitId, trade) => {
+            setFocusTrade(trade);
+            onOpenUnit(unitId);
+          }}
+          state={state}
+        />
+      ) : (
+      <>
       <div className="track-c-board-trade" role="group" aria-label="Paint or Clean board">
         <button
           aria-pressed={boardTrade === 'paint'}
@@ -1123,6 +1311,8 @@ export const BoardView = ({
           </div>
         )}
       </div>
+      </>
+      )}
     </section>
   );
 };

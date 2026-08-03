@@ -2095,12 +2095,14 @@ function LaunchOperationalApp({
     </section>
   ) : null;
 
-  // LIVE portal: once Los has published the portal once, every committed
-  // field change republishes automatically (debounced) — Joseph and Paige see
-  // the board move without Los tapping anything.
+  // LIVE portal: every committed field change republishes automatically —
+  // no first manual share needed. Joseph and Paige see the board move while
+  // Los assigns, crews work, and he approves. Empty snapshots never publish,
+  // so a fresh device can't blank the portal.
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
-    if (!window.localStorage.getItem('turn-os:portal-share-url')) return undefined;
+    const units = buildPortalUnits(trackCState);
+    if (units.length === 0) return undefined;
     const timer = window.setTimeout(() => {
       void (async () => {
         try {
@@ -2112,7 +2114,7 @@ function LaunchOperationalApp({
               generatedAt: new Date().toISOString(),
               propertyName: launchProjection.propertyName,
               supervisor: launchProjection.project?.supervisorName?.trim() || 'Los',
-              units: buildPortalUnits(trackCState),
+              units,
             }),
             headers: {
               authorization: `Bearer ${session.access_token}`,
@@ -2125,7 +2127,7 @@ function LaunchOperationalApp({
           // Offline or signed out — the next change retries automatically.
         }
       })();
-    }, 20_000);
+    }, 8_000);
     return () => window.clearTimeout(timer);
   }, [launchProjection.project?.supervisorName, launchProjection.propertyName, trackCState]);
 

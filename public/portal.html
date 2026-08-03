@@ -235,7 +235,8 @@
   el('walkPaige').addEventListener('click', () => void requestWalk('Paige'));
 
   load();
-  setInterval(load, 45000);
+  setInterval(load, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
 })();
 </script>
 </body>

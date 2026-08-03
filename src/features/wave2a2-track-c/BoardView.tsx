@@ -26,6 +26,7 @@ import { UnitPhotoAddButton, UnitPhotoStrip, type UnitPhotoCommitter } from './U
 import {
   projectTrackCUnitWork,
   projectTrackCTradeProgress,
+  trackCTradeWorkTypeLabel,
   searchTrackCCompactUnits,
   trackCCrewName,
   trackCUnitMakeupLabel,
@@ -227,9 +228,11 @@ const actionsFor = (
 const CompactTrade = ({
   state,
   progress,
+  workLabel,
 }: {
   state: TrackCState;
   progress: TrackCCompactUnitProjection['paint'];
+  workLabel?: string;
 }) => {
   const Icon = progress.trade === 'paint' ? Paintbrush : Droplets;
   const names = progress.crewIds
@@ -257,7 +260,7 @@ const CompactTrade = ({
       </strong>
       {progress.conciseLabel === 'No released work' && names.length === 0
         ? null
-        : <small>{progress.conciseLabel}</small>}
+        : <small>{progress.conciseLabel}{workLabel ? ` · ${workLabel}` : ''}</small>}
     </div>
   );
 };
@@ -297,7 +300,7 @@ const CompactUnitRow = ({
       </span>
     </div>
     <div className="track-c-unit-row__trades">
-      {trade !== 'clean' ? <CompactTrade progress={unit.paint} state={state} /> : null}
+      {trade !== 'clean' ? <CompactTrade progress={unit.paint} state={state} workLabel={trackCTradeWorkTypeLabel(state, unit.unitId, 'paint')} /> : null}
       {trade !== 'paint' ? <CompactTrade progress={unit.clean} state={state} /> : null}
     </div>
     {blocked ? (

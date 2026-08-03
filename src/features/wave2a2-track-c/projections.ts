@@ -17,7 +17,7 @@ import {
   type TrackCWorkProjection,
   type TrackCWorkTarget,
 } from './model';
-import { trackCWorkKey } from './model';
+import { trackCSectionLabel, trackCWorkKey } from './model';
 
 const confirmedTargetEvents = (
   state: TrackCState,
@@ -530,4 +530,31 @@ export const trackCUnitMakeupLabel = (unit: TrackCUnit): string => {
     beds > 0 ? `${beds} bed${beds === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
   return parts.join(' · ') || unit.unitType;
+};
+
+// One phrase for "what is this trade doing in this unit" — full paint /
+// touch-up / cut-in, or the per-room split when Joseph mixed types. Clean has
+// no work types (a clean is the whole unit).
+export const trackCTradeWorkTypeLabel = (
+  state: TrackCState,
+  unitId: string,
+  trade: TrackCTrade,
+): string => {
+  if (trade === 'clean') return '';
+  const released = state.units.find((unit) => unit.id === unitId)
+    ?.workFacts.filter((fact) => fact.trade === trade && fact.release === 'released') ?? [];
+  if (released.length === 0) return '';
+  const label = (type: string) =>
+    type === 'touch-up' ? 'touch-up' : type === 'cut-in' ? 'cut-in' : 'full paint';
+  const types = new Set(released.map((fact) => fact.workType ?? 'full'));
+  const first = [...types][0];
+  if (types.size === 1 && first) return label(first);
+  const parts: string[] = [];
+  for (const type of ['full', 'touch-up', 'cut-in']) {
+    const sections = released
+      .filter((fact) => (fact.workType ?? 'full') === type)
+      .map((fact) => trackCSectionLabel(fact.section));
+    if (sections.length > 0) parts.push(`${label(type)} ${sections.join('·')}`);
+  }
+  return parts.join(' · ');
 };

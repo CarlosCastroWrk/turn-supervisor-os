@@ -61,7 +61,7 @@ const readyToWalkNotifications = (
   if (groups.length <= READY_TO_WALK_SUMMARY_THRESHOLD) {
     return groups.map((group) => ({
       category: 'inspections' as const,
-      destinationId: `unit:${group.head.target.unitId}`,
+      destinationId: `unit:${group.head.target.unitId}:${group.head.target.trade}`,
       destinationLabel: `Unit ${group.head.unitNumber}`,
       group: 'today' as const,
       id: `canonical-walk:${group.key}`,
@@ -124,7 +124,7 @@ export const projectCanonicalFieldConsumers = (
   }
   const homeRecords: NativeHomeRecord[] = [...homeGroups.entries()]
     .map(([key, group]) => ({
-      destinationId: `unit:${group.unitId}`,
+      destinationId: `unit:${group.unitId}:${group.trade}`,
       id: `canonical-home:${key}`,
       meta: [
         group.trade === 'paint' ? 'Paint' : 'Clean',
@@ -181,7 +181,7 @@ export const projectCanonicalFieldConsumers = (
   const notifications: NativeNotificationItem[] = [
     ...groupByUnitTrade(projection.assignmentConflicts).map((group) => ({
       category: 'conflicts' as const,
-      destinationId: `unit:${group.head.target.unitId}`,
+      destinationId: `unit:${group.head.target.unitId}:${group.head.target.trade}`,
       destinationLabel: `Unit ${group.head.unitNumber}`,
       group: 'important' as const,
       id: `canonical-conflict:${group.key}`,
@@ -192,7 +192,7 @@ export const projectCanonicalFieldConsumers = (
     })),
     ...groupByUnitTrade(projection.queues.callbacks).map((group) => ({
       category: 'callbacks' as const,
-      destinationId: `unit:${group.head.target.unitId}`,
+      destinationId: `unit:${group.head.target.unitId}:${group.head.target.trade}`,
       destinationLabel: `Unit ${group.head.unitNumber}`,
       group: 'important' as const,
       id: `canonical-callback:${group.key}`,

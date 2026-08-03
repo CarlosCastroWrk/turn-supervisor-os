@@ -164,6 +164,9 @@ RULES for this grid:
    staff-only uncertainty line as "no objective".
 6. This grid is usually PAINT; commons appear only if written. Trades:
    ["paint"] unless the sheet clearly says cleaning.
+7. CLEANING is whole-unit: a clean release means the entire unit (all rooms +
+   common). For clean rows output sections [] (meaning all applicable) unless
+   the source explicitly limits rooms. Work types apply to PAINT only.
 
 TASK: Extract TODAY'S RELEASED work only — units whose white cells show
 release slashes, or units the message says are released today. For each unit

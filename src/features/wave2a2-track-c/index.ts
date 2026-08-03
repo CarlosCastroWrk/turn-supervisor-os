@@ -65,6 +65,7 @@ export {
   projectTrackCWork,
   searchTrackCCompactUnits,
   trackCCrewName,
+  trackCTradeWorkTypeLabel,
   trackCUnitForTarget,
 } from './projections';
 export {

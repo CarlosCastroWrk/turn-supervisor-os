@@ -1208,6 +1208,7 @@ export interface LiveBoardLine {
   trade: 'paint' | 'clean';
   crewNames: string[];
   stage: 'needs-crew' | 'working' | 'crew-done' | 'passed' | 'callback';
+  workLabel?: string;
   done: number;
   total: number;
   passedAgo?: string;
@@ -1494,6 +1495,7 @@ function DayTaskHome({
                         <small>
                           <b>{line.crewNames.length > 0 ? line.crewNames.join(' + ') : 'unassigned'}</b>
                           {' · '}{line.done}/{line.total} sections
+                          {line.workLabel ? ` · ${line.workLabel}` : ''}
                         </small>
                         <button
                           className="w2a2b-live-card__stage"

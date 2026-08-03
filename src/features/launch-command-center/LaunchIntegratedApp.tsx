@@ -93,6 +93,7 @@ import {
   projectTrackCUnitWork,
   projectTrackCWork,
   saveDailyReportPdf,
+  trackCTradeWorkTypeLabel,
   trackCCrewName,
 } from '../wave2a2-track-c';
 import {
@@ -412,13 +413,30 @@ function LaunchOperationalApp({
   const [homeMode, setHomeMode] = useState<HomeMode>('day');
   const [demoExplored, setDemoExplored] = useState(false);
   const [dayWorkspaceView, setDayWorkspaceView] = useState('home');
-  const [manualReleaseStatus, setManualReleaseStatus] = useState('');
   const [boardSessionActivity, setBoardSessionActivity] = useState<BoardFirstActivityItem[]>([]);
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [notificationTab, setNotificationTab] = useState<NativeNotificationTab>('all');
-  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => new Set());
+  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem('turn-os:read-notifications');
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        'turn-os:read-notifications',
+        JSON.stringify([...readNotificationIds].slice(-500)),
+      );
+    } catch {
+      // Storage full — read state survives the session only.
+    }
+  }, [readNotificationIds]);
   const [crewEditor, setCrewEditor] = useState<CrewEditorState>(null);
   const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
   const [moreStatus, setMoreStatus] = useState(
@@ -488,6 +506,13 @@ function LaunchOperationalApp({
   // Device-local stamp: has today's release proof been submitted to the
   // official Backup Safety Submission Box? (No schema impact — Turn freeze.)
   const [historyDayOffset, setHistoryDayOffset] = useState(0);
+  const [releaseProofSnooze, setReleaseProofSnooze] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:release-proof-snooze');
+    } catch {
+      return null;
+    }
+  });
   const [releaseProofDate, setReleaseProofDate] = useState<string | null>(() => (
     typeof window === 'undefined' ? null : window.localStorage.getItem('turn-os:release-proof-date')
   ));
@@ -629,6 +654,7 @@ function LaunchOperationalApp({
       total: number;
       passedAgo?: string;
       noCrewOnRoster?: boolean;
+      workLabel?: string;
     }[] = [];
     const today = localEventDate(new Date().toISOString());
     for (const unit of trackCState.units) {
@@ -675,6 +701,7 @@ function LaunchOperationalApp({
         }
         lines.push({
           crewNames,
+          workLabel: trackCTradeWorkTypeLabel(trackCState, unit.id, trade),
           done: donePlus,
           stage,
           total: work.length,
@@ -1494,12 +1521,14 @@ function LaunchOperationalApp({
 
   const openDestination = useCallback((destinationId: string) => {
     if (destinationId.startsWith('unit:')) {
-      unitDetailTradeRef.current = undefined;
+      const [unitId, tradePart] = destinationId.slice('unit:'.length).split(':');
+      unitDetailTradeRef.current =
+        tradePart === 'paint' || tradePart === 'clean' ? tradePart : undefined;
       unitDetailOriginRef.current =
         routeRef.current.view === 'dashboard'
           ? routeRef.current.homeSummary ?? 'home'
           : undefined;
-      navigate('unitDetail', destinationId.slice('unit:'.length));
+      navigate('unitDetail', unitId);
       return;
     }
     if (destinationId.startsWith('issue:')) {
@@ -1537,6 +1566,16 @@ function LaunchOperationalApp({
     }
     openDestination(result.destinationId);
   }, [openDestination, searchQuery]);
+
+  // Checking notifications clears them — everything on screen counts as seen.
+  useEffect(() => {
+    if (route.view !== 'notifications') return;
+    setReadNotificationIds((current) => {
+      const next = new Set(current);
+      for (const item of nativeNotifications) next.add(item.id);
+      return next.size === current.size ? current : next;
+    });
+  }, [nativeNotifications, route.view]);
 
   const handleNotification = useCallback((item: NativeNotificationItem) => {
     setReadNotificationIds((current) => new Set([...current, item.id]));
@@ -1600,7 +1639,6 @@ function LaunchOperationalApp({
   const handleQuickAction = useCallback((action: LaunchQuickActionId) => {
     if (action === 'import-work') {
       navigate('dashboard');
-      setManualReleaseStatus('');
       setHomeMode('manual-release');
       return;
     }
@@ -2100,14 +2138,6 @@ function LaunchOperationalApp({
     </section>
   ) : null;
 
-  const manualReleaseAlert = manualReleaseStatus ? (
-    <section className="persistence-alert lcc-host-alert" role="status">
-      <div>
-        <strong>Midday release saved</strong>
-        <p>{manualReleaseStatus}</p>
-      </div>
-    </section>
-  ) : null;
 
   // LIVE portal: every committed field change republishes automatically —
   // no first manual share needed. Joseph and Paige see the board move while
@@ -2330,7 +2360,6 @@ function LaunchOperationalApp({
       {repositoryAlert}
       {offlineContinuityAlert}
       {loadWarningAlert}
-      {manualReleaseAlert}
     </>
   );
 
@@ -2776,7 +2805,7 @@ function LaunchOperationalApp({
     <div className="lcc-host-stack">
       {hostAlerts}
       {launchProjection.project?.mode === 'real' && todayTask
-        && releaseProofDate !== currentDate ? (
+        && releaseProofDate !== currentDate && releaseProofSnooze !== currentDate ? (
         <section className="lcc-release-proof" role="note">
           <strong>Submit today’s release proof</strong>
           <p>
@@ -2819,6 +2848,19 @@ function LaunchOperationalApp({
               type="button"
             >
               Open Submission Box
+            </button>
+            <button
+              onClick={() => {
+                try {
+                  window.localStorage.setItem('turn-os:release-proof-snooze', currentDate);
+                } catch {
+                  // Session-only snooze then.
+                }
+                setReleaseProofSnooze(currentDate);
+              }}
+              type="button"
+            >
+              Not now
             </button>
           </div>
         </section>
@@ -2962,8 +3004,8 @@ function LaunchOperationalApp({
             const saved = commitDataNow((current) =>
               appendManualReleaseBatchToActiveDay(current, batch));
             if (!saved) return false;
-            setManualReleaseStatus(
-              `${batch.items.length} released section${batch.items.length === 1 ? '' : 's'} saved to the active Day Session.`,
+            setFieldToast(
+              `Saved — ${batch.items.length} released section${batch.items.length === 1 ? '' : 's'} added to today.`,
             );
             setHomeMode('day');
             return true;

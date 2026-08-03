@@ -55,10 +55,17 @@ export const crewUnitsTextBody = (
   const header = lang === 'es'
     ? `¡Hola ${crewName}! Estas son sus unidades:`
     : `Hi ${crewName}! These are your units:`;
-  const lines = [...rows]
-    .sort((left, right) =>
-      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
-    .map((row) => {
+  // Units come out in walk order — lowest floor up — and when the list spans
+  // floors, each floor gets its own line so the crew clears one at a time
+  // instead of riding up and down.
+  const floorOf = (unitNumber: string): string => {
+    const digits = unitNumber.replace(/\D/g, '');
+    return digits.length >= 3 ? digits.slice(0, -2) : '';
+  };
+  const sorted = [...rows].sort((left, right) =>
+    left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+  const floors = new Set(sorted.map((row) => floorOf(row.unitNumber)));
+  const unitLines = sorted.map((row) => {
       const ordered = [...row.sections].sort((left, right) =>
         left.kind === right.kind
           ? (left.bed ?? '').localeCompare(right.bed ?? '')
@@ -73,6 +80,22 @@ export const crewUnitsTextBody = (
       }
       return `${lang === 'es' ? 'Unidad' : 'Unit'} ${row.unitNumber}: ${parts.join(', ')}`;
     });
+  const lines: string[] = [];
+  if (floors.size > 1) {
+    let lastFloor: string | undefined;
+    sorted.forEach((row, index) => {
+      const floor = floorOf(row.unitNumber);
+      if (floor !== lastFloor) {
+        lastFloor = floor;
+        lines.push(floor
+          ? `${lang === 'es' ? 'Piso' : 'Floor'} ${floor}:`
+          : lang === 'es' ? 'Otras:' : 'Other:');
+      }
+      lines.push(unitLines[index]);
+    });
+  } else {
+    lines.push(...unitLines);
+  }
   const footer = lang === 'es'
     ? 'Me avisa cuando terminen cada unidad. Cualquier pregunta me dice — ¡gracias por su ayuda!'
     : 'Text me as you finish each unit. Let me know if you have any questions — thank you for your help!';

@@ -1000,59 +1000,79 @@ const UnitDetail = ({
                 The crew cleans everything; report it done above, walk it, and
                 keep anything that needs work in Notes.
               </p>
-            ) : (
-            <div className="track-c-section-list">
-              {tradeWork.map((item) => {
-                const key = trackCWorkKey(item);
-                return (
-                  <WorkSection
-                    isSelected={selectedKey === key}
-                    key={key}
-                    unitNumber={unit.unitNumber}
-                    onToggleRelease={onSetSectionRelease
-                      ? (released) => onSetSectionRelease(
-                        {
-                          unitId: item.unitId,
-                          trade: item.trade,
-                          section: item.section,
-                        },
-                        released,
-                      )
-                      : undefined}
-                    onSetWorkType={onSetSectionWorkType
-                      ? (workType) => onSetSectionWorkType(
-                        {
-                          unitId: item.unitId,
-                          trade: item.trade,
-                          section: item.section,
-                        },
-                        workType,
-                      )
-                      : undefined}
-                    onAction={(action) =>
-                      onSectionAction(
-                        {
-                          unitId: item.unitId,
-                          trade: item.trade,
-                          section: item.section,
-                        },
-                        action,
-                      )}
-                    onRequestMirror={() =>
-                      onRequestMirror({
-                        unitId: item.unitId,
-                        trade: item.trade,
-                        section: item.section,
-                      })}
-                    onSelect={() =>
-                      setSelectedKey((current) => (current === key ? undefined : key))}
-                    state={state}
-                    work={item}
-                  />
-                );
-              })}
-            </div>
-            )}
+            ) : (() => {
+              // The unit page shows the ROOMS BEING WORKED (released). Deleting a
+              // room drops it out of this list and into the "add a room" strip —
+              // so 1608 shows only B when only B was released, exactly like Los
+              // reads it off Joseph's sheet.
+              const releasedWork = tradeWork.filter((item) => item.release === 'released');
+              const addableWork = tradeWork.filter((item) => item.release !== 'released');
+              return (
+                <>
+                  <div className="track-c-section-list">
+                    {releasedWork.map((item) => {
+                      const key = trackCWorkKey(item);
+                      return (
+                        <WorkSection
+                          isSelected={selectedKey === key}
+                          key={key}
+                          unitNumber={unit.unitNumber}
+                          onToggleRelease={onSetSectionRelease
+                            ? (released) => onSetSectionRelease(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              released,
+                            )
+                            : undefined}
+                          onSetWorkType={onSetSectionWorkType
+                            ? (workType) => onSetSectionWorkType(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              workType,
+                            )
+                            : undefined}
+                          onAction={(action) =>
+                            onSectionAction(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              action,
+                            )}
+                          onRequestMirror={() =>
+                            onRequestMirror({ unitId: item.unitId, trade: item.trade, section: item.section })}
+                          onSelect={() =>
+                            setSelectedKey((current) => (current === key ? undefined : key))}
+                          state={state}
+                          work={item}
+                        />
+                      );
+                    })}
+                    {releasedWork.length === 0 ? (
+                      <p className="track-c-section-row__note">
+                        Nothing released for {tradeLabel(trade)} yet — add the rooms
+                        Joseph released below.
+                      </p>
+                    ) : null}
+                  </div>
+                  {onSetSectionRelease && addableWork.length > 0 ? (
+                    <div className="track-c-addrooms">
+                      <span>Add a room Joseph released:</span>
+                      <div className="track-c-addrooms__chips">
+                        {addableWork.map((item) => (
+                          <button
+                            data-track-c-critical-target="true"
+                            key={trackCWorkKey(item)}
+                            onClick={() => onSetSectionRelease(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              true,
+                            )}
+                            type="button"
+                          >
+                            + {trackCSectionLabel(item.section)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
           </section>
         );
       })}

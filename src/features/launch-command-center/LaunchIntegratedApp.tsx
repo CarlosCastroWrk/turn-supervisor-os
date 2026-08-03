@@ -1891,21 +1891,26 @@ function LaunchOperationalApp({
         if (sections.length === 0) {
           throw new Error(`${asked.join(', ')} already property-approved — can't delete`);
         }
+        const tellOsSession = data.daySessions.some((session) =>
+          session.projectId === data.activeProjectId
+          && ['active', 'ending', 'reopened'].includes(session.status));
         let track = base;
-        for (const section of sections) {
-          const cleared = clearTrackCAssignments(track, {
-            eventIdPrefix: createId('tellos-unrelease'),
-            recordedAt: nowISO(),
-            recordedBy: 'Los',
-            section,
-            trade,
-            unitId: unit.id,
-          });
-          if (cleared.ok) track = cleared.value;
+        if (tellOsSession) {
+          for (const section of sections) {
+            const cleared = clearTrackCAssignments(track, {
+              eventIdPrefix: createId('tellos-unrelease'),
+              recordedAt: nowISO(),
+              recordedBy: 'Los',
+              section,
+              trade,
+              unitId: unit.id,
+            });
+            if (cleared.ok) track = cleared.value;
+          }
+          tellOsTrackRef.current = track;
         }
-        tellOsTrackRef.current = track;
         const saved = commitDataNow((current) => {
-          let next = applyTrackCStateChange(current, track);
+          let next = tellOsSession ? applyTrackCStateChange(current, track) : current;
           for (const section of sections) {
             next = setSectionReleaseState(next, {
               idFactory: createId,
@@ -2804,7 +2809,11 @@ function LaunchOperationalApp({
             }
             const saved = commitDataNow((current) => {
               let next = current;
-              if (!released) {
+              // Unassigning crews records field events, which need an active Day
+              // Session. Removing the release row does NOT — so when the day
+              // isn't started, skip the crew-clearing and just drop the rows.
+              // (Never let "start the day" block fixing Joseph's mistake.)
+              if (!released && hasActiveSession) {
                 const cleared = clearTrackCAssignments(trackCState, {
                   eventIdPrefix: createId('unrelease'),
                   recordedAt: nowISO(),

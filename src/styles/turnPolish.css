@@ -924,3 +924,29 @@ select:focus-visible {
   font-size: 13px;
   color: var(--turn-color-secondary);
 }
+
+/* ---------- Unit page: add a room Joseph released ---------- */
+.track-c-addrooms {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  border: 1px dashed var(--turn-color-divider);
+  border-radius: 12px;
+}
+.track-c-addrooms > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--turn-color-secondary);
+}
+.track-c-addrooms__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.track-c-addrooms__chips button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 38px;
+}

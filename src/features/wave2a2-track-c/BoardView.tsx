@@ -254,7 +254,9 @@ const CompactTrade = ({
           ? progress.released > 0 ? 'Needs crew' : 'Unreleased'
           : names.join(', ')}
       </strong>
-      <small>{progress.conciseLabel}</small>
+      {progress.conciseLabel === 'No released work' && names.length === 0
+        ? null
+        : <small>{progress.conciseLabel}</small>}
     </div>
   );
 };

@@ -441,3 +441,6 @@ select:focus-visible {
   border: none;
   color: var(--turn-color-on-brand, #fff);
 }
+
+/* ---------- No double titles: the compact bar defers to the big h1 ---------- */
+.w2a1b-page__compact-title { opacity: 0; }

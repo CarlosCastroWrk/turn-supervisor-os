@@ -378,7 +378,7 @@ function LaunchOperationalApp({
   routeRef.current = route;
   // When a unit is opened from a Home queue (Needs Crew, Working, …), Back
   // must return to that queue — not dump Los on the TurnBoard.
-  const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | undefined>(undefined);
+  const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | 'home' | undefined>(undefined);
   // Same rule for crews: opened from Home's "Crews right now" → Back returns
   // to Home, not the Crews tab.
   const crewOriginHomeRef = useRef(false);
@@ -1483,8 +1483,8 @@ function LaunchOperationalApp({
   const openDestination = useCallback((destinationId: string) => {
     if (destinationId.startsWith('unit:')) {
       unitDetailOriginRef.current =
-        routeRef.current.view === 'dashboard' && routeRef.current.homeSummary
-          ? routeRef.current.homeSummary
+        routeRef.current.view === 'dashboard'
+          ? routeRef.current.homeSummary ?? 'home'
           : undefined;
       navigate('unitDetail', destinationId.slice('unit:'.length));
       return;
@@ -2651,9 +2651,10 @@ function LaunchOperationalApp({
               return;
             }
             if (unitDetailOriginRef.current) {
-              const homeSummary = unitDetailOriginRef.current;
+              const origin = unitDetailOriginRef.current;
               unitDetailOriginRef.current = undefined;
-              navigate('dashboard', undefined, { homeSummary });
+              if (origin === 'home') navigate('dashboard');
+              else navigate('dashboard', undefined, { homeSummary: origin });
               return;
             }
             navigate('units');

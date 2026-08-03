@@ -416,6 +416,13 @@ const WorkSection = ({
       }}
     >
       {menuOpen ? (
+        <>
+        <button
+          aria-label="Close menu"
+          className="track-c-room-menu__backdrop"
+          onClick={() => setMenuOpen(false)}
+          type="button"
+        />
         <div className="track-c-room-menu" role="menu">
           <p>{trackCSectionLabel(work.section)}</p>
           {work.trade === 'paint' && onSetWorkType
@@ -451,6 +458,7 @@ const WorkSection = ({
             Cancel
           </button>
         </div>
+        </>
       ) : null}
       <div className="track-c-section-row__bar">
         <button
@@ -956,8 +964,13 @@ const UnitDetail = ({
               ) : null}
             {trade === 'clean' ? (
               <p className="track-c-clean-wholeunit">
-                Clean is the whole unit — the crew cleans everything. Report it
-                done above, walk it, and keep anything that needs work in Notes.
+                {(() => {
+                  const beds = tradeWork.filter((item) => item.section !== 'common').length;
+                  const hasCommon = tradeWork.some((item) => item.section === 'common');
+                  return `Whole unit — ${beds} bed${beds === 1 ? '' : 's'}${hasCommon ? ' + common' : ''}. `;
+                })()}
+                The crew cleans everything; report it done above, walk it, and
+                keep anything that needs work in Notes.
               </p>
             ) : (
             <div className="track-c-section-list">

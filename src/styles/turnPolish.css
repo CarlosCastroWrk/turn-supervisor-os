@@ -763,3 +763,21 @@ select:focus-visible {
   min-height: 44px;
 }
 .track-c-room-menu button.is-remove { color: var(--turn-color-destructive, #b4232d); }
+
+.track-c-room-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: transparent;
+  border: none;
+}
+.w2a2b-glance-link {
+  border: none;
+  background: transparent;
+  color: var(--turn-color-brand);
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

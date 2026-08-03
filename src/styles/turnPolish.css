@@ -141,3 +141,122 @@ select:focus-visible {
   outline: 2px solid var(--t-blue);
   outline-offset: 2px;
 }
+
+/* ============================================================
+   THEME-TRUE SURFACES — new v2 components speak the token system
+   in BOTH light and dark (found white-on-dark in live audit).
+   ============================================================ */
+
+.w2a2b-needsme,
+.w2a2b-actionrow {
+  background: var(--turn-color-page, #f2f2f7);
+}
+
+.w2a2b-actionrow > button {
+  background: var(--turn-color-elevated, #fff);
+  border-color: var(--turn-color-divider, #d9dde3);
+  color: var(--turn-color-primary, #111318);
+}
+
+.w2a2b-board {
+  background: var(--turn-color-elevated, #fff);
+}
+
+.w2a2b-board__head h3 { color: var(--turn-color-primary, #111318); }
+.w2a2b-board .w2a2b-live-card { border-top-color: var(--turn-color-divider, #f0f2f5); }
+.w2a2b-live-card__unit strong { color: var(--turn-color-primary, #111318); }
+.w2a2b-live-card__unit span { color: var(--turn-color-secondary, #66707c); }
+.w2a2b-live-card__body small { color: var(--turn-color-secondary, #66707c); }
+.w2a2b-live-card__body small b { color: var(--turn-color-primary, #111318); }
+
+.w2a2b-live-card__stage {
+  background: var(--turn-color-grouped, #f7f8fa);
+  border-color: var(--turn-color-divider, #d9dde3);
+  color: var(--turn-color-primary, #111318);
+}
+
+.w2a2b-live-card__stage:disabled { color: var(--turn-color-secondary, #444c56); }
+
+.w2a2b-needsme__chip.is-a { background: var(--turn-color-waiting-soft, #fdf3e4); color: var(--turn-color-waiting, #9b5b00); }
+.w2a2b-needsme__chip.is-r { background: var(--turn-color-destructive-soft, #fbe8ea); color: var(--turn-color-destructive, #b4232d); }
+.w2a2b-needsme__chip.is-g { background: var(--turn-color-ready-soft, #e2f2e8); color: var(--turn-color-ready, #237a45); }
+.w2a2b-needsme__chip.is-b { background: var(--turn-color-grouped, #eef0f3); color: var(--turn-color-secondary, #66707c); }
+
+.w2a2b-glance-line,
+.w2a2b-day-brief { color: var(--turn-color-secondary, #66707c); }
+
+.w2a2b-transfer-list li,
+.w2a2b-transfer-row small { color: var(--turn-color-secondary, #444c56); }
+.w2a2b-transfer-row strong { color: var(--turn-color-primary, #111318); }
+
+.w2a2-core-selected {
+  background: var(--turn-color-elevated, #fff);
+}
+
+.w2a2-core-selected__unit { border-top-color: var(--turn-color-divider, #f0f2f5); }
+.w2a2-core-selected__unit strong { color: var(--turn-color-primary, #111318); }
+
+.w2a2-core-quickgrid__scope > button,
+.w2a2-core-contact-picks > button {
+  background: var(--turn-color-elevated, #fff);
+  border-color: var(--turn-color-divider, #d9dde3);
+  color: var(--turn-color-secondary, #66707c);
+}
+
+.w2a2-core-quickgrid__scope > button.is-selected,
+.w2a2-core-contact-picks > button.is-selected {
+  background: var(--turn-color-brand, #0877d1);
+  border-color: var(--turn-color-brand, #0877d1);
+  color: var(--turn-color-on-brand, #fff);
+}
+
+.w2a2-core-typepill.is-touch-up { background: var(--turn-color-elevated, #fff); }
+
+.lcc-block-dialog__card {
+  background: var(--turn-color-elevated, #fff);
+  color: var(--turn-color-primary, #111318);
+}
+
+.lcc-block-dialog__card select,
+.lcc-block-dialog__card input {
+  background: var(--turn-color-input-background, #fff);
+  border-color: var(--turn-color-input-border, #d9dde3);
+  color: var(--turn-color-primary, #111318);
+}
+
+.w2a1b-notes__list li { background: var(--turn-color-elevated, #fff); }
+.w2a1b-notes__list p { color: var(--turn-color-primary, #111318); }
+.w2a1b-notes__search {
+  background: var(--turn-color-input-background, #fff);
+  border-color: var(--turn-color-input-border, #d9dde3);
+}
+.w2a1b-notes__search input { background: transparent; color: var(--turn-color-primary, #111318); }
+
+/* ---------- Unit page top: tighter utility buttons ---------- */
+.track-c-unit-note-button {
+  font-size: 13.5px;
+  margin-block-end: 6px;
+  min-block-size: 40px;
+  padding: 6px 10px;
+}
+
+/* ---------- Field toast: feedback where you stand ---------- */
+.lcc-field-toast {
+  background: var(--turn-color-primary, #111318);
+  border-radius: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  color: var(--turn-color-page, #fff);
+  font-size: 14px;
+  font-weight: 700;
+  left: 50%;
+  max-width: 92vw;
+  padding: 11px 16px;
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: 80;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lcc-field-toast { animation: turn-pop 160ms ease-out; }
+}

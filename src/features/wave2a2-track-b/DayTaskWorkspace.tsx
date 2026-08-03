@@ -1436,7 +1436,7 @@ function DayTaskHome({
           </button>
         ))}
       </div>
-      {liveBoard && liveBoard.length > 0 ? (
+      {liveBoard ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
           {(['paint', 'clean'] as const).map((trade) => {
             const lines = liveBoard.filter((line) => line.trade === trade);
@@ -1458,7 +1458,7 @@ function DayTaskHome({
                   </button>
                 </div>
                 {lines.length === 0 ? (
-                  <p className="w2a2b-board__empty">Nothing in play.</p>
+                  <p className="w2a2b-board__empty">Nothing in play — tap + Joseph when he releases.</p>
                 ) : lines.map((line) => {
                   const stageLabel = line.stage === 'callback'
                     ? '⚠ Callback open'

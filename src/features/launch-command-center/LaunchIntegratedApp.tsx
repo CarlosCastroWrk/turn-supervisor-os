@@ -383,6 +383,14 @@ function LaunchOperationalApp({
   const crewOriginHomeRef = useRef(false);
   // Context-aware Block Unit: Plus on a unit already knows WHICH unit.
   const [blockDialog, setBlockDialog] = useState<{ unitId?: string } | null>(null);
+  // Feedback lands WHERE LOS STANDS — a floating toast on every surface, not
+  // a status line only the More tab renders (found dead-button feel in audit).
+  const [fieldToast, setFieldToast] = useState('');
+  useEffect(() => {
+    if (!fieldToast) return undefined;
+    const timer = window.setTimeout(() => setFieldToast(''), 3000);
+    return () => window.clearTimeout(timer);
+  }, [fieldToast]);
   const [blockReason, setBlockReason] = useState('');
   const [blockTrade, setBlockTrade] = useState<'paint' | 'clean' | 'both'>('both');
   const [walkRequests, setWalkRequests] = useState<
@@ -2205,7 +2213,7 @@ function LaunchOperationalApp({
       const saved = commitDataNow((current) =>
         setUnitReleaseRestriction(current, selectedId, reason, tradeScope));
       if (saved) {
-        setMoreStatus(reason === undefined
+        setFieldToast(reason === undefined
           ? `Unit ${selected?.unitNumber ?? ''} unblocked — back in the working queues.`
           : `Unit ${selected?.unitNumber ?? ''} marked blocked — it sits in Waiting / Blocked until you unblock it.`);
       }
@@ -2548,7 +2556,7 @@ function LaunchOperationalApp({
               .find((unit) => unit.id === unitId)?.unitNumber ?? '';
             const saved = commitDataNow((current) =>
               setUnitReleaseRestriction(current, unitId, undefined, trade));
-            setMoreStatus(saved
+            setFieldToast(saved
               ? `Unit ${unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'} unblocked — back in play.`
               : 'The unblock could not be saved — try again.');
           }}
@@ -2560,6 +2568,13 @@ function LaunchOperationalApp({
           onSetTradeRelease={(unitId, trade, released) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === unitId)?.unitNumber ?? '';
+            const hasActiveSession = data.daySessions.some((session) =>
+              session.projectId === data.activeProjectId
+              && ['active', 'ending', 'reopened'].includes(session.status));
+            if (released && !hasActiveSession) {
+              setFieldToast('Start the day first — then mark what Joseph released.');
+              return;
+            }
             const saved = commitDataNow((current) => setTradeReleaseState(current, {
               idFactory: createId,
               nowIso: nowISO(),
@@ -2567,9 +2582,9 @@ function LaunchOperationalApp({
               trade,
               unitId,
             }));
-            setMoreStatus(saved
+            setFieldToast(saved
               ? `Unit ${unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'} ${released ? 'released — sections are in play' : 'removed — it was never released'}.`
-              : 'Start the day first, then adjust the release from the unit page.');
+              : 'That change could not be saved — try again.');
           }}
           onSetSectionRelease={(target, released) => {
             const unitNumber = trackCState.units
@@ -2582,11 +2597,11 @@ function LaunchOperationalApp({
               trade: target.trade,
               unitId: target.unitId,
             }));
-            setMoreStatus(saved
+            setFieldToast(saved
               ? released
                 ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} ${target.trade === 'paint' ? 'Paint' : 'Clean'} marked released.`
                 : `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} ${target.trade === 'paint' ? 'Paint' : 'Clean'} marked NOT released.`
-              : 'Start the day first, then adjust the release from the unit page.');
+              : 'Start the day first — then adjust the release from the unit page.');
           }}
           onCommitUnitPhoto={(photo) =>
             // Photos are dispute evidence — persist synchronously like field
@@ -3572,6 +3587,11 @@ function LaunchOperationalApp({
           open={plusOpen}
         />
         {blockDialogElement}
+        {fieldToast ? (
+          <div aria-live="polite" className="lcc-field-toast" role="status">
+            {fieldToast}
+          </div>
+        ) : null}
         <PersonalActivityDetailSheet
           item={selectedActivityView}
           onDismiss={() => {

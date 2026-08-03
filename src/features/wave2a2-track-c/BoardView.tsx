@@ -1108,8 +1108,14 @@ export const BoardView = ({
         ) : (
           <div className="track-c-empty">
             <Search aria-hidden="true" size={24} />
-            <h2>No matching Units</h2>
-            <p>Clear the search to return to the compact board.</p>
+            <h2>{query.trim() ? 'No matching Units' : 'Nothing here yet'}</h2>
+            <p>
+              {query.trim()
+                ? 'Clear the search to return to the board.'
+                : scope === 'released'
+                  ? 'Nothing is in play on this board — All Units shows the whole roster.'
+                  : 'Nothing matches this view yet.'}
+            </p>
           </div>
         )}
       </div>

@@ -916,3 +916,11 @@ select:focus-visible {
   .lcc-tellos__reading-dot { animation: none; opacity: 0.9; }
   .lcc-tellos__done { animation: none; }
 }
+
+.track-c-room-menu__locked {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--turn-color-divider);
+  font-size: 13px;
+  color: var(--turn-color-secondary);
+}

@@ -368,11 +368,21 @@ const WorkSection = ({
     const timer = window.setTimeout(() => setConfirmRemove(false), 6000);
     return () => window.clearTimeout(timer);
   }, [confirmRemove]);
+  // A room Joseph never actually released can be pulled back at any stage Los
+  // still controls — assigned, working, crew-reported, even a Los pass (his own
+  // reversible mark). The ONE hard stop is a property-accepted room (CC on the
+  // wall — an official sign-off we never rewrite silently). Removing a room
+  // leaves the crew's payroll events untouched, so this never erases pay.
   const canRemove = Boolean(onToggleRelease)
     && work.release === 'released'
-    && work.execution !== 'crew-reported-complete'
-    && work.inspection === 'not-ready'
     && work.property !== 'property-accepted';
+  // A room a crew already touched deserves a heads-up on the delete label.
+  const removeWasWorked = work.execution === 'crew-reported-complete'
+    || work.inspection === 'los-passed'
+    || work.callbackOpen;
+  const removeLabel = removeWasWorked
+    ? `Delete ${trackCSectionLabel(work.section)} — a crew already worked it`
+    : `Delete ${trackCSectionLabel(work.section)} from this release`;
   const actions = actionsFor(work);
   const blocked =
     work.release !== 'released' ||
@@ -451,8 +461,14 @@ const WorkSection = ({
               role="menuitem"
               type="button"
             >
-              Delete {trackCSectionLabel(work.section)} from this release
+              {removeLabel}
             </button>
+          ) : null}
+          {!canRemove && work.property === 'property-accepted' ? (
+            <p className="track-c-room-menu__locked">
+              Property approved this room — it can't be deleted. Block the unit if
+              it needs a callback.
+            </p>
           ) : null}
           <button onClick={() => setMenuOpen(false)} role="menuitem" type="button">
             Cancel
@@ -556,11 +572,19 @@ const WorkSection = ({
               >
                 {confirmRemove
                   ? `Yes — delete ${trackCSectionLabel(work.section)} from this release`
-                  : work.activeCrewIds.length > 0
-                    ? 'Take this room back — unassign + mark not released'
-                    : 'Delete this room from the release'}
+                  : removeWasWorked
+                    ? removeLabel
+                    : work.activeCrewIds.length > 0
+                      ? 'Take this room back — unassign + mark not released'
+                      : 'Delete this room from the release'}
               </button>
             ) : null}
+          {!canRemove && work.property === 'property-accepted' ? (
+            <p className="track-c-section-row__note">
+              Property approved — can't delete this room. Block the unit if it
+              needs a callback.
+            </p>
+          ) : null}
           {work.release === 'unreleased' && !work.assignmentConflict ? (
             <>
               <p className="track-c-section-row__note">
@@ -883,20 +907,36 @@ const UnitDetail = ({
                   </button>
                 );
               }
-              const untouched = releasedItems.every((item) =>
-                item.activeCrewIds.length === 0
-                && item.execution !== 'crew-reported-complete'
-                && item.inspection === 'not-ready'
-                && item.property !== 'property-accepted');
-              return untouched ? (
+              // Same rule as a single room: removable at every stage Los still
+              // controls; the only hard stop is a property-accepted room. If any
+              // room here is accepted, send him to per-room delete so the
+              // approved one is protected instead of nuked with the rest.
+              const anyAccepted = releasedItems.some((item) =>
+                item.property === 'property-accepted');
+              const anyWorked = releasedItems.some((item) =>
+                item.execution === 'crew-reported-complete'
+                || item.inspection === 'los-passed'
+                || item.callbackOpen);
+              if (anyAccepted) {
+                return (
+                  <p className="track-c-release-locked">
+                    Some {tradeLabel(trade)} rooms are property-approved — delete
+                    the extra rooms one by one (hold a room) so the approved work
+                    stays.
+                  </p>
+                );
+              }
+              return (
                 <button
                   className="track-c-release-toggle is-remove"
                   onClick={() => onSetTradeRelease(unitId, trade, false)}
                   type="button"
                 >
-                  {tradeLabel(trade)} wasn’t released — remove it (undo mistake)
+                  {anyWorked
+                    ? `Remove ${tradeLabel(trade)} — a crew already worked some of it`
+                    : `${tradeLabel(trade)} wasn’t released — remove it (undo mistake)`}
                 </button>
-              ) : null;
+              );
             })()}
             {(() => {
               const blockedItems = tradeWork.filter((item) =>

@@ -1873,8 +1873,24 @@ function LaunchOperationalApp({
         return `${unit.unitNumber} → ${workType} on ${sections.join(', ')}`;
       }
       case 'remove-room': {
-        const sections = intent.sections ?? [];
-        if (sections.length === 0) throw new Error('say which rooms');
+        const asked = intent.sections ?? [];
+        if (asked.length === 0) throw new Error('say which rooms');
+        // Same one hard rule as the unit page: never silently delete a
+        // property-approved room. Skip those and say so.
+        const accepted = new Set(unit.workFacts
+          .filter((fact) => fact.trade === trade)
+          .filter((fact) => {
+            const projected = projectTrackCWork(base, {
+              section: fact.section, trade, unitId: unit.id,
+            });
+            return projected?.property === 'property-accepted';
+          })
+          .map((fact) => fact.section));
+        const sections = asked.filter((section) => !accepted.has(section));
+        const skipped = asked.filter((section) => accepted.has(section));
+        if (sections.length === 0) {
+          throw new Error(`${asked.join(', ')} already property-approved — can't delete`);
+        }
         let track = base;
         for (const section of sections) {
           const cleared = clearTrackCAssignments(track, {
@@ -1903,7 +1919,8 @@ function LaunchOperationalApp({
           return next;
         });
         if (!saved) throw new Error('could not save');
-        return `${unit.unitNumber}: removed ${sections.join(', ')} from ${tradeWord}`;
+        return `${unit.unitNumber}: removed ${sections.join(', ')} from ${tradeWord}`
+          + (skipped.length > 0 ? ` (kept ${skipped.join(', ')} — property-approved)` : '');
       }
       case 'assign': {
         const first = (intent.crewName ?? '').toLowerCase().split(' ')[0];

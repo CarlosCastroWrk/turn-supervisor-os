@@ -388,3 +388,16 @@ select:focus-visible {
 
 .track-c-crew-detail__actions button,
 .track-c-crew-detail__actions a { flex: 1; }
+
+/* ---------- Denser boards for heavy-unit days ---------- */
+.w2a2b-live-card__unit { min-inline-size: 58px; }
+.w2a2b-live-card__unit strong { font-size: 20px; letter-spacing: -0.3px; }
+.w2a2b-live-card__unit span { font-size: 10px; }
+.w2a2b-board .w2a2b-live-card { gap: 8px; padding: 6px 0 6px 8px; }
+.w2a2b-live-card__body { gap: 3px; }
+.w2a2b-live-card__body small { font-size: 12px; }
+.w2a2b-live-card__stage {
+  font-size: 13.5px;
+  min-block-size: 38px;
+  padding: 6px 10px;
+}

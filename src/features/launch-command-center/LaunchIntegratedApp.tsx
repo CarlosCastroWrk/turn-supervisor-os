@@ -1531,6 +1531,10 @@ function LaunchOperationalApp({
   }, [openDestination]);
 
   const handlePrimaryNavigation = useCallback((destination: LaunchPrimaryDestination) => {
+    // A tab tap is a fresh start — stale "return to where you came from"
+    // memory must never redirect a later Back to the wrong surface.
+    unitDetailOriginRef.current = undefined;
+    crewOriginHomeRef.current = false;
     if (destination === 'crews') {
       // Crews is a first-class tab: land on the crew command view directly.
       clearLegacyCaptureHistoryState();
@@ -2664,6 +2668,7 @@ function LaunchOperationalApp({
           }}
           routeState={trackCRouteState}
           walkIntegration={{
+            onReturnToBoard: () => navigate('dashboard'),
             contacts: activeProjectContacts.map((contact) => ({
               id: contact.id,
               isPrimary: contact.isPrimary,

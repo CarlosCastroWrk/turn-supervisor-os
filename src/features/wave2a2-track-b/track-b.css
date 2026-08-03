@@ -1249,6 +1249,7 @@ button.w2a2b-done-toggle {
 .w2a2b-needsme__chip.is-r { background: #fbe8ea; color: #b4232d; }
 .w2a2b-needsme__chip.is-g { background: #e2f2e8; color: #237a45; }
 .w2a2b-needsme__chip.is-b { background: #eef0f3; color: #66707c; }
+.w2a2b-needsme__chip.is-w { background: #eaf3fb; color: #0877d1; }
 
 .w2a2b-board {
   background: #fff;

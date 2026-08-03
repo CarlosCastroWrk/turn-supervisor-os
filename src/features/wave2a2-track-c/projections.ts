@@ -123,20 +123,26 @@ export const projectTrackCWork = (
     execution = 'assigned';
   }
 
+  // A room that is no longer released (Los deleted it / Joseph never released
+  // it) has NO live work — even if old callback/completion events linger in the
+  // ledger. Force it inert so a deleted callback can't haunt the counts or send
+  // a tap to a room that isn't there. This keeps every surface in sync with what
+  // Los adds and deletes.
+  const inert = fact.release === 'unreleased';
   return {
     ...fact,
-    activeCrewIds,
-    responsibleCrewId: activeCrewIds.length === 1 ? activeCrewIds[0] : undefined,
+    activeCrewIds: inert ? [] : activeCrewIds,
+    responsibleCrewId: !inert && activeCrewIds.length === 1 ? activeCrewIds[0] : undefined,
     assignmentConflict:
       fact.release === 'assignment-conflict' ||
       fact.sourceConfidence === 'conflicting' ||
-      activeCrewIds.length > 1,
-    execution,
-    inspection,
-    property,
-    callbackOpen,
+      (!inert && activeCrewIds.length > 1),
+    execution: inert ? 'unassigned' : execution,
+    inspection: inert ? 'not-ready' : inspection,
+    property: inert ? 'not-ready' : property,
+    callbackOpen: inert ? false : callbackOpen,
     callbackResolvedCount,
-    personalPdsMirror,
+    personalPdsMirror: inert ? false : personalPdsMirror,
     paperReviewed,
     confirmedEventCount: events.length,
     latestConfirmedEvent: events[events.length - 1],

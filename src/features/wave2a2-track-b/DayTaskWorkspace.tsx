@@ -1422,7 +1422,31 @@ function DayTaskHome({
               {rosterCount} in roster · {glance.left ?? rosterCount} left
             </p>
             <p className="w2a2b-hero-stats">
-              {glance.released} released · {glance.working} working · {glance.readyToWalk ?? 0} ready to walk ·{' '}
+              {glance.released} released ·{' '}
+              {glance.working > 0 ? (
+                <button
+                  className="w2a2b-glance-link"
+                  onClick={() => onOpenQueue(selectTodayTaskQueue(task, 'working'))}
+                  type="button"
+                >
+                  {glance.working} working
+                </button>
+              ) : (
+                `${glance.working} working`
+              )}
+              {' · '}
+              {(glance.readyToWalk ?? 0) > 0 ? (
+                <button
+                  className="w2a2b-glance-link"
+                  onClick={() => onOpenQueue(selectTodayTaskQueue(task, 'ready-to-walk'))}
+                  type="button"
+                >
+                  {glance.readyToWalk} ready to walk
+                </button>
+              ) : (
+                `${glance.readyToWalk ?? 0} ready to walk`
+              )}
+              {' · '}
               {onOpenCrews && (glance.unassigned ?? 0) > 0 ? (
                 <button className="w2a2b-glance-link" onClick={onOpenCrews} type="button">
                   {glance.unassigned} unassigned — assign
@@ -1465,6 +1489,7 @@ function DayTaskHome({
 
       <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
         {([
+          ['working', 'WORKING', 'w'],
           ['needs-inspection', 'CHECK', 'a'],
           ['callbacks', 'CALLBACK', 'r'],
           ['ready-to-walk', 'WALK', 'g'],

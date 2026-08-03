@@ -531,6 +531,33 @@ export interface ManualReleaseSelection {
   workType?: 'full' | 'touch-up' | 'cut-in';
 }
 
+// Change the task on an already-released room (Joseph revises, or Los learns
+// the real scope in the unit). Touches only the workType on matching stored
+// release items — scope, ids, and batch shape stay untouched (validator-safe).
+export const setReleaseWorkType = (
+  data: AppData,
+  input: {
+    unitId: string;
+    trade: FieldTrade;
+    section: FieldSection;
+    workType: 'full' | 'touch-up' | 'cut-in';
+  },
+): AppData => ({
+  ...data,
+  dailyReleaseBatches: data.dailyReleaseBatches.map((batch) => (
+    batch.projectId !== data.activeProjectId
+      ? batch
+      : {
+        ...batch,
+        items: batch.items.map((item) =>
+          item.unitId === input.unitId
+          && item.trade === input.trade
+          && item.section === input.section
+            ? { ...item, workType: input.workType }
+            : item),
+      })),
+});
+
 export function createManualReleaseBatch(input: {
   actor: string;
   date: string;

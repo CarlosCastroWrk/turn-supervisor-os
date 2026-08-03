@@ -84,6 +84,10 @@ export interface TrackCFieldOpsProps {
   readonly onCommitUnitPhoto?: (photo: PhotoNote) => boolean | Promise<boolean>;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onSetSectionWorkType?: (
+    target: TrackCWorkTarget,
+    workType: 'full' | 'touch-up' | 'cut-in',
+  ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -118,6 +122,7 @@ export const TrackCFieldOps = ({
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
+  onSetSectionWorkType,
   onSetTradeRelease,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
@@ -534,6 +539,7 @@ export const TrackCFieldOps = ({
             onUnblockUnit={onUnblockUnit}
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}
+            onSetSectionWorkType={onSetSectionWorkType}
             onSetTradeRelease={onSetTradeRelease}
           />
         ) : null}

@@ -639,3 +639,19 @@ select:focus-visible {
 .track-c-present-toggle[aria-pressed="false"] { opacity: 0.7; }
 
 .track-c-release-locked { color: var(--turn-color-secondary); font-size: 12px; }
+
+/* ---------- Home: quick Text Joseph ---------- */
+.w2a2b-joseph-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 12px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 44px;
+  text-decoration: none;
+}

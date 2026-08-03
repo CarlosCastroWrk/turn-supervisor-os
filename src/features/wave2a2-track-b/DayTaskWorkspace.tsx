@@ -1252,6 +1252,7 @@ interface DayTaskHomeProps {
   onExportBackup?: () => Promise<string>;
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnit?: (unitId: string, trade?: 'paint' | 'clean') => void;
+  josephContact?: { name: string; phone: string };
 }
 
 function DayTaskHome({
@@ -1262,6 +1263,7 @@ function DayTaskHome({
   onExportBackup,
   onExportReport,
   onOpenUnit,
+  josephContact,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1517,6 +1519,14 @@ function DayTaskHome({
         </section>
       ) : null}
       <div className="w2a2b-actionrow">
+        {josephContact ? (
+          <a
+            className="w2a2b-joseph-text"
+            href={`sms:${josephContact.phone}`}
+          >
+            Text {josephContact.name}
+          </a>
+        ) : null}
         <button
           data-track-b-critical-target="true"
           onClick={() => onAction('start-walk')}
@@ -1841,6 +1851,7 @@ export interface DayTaskWorkspaceProps {
   onExportBackup?: () => Promise<string>;
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnitFromHome?: (unitId: string, trade?: 'paint' | 'clean') => void;
+  josephContact?: { name: string; phone: string };
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
@@ -1887,6 +1898,7 @@ export function DayTaskWorkspace({
   onExportBackup,
   onExportReport,
   onOpenUnitFromHome,
+  josephContact,
   onRequestStartDay,
   onViewChange,
   propertyRoster,
@@ -2086,6 +2098,7 @@ export function DayTaskWorkspace({
         glance={glance}
         onOpenCrew={onOpenCrew}
         currentDate={currentDate}
+        josephContact={josephContact}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

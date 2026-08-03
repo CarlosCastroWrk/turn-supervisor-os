@@ -64,6 +64,10 @@ interface BoardViewProps {
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onSetSectionWorkType?: (
+    target: TrackCWorkTarget,
+    workType: 'full' | 'touch-up' | 'cut-in',
+  ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -333,6 +337,7 @@ const WorkSection = ({
   onAction,
   onRequestMirror,
   onToggleRelease,
+  onSetWorkType,
 }: {
   state: TrackCState;
   work: TrackCWorkProjection;
@@ -341,7 +346,15 @@ const WorkSection = ({
   onAction: (action: TrackCSectionAction) => void;
   onRequestMirror: () => void;
   onToggleRelease?: (released: boolean) => void;
+  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in') => void;
 }) => {
+  // Removing a room is destructive — first tap arms, second tap confirms.
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  useEffect(() => {
+    if (!confirmRemove) return undefined;
+    const timer = window.setTimeout(() => setConfirmRemove(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [confirmRemove]);
   const actions = actionsFor(work);
   const blocked =
     work.release !== 'released' ||
@@ -408,18 +421,48 @@ const WorkSection = ({
           <p className="track-c-section-row__detail-status">
             {executionLabel(work)}
           </p>
+          {onSetWorkType
+            && work.trade === 'paint'
+            && work.release === 'released'
+            && work.property !== 'property-accepted' ? (
+              <button
+                className="track-c-release-toggle track-c-worktype-cycle"
+                onClick={() => {
+                  const current = work.workType ?? 'full';
+                  const next = current === 'full'
+                    ? 'touch-up'
+                    : current === 'touch-up' ? 'cut-in' : 'full';
+                  onSetWorkType(next);
+                }}
+                type="button"
+              >
+                Task: {work.workType === 'touch-up'
+                  ? 'touch-up'
+                  : work.workType === 'cut-in' ? 'cut-in' : 'full paint'} — tap to change
+              </button>
+            ) : null}
           {onToggleRelease
             && work.release === 'released'
-            && work.activeCrewIds.length === 0
             && work.execution !== 'crew-reported-complete'
             && work.inspection === 'not-ready'
             && work.property !== 'property-accepted' ? (
               <button
                 className="track-c-release-toggle is-remove"
-                onClick={() => onToggleRelease(false)}
+                onClick={() => {
+                  if (!confirmRemove) {
+                    setConfirmRemove(true);
+                    return;
+                  }
+                  setConfirmRemove(false);
+                  onToggleRelease(false);
+                }}
                 type="button"
               >
-                Joseph didn’t release this — mark not released
+                {confirmRemove
+                  ? `Yes — delete ${trackCSectionLabel(work.section)} from this release`
+                  : work.activeCrewIds.length > 0
+                    ? 'Take this room back — unassign + mark not released'
+                    : 'Delete this room from the release'}
               </button>
             ) : null}
           {work.release === 'unreleased' && !work.assignmentConflict ? (
@@ -512,6 +555,7 @@ const UnitDetail = ({
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
+  onSetSectionWorkType,
   onSetTradeRelease,
 }: {
   state: TrackCState;
@@ -531,6 +575,7 @@ const UnitDetail = ({
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
   onRequestBlock?: BoardViewProps['onRequestBlock'];
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
+  onSetSectionWorkType?: BoardViewProps['onSetSectionWorkType'];
   onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -838,6 +883,16 @@ const UnitDetail = ({
                         released,
                       )
                       : undefined}
+                    onSetWorkType={onSetSectionWorkType
+                      ? (workType) => onSetSectionWorkType(
+                        {
+                          unitId: item.unitId,
+                          trade: item.trade,
+                          section: item.section,
+                        },
+                        workType,
+                      )
+                      : undefined}
                     onAction={(action) =>
                       onSectionAction(
                         {
@@ -1043,6 +1098,7 @@ export const BoardView = ({
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
+  onSetSectionWorkType,
   onSetTradeRelease,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
@@ -1169,6 +1225,7 @@ export const BoardView = ({
         onUnblockUnit={onUnblockUnit}
         onRequestBlock={onRequestBlock}
         onSetSectionRelease={onSetSectionRelease}
+        onSetSectionWorkType={onSetSectionWorkType}
         onSetTradeRelease={onSetTradeRelease}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}

@@ -119,6 +119,7 @@ import {
   projectTodayTask,
   projectTrackCState,
   projectTrackCWalkDraft,
+  setReleaseWorkType,
   setSectionReleaseState,
   setTradeReleaseState,
   setUnitReleaseRestriction,
@@ -1612,7 +1613,9 @@ function LaunchOperationalApp({
       : destination === 'home'
         && (restoredRoute.view !== 'dashboard' || restoredRoute.homeSummary)
         ? resolveAppHash('#/dashboard').route
-        : restoredRoute;
+        : destination === 'turnboard' && restoredRoute.view !== 'units'
+          ? resolveAppHash('#/units').route
+          : restoredRoute;
     const nextHash = buildAppHash(nextRoute);
 
     clearLegacyCaptureHistoryState();
@@ -2657,6 +2660,22 @@ function LaunchOperationalApp({
               ? `Unit ${unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'} ${released ? 'released — sections are in play' : 'removed — it was never released'}.`
               : 'That change could not be saved — try again.');
           }}
+          onSetSectionWorkType={(target, workType) => {
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
+            const saved = commitDataNow((current) => setReleaseWorkType(current, {
+              section: target.section,
+              trade: target.trade,
+              unitId: target.unitId,
+              workType,
+            }));
+            const label = workType === 'touch-up'
+              ? 'touch-up'
+              : workType === 'cut-in' ? 'cut-in' : 'full paint';
+            setFieldToast(saved
+              ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} → ${label}.`
+              : 'Could not save — try again.');
+          }}
           onSetSectionRelease={(target, released) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
@@ -3060,6 +3079,15 @@ function LaunchOperationalApp({
             { fieldWorkflow: 'walk', walkSessionId },
           )}
           acceptedWalkMeta={acceptedWalkMeta}
+          josephContact={(() => {
+            const contact = activeProjectContacts.find((candidate) =>
+              /jose/i.test(candidate.name))
+              ?? activeProjectContacts.find((candidate) => candidate.isPrimary)
+              ?? activeProjectContacts[0];
+            return contact?.phone
+              ? { name: contact.name.split(' ')[0], phone: contact.phone }
+              : undefined;
+          })()}
           onOpenUnitFromHome={(unitId, trade) => {
             unitDetailOriginRef.current = 'home';
             unitDetailTradeRef.current = trade;

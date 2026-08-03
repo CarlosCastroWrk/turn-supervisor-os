@@ -712,6 +712,10 @@ const UnitDetail = ({
   // From a trade board the unit page IS that board's page — the other trade
   // stays one tap away, while notes/photos/change orders remain shared.
   const [showOtherTrade, setShowOtherTrade] = useState(false);
+  // One popup at a time on the unit page: 'add' (Note/Change/Photo) or
+  // `more:paint`/`more:clean` (Delete/Block). Keeps the page calm instead of
+  // stacking a wall of buttons.
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   // PDS approval is heavyweight truth with no undo — it takes two taps.
   const [pdsConfirmTrade, setPdsConfirmTrade] = useState<TrackCTrade>();
   useEffect(() => {
@@ -755,45 +759,64 @@ const UnitDetail = ({
         Crew completion, Los inspection, and property acceptance stay separate.
       </p>
       <div className="track-c-util-row">
-      {onRequestNote ? (
         <button
-          className="track-c-unit-note-button"
+          aria-expanded={openMenu === 'add'}
+          className="track-c-addmenu-trigger"
           data-track-c-critical-target="true"
-          onClick={onRequestNote}
+          onClick={() => setOpenMenu(openMenu === 'add' ? null : 'add')}
           type="button"
         >
-          Note
+          <span aria-hidden="true">＋</span> Add note · change order · photo
         </button>
-      ) : null}
-      <button
-        className="track-c-unit-note-button track-c-change-order-flag"
-        data-track-c-critical-target="true"
-        onClick={() => {
-          // One tap: summary on the clipboard, official form open — paste and
-          // submit. Tubs and holes bigger than a quarter are change orders.
-          const summary = `Change order — Unit ${unit.unitNumber} (${trackCUnitMakeupLabel(unit)}). `
-            + 'Reason: tub resurface / wall hole larger than a quarter / other (edit). '
-            + 'Flagged from Turn OS.';
-          void navigator.clipboard?.writeText(summary).catch(() => undefined);
-          window.open(
-            OFFICIAL_PDS_LINKS.find((link) => link.id === 'change-order')?.url,
-            '_blank',
-            'noopener,noreferrer',
-          );
-        }}
-        type="button"
-      >
-        Change order
-      </button>
-      {onCommitUnitPhoto ? (
-        <UnitPhotoAddButton
-          compact
-          onCommitPhoto={onCommitUnitPhoto}
-          projectId={state.propertyId}
-          unitId={unitId}
-          unitNumber={unit.unitNumber}
-        />
-      ) : null}
+        {openMenu === 'add' ? (
+          <>
+            <button
+              aria-label="Close menu"
+              className="track-c-menu-backdrop"
+              onClick={() => setOpenMenu(null)}
+              type="button"
+            />
+            <div className="track-c-popmenu">
+              {onRequestNote ? (
+                <button
+                  onClick={() => { setOpenMenu(null); onRequestNote(); }}
+                  type="button"
+                >
+                  Note
+                </button>
+              ) : null}
+              <button
+                onClick={() => {
+                  setOpenMenu(null);
+                  const summary = `Change order — Unit ${unit.unitNumber} (${trackCUnitMakeupLabel(unit)}). `
+                    + 'Reason: tub resurface / wall hole larger than a quarter / other (edit). '
+                    + 'Flagged from Turn OS.';
+                  void navigator.clipboard?.writeText(summary).catch(() => undefined);
+                  window.open(
+                    OFFICIAL_PDS_LINKS.find((link) => link.id === 'change-order')?.url,
+                    '_blank',
+                    'noopener,noreferrer',
+                  );
+                }}
+                type="button"
+              >
+                Change order
+              </button>
+              {onCommitUnitPhoto ? (
+                <UnitPhotoAddButton
+                  compact
+                  onCommitPhoto={(photo) => {
+                    setOpenMenu(null);
+                    return onCommitUnitPhoto(photo);
+                  }}
+                  projectId={state.propertyId}
+                  unitId={unitId}
+                  unitNumber={unit.unitNumber}
+                />
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </div>
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
@@ -891,79 +914,109 @@ const UnitDetail = ({
                 ) : (
                   <small>{progress.conciseLabel}</small>
                 )}
-            </header>
-            {(() => {
-              if (!onSetTradeRelease) return null;
-              const releasedItems = tradeWork.filter((item) => item.release === 'released');
-              if (releasedItems.length === 0) {
+              {(() => {
+                const released = tradeWork.filter((item) => item.release === 'released');
+                const anyAccepted = released.some((item) => item.property === 'property-accepted');
+                const anyBlocked = released.some((item) => item.access !== 'clear');
+                const canDelete = Boolean(onSetTradeRelease) && released.length > 0 && !anyAccepted;
+                const canBlock = Boolean(onRequestBlock) && released.length > 0 && !anyBlocked;
+                if (!canDelete && !canBlock) return null;
                 return (
                   <button
-                    className="track-c-release-toggle"
-                    data-track-c-critical-target="true"
-                    onClick={() => onSetTradeRelease(unitId, trade, true)}
+                    aria-label={`More ${tradeLabel(trade)} options`}
+                    className="track-c-trade-more"
+                    onClick={() =>
+                      setOpenMenu(openMenu === `more:${trade}` ? null : `more:${trade}`)}
                     type="button"
                   >
-                    Joseph released {tradeLabel(trade)} — mark the whole unit released
+                    ⋯
                   </button>
                 );
-              }
-              // Same rule as a single room: removable at every stage Los still
-              // controls; the only hard stop is a property-accepted room. If any
-              // room here is accepted, send him to per-room delete so the
-              // approved one is protected instead of nuked with the rest.
-              const anyAccepted = releasedItems.some((item) =>
-                item.property === 'property-accepted');
-              if (anyAccepted) {
-                return (
+              })()}
+            </header>
+            {onSetTradeRelease
+              && tradeWork.filter((item) => item.release === 'released').length === 0 ? (
+                <button
+                  className="track-c-release-toggle"
+                  data-track-c-critical-target="true"
+                  onClick={() => onSetTradeRelease(unitId, trade, true)}
+                  type="button"
+                >
+                  Joseph released {tradeLabel(trade)} — mark the whole unit released
+                </button>
+              ) : null}
+            {(() => {
+              const released = tradeWork.filter((item) => item.release === 'released');
+              return released.length > 0 && released.some((item) =>
+                item.property === 'property-accepted') ? (
                   <p className="track-c-release-locked">
                     Some {tradeLabel(trade)} rooms are property-approved — delete
                     the extra rooms one by one (hold a room) so the approved work
                     stays.
                   </p>
-                );
-              }
-              return (
-                <button
-                  className="track-c-release-toggle is-remove"
-                  onClick={() => onSetTradeRelease(unitId, trade, false)}
-                  type="button"
-                >
-                  Delete all {tradeLabel(trade)} from {unit.unitNumber}
-                </button>
-              );
+                ) : null;
             })()}
             {(() => {
               const blockedItems = tradeWork.filter((item) =>
                 item.release === 'released' && item.access !== 'clear');
-              if (blockedItems.length > 0) {
-                const reason = (blockedItems[0].restrictionLabel ?? '')
-                  .replace(/^Blocked — /u, '') || 'no reason recorded';
-                return (
-                  <div className="track-c-blocked-banner" role="status">
-                    <ShieldAlert aria-hidden="true" size={16} />
-                    <span><strong>Blocked</strong> — {reason}</span>
-                    {onUnblockUnit ? (
+              if (blockedItems.length === 0) return null;
+              const reason = (blockedItems[0].restrictionLabel ?? '')
+                .replace(/^Blocked — /u, '') || 'no reason recorded';
+              return (
+                <div className="track-c-blocked-banner" role="status">
+                  <ShieldAlert aria-hidden="true" size={16} />
+                  <span><strong>Blocked</strong> — {reason}</span>
+                  {onUnblockUnit ? (
+                    <button
+                      data-track-c-critical-target="true"
+                      onClick={() => onUnblockUnit(unitId, trade)}
+                      type="button"
+                    >
+                      Unblock {tradeLabel(trade)}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })()}
+            {openMenu === `more:${trade}` ? (
+              <>
+                <button
+                  aria-label="Close menu"
+                  className="track-c-menu-backdrop"
+                  onClick={() => setOpenMenu(null)}
+                  type="button"
+                />
+                <div className="track-c-popmenu track-c-popmenu--trade">
+                  {(() => {
+                    const released = tradeWork.filter((item) => item.release === 'released');
+                    const anyAccepted = released.some((item) => item.property === 'property-accepted');
+                    return onSetTradeRelease && released.length > 0 && !anyAccepted ? (
                       <button
-                        data-track-c-critical-target="true"
-                        onClick={() => onUnblockUnit(unitId, trade)}
+                        className="is-remove"
+                        onClick={() => { setOpenMenu(null); onSetTradeRelease(unitId, trade, false); }}
                         type="button"
                       >
-                        Unblock {tradeLabel(trade)}
+                        Delete all {tradeLabel(trade)} from {unit.unitNumber}
                       </button>
-                    ) : null}
-                  </div>
-                );
-              }
-              return onRequestBlock && tradeWork.some((item) => item.release === 'released') ? (
-                <button
-                  className="track-c-block-link"
-                  onClick={() => onRequestBlock(unitId, trade)}
-                  type="button"
-                >
-                  Block {tradeLabel(trade)} — locked out / occupied / hold
-                </button>
-              ) : null;
-            })()}
+                    ) : null;
+                  })()}
+                  {(() => {
+                    const anyBlocked = tradeWork.some((item) =>
+                      item.release === 'released' && item.access !== 'clear');
+                    return onRequestBlock
+                      && tradeWork.some((item) => item.release === 'released')
+                      && !anyBlocked ? (
+                        <button
+                          onClick={() => { setOpenMenu(null); onRequestBlock(unitId, trade); }}
+                          type="button"
+                        >
+                          Block {tradeLabel(trade)} — locked out / occupied / hold
+                        </button>
+                      ) : null;
+                  })()}
+                </div>
+              </>
+            ) : null}
             {canRecordTradeComplete ? (
               <button
                 className="track-c-trade-complete"

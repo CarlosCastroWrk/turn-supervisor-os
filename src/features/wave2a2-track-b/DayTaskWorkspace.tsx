@@ -1334,6 +1334,14 @@ function DayTaskHome({
       pressTimer.current = null;
     }
   };
+  // Advancing a stage is a real record — a stray tap shouldn't do it. First tap
+  // arms ("Confirm?"), second within a few seconds commits.
+  const [armedStage, setArmedStage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!armedStage) return undefined;
+    const timer = window.setTimeout(() => setArmedStage(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [armedStage]);
   // Done-today can grow to dozens of units; keep it collapsed to a tappable
   // summary so it never stacks up and buries the rest of Home.
   const [doneExpanded, setDoneExpanded] = useState(false);
@@ -1594,16 +1602,26 @@ function DayTaskHome({
                           {' · '}{line.done}/{line.total} sections
                           {line.workLabel ? ` · ${line.workLabel}` : ''}
                         </small>
-                        <button
-                          className="w2a2b-live-card__stage"
-                          disabled={!advanceable}
-                          onClick={() => advanceable
-                            && onAdvanceUnitTrade?.(line.unitId, line.trade)}
-                          type="button"
-                        >
-                          <i aria-hidden="true" className={`w2a2b-stage-dot is-${line.stage}`} />
-                          {stageLabel}
-                        </button>
+                        {(() => {
+                          const stageKey = `${line.unitId}:${line.trade}`;
+                          const armed = armedStage === stageKey;
+                          return (
+                            <button
+                              className={`w2a2b-live-card__stage${armed ? ' is-armed' : ''}`}
+                              disabled={!advanceable}
+                              onClick={() => {
+                                if (!advanceable) return;
+                                if (!armed) { setArmedStage(stageKey); return; }
+                                setArmedStage(null);
+                                onAdvanceUnitTrade?.(line.unitId, line.trade);
+                              }}
+                              type="button"
+                            >
+                              <i aria-hidden="true" className={`w2a2b-stage-dot is-${line.stage}`} />
+                              {armed ? 'Tap again to confirm' : stageLabel}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

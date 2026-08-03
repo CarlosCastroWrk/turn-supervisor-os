@@ -1351,3 +1351,5 @@ button.w2a2b-done-toggle {
   font-weight: 800;
   padding: 5px 11px;
 }
+
+.w2a2b-live-card__stage.is-armed { background: #fdf3e4; color: #9b5b00; font-weight: 800; }

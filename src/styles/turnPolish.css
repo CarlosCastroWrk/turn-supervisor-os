@@ -1042,3 +1042,78 @@ select:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .lcc-peek__scrim, .lcc-peek__card { animation: none; }
 }
+
+/* ---------- Unit page: calmer actions (+ menu, ⋯ menu) ---------- */
+.track-c-util-row { position: relative; }
+.track-c-addmenu-trigger {
+  width: 100%;
+  border: 1px dashed var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-secondary);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 44px;
+}
+.track-c-addmenu-trigger span { color: var(--turn-color-brand); font-weight: 800; margin-right: 4px; }
+.track-c-trade-more {
+  border: none;
+  background: transparent;
+  color: var(--turn-color-secondary);
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 8px;
+  min-height: 36px;
+  min-width: 36px;
+}
+.track-c-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  background: transparent;
+  border: none;
+}
+.track-c-popmenu {
+  position: absolute;
+  z-index: 45;
+  left: 8px;
+  right: 8px;
+  margin-top: 4px;
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 14px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  display: grid;
+  animation: lcc-peek-pop 200ms cubic-bezier(0.22, 1.2, 0.36, 1);
+  transform-origin: top center;
+}
+.track-c-popmenu--trade { left: auto; right: 8px; width: min(300px, calc(100% - 16px)); }
+.track-c-popmenu > button,
+.track-c-popmenu .track-c-unit-note-button {
+  border: none;
+  border-top: 1px solid var(--turn-color-divider);
+  background: transparent;
+  color: var(--turn-color-primary);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  padding: 13px 15px;
+  min-height: 46px;
+  width: 100%;
+}
+.track-c-popmenu > button:first-child,
+.track-c-popmenu > .track-c-unit-note-button:first-child { border-top: none; }
+.track-c-popmenu button.is-remove { color: var(--turn-color-destructive, #b4232d); }
+@media (prefers-reduced-motion: reduce) { .track-c-popmenu { animation: none; } }
+
+/* Hold-to-peek must never select/copy the card or chip text */
+.w2a2b-live-card__unit,
+.w2a2b-needsme__chip,
+.w2a2b-live-card__unit *,
+.w2a2b-needsme__chip * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}

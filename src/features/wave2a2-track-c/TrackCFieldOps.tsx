@@ -74,6 +74,7 @@ export interface TrackCFieldOpsProps {
     phone?: string;
   }[];
   readonly onCrewContactRequested?: (crewId: string) => void;
+  readonly onToggleCrewActive?: (crewId: string, active: boolean) => void;
   readonly onNavigate?: (route: TrackCRouteState) => void;
   readonly onRequestUnitNote?: () => void;
   readonly now?: () => string;
@@ -106,6 +107,7 @@ export const TrackCFieldOps = ({
   crewDirectory,
   propertyContacts,
   onCrewContactRequested,
+  onToggleCrewActive,
   onNavigate,
   onRequestUnitNote,
   now = () => new Date().toISOString(),
@@ -557,6 +559,7 @@ export const TrackCFieldOps = ({
               setLocalSelectedCrewId(crewId);
             }}
             onQuickAssign={quickAssign}
+            onToggleCrewActive={onToggleCrewActive}
             selectedCrewId={selectedCrewId}
             state={state}
           />

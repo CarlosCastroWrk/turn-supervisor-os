@@ -43,6 +43,7 @@ interface CrewViewProps {
   readonly onContactCrew?: (crewId: string) => void;
   readonly onAssignCrew?: (crewId: string) => void;
   readonly onQuickAssign?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => void;
+  readonly onToggleCrewActive?: (crewId: string, active: boolean) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly propertyContacts?: readonly {
@@ -274,6 +275,7 @@ export const CrewView = ({
   onContactCrew,
   onAssignCrew,
   onQuickAssign,
+  onToggleCrewActive,
   onAddCrewRequested,
   crewDirectory,
   propertyContacts,
@@ -396,6 +398,9 @@ export const CrewView = ({
       sections,
       unitNumber,
     }));
+    // Nothing in front of them -> no canned "these are your units" text;
+    // the button just opens the thread.
+    if (rows.length === 0) return undefined;
     return crewUnitsTextBody(crewName, readCrewTextLang(), rows);
   };
   const logContact = (crewId: string, name: string, kind: 'call' | 'text' | 'ai-text') => {
@@ -528,10 +533,16 @@ export const CrewView = ({
       ) : null}
       <div className="track-c-crew-list">
         {(['paint', 'clean'] as const).map((tradeGroup) => {
-          const group = crews.filter(({ crew }) => crew.trade === tradeGroup);
+          const group = crews
+            .filter(({ crew }) => crew.trade === tradeGroup)
+            .sort((left, right) =>
+              Number(right.crew.activeToday) - Number(left.crew.activeToday)
+              || left.crew.name.localeCompare(right.crew.name));
           if (group.length === 0 && tradeRollup[tradeGroup].unassigned.length === 0) return null;
           const rollup = tradeRollup[tradeGroup];
-          const tradeCrews = group.map(({ crew }) => crew);
+          const allTradeCrews = group.map(({ crew }) => crew);
+          const presentCrews = allTradeCrews.filter((crew) => crew.activeToday);
+          const tradeCrews = presentCrews.length > 0 ? presentCrews : allTradeCrews;
           return (
             <div key={tradeGroup}>
               <h2 className={`track-c-crew-group is-${tradeGroup}`}>
@@ -652,7 +663,7 @@ export const CrewView = ({
                       Call
                     </a>
                     <a
-                      aria-label={`Text ${crew.name} today's assignments`}
+                      aria-label={`Text ${crew.name}`}
                       href={crewMessageHref(phone, whatsappCrews.has(crew.id), composeBody(crew.id, crew.name))}
                       onClick={() => logContact(crew.id, crew.name, 'text')}
                       rel="noreferrer"
@@ -660,6 +671,17 @@ export const CrewView = ({
                     >
                       {whatsappCrews.has(crew.id) ? 'WhatsApp' : 'Text'}
                     </a>
+                    {onToggleCrewActive ? (
+                      <button
+                        aria-pressed={crew.activeToday}
+                        className="track-c-present-toggle"
+                        data-track-c-critical-target="true"
+                        onClick={() => onToggleCrewActive(crew.id, !crew.activeToday)}
+                        type="button"
+                      >
+                        {crew.activeToday ? 'Present today' : 'Out today'}
+                      </button>
+                    ) : null}
 
                   </>
                 ) : null}

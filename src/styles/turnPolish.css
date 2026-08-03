@@ -629,3 +629,11 @@ select:focus-visible {
   text-align: center;
   color: var(--turn-color-secondary);
 }
+
+/* ---------- Present-today toggle ---------- */
+.track-c-present-toggle[aria-pressed="true"] {
+  background: var(--turn-color-ready, #237a45);
+  border-color: var(--turn-color-ready, #237a45);
+  color: #fff;
+}
+.track-c-present-toggle[aria-pressed="false"] { opacity: 0.7; }

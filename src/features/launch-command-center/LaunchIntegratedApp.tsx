@@ -2568,6 +2568,14 @@ function LaunchOperationalApp({
           }))}
           initialState={activeFieldState}
           onRequestUnitNote={openUnitNote}
+          onToggleCrewActive={(crewId, active) => {
+            const name = crewRecords.find((crew) => crew.id === crewId)?.name ?? 'Crew';
+            const saved = commitDataNow((current) =>
+              updateCrewMember(current, crewId, { active, updatedAt: nowISO() }));
+            setFieldToast(saved
+              ? `${name} marked ${active ? 'present today' : 'out today'}.`
+              : 'Could not save — try again.');
+          }}
           initialView={trackCRouteState.view}
           unitPhotos={data.photoNotes.filter((photo) =>
             photo.projectId === data.activeProjectId && Boolean(photo.unitId))}

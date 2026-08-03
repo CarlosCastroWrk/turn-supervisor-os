@@ -97,8 +97,8 @@ export const crewUnitsTextBody = (
     lines.push(...unitLines);
   }
   const footer = lang === 'es'
-    ? 'Me avisa cuando terminen cada unidad. Cualquier pregunta me dice — ¡gracias por su ayuda!'
-    : 'Text me as you finish each unit. Let me know if you have any questions — thank you for your help!';
+    ? 'Me avisa cuando pasen a la siguiente unidad y cuando estén por terminar. Cualquier pregunta me dice — ¡gracias!'
+    : "Text me when you move to the next unit and when you're about to finish. Any questions, let me know — thank you!";
   return [header, ...lines, footer].join('\n');
 };
 

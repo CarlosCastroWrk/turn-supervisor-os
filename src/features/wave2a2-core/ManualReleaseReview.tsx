@@ -290,10 +290,27 @@ export function ManualReleaseReview({
         ) : null}
 
         {intakeEnabled() ? (
-          <details className="w2a2-core-intake-details">
-          <summary><Camera aria-hidden="true" size={15} /> Import from photo or pasted message</summary>
-          <section className="w2a2-core-intake">
+          <section className="w2a2-core-intake w2a2-core-intake--front">
+            <label>
+              <span className="w2a2-core-intake__label">
+                <MessageSquareText aria-hidden="true" size={15} /> Paste Joseph's text — I'll read it
+              </span>
+              <textarea
+                onChange={(event) => setIntakeMessage(event.target.value)}
+                placeholder="Joseph: 301 A C full, B D touch ups, cut in the common…"
+                rows={2}
+                value={intakeMessage}
+              />
+            </label>
             <div className="w2a2-core-intake__actions">
+              <button
+                className="is-primary"
+                disabled={intakeBusy || !intakeMessage.trim()}
+                onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
+                type="button"
+              >
+                {intakeBusy ? 'Reading…' : 'Read message'}
+              </button>
               <button
                 disabled={intakeBusy}
                 onClick={() => intakeFileRef.current?.click()}
@@ -318,28 +335,10 @@ export function ManualReleaseReview({
                 type="file"
               />
             </div>
-            <label>
-              <span className="w2a2-core-intake__label">
-                <MessageSquareText aria-hidden="true" size={15} /> Or paste the message
-              </span>
-              <textarea
-                onChange={(event) => setIntakeMessage(event.target.value)}
-                placeholder="Joseph: you can start 301–310 paint and clean…"
-                value={intakeMessage}
-              />
-            </label>
-            <button
-              disabled={intakeBusy || !intakeMessage.trim()}
-              onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
-              type="button"
-            >
-              Read message
-            </button>
             {intakeStatus ? (
               <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
             ) : null}
           </section>
-          </details>
         ) : null}
 
         <label className="w2a2-core-field">

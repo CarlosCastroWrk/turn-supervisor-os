@@ -401,3 +401,43 @@ select:focus-visible {
   min-block-size: 38px;
   padding: 6px 10px;
 }
+
+/* ---------- Quick add: paste-from-Joseph front and center ---------- */
+.w2a2-core-intake--front {
+  background: var(--turn-color-elevated, #eaf3fb);
+  border: 1.5px solid var(--turn-color-brand, #bcd9f2);
+  border-radius: 14px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+}
+
+.w2a2-core-intake--front textarea {
+  background: var(--turn-color-input-background, #fff);
+  border: 1.5px solid var(--turn-color-input-border, #d9dde3);
+  border-radius: 10px;
+  color: var(--turn-color-primary, #111318);
+  font-size: 16px;
+  min-block-size: 58px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.w2a2-core-intake--front .w2a2-core-intake__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.w2a2-core-intake--front .w2a2-core-intake__actions > button {
+  border-radius: 10px;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 750;
+  min-block-size: 44px;
+}
+
+.w2a2-core-intake--front .w2a2-core-intake__actions > button.is-primary {
+  background: var(--turn-color-brand, #0877d1);
+  border: none;
+  color: var(--turn-color-on-brand, #fff);
+}

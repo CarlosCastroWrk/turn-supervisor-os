@@ -101,7 +101,7 @@
     if (query && !u.n.toLowerCase().includes(query)) return false;
     if (filter === 'all') return u.p !== 'none' || u.c !== 'none';
     if (filter === 'cb') return Boolean(u.cb);
-    if (filter === 'ready') return u.p === 'passed' || u.c === 'passed';
+    if (filter === 'ready') return u.p === 'passed' || u.c === 'passed' || (u.pr || 0) > 0 || (u.cr || 0) > 0;
     if (filter === 'paint-done') return DONE.includes(u.p);
     if (filter === 'clean-done') return DONE.includes(u.c);
     if (filter === 'approved') return u.p === 'approved' || u.c === 'approved';
@@ -120,6 +120,9 @@
         <span class="chips">
           ${tradeChip('Paint', u.p)}
           ${tradeChip('Clean', u.c)}
+          ${(u.pr || 0) > 0 && u.p !== 'passed' ? `<span class="chip passed">Paint · ${u.pr} room${u.pr === 1 ? '' : 's'} ready</span>` : ''}
+          ${(u.cr || 0) > 0 && u.c !== 'passed' ? `<span class="chip passed">Clean · ${u.cr} room${u.cr === 1 ? '' : 's'} ready</span>` : ''}
+          ${u.bk ? '<span class="chip open">On hold</span>' : ''}
           ${u.cb ? '<span class="chip cb">Callback</span>' : ''}
         </span>
       </div>`;
@@ -128,8 +131,9 @@
   // needs attention -> ready for you -> moving -> waiting -> finished.
   const classify = (u) => {
     if (u.cb) return 'cb';
-    if (u.p === 'passed' || u.c === 'passed') return 'ready';
+    if (u.p === 'passed' || u.c === 'passed' || (u.pr || 0) > 0 || (u.cr || 0) > 0) return 'ready';
     if (['working', 'crew-done'].includes(u.p) || ['working', 'crew-done'].includes(u.c)) return 'progress';
+    if (u.bk) return 'hold';
     const active = [u.p, u.c].filter((s) => s !== 'none');
     if (active.length > 0 && active.every((s) => s === 'approved')) return 'done';
     return 'open';
@@ -139,6 +143,7 @@
     ['cb', '🔴 Callbacks'],
     ['ready', '🟢 Ready for your walk'],
     ['progress', '🔵 Being worked on'],
+    ['hold', '🟠 On hold / blocked'],
     ['open', '⚪ Released — not started'],
     ['done', '✅ Fully approved'],
   ];

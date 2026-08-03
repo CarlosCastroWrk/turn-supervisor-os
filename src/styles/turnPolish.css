@@ -781,3 +781,20 @@ select:focus-visible {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Hold-menu hardening: never clipped, never text-selects */
+.track-c-section-row,
+.track-c-section-row * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.track-c-room-menu {
+  position: fixed;
+  top: 28%;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(320px, calc(100vw - 40px));
+  z-index: 40;
+}

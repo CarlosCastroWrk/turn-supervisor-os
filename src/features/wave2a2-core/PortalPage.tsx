@@ -16,6 +16,11 @@ interface PortalUnitLine {
   c: PortalTradeStatus;
   cb?: boolean;
   partial?: boolean;
+  // Rooms passed by the supervisor and waiting on the property walk — the
+  // portal's "ready" must match the app's WALK queue at ROOM grain.
+  pr?: number;
+  cr?: number;
+  bk?: boolean;
 }
 
 const PORTAL_URL_KEY = 'turn-os:portal-share-url';
@@ -43,11 +48,23 @@ export const buildPortalUnits = (state: TrackCState): PortalUnitLine[] =>
     const paint = work.filter((item) => item.trade === 'paint');
     const clean = work.filter((item) => item.trade === 'clean');
     const releasedCount = work.filter((item) => item.release === 'released').length;
+    const readyRooms = (items: typeof work) => items.filter((item) =>
+      item.release === 'released'
+      && item.access === 'clear'
+      && item.inspection === 'los-passed'
+      && item.property !== 'property-accepted').length;
     const line: PortalUnitLine = {
       n: unit.unitNumber,
       p: tradeStatusFor(paint),
       c: tradeStatusFor(clean),
     };
+    const pr = readyRooms(paint);
+    const cr = readyRooms(clean);
+    if (pr > 0) line.pr = pr;
+    if (cr > 0) line.cr = cr;
+    if (work.some((item) => item.release === 'released' && item.access !== 'clear')) {
+      line.bk = true;
+    }
     if (work.some((item) => item.callbackOpen)) line.cb = true;
     if (releasedCount > 0 && releasedCount < work.length) line.partial = true;
     return line;

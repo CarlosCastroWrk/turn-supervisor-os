@@ -1218,6 +1218,9 @@ export interface HomeGlance {
   released: number;
   working: number;
   approved: number;
+  left?: number;
+  readyToWalk?: number;
+  unassigned?: number;
 }
 
 interface DayTaskHomeProps {
@@ -1384,9 +1387,14 @@ function DayTaskHome({
           ) : null;
         })()}
         {glance ? (
-          <p className="w2a2b-glance-line">
-            {rosterCount} in roster · {glance.released} released · {glance.working} working · {glance.approved} approved
-          </p>
+          <>
+            <p className="w2a2b-glance-line">
+              {rosterCount} in roster · {glance.left ?? rosterCount} left
+            </p>
+            <p className="w2a2b-hero-stats">
+              {glance.released} released · {glance.working} working · {glance.readyToWalk ?? 0} ready to walk · {glance.unassigned ?? 0} unassigned
+            </p>
+          </>
         ) : null}
       </header>
 

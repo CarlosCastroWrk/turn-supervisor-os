@@ -1,4 +1,4 @@
-const CACHE_NAME = 'turn-supervisor-os-v0-4';
+const CACHE_NAME = 'turn-supervisor-os-v0-5';
 const NAVIGATION_TIMEOUT_MS = 4_000;
 const APP_SHELL = [
   '/',
@@ -128,6 +128,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (event.request.mode === 'navigate') {
+    const { pathname } = new URL(event.request.url);
+    const isAppShellNavigation = pathname === '/' || pathname === '/index.html';
+    if (!isAppShellNavigation) {
+      // Standalone documents (the portal page) are network-only: never cached
+      // here, never answered with the app shell. A stale copy of one of these
+      // once poisoned the shell cache and haunted every slow load after it.
+      event.respondWith(fetch(event.request).catch(() => offlineDocument()));
+      return;
+    }
     const networkResponse = fetchWithTimeout(event.request, NAVIGATION_TIMEOUT_MS).then((response) => {
       if (!response.ok) {
         throw new Error(`Navigation failed: ${response.status}`);

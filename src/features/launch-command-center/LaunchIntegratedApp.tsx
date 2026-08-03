@@ -729,6 +729,8 @@ function LaunchOperationalApp({
     let released = 0;
     let working = 0;
     let approved = 0;
+    let readyToWalk = 0;
+    let unassigned = 0;
     for (const unit of trackCState.units) {
       const work = projectTrackCUnitWork(trackCState, unit.id)
         .filter((item) => item.release === 'released');
@@ -741,6 +743,8 @@ function LaunchOperationalApp({
         item.access === 'clear' && item.property !== 'property-accepted');
       if (inPlay.length === 0) continue;
       released += 1;
+      if (inPlay.some((item) => item.inspection === 'los-passed')) readyToWalk += 1;
+      if (inPlay.every((item) => item.activeCrewIds.length === 0)) unassigned += 1;
       // Working = a crew is IN there right now. Crew-done-awaiting-Los and
       // passed-awaiting-walk are their own queues, not "working" — this must
       // agree with the portal's In progress count.
@@ -749,7 +753,7 @@ function LaunchOperationalApp({
         working += 1;
       }
     }
-    return { approved, released, working };
+    return { approved, left: trackCState.units.length - approved, readyToWalk, released, unassigned, working };
   }, [trackCState]);
   const acceptedWalkMeta = useMemo(() => {
     const meta: Record<string, { at?: string; contact: string }> = {};

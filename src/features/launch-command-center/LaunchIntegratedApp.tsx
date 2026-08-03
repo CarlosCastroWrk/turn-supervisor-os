@@ -88,6 +88,8 @@ import {
   buildDailyReportData,
   applyTrackCSectionAction,
   clearTrackCAssignments,
+  confirmTrackCBulkAssignmentProposal,
+  createTrackCBulkAssignmentProposal,
   prewarmDailyReportPdf,
   projectTrackCCrewDetail,
   projectTrackCUnitWork,
@@ -103,6 +105,9 @@ import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
 import { appendPersonalNoteActivity } from '../wave2a1-native/track-c/personalActivity';
+import { TellTurnOS } from './TellTurnOS';
+import type { TrackCState } from '../wave2a2-track-c/model';
+import type { TurnIntent } from '../../lib/intelligenceClient';
 import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
 import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
 import {
@@ -408,6 +413,10 @@ function LaunchOperationalApp({
       || historyRequestsCapture(),
   );
   const [plusOpen, setPlusOpen] = useState(false);
+  const [tellOsOpen, setTellOsOpen] = useState(false);
+  // Tell Turn OS applies several intents in one confirm; TrackC-touching ones
+  // must chain off each other's state, not the stale render snapshot.
+  const tellOsTrackRef = useRef<TrackCState | null>(null);
   const [plusInitialScreen, setPlusInitialScreen] = useState<'menu' | 'note'>('menu');
   const [boardDialogOpen, setBoardDialogOpen] = useState(false);
   const [trackCDialogOpen, setTrackCDialogOpen] = useState(false);
@@ -1831,12 +1840,137 @@ function LaunchOperationalApp({
       setFieldToast('Pick the crew — Assign units is right on their card.');
       return;
     }
+    if (action === 'tell-os') {
+      tellOsTrackRef.current = null;
+      setTellOsOpen(true);
+      return;
+    }
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
     window.requestAnimationFrame(() => {
       setCaptureOpen(true);
       copilotRef.current?.openTextSource();
     });
   }, [navigate]);
+
+  const applyTurnIntent = useCallback((intent: TurnIntent): string => {
+    const base = tellOsTrackRef.current ?? trackCState;
+    const unit = base.units.find((candidate) => candidate.unitNumber === intent.unitNumber);
+    if (!unit) throw new Error('not in the roster');
+    const trade = intent.trade ?? 'paint';
+    const tradeWord = trade === 'paint' ? 'Paint' : 'Clean';
+    switch (intent.kind) {
+      case 'set-task': {
+        const workType = intent.workType ?? 'full';
+        const sections = intent.sections?.length
+          ? intent.sections
+          : unit.workFacts
+            .filter((fact) => fact.trade === 'paint' && fact.release === 'released')
+            .map((fact) => fact.section);
+        if (sections.length === 0) throw new Error('no released paint rooms');
+        const saved = commitDataNow((current) => sections.reduce((acc, section) =>
+          setReleaseWorkType(acc, { section, trade: 'paint', unitId: unit.id, workType }), current));
+        if (!saved) throw new Error('could not save');
+        return `${unit.unitNumber} → ${workType} on ${sections.join(', ')}`;
+      }
+      case 'remove-room': {
+        const sections = intent.sections ?? [];
+        if (sections.length === 0) throw new Error('say which rooms');
+        let track = base;
+        for (const section of sections) {
+          const cleared = clearTrackCAssignments(track, {
+            eventIdPrefix: createId('tellos-unrelease'),
+            recordedAt: nowISO(),
+            recordedBy: 'Los',
+            section,
+            trade,
+            unitId: unit.id,
+          });
+          if (cleared.ok) track = cleared.value;
+        }
+        tellOsTrackRef.current = track;
+        const saved = commitDataNow((current) => {
+          let next = applyTrackCStateChange(current, track);
+          for (const section of sections) {
+            next = setSectionReleaseState(next, {
+              idFactory: createId,
+              nowIso: nowISO(),
+              released: false,
+              section,
+              trade,
+              unitId: unit.id,
+            });
+          }
+          return next;
+        });
+        if (!saved) throw new Error('could not save');
+        return `${unit.unitNumber}: removed ${sections.join(', ')} from ${tradeWord}`;
+      }
+      case 'assign': {
+        const first = (intent.crewName ?? '').toLowerCase().split(' ')[0];
+        const crew = base.crews.find((candidate) =>
+          candidate.trade === trade && first
+          && candidate.name.toLowerCase().startsWith(first));
+        if (!crew) throw new Error(`no ${trade} crew called ${intent.crewName ?? '?'}`);
+        const proposal = createTrackCBulkAssignmentProposal(base, {
+          createdAt: nowISO(),
+          createdBy: 'Los',
+          crewId: crew.id,
+          proposalId: createId('tellos-proposal'),
+          sectionMode: 'all-released',
+          sections: [],
+          trade,
+          unitIds: [unit.id],
+        });
+        const confirmedResult = confirmTrackCBulkAssignmentProposal(base, proposal, {
+          confirmed: true,
+          eventIdPrefix: createId('tellos-assign'),
+          recordedAt: nowISO(),
+          recordedBy: 'Los',
+        });
+        if (!confirmedResult.ok) throw new Error(confirmedResult.error.message);
+        let track = confirmedResult.value.state;
+        for (const target of confirmedResult.value.receipt.assignedTargets) {
+          const started = applyTrackCSectionAction(track, {
+            action: 'start-work',
+            eventId: createId('tellos-start'),
+            recordedAt: nowISO(),
+            recordedBy: 'Los',
+            target,
+          });
+          if (started.ok) track = started.value;
+        }
+        tellOsTrackRef.current = track;
+        const saved = commitDataNow((current) => applyTrackCStateChange(current, track));
+        if (!saved) throw new Error('could not save');
+        return `${unit.unitNumber} ${tradeWord} → ${crew.name} (working)`;
+      }
+      case 'note': {
+        const saved = commitDataNow((current) => {
+          const result = appendPersonalNoteActivity(current, {
+            unitId: unit.id,
+            wording: `Tell Turn OS: ${intent.note ?? intent.summary}`,
+          });
+          return result.ok ? result.data : current;
+        });
+        if (!saved) throw new Error('could not save');
+        return `${unit.unitNumber}: note saved`;
+      }
+      case 'block': {
+        const saved = commitDataNow((current) =>
+          setUnitReleaseRestriction(current, unit.id, intent.note ?? 'On hold', intent.trade ?? undefined));
+        if (!saved) throw new Error('could not save');
+        return `${unit.unitNumber}${intent.trade ? ` ${tradeWord}` : ''} blocked`;
+      }
+      case 'unblock': {
+        const saved = commitDataNow((current) =>
+          setUnitReleaseRestriction(current, unit.id, undefined, intent.trade ?? undefined));
+        if (!saved) throw new Error('could not save');
+        return `${unit.unitNumber}${intent.trade ? ` ${tradeWord}` : ''} unblocked — back in play`;
+      }
+      default:
+        throw new Error('not supported yet');
+    }
+  }, [commitDataNow, trackCState]);
 
   const saveCrew = useCallback((draft: TrackBCrewDraft) => {
     const editor = crewEditor;
@@ -3740,6 +3874,23 @@ function LaunchOperationalApp({
           open={plusOpen}
         />
         {blockDialogElement}
+        <TellTurnOS
+          crews={trackCState.crews.map((crew) => ({ name: crew.name, trade: crew.trade }))}
+          onApplyIntent={applyTurnIntent}
+          onClose={() => setTellOsOpen(false)}
+          onRouteRelease={(text) => {
+            try {
+              window.localStorage.setItem('turn-os:intake-prefill', text);
+            } catch {
+              // He can paste it himself.
+            }
+            setTellOsOpen(false);
+            navigate('dashboard');
+            setHomeMode('manual-release');
+          }}
+          open={tellOsOpen}
+          rosterUnitNumbers={trackCState.units.map((unit) => unit.unitNumber)}
+        />
         {fieldToast ? (
           <div aria-live="polite" className="lcc-field-toast" role="status">
             {fieldToast}

@@ -76,7 +76,15 @@ export function ManualReleaseReview({
   const pendingBatchRef = useRef<DailyReleaseBatch | undefined>(undefined);
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeStatus, setIntakeStatus] = useState('');
-  const [intakeMessage, setIntakeMessage] = useState('');
+  const [intakeMessage, setIntakeMessage] = useState(() => {
+    try {
+      const prefill = window.localStorage.getItem('turn-os:intake-prefill') ?? '';
+      window.localStorage.removeItem('turn-os:intake-prefill');
+      return prefill;
+    } catch {
+      return '';
+    }
+  });
   const intakeFileRef = useRef<HTMLInputElement>(null);
 
   const importNotesRef = useRef<Map<string, string>>(new Map());

@@ -66,6 +66,12 @@ interface PlusItem {
 
 const PLUS_ITEMS: readonly PlusItem[] = [
   {
+    action: 'tell-os',
+    description: 'Talk or dictate — the OS reads it and does it',
+    icon: <MessageSquare aria-hidden="true" size={20} />,
+    label: 'Tell Turn OS',
+  },
+  {
     action: 'import-work',
     description: 'Joseph released more units — tap them on the grid',
     icon: <FolderUp aria-hidden="true" size={20} />,

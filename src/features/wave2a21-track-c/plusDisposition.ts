@@ -29,6 +29,9 @@ export const TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS: Readonly<
   'assign-units': {
     availability: 'available',
   },
+  'tell-os': {
+    availability: 'available',
+  },
   note: { availability: 'available' },
   'paste-text': {
     availability: 'hidden',

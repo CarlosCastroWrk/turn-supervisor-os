@@ -8,7 +8,8 @@ export type TrackCPlusAction =
   | 'files'
   | 'paste-text'
   | 'import-work'
-  | 'assign-units';
+  | 'assign-units'
+  | 'tell-os';
 
 export type TrackCNativeFileAction = Extract<TrackCPlusAction, 'camera' | 'photos' | 'files'>;
 

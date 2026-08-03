@@ -379,6 +379,9 @@ function LaunchOperationalApp({
   // When a unit is opened from a Home queue (Needs Crew, Working, …), Back
   // must return to that queue — not dump Los on the TurnBoard.
   const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | 'home' | undefined>(undefined);
+  // Which trade the user was LOOKING AT when they tapped into a unit — from
+  // Home's twin boards or the wall grid. Route-level so remounts can't lose it.
+  const unitDetailTradeRef = useRef<'paint' | 'clean' | undefined>(undefined);
   // Same rule for crews: opened from Home's "Crews right now" → Back returns
   // to Home, not the Crews tab.
   const crewOriginHomeRef = useRef(false);
@@ -887,6 +890,7 @@ function LaunchOperationalApp({
     }
     return {
       unitId: route.view === 'unitDetail' ? route.unitId : undefined,
+      unitTrade: route.view === 'unitDetail' ? unitDetailTradeRef.current : undefined,
       view: 'board',
     };
   }, [
@@ -1482,6 +1486,7 @@ function LaunchOperationalApp({
 
   const openDestination = useCallback((destinationId: string) => {
     if (destinationId.startsWith('unit:')) {
+      unitDetailTradeRef.current = undefined;
       unitDetailOriginRef.current =
         routeRef.current.view === 'dashboard'
           ? routeRef.current.homeSummary ?? 'home'
@@ -1534,6 +1539,7 @@ function LaunchOperationalApp({
     // A tab tap is a fresh start — stale "return to where you came from"
     // memory must never redirect a later Back to the wrong surface.
     unitDetailOriginRef.current = undefined;
+    unitDetailTradeRef.current = undefined;
     crewOriginHomeRef.current = false;
     if (destination === 'crews') {
       // Crews is a first-class tab: land on the crew command view directly.
@@ -2649,9 +2655,11 @@ function LaunchOperationalApp({
               return;
             }
             if (nextRoute.unitId) {
+              unitDetailTradeRef.current = nextRoute.unitTrade;
               navigate('unitDetail', nextRoute.unitId, { unitSurface: 'board' });
               return;
             }
+            unitDetailTradeRef.current = undefined;
             if (unitDetailOriginRef.current) {
               const origin = unitDetailOriginRef.current;
               unitDetailOriginRef.current = undefined;
@@ -2981,7 +2989,11 @@ function LaunchOperationalApp({
             { fieldWorkflow: 'walk', walkSessionId },
           )}
           acceptedWalkMeta={acceptedWalkMeta}
-          onOpenUnitFromHome={(unitId) => navigate('unitDetail', unitId)}
+          onOpenUnitFromHome={(unitId, trade) => {
+            unitDetailOriginRef.current = 'home';
+            unitDetailTradeRef.current = trade;
+            navigate('unitDetail', unitId);
+          }}
           onExportBackup={async () => {
             const result = await buildJsonBackupWithLocalPhotos(data);
             downloadTextFile(

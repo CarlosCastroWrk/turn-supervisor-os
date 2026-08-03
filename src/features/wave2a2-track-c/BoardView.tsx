@@ -34,7 +34,8 @@ import {
 interface BoardViewProps {
   readonly state: TrackCState;
   readonly selectedUnitId?: string;
-  readonly onOpenUnit: (unitId: string) => void;
+  readonly onOpenUnit: (unitId: string, trade?: TrackCTrade) => void;
+  readonly focusTradeHint?: TrackCTrade;
   readonly onCloseUnit: () => void;
   readonly onSectionAction: (
     target: TrackCWorkTarget,
@@ -1023,6 +1024,7 @@ const WallGrid = ({
 export const BoardView = ({
   state,
   selectedUnitId,
+  focusTradeHint,
   onOpenUnit,
   onCloseUnit,
   onSectionAction,
@@ -1159,7 +1161,7 @@ export const BoardView = ({
   if (selectedUnitId) {
     return (
       <UnitDetail
-        focusTrade={focusTrade ?? boardTrade}
+        focusTrade={focusTrade ?? focusTradeHint ?? boardTrade}
         onPdsApprove={onPdsApprove}
         onUnblockUnit={onUnblockUnit}
         onRequestBlock={onRequestBlock}
@@ -1210,7 +1212,7 @@ export const BoardView = ({
         <WallGrid
           onOpenUnitTrade={(unitId, trade) => {
             setFocusTrade(trade);
-            onOpenUnit(unitId);
+            onOpenUnit(unitId, trade);
           }}
           state={state}
         />
@@ -1290,7 +1292,7 @@ export const BoardView = ({
               key={unit.unitId}
               onOpen={() => {
                 setFocusTrade(boardTrade);
-                onOpenUnit(unit.unitId);
+                onOpenUnit(unit.unitId, boardTrade);
               }}
               state={state}
               trade={boardTrade}

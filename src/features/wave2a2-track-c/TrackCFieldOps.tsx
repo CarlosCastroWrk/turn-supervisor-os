@@ -52,6 +52,7 @@ export type TrackCView = 'board' | 'crews' | 'assign' | 'walk';
 export interface TrackCRouteState {
   readonly view: TrackCView;
   readonly unitId?: string;
+  readonly unitTrade?: TrackCTrade;
   readonly crewId?: string;
   readonly walkSessionId?: string;
 }
@@ -504,12 +505,13 @@ export const TrackCFieldOps = ({
       >
         {view === 'board' ? (
           <BoardView
+            focusTradeHint={routeState?.unitTrade}
             onCloseUnit={() => {
               onNavigate?.({ view: 'board' });
               setLocalSelectedUnitId(undefined);
             }}
-            onOpenUnit={(unitId) => {
-              onNavigate?.({ unitId, view: 'board' });
+            onOpenUnit={(unitId, trade) => {
+              onNavigate?.({ unitId, unitTrade: trade, view: 'board' });
               setLocalSelectedUnitId(unitId);
             }}
             onQuickAssign={quickAssign}

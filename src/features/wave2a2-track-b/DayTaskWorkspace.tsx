@@ -1247,7 +1247,7 @@ interface DayTaskHomeProps {
   dayNumber?: number;
   onExportBackup?: () => Promise<string>;
   onExportReport?: (dayNumber?: number) => Promise<string>;
-  onOpenUnit?: (unitId: string) => void;
+  onOpenUnit?: (unitId: string, trade?: 'paint' | 'clean') => void;
 }
 
 function DayTaskHome({
@@ -1477,7 +1477,7 @@ function DayTaskHome({
                     <div className={`w2a2b-live-card is-${line.stage}`} key={`${line.unitId}:${line.trade}`}>
                       <button
                         className="w2a2b-live-card__unit"
-                        onClick={() => onOpenUnit?.(line.unitId)}
+                        onClick={() => onOpenUnit?.(line.unitId, line.trade)}
                         type="button"
                       >
                         <strong>{line.unitNumber}</strong>
@@ -1830,7 +1830,7 @@ export interface DayTaskWorkspaceProps {
   acceptedWalkMeta?: Readonly<Record<string, { at?: string; contact: string }>>;
   onExportBackup?: () => Promise<string>;
   onExportReport?: (dayNumber?: number) => Promise<string>;
-  onOpenUnitFromHome?: (unitId: string) => void;
+  onOpenUnitFromHome?: (unitId: string, trade?: 'paint' | 'clean') => void;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;

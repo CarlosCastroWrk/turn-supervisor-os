@@ -714,10 +714,11 @@ body:has(.w2a1-a-page-transition) {
 /* Queue pages: one column per trade, side by side. */
 .w2a1-a-trade-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  gap: 16px;
   align-items: start;
 }
+.w2a1-a-trade-columns > div { width: 100%; }
 .w2a1-a-trade-columns > div > h3 {
   margin: 0 2px 6px;
   font-size: 12.5px;

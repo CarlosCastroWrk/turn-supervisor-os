@@ -161,7 +161,7 @@
 
   const load = async () => {
     try {
-      const response = await fetch(`/api/portal/view?k=${encodeURIComponent(token)}`);
+      const response = await fetch(`/api/portal/view?k=${encodeURIComponent(token)}&t=${Date.now()}`, { cache: 'no-store' });
       const body = await response.json();
       if (!response.ok) {
         el('sub').textContent = body.error || 'This link is not valid.';

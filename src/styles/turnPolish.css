@@ -1117,3 +1117,6 @@ select:focus-visible {
   user-select: none;
   -webkit-touch-callout: none;
 }
+
+/* Wall grid: hint that you can swipe floors */
+.track-c-wall__grid.is-rooms { touch-action: pan-y; }

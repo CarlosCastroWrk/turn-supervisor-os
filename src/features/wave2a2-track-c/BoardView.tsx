@@ -1201,6 +1201,13 @@ const WallGrid = ({
       // Session-only then.
     }
   };
+  // Swipe left/right to flip floors like paging his paper board.
+  const swipeStartX = useRef<number | null>(null);
+  const stepFloor = (direction: 1 | -1) => {
+    const index = floors.indexOf(activeFloor);
+    const nextIndex = index + direction;
+    if (nextIndex >= 0 && nextIndex < floors.length) pickFloor(floors[nextIndex]);
+  };
   // His paper board: room columns, then the crew, then approval.
   const ROOM_COLUMNS: readonly TrackCSection[] = ['common', 'A', 'B', 'C', 'D', 'E'];
   const cellFor = (unitId: string, section: TrackCSection) => {
@@ -1273,6 +1280,13 @@ const WallGrid = ({
       <div
         aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}
         className="track-c-wall__grid is-rooms"
+        onTouchEnd={(event) => {
+          if (swipeStartX.current === null || trimmed) return;
+          const delta = event.changedTouches[0].clientX - swipeStartX.current;
+          swipeStartX.current = null;
+          if (Math.abs(delta) > 55) stepFloor(delta < 0 ? 1 : -1);
+        }}
+        onTouchStart={(event) => { swipeStartX.current = event.touches[0]?.clientX ?? null; }}
         role="table"
       >
         <div className="track-c-wall__head" role="row">

@@ -879,3 +879,40 @@ select:focus-visible {
   border-color: var(--turn-color-divider);
 }
 .lcc-tellos__actions button:disabled { opacity: 0.5; }
+
+/* ---------- Tell Turn OS: felt feedback (field-tuned, reduced-motion safe) ---------- */
+.lcc-tellos__reading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--turn-color-brand);
+}
+.lcc-tellos__reading-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--turn-color-brand);
+  animation: lcc-tellos-pulse 1s ease-in-out infinite;
+}
+@keyframes lcc-tellos-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+.lcc-tellos__done {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--turn-color-ready, #237a45);
+  animation: lcc-tellos-rise 0.28s ease-out;
+}
+@keyframes lcc-tellos-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lcc-tellos__reading-dot { animation: none; opacity: 0.9; }
+  .lcc-tellos__done { animation: none; }
+}

@@ -106,6 +106,26 @@ RULES:
 - Prefer several precise intents over one vague one. Never invent work types.
 - If words are ambiguous, still emit your best intent with confidence "low"
   and explain in uncertainties.
+
+SPOKEN INPUT (this is DICTATED — snap his messy speech to the real values):
+- Numbers said as words become digits, in reading order: "fifteen oh five" ->
+  1505, "eleven oh six" -> 1106, "five oh five" -> 505, "twelve hundred" ->
+  1200, "sixteen-oh-eight" -> 1608, "seventeen-oh-six" -> 1706. If a spoken
+  number is close to exactly one roster unit, SNAP to that roster unit (dictation
+  drops or adds a digit — "one fifty five" near 1505 in the roster -> 1505) and
+  only fall back to an uncertainty when two roster units are equally likely.
+- Rooms: "room a"/"the a"/"unit a" -> A; "the common"/"común"/"comn"/"common
+  area" -> common. "a and b" -> [A, B]. "all the beds" -> A..E for that unit.
+- Work-type words, snap to exactly full | touch-up | cut-in:
+  "cut in"/"cut-in"/"cutting"/"cuttings"/"cuts" -> cut-in;
+  "touch up"/"touch-ups"/"touchups"/"TU" -> touch-up;
+  "full"/"full paint"/"whole thing"/"paint it out" -> full.
+- Crew names: snap the spoken name to the closest roster crew of that trade
+  ("rocky"/"rockie" -> the roster's Rocky). Dictation garbles names; a first-name
+  match is enough. If no crew of that trade is close, uncertainty.
+- Fillers to ignore: "uh", "like", "okay so", "put down", "go ahead and".
+- When Los says a unit then rooms then a task then a crew in one breath, that is
+  usually ONE unit's release or assign — keep them together, don't split the unit.
 ${request.rosterUnitNumbers?.length ? `\nROSTER UNITS: ${request.rosterUnitNumbers.join(', ')}` : ''}
 ${request.crews?.length ? `\nCREWS: ${request.crews.map((crew) => `${crew.name} (${crew.trade})`).join(', ')}` : ''}
 ${request.today ? `\nTODAY: ${request.today}` : ''}

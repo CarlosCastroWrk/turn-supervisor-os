@@ -107,6 +107,12 @@ export const TellTurnOS = ({
           value={text}
         />
         {error ? <p className="lcc-tellos__error">{error}</p> : null}
+        {busy ? (
+          <p className="lcc-tellos__reading" aria-live="polite">
+            <span className="lcc-tellos__reading-dot" />
+            Reading what you said…
+          </p>
+        ) : null}
         {!result ? (
           <div className="lcc-tellos__actions">
             <button disabled={busy || !text.trim()} onClick={() => void interpret()} type="button">
@@ -160,6 +166,7 @@ export const TellTurnOS = ({
         ) : null}
         {outcomes ? (
           <>
+            <p className="lcc-tellos__done" aria-live="polite">✓ Done — {outcomes.length} handled</p>
             <ul className="lcc-tellos__outcomes">
               {outcomes.map((line, index) => <li key={index}>{line}</li>)}
             </ul>

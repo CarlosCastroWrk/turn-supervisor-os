@@ -744,6 +744,7 @@ interface EndDayFlowProps {
   crews?: readonly TrackBCrewOption[];
   events: readonly DaySessionEvent[];
   now: () => string;
+  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in'>>;
   unitNumbers?: ReadonlyMap<string, string>;
   onCancel: () => void;
   onClosed: (
@@ -765,6 +766,7 @@ export function EndDayFlow({
   acceptedWalkMeta,
   crews = [],
   events,
+  releaseWorkTypes,
   unitNumbers,
   now,
   onCancel,
@@ -986,6 +988,7 @@ export function EndDayFlow({
           unitNumber: string;
           trade: string;
           assigned: Set<string>;
+          sectionIds: Set<string>;
           sections: Set<string>;
           passed: number;
           accepted: number;
@@ -1003,6 +1006,7 @@ export function EndDayFlow({
             assigned: new Set<string>(),
             crewDone: 0,
             passed: 0,
+            sectionIds: new Set<string>(),
             sections: new Set<string>(),
             trade: event.trade,
             unitId: event.unitId,
@@ -1010,6 +1014,7 @@ export function EndDayFlow({
           };
           if (event.sectionId) {
             line.sections.add(event.sectionId === 'common' ? 'Common' : event.sectionId);
+            line.sectionIds.add(event.sectionId);
           }
           if (event.eventType === 'assignment-confirmed') {
             const name = crewName.get(event.reportedBy ?? event.actorId)
@@ -1045,7 +1050,27 @@ export function EndDayFlow({
           const meta = acceptedWalkMeta?.[line.unitId];
           const sections = [...line.sections].sort((a, b) =>
             a === 'Common' ? -1 : b === 'Common' ? 1 : a.localeCompare(b)).join(', ');
+          // The task, in wall-board words: what KIND of paint each room was.
+          let taskText = '';
+          if (String(line.trade).toLowerCase() === 'paint' && releaseWorkTypes) {
+            const byType = new Map<string, string[]>();
+            for (const sectionId of line.sectionIds) {
+              const type = releaseWorkTypes[`${line.unitId}:paint:${sectionId}`] ?? 'full';
+              const label = type === 'touch-up' ? 'touch-up' : type === 'cut-in' ? 'cut-in' : 'full paint';
+              const list = byType.get(label) ?? [];
+              list.push(sectionId === 'common' ? 'Com' : sectionId);
+              byType.set(label, list);
+            }
+            if (byType.size === 1) {
+              taskText = [...byType.keys()][0] ?? '';
+            } else if (byType.size > 1) {
+              taskText = [...byType.entries()]
+                .map(([label, rooms]) => `${label} ${rooms.join('\u00b7')}`)
+                .join(' \u00b7 ');
+            }
+          }
           return [
+            taskText,
             sections,
             line.assigned.size > 0 ? `write ${[...line.assigned].join(' + ').toUpperCase()}` : '',
             line.crewDone > 0 || line.passed > 0
@@ -1852,6 +1877,7 @@ export interface DayTaskWorkspaceProps {
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnitFromHome?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
+  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;
@@ -1899,6 +1925,7 @@ export function DayTaskWorkspace({
   onExportReport,
   onOpenUnitFromHome,
   josephContact,
+  releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
   propertyRoster,
@@ -2012,6 +2039,7 @@ export function DayTaskWorkspace({
     return (
       <EndDayFlow
         activeWalkSessionId={activeWalkSessionId}
+        releaseWorkTypes={releaseWorkTypes}
         acceptedToday={acceptedToday}
         acceptedWalkMeta={acceptedWalkMeta}
         crews={crews}

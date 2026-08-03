@@ -784,6 +784,16 @@ function LaunchOperationalApp({
     }
     return { approved, left: trackCState.units.length - approved, readyToWalk, released, unassigned, working };
   }, [trackCState]);
+  const releaseWorkTypes = useMemo(() => {
+    const map: Record<string, 'full' | 'touch-up' | 'cut-in'> = {};
+    for (const unit of trackCState.units) {
+      for (const fact of unit.workFacts) {
+        if (fact.release !== 'released' || !fact.workType) continue;
+        map[`${unit.id}:${fact.trade}:${fact.section}`] = fact.workType;
+      }
+    }
+    return map;
+  }, [trackCState]);
   const acceptedWalkMeta = useMemo(() => {
     const meta: Record<string, { at?: string; contact: string }> = {};
     for (const walk of trackCState.completedWalks) {
@@ -3084,6 +3094,7 @@ function LaunchOperationalApp({
             { fieldWorkflow: 'walk', walkSessionId },
           )}
           acceptedWalkMeta={acceptedWalkMeta}
+          releaseWorkTypes={releaseWorkTypes}
           josephContact={(() => {
             const contact = activeProjectContacts.find((candidate) =>
               /jose/i.test(candidate.name))

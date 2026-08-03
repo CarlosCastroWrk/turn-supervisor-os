@@ -1279,6 +1279,8 @@ interface DayTaskHomeProps {
   onOpenUnit?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
   onOpenCrews?: () => void;
+  onPeekUnit?: (unitId: string) => void;
+  onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
 }
 
 function DayTaskHome({
@@ -1291,6 +1293,8 @@ function DayTaskHome({
   onOpenUnit,
   josephContact,
   onOpenCrews,
+  onPeekUnit,
+  onPeekQueue,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1312,6 +1316,24 @@ function DayTaskHome({
   const progress = calculateTodayTaskProgress(task);
   const active = isOpenDay(session);
   const [ritualStatus, setRitualStatus] = useState('');
+  // Hold-to-peek: a long press fires the preview; the click that follows is
+  // swallowed so a peek never also opens the full page.
+  const pressTimer = useRef<number | null>(null);
+  const pressFired = useRef(false);
+  const startPress = (fn?: () => void) => {
+    if (!fn) return;
+    pressFired.current = false;
+    pressTimer.current = window.setTimeout(() => {
+      pressFired.current = true;
+      fn();
+    }, 420);
+  };
+  const endPress = () => {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
   // Done-today can grow to dozens of units; keep it collapsed to a tappable
   // summary so it never stacks up and buries the rest of Home.
   const [doneExpanded, setDoneExpanded] = useState(false);
@@ -1498,7 +1520,15 @@ function DayTaskHome({
           <button
             className={`w2a2b-needsme__chip is-${tone}`}
             key={queueId}
-            onClick={() => onOpenQueue(selectTodayTaskQueue(task, queueId))}
+            onClick={() => {
+              if (pressFired.current) { pressFired.current = false; return; }
+              onOpenQueue(selectTodayTaskQueue(task, queueId));
+            }}
+            onPointerDown={() => startPress(
+              onPeekQueue ? () => onPeekQueue(queueId, label) : undefined,
+            )}
+            onPointerLeave={endPress}
+            onPointerUp={endPress}
             type="button"
           >
             <b>{counts[queueId]}</b>
@@ -1547,7 +1577,13 @@ function DayTaskHome({
                     <div className={`w2a2b-live-card is-${line.stage}`} key={`${line.unitId}:${line.trade}`}>
                       <button
                         className="w2a2b-live-card__unit"
-                        onClick={() => onOpenUnit?.(line.unitId, line.trade)}
+                        onClick={() => {
+                          if (pressFired.current) { pressFired.current = false; return; }
+                          onOpenUnit?.(line.unitId, line.trade);
+                        }}
+                        onPointerDown={() => startPress(onPeekUnit ? () => onPeekUnit(line.unitId) : undefined)}
+                        onPointerLeave={endPress}
+                        onPointerUp={endPress}
                         type="button"
                       >
                         <strong>{line.unitNumber}</strong>
@@ -1912,6 +1948,8 @@ export interface DayTaskWorkspaceProps {
   onOpenUnitFromHome?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
   onOpenCrews?: () => void;
+  onPeekUnit?: (unitId: string) => void;
+  onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -1961,6 +1999,8 @@ export function DayTaskWorkspace({
   onOpenUnitFromHome,
   josephContact,
   onOpenCrews,
+  onPeekUnit,
+  onPeekQueue,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2164,6 +2204,8 @@ export function DayTaskWorkspace({
         currentDate={currentDate}
         josephContact={josephContact}
         onOpenCrews={onOpenCrews}
+        onPeekUnit={onPeekUnit}
+        onPeekQueue={onPeekQueue}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

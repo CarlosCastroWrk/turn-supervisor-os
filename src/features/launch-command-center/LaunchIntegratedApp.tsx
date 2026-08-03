@@ -106,6 +106,7 @@ import {
 } from '../wave2a2-core/OfficialPdsFormsPage';
 import { appendPersonalNoteActivity } from '../wave2a1-native/track-c/personalActivity';
 import { TellTurnOS } from './TellTurnOS';
+import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
 import type { TurnIntent } from '../../lib/intelligenceClient';
 import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
@@ -414,6 +415,7 @@ function LaunchOperationalApp({
   );
   const [plusOpen, setPlusOpen] = useState(false);
   const [tellOsOpen, setTellOsOpen] = useState(false);
+  const [peekTarget, setPeekTarget] = useState<PeekTarget | null>(null);
   // Tell Turn OS applies several intents in one confirm; TrackC-touching ones
   // must chain off each other's state, not the stale render snapshot.
   const tellOsTrackRef = useRef<TrackCState | null>(null);
@@ -3258,6 +3260,26 @@ function LaunchOperationalApp({
           acceptedWalkMeta={acceptedWalkMeta}
           releaseWorkTypes={releaseWorkTypes}
           onOpenCrews={() => navigate('crews')}
+          onPeekUnit={(unitId) => setPeekTarget({ kind: 'unit', unitId })}
+          onPeekQueue={(queueId, label) => {
+            // Which units sit behind this chip right now — computed from live
+            // TrackC state so the peek always matches the count.
+            const inState = (predicate: (work: ReturnType<typeof projectTrackCUnitWork>[number]) => boolean) =>
+              trackCState.units
+                .filter((unit) => projectTrackCUnitWork(trackCState, unit.id)
+                  .some((work) => work.release === 'released' && predicate(work)))
+                .map((unit) => unit.id);
+            const unitIds = queueId === 'working'
+              ? inState((w) => ['working', 'assigned'].includes(w.execution) && !w.callbackOpen)
+              : queueId === 'needs-inspection'
+                ? inState((w) => w.execution === 'crew-reported-complete' && !w.callbackOpen)
+                : queueId === 'callbacks'
+                  ? inState((w) => w.callbackOpen)
+                  : queueId === 'ready-to-walk'
+                    ? inState((w) => w.inspection === 'los-passed' && w.property !== 'property-accepted')
+                    : inState((w) => w.access !== 'clear');
+            setPeekTarget({ kind: 'queue', label, unitIds });
+          }}
           josephContact={(() => {
             const contact = activeProjectContacts.find((candidate) =>
               /jose/i.test(candidate.name))
@@ -3902,6 +3924,17 @@ function LaunchOperationalApp({
           open={plusOpen}
         />
         {blockDialogElement}
+        <TurnPeek
+          onClose={() => setPeekTarget(null)}
+          onOpenUnit={(unitId, trade) => {
+            setPeekTarget(null);
+            unitDetailOriginRef.current = 'home';
+            unitDetailTradeRef.current = trade;
+            navigate('unitDetail', unitId);
+          }}
+          state={trackCState}
+          target={peekTarget}
+        />
         <TellTurnOS
           crews={trackCState.crews.map((crew) => ({ name: crew.name, trade: crew.trade }))}
           onApplyIntent={applyTurnIntent}

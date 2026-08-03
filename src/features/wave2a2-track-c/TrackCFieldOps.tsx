@@ -86,7 +86,7 @@ export interface TrackCFieldOpsProps {
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
   readonly onSetSectionWorkType?: (
     target: TrackCWorkTarget,
-    workType: 'full' | 'touch-up' | 'cut-in',
+    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in',
   ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,

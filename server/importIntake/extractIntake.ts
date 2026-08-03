@@ -151,8 +151,8 @@ RULES for this grid:
    1706, sections A,B, cutInSections A,B. Never one row per room.
 3. Objectives map: "Full Paint" -> released full (in sections only);
    "Touch Up" -> sections + touchUpSections; "Cut in" -> sections +
-   cutInSections; combos like "Full Paint + Cut in" -> full (mention the
-   cut-in in the unit note).
+   cutInSections; a room marked BOTH "Full Paint + Cut in" -> put it in BOTH
+   sections and cutInSections (Los tags it full+cut-in on the unit page).
 4. "Staff" is NOT released work — it means Los may walk that room alone and
    propose work. NEVER put staff rooms in sections. If a unit mixes real work
    and staff rooms, put the staff rooms in that unit's note as

@@ -206,6 +206,8 @@ export function ManualReleaseReview({
         next.set(key, { ...existing, workType: 'touch-up' });
       } else if (existing.workType === 'touch-up') {
         next.set(key, { ...existing, workType: 'cut-in' });
+      } else if (existing.workType === 'cut-in') {
+        next.set(key, { ...existing, workType: 'full-cut-in' });
       } else {
         next.delete(key);
       }

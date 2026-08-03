@@ -794,7 +794,7 @@ function LaunchOperationalApp({
     return { approved, left: trackCState.units.length - approved, readyToWalk, released, unassigned, working };
   }, [trackCState]);
   const releaseWorkTypes = useMemo(() => {
-    const map: Record<string, 'full' | 'touch-up' | 'cut-in'> = {};
+    const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'> = {};
     for (const unit of trackCState.units) {
       for (const fact of unit.workFacts) {
         if (fact.release !== 'released' || !fact.workType) continue;
@@ -2846,7 +2846,9 @@ function LaunchOperationalApp({
             }));
             const label = workType === 'touch-up'
               ? 'touch-up'
-              : workType === 'cut-in' ? 'cut-in' : 'full paint';
+              : workType === 'cut-in'
+                ? 'cut-in'
+                : workType === 'full-cut-in' ? 'full + cut-in' : 'full paint';
             setFieldToast(saved
               ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} → ${label}.`
               : 'Could not save — try again.');

@@ -950,3 +950,5 @@ select:focus-visible {
   font-weight: 600;
   min-height: 38px;
 }
+
+.track-c-worktype.is-full-cut-in { color: #7c3aed; }

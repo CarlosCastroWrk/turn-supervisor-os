@@ -338,7 +338,7 @@ export interface DaySession {
   updatedAt: string;
 }
 
-export type ReleaseWorkType = 'full' | 'touch-up' | 'cut-in';
+export type ReleaseWorkType = 'full' | 'touch-up' | 'cut-in' | 'full-cut-in';
 
 export interface DailyReleaseItem {
   id: EntityId;

@@ -4,6 +4,8 @@
 // "text me as each unit is finished". Single language per send (no mixing);
 // the last language used sticks on this device.
 
+import { paintWorkTypeNote } from './model';
+
 export type CrewTextLang = 'es' | 'en';
 
 const LANG_KEY = 'turn-os:crew-text-lang';
@@ -27,7 +29,7 @@ export const writeCrewTextLang = (lang: CrewTextLang): void => {
 export interface CrewTextSection {
   readonly kind: 'common' | 'bed';
   readonly bed?: string;
-  readonly workType?: 'full' | 'touch-up' | 'cut-in';
+  readonly workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in';
 }
 
 export interface CrewTextRow {
@@ -39,11 +41,7 @@ const sectionText = (section: CrewTextSection, lang: CrewTextLang): string => {
   const base = section.kind === 'common'
     ? lang === 'es' ? 'área común' : 'common area'
     : section.bed ?? '';
-  const note = section.workType === 'touch-up'
-    ? lang === 'es' ? 'retoques' : 'touch-up'
-    : section.workType === 'cut-in'
-      ? lang === 'es' ? 'cortes' : 'cut-in'
-      : '';
+  const note = paintWorkTypeNote(section.workType, lang);
   return note ? `${base} (${note})` : base;
 };
 

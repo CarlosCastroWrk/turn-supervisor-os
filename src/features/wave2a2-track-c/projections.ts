@@ -17,7 +17,7 @@ import {
   type TrackCWorkProjection,
   type TrackCWorkTarget,
 } from './model';
-import { trackCSectionLabel, trackCWorkKey } from './model';
+import { paintWorkTypeLabel, trackCSectionLabel, trackCWorkKey } from './model';
 
 const confirmedTargetEvents = (
   state: TrackCState,
@@ -545,12 +545,12 @@ export const trackCTradeWorkTypeLabel = (
     ?.workFacts.filter((fact) => fact.trade === trade && fact.release === 'released') ?? [];
   if (released.length === 0) return '';
   const label = (type: string) =>
-    type === 'touch-up' ? 'touch-up' : type === 'cut-in' ? 'cut-in' : 'full paint';
+    paintWorkTypeLabel(type as 'full' | 'touch-up' | 'cut-in' | 'full-cut-in');
   const types = new Set(released.map((fact) => fact.workType ?? 'full'));
   const first = [...types][0];
   if (types.size === 1 && first) return label(first);
   const parts: string[] = [];
-  for (const type of ['full', 'touch-up', 'cut-in']) {
+  for (const type of ['full', 'touch-up', 'cut-in', 'full-cut-in']) {
     const sections = released
       .filter((fact) => (fact.workType ?? 'full') === type)
       .map((fact) => trackCSectionLabel(fact.section));

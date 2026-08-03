@@ -17,6 +17,8 @@ import {
   type TrackCTrade,
   type TrackCWorkProjection,
   type TrackCWorkTarget,
+  paintWorkTypeLabel,
+  paintWorkTypeNote,
   trackCSectionLabel,
   trackCWorkKey,
 } from './model';
@@ -68,7 +70,7 @@ interface BoardViewProps {
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
   readonly onSetSectionWorkType?: (
     target: TrackCWorkTarget,
-    workType: 'full' | 'touch-up' | 'cut-in',
+    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in',
   ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
@@ -349,7 +351,7 @@ const WorkSection = ({
   onAction: (action: TrackCSectionAction) => void;
   onRequestMirror: () => void;
   onToggleRelease?: (released: boolean) => void;
-  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in') => void;
+  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in') => void;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
@@ -434,7 +436,7 @@ const WorkSection = ({
         <div className="track-c-room-menu" role="menu">
           <p>{trackCSectionLabel(work.section)}</p>
           {work.trade === 'paint' && onSetWorkType
-            ? (['full', 'touch-up', 'cut-in'] as const).map((type) => (
+            ? (['full', 'touch-up', 'cut-in', 'full-cut-in'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => {
@@ -444,7 +446,11 @@ const WorkSection = ({
                 role="menuitem"
                 type="button"
               >
-                {type === 'full' ? 'Full paint' : type === 'touch-up' ? 'Touch-up' : 'Cut-in'}
+                {type === 'full'
+                  ? 'Full paint'
+                  : type === 'touch-up'
+                    ? 'Touch-up'
+                    : type === 'cut-in' ? 'Cut-in' : 'Full + cut-in'}
                 {(work.workType ?? 'full') === type ? ' \u2713' : ''}
               </button>
             ))
@@ -494,7 +500,7 @@ const WorkSection = ({
             {work.trade === 'paint' && work.release === 'released'
               && work.workType && work.workType !== 'full' ? (
                 <em className={`track-c-worktype is-${work.workType}`}>
-                  {work.workType === 'touch-up' ? 'touch-up' : 'cut-in'}
+                  {paintWorkTypeNote(work.workType)}
                 </em>
               ) : null}
           </span>
@@ -545,14 +551,14 @@ const WorkSection = ({
                   const current = work.workType ?? 'full';
                   const next = current === 'full'
                     ? 'touch-up'
-                    : current === 'touch-up' ? 'cut-in' : 'full';
+                    : current === 'touch-up'
+                      ? 'cut-in'
+                      : current === 'cut-in' ? 'full-cut-in' : 'full';
                   onSetWorkType(next);
                 }}
                 type="button"
               >
-                Task: {work.workType === 'touch-up'
-                  ? 'touch-up'
-                  : work.workType === 'cut-in' ? 'cut-in' : 'full paint'} — tap to change
+                Task: {paintWorkTypeLabel(work.workType)} — tap to change
               </button>
             ) : null}
           {canRemove && onToggleRelease ? (

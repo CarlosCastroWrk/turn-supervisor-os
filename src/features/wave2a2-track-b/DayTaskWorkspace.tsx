@@ -1278,6 +1278,7 @@ interface DayTaskHomeProps {
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnit?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
+  onOpenCrews?: () => void;
 }
 
 function DayTaskHome({
@@ -1289,6 +1290,7 @@ function DayTaskHome({
   onExportReport,
   onOpenUnit,
   josephContact,
+  onOpenCrews,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1420,7 +1422,14 @@ function DayTaskHome({
               {rosterCount} in roster · {glance.left ?? rosterCount} left
             </p>
             <p className="w2a2b-hero-stats">
-              {glance.released} released · {glance.working} working · {glance.readyToWalk ?? 0} ready to walk · {glance.unassigned ?? 0} unassigned
+              {glance.released} released · {glance.working} working · {glance.readyToWalk ?? 0} ready to walk ·{' '}
+              {onOpenCrews && (glance.unassigned ?? 0) > 0 ? (
+                <button className="w2a2b-glance-link" onClick={onOpenCrews} type="button">
+                  {glance.unassigned} unassigned — assign
+                </button>
+              ) : (
+                `${glance.unassigned ?? 0} unassigned`
+              )}
             </p>
           </>
         ) : null}
@@ -1877,6 +1886,7 @@ export interface DayTaskWorkspaceProps {
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnitFromHome?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
+  onOpenCrews?: () => void;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -1925,6 +1935,7 @@ export function DayTaskWorkspace({
   onExportReport,
   onOpenUnitFromHome,
   josephContact,
+  onOpenCrews,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2127,6 +2138,7 @@ export function DayTaskWorkspace({
         onOpenCrew={onOpenCrew}
         currentDate={currentDate}
         josephContact={josephContact}
+        onOpenCrews={onOpenCrews}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

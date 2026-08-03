@@ -3095,6 +3095,7 @@ function LaunchOperationalApp({
           )}
           acceptedWalkMeta={acceptedWalkMeta}
           releaseWorkTypes={releaseWorkTypes}
+          onOpenCrews={() => navigate('crews')}
           josephContact={(() => {
             const contact = activeProjectContacts.find((candidate) =>
               /jose/i.test(candidate.name))

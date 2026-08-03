@@ -637,3 +637,5 @@ select:focus-visible {
   color: #fff;
 }
 .track-c-present-toggle[aria-pressed="false"] { opacity: 0.7; }
+
+.track-c-release-locked { color: var(--turn-color-secondary); font-size: 12px; }

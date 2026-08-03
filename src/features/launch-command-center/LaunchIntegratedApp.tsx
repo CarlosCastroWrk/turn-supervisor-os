@@ -87,6 +87,7 @@ import {
   type TrackCRouteState,
   buildDailyReportData,
   applyTrackCSectionAction,
+  clearTrackCAssignments,
   prewarmDailyReportPdf,
   projectTrackCCrewDetail,
   projectTrackCUnitWork,
@@ -2603,13 +2604,26 @@ function LaunchOperationalApp({
               setFieldToast('Start the day first — then mark what Joseph released.');
               return;
             }
-            const saved = commitDataNow((current) => setTradeReleaseState(current, {
-              idFactory: createId,
-              nowIso: nowISO(),
-              released,
-              trade,
-              unitId,
-            }));
+            const saved = commitDataNow((current) => {
+              let next = current;
+              if (!released) {
+                const cleared = clearTrackCAssignments(trackCState, {
+                  eventIdPrefix: createId('unrelease'),
+                  recordedAt: nowISO(),
+                  recordedBy: 'Los',
+                  trade,
+                  unitId,
+                });
+                if (cleared.ok) next = applyTrackCStateChange(next, cleared.value);
+              }
+              return setTradeReleaseState(next, {
+                idFactory: createId,
+                nowIso: nowISO(),
+                released,
+                trade,
+                unitId,
+              });
+            });
             setFieldToast(saved
               ? `Unit ${unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'} ${released ? 'released — sections are in play' : 'removed — it was never released'}.`
               : 'That change could not be saved — try again.');

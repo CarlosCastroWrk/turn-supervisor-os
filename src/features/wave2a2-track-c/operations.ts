@@ -332,6 +332,58 @@ export const changeTrackCCrew = (
   return { ok: true, value: appendEvents(state, events) };
 };
 
+export interface TrackCClearAssignmentsInput {
+  readonly unitId: string;
+  readonly trade: TrackCTrade;
+  readonly section?: TrackCSection;
+  readonly recordedAt: string;
+  readonly recordedBy: string;
+  readonly eventIdPrefix: string;
+}
+
+// Take released work back from its crews: an explicit assignment-cleared per
+// active crew per section, history preserved. Skips anything the crew already
+// reported complete (that is pay) and anything property-accepted. Used by the
+// unrelease undo so a mistakenly released unit can be fully withdrawn.
+export const clearTrackCAssignments = (
+  state: TrackCState,
+  input: TrackCClearAssignmentsInput,
+): TrackCResult<TrackCState> => {
+  const unit = state.units.find((candidate) => candidate.id === input.unitId);
+  if (!unit) return error('not-found', 'The Unit was not found.');
+  const targets = unit.workFacts
+    .filter((fact) =>
+      fact.trade === input.trade
+      && fact.release === 'released'
+      && (!input.section || fact.section === input.section))
+    .map((fact) => ({
+      section: fact.section,
+      trade: fact.trade,
+      unitId: fact.unitId,
+    }));
+  const events: TrackCConfirmedEvent[] = [];
+  for (const [index, target] of targets.entries()) {
+    const projection = projectTrackCWork(state, target);
+    if (!projection || projection.property === 'property-accepted') continue;
+    if (projection.execution === 'crew-reported-complete') continue;
+    for (const crewId of projection.activeCrewIds) {
+      events.push(confirmedEvent({
+        crewId,
+        eventType: 'assignment-cleared',
+        id: `${input.eventIdPrefix}-clear-${index}-${crewId}`,
+        recordedAt: input.recordedAt,
+        recordedBy: input.recordedBy,
+        sourceLabel: 'Los unrelease',
+        sourceType: 'personal-confirmation',
+        summary: 'Los took this work back — it was released by mistake.',
+        target,
+      }));
+    }
+  }
+  if (events.length === 0) return { ok: true, value: state };
+  return { ok: true, value: appendEvents(state, events) };
+};
+
 export interface TrackCBulkProposalInput {
   readonly proposalId: string;
   readonly trade: TrackCTrade;

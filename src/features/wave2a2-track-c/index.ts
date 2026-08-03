@@ -38,6 +38,7 @@ export type {
 export {
   TRACK_C_OPERATION_BOUNDARY,
   applyTrackCSectionAction,
+  clearTrackCAssignments,
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
   endTrackCWalk,

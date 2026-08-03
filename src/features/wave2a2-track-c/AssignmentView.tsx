@@ -172,6 +172,16 @@ export const AssignmentView = ({
         personal assignment before saving; paper and payroll remain unchanged.
       </p>
       <div className="track-c-form-stack">
+        {initialCrewId && initialTrade ? (
+          <p className="track-c-assign-locked">
+            Assigning to{' '}
+            <strong>
+              {state.crews.find((crew) => crew.id === crewId)?.name ?? 'this crew'}
+            </strong>
+            {' · '}{trade === 'paint' ? 'Paint' : 'Clean'} — just pick the units.
+          </p>
+        ) : (
+        <>
         <fieldset className="track-c-segmented">
           <legend>Trade</legend>
           {(['paint', 'clean'] as const).map((option) => {
@@ -206,6 +216,8 @@ export const AssignmentView = ({
             ))}
           </select>
         </label>
+        </>
+        )}
         <fieldset className="track-c-choice-list">
           <legend>Select Units</legend>
           {eligibleUnits.length > 1 ? (

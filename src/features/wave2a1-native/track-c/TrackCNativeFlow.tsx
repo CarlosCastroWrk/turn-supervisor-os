@@ -9,6 +9,7 @@ import {
   MessageSquare,
   RotateCcw,
   ShieldCheck,
+  UsersRound,
 } from 'lucide-react';
 import {
   useCallback,
@@ -69,6 +70,12 @@ const PLUS_ITEMS: readonly PlusItem[] = [
     description: 'Joseph released more units — tap them on the grid',
     icon: <FolderUp aria-hidden="true" size={20} />,
     label: 'Quick Add Units',
+  },
+  {
+    action: 'assign-units',
+    description: 'Pick the crew, then hand them their units',
+    icon: <UsersRound aria-hidden="true" size={20} />,
+    label: 'Assign Units',
   },
   {
     action: 'note',

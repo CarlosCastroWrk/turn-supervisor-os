@@ -655,3 +655,74 @@ select:focus-visible {
   min-height: 44px;
   text-decoration: none;
 }
+
+/* ---------- Wall grid v2: rooms as columns ---------- */
+.track-c-wall__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--turn-color-input-bg, var(--turn-color-elevated));
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 12px;
+  padding: 0 12px;
+  min-height: 44px;
+  color: var(--turn-color-secondary);
+}
+.track-c-wall__search input {
+  border: none;
+  background: transparent;
+  color: var(--turn-color-primary);
+  font-size: 16px;
+  width: 100%;
+  min-height: 42px;
+  outline: none;
+}
+.track-c-wall__grid.is-rooms .track-c-wall__head,
+.track-c-wall__grid.is-rooms .track-c-wall__row {
+  grid-template-columns: 52px repeat(6, 1fr) 64px;
+}
+.track-c-wall__grid.is-rooms .track-c-wall__row {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--turn-color-divider);
+  background: transparent;
+  text-align: left;
+  padding: 0;
+}
+.track-c-wall__grid.is-rooms .track-c-wall__row:last-of-type { border-bottom: none; }
+.track-c-wall__grid.is-rooms .track-c-wall__cell {
+  border-left: 1px solid var(--turn-color-divider);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 2px;
+}
+.track-c-wall__cell.is-na { background: color-mix(in srgb, var(--turn-color-divider) 45%, transparent); }
+.track-c-wall__crew {
+  border-left: 1px solid var(--turn-color-divider);
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--turn-color-brand);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-c-clean-wholeunit {
+  color: var(--turn-color-secondary);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+.track-c-assign-locked {
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--turn-color-primary);
+}

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   TRACK_C_TRADES,
   type TrackCCompactUnitProjection,
+  type TrackCSection,
   type TrackCState,
   type TrackCTrade,
   type TrackCWorkProjection,
@@ -26,6 +27,7 @@ import { UnitPhotoAddButton, UnitPhotoStrip, type UnitPhotoCommitter } from './U
 import {
   projectTrackCUnitWork,
   projectTrackCTradeProgress,
+  projectTrackCWork,
   trackCTradeWorkTypeLabel,
   searchTrackCCompactUnits,
   trackCCrewName,
@@ -348,13 +350,20 @@ const WorkSection = ({
   onToggleRelease?: (released: boolean) => void;
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in') => void;
 }) => {
-  // Removing a room is destructive — first tap arms, second tap confirms.
+  // Removing a room is destructive — first tap (or a left swipe) arms,
+  // second tap confirms.
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const touchStartX = useRef<number | null>(null);
   useEffect(() => {
     if (!confirmRemove) return undefined;
-    const timer = window.setTimeout(() => setConfirmRemove(false), 4000);
+    const timer = window.setTimeout(() => setConfirmRemove(false), 6000);
     return () => window.clearTimeout(timer);
   }, [confirmRemove]);
+  const canRemove = Boolean(onToggleRelease)
+    && work.release === 'released'
+    && work.execution !== 'crew-reported-complete'
+    && work.inspection === 'not-ready'
+    && work.property !== 'property-accepted';
   const actions = actionsFor(work);
   const blocked =
     work.release !== 'released' ||
@@ -365,7 +374,21 @@ const WorkSection = ({
   // Los makes hundreds of times a day.
   const quickActions = !isSelected && !blocked && work.inspection === 'needs-los-inspection';
   return (
-    <div className={`track-c-section-row ${isSelected ? 'is-open' : ''}`}>
+    <div
+      className={`track-c-section-row ${isSelected ? 'is-open' : ''}`}
+      onTouchEnd={(event) => {
+        if (touchStartX.current === null || !canRemove) return;
+        const delta = event.changedTouches[0].clientX - touchStartX.current;
+        touchStartX.current = null;
+        if (delta < -60) {
+          if (!isSelected) onSelect();
+          setConfirmRemove(true);
+        }
+      }}
+      onTouchStart={(event) => {
+        touchStartX.current = event.touches[0]?.clientX ?? null;
+      }}
+    >
       <div className="track-c-section-row__bar">
         <button
           aria-label={`${trackCSectionLabel(work.section)}: ${executionLabel(work)}`}
@@ -441,11 +464,7 @@ const WorkSection = ({
                   : work.workType === 'cut-in' ? 'cut-in' : 'full paint'} — tap to change
               </button>
             ) : null}
-          {onToggleRelease
-            && work.release === 'released'
-            && work.execution !== 'crew-reported-complete'
-            && work.inspection === 'not-ready'
-            && work.property !== 'property-accepted' ? (
+          {canRemove && onToggleRelease ? (
               <button
                 className="track-c-release-toggle is-remove"
                 onClick={() => {
@@ -866,6 +885,12 @@ const UnitDetail = ({
                     : `PDS approved — walked ${tradeLabel(trade)} with the property`}
                 </button>
               ) : null}
+            {trade === 'clean' ? (
+              <p className="track-c-clean-wholeunit">
+                Clean is the whole unit — the crew cleans everything. Report it
+                done above, walk it, and keep anything that needs work in Notes.
+              </p>
+            ) : (
             <div className="track-c-section-list">
               {tradeWork.map((item) => {
                 const key = trackCWorkKey(item);
@@ -916,6 +941,7 @@ const UnitDetail = ({
                 );
               })}
             </div>
+            )}
           </section>
         );
       })}
@@ -955,18 +981,18 @@ const wallFloorOf = (unitNumber: string): string => {
 
 const WallGrid = ({
   state,
+  trade,
   onOpenUnitTrade,
 }: {
   state: TrackCState;
+  trade: TrackCTrade;
   onOpenUnitTrade: (unitId: string, trade: TrackCTrade) => void;
 }) => {
+  const [query, setQuery] = useState('');
   const floors = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const unit of state.units) {
-      const floor = wallFloorOf(unit.unitNumber);
-      seen.set(floor, (seen.get(floor) ?? 0) + 1);
-    }
-    return [...seen.keys()].sort((left, right) =>
+    const seen = new Set<string>();
+    for (const unit of state.units) seen.add(wallFloorOf(unit.unitNumber));
+    return [...seen].sort((left, right) =>
       left.localeCompare(right, undefined, { numeric: true }));
   }, [state.units]);
   const [floor, setFloor] = useState<string>(() => {
@@ -985,95 +1011,124 @@ const WallGrid = ({
       // Session-only then.
     }
   };
-  const cellFor = (unitId: string, trade: TrackCTrade) => {
-    const released = projectTrackCUnitWork(state, unitId)
-      .filter((work) => work.trade === trade && work.release === 'released');
-    if (released.length === 0) return { cls: 'is-empty', mark: '—' };
-    if (released.every((work) => work.property === 'property-accepted')) {
+  // His paper board: room columns, then the crew, then approval.
+  const ROOM_COLUMNS: readonly TrackCSection[] = ['common', 'A', 'B', 'C', 'D', 'E'];
+  const cellFor = (unitId: string, section: TrackCSection) => {
+    const unit = state.units.find((candidate) => candidate.id === unitId);
+    if (!unit?.workFacts.some((fact) => fact.trade === trade && fact.section === section)) {
+      return { cls: 'is-na', mark: '' };
+    }
+    const work = projectTrackCWork(state, { section, trade, unitId });
+    if (!work || work.release !== 'released') return { cls: 'is-empty', mark: '\u2014' };
+    if (work.property === 'property-accepted') {
       const latest = state.events
         .filter((event) =>
           event.eventType === 'property-accepted'
           && event.target.unitId === unitId
-          && event.target.trade === trade)
+          && event.target.trade === trade
+          && event.target.section === section)
         .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
-      return {
-        cls: `is-cc wall-wk${latest ? wallWeekIndex(latest) : 1}`,
-        mark: 'CC',
-      };
+      return { cls: `is-cc wall-wk${latest ? wallWeekIndex(latest) : 1}`, mark: 'CC' };
     }
-    if (released.some((work) => work.callbackOpen)) return { cls: 'is-cb', mark: 'CB' };
-    const inPlay = released.filter((work) =>
-      work.access === 'clear' && work.property !== 'property-accepted');
-    if (inPlay.length === 0) return { cls: 'is-blocked', mark: 'Wait' };
-    if (inPlay.every((work) =>
-      work.inspection === 'los-passed' || work.property === 'property-accepted')) {
-      return { cls: 'is-passed', mark: 'PASS' };
-    }
-    if (inPlay.every((work) =>
-      work.execution === 'crew-reported-complete'
-      || work.inspection === 'los-passed'
-      || work.property === 'property-accepted')) {
-      return { cls: 'is-done', mark: 'X' };
-    }
-    const crewId = inPlay.find((work) => work.activeCrewIds.length > 0)?.activeCrewIds[0];
-    if (crewId) {
-      const name = state.crews.find((crew) => crew.id === crewId)?.name ?? 'Crew';
-      return { cls: 'is-working', mark: name.split(' ')[0] };
-    }
+    if (work.callbackOpen) return { cls: 'is-cb', mark: 'CB' };
+    if (work.access !== 'clear') return { cls: 'is-blocked', mark: 'W' };
+    if (work.inspection === 'los-passed') return { cls: 'is-passed', mark: '\u2713' };
+    if (work.execution === 'crew-reported-complete') return { cls: 'is-done', mark: 'X' };
     return { cls: 'is-open', mark: '/' };
   };
-  const rows = state.units
-    .filter((unit) => wallFloorOf(unit.unitNumber) === activeFloor)
+  const crewFor = (unitId: string) => {
+    const names = new Set<string>();
+    for (const work of projectTrackCUnitWork(state, unitId)) {
+      if (work.trade !== trade || work.release !== 'released') continue;
+      for (const crewId of work.activeCrewIds) {
+        const name = state.crews.find((crew) => crew.id === crewId)?.name;
+        if (name) names.add(name.split(' ')[0]);
+      }
+    }
+    return [...names].join('+');
+  };
+  const trimmed = query.trim().toLowerCase();
+  const rows = (trimmed
+    ? state.units.filter((unit) => unit.unitNumber.toLowerCase().includes(trimmed))
+    : state.units.filter((unit) => wallFloorOf(unit.unitNumber) === activeFloor))
     .sort((left, right) =>
       left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
   return (
     <div className="track-c-wall">
-      <div className="track-c-wall__floors" role="group" aria-label="Floor">
-        {floors.map((candidate) => (
-          <button
-            aria-pressed={candidate === activeFloor}
-            key={candidate}
-            onClick={() => pickFloor(candidate)}
-            type="button"
-          >
-            {candidate === 'Other' ? 'Other' : `Floor ${candidate}`}
-          </button>
-        ))}
-      </div>
-      <div className="track-c-wall__grid" role="table" aria-label={`Wall board floor ${activeFloor}`}>
+      <label className="track-c-wall__search">
+        <Search aria-hidden="true" size={16} />
+        <input
+          aria-label="Search units on the wall grid"
+          inputMode="numeric"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search unit\u2026"
+          type="search"
+          value={query}
+        />
+      </label>
+      {!trimmed ? (
+        <div className="track-c-wall__floors" role="group" aria-label="Floor">
+          {floors.map((candidate) => (
+            <button
+              aria-pressed={candidate === activeFloor}
+              key={candidate}
+              onClick={() => pickFloor(candidate)}
+              type="button"
+            >
+              {candidate === 'Other' ? 'Other' : `Floor ${candidate}`}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div
+        aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}
+        className="track-c-wall__grid is-rooms"
+        role="table"
+      >
         <div className="track-c-wall__head" role="row">
           <span role="columnheader">Unit</span>
-          <span role="columnheader">Paint</span>
-          <span role="columnheader">Clean</span>
+          <span role="columnheader">Com</span>
+          <span role="columnheader">A</span>
+          <span role="columnheader">B</span>
+          <span role="columnheader">C</span>
+          <span role="columnheader">D</span>
+          <span role="columnheader">E</span>
+          <span role="columnheader">Crew</span>
         </div>
-        {rows.map((unit) => {
-          const paint = cellFor(unit.id, 'paint');
-          const clean = cellFor(unit.id, 'clean');
-          return (
-            <div className="track-c-wall__row" key={unit.id} role="row">
-              <span className="track-c-wall__unit" role="rowheader">{unit.unitNumber}</span>
-              {([['paint', paint], ['clean', clean]] as const).map(([trade, cell]) => (
-                <button
-                  aria-label={`Unit ${unit.unitNumber} ${trade}: ${cell.mark}`}
+        {rows.map((unit) => (
+          <button
+            aria-label={`Open unit ${unit.unitNumber} ${trade}`}
+            className="track-c-wall__row"
+            key={unit.id}
+            onClick={() => onOpenUnitTrade(unit.id, trade)}
+            role="row"
+            type="button"
+          >
+            <span className="track-c-wall__unit" role="rowheader">{unit.unitNumber}</span>
+            {ROOM_COLUMNS.map((section) => {
+              const cell = cellFor(unit.id, section);
+              return (
+                <span
                   className={`track-c-wall__cell ${cell.cls}`}
-                  key={trade}
-                  onClick={() => onOpenUnitTrade(unit.id, trade)}
+                  key={section}
                   role="cell"
-                  type="button"
                 >
                   {cell.mark}
-                </button>
-              ))}
-            </div>
-          );
-        })}
+                </span>
+              );
+            })}
+            <span className="track-c-wall__crew" role="cell">{crewFor(unit.id)}</span>
+          </button>
+        ))}
         {rows.length === 0 ? (
-          <p className="track-c-wall__empty">No units on this floor.</p>
+          <p className="track-c-wall__empty">
+            {trimmed ? 'No unit matches.' : 'No units on this floor.'}
+          </p>
         ) : null}
       </div>
       <p className="track-c-wall__legend">
-        / released · name = working · X = crew done · PASS = Los passed ·
-        CC = approved (color = pay week) · CB = callback · Wait = blocked
+        / released \u00b7 X crew done \u00b7 \u2713 Los passed \u00b7
+        CC approved (color = pay week) \u00b7 CB callback \u00b7 W blocked
       </p>
     </div>
   );
@@ -1121,22 +1176,8 @@ export const BoardView = ({
     }
   };
   const [focusTrade, setFocusTrade] = useState<TrackCTrade>();
-  // List = the twin trade boards; Wall = the paper-board grid, floor by floor.
-  const [boardMode, setBoardMode] = useState<'list' | 'wall'>(() => {
-    try {
-      return window.localStorage.getItem('turn-os:board-mode') === 'wall' ? 'wall' : 'list';
-    } catch {
-      return 'list';
-    }
-  });
-  const pickBoardMode = (mode: 'list' | 'wall') => {
-    setBoardMode(mode);
-    try {
-      window.localStorage.setItem('turn-os:board-mode', mode);
-    } catch {
-      // Session-only then.
-    }
-  };
+  // The TurnBoard IS the wall grid now — one per trade, like his paper.
+  const boardMode: 'list' | 'wall' = 'wall';
   const tradeWorkFor = (unitId: string) =>
     projectTrackCUnitWork(state, unitId).filter((work) => work.trade === boardTrade);
   const unitWorkHas = (unitId: string, predicate: (work: TrackCWorkProjection) => boolean) =>
@@ -1252,20 +1293,20 @@ export const BoardView = ({
         </div>
         <span>{boardMode === 'wall' ? 'Wall board' : `${units.length} Units`}</span>
       </header>
-      <div className="track-c-board-trade track-c-board-mode" role="group" aria-label="Board style">
+      <div className="track-c-board-trade" role="group" aria-label="Paint or Clean wall grid">
         <button
-          aria-pressed={boardMode === 'list'}
-          onClick={() => pickBoardMode('list')}
+          aria-pressed={boardTrade === 'paint'}
+          onClick={() => pickBoardTrade('paint')}
           type="button"
         >
-          Boards
+          <Paintbrush aria-hidden="true" size={15} /> Paint
         </button>
         <button
-          aria-pressed={boardMode === 'wall'}
-          onClick={() => pickBoardMode('wall')}
+          aria-pressed={boardTrade === 'clean'}
+          onClick={() => pickBoardTrade('clean')}
           type="button"
         >
-          Wall grid
+          <Droplets aria-hidden="true" size={15} /> Clean
         </button>
       </div>
       {boardMode === 'wall' ? (
@@ -1275,6 +1316,7 @@ export const BoardView = ({
             onOpenUnit(unitId, trade);
           }}
           state={state}
+          trade={boardTrade}
         />
       ) : (
       <>

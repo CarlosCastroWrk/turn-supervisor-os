@@ -1816,6 +1816,11 @@ function LaunchOperationalApp({
       setHomeMode('manual-release');
       return;
     }
+    if (action === 'assign-units') {
+      navigate('crews');
+      setFieldToast('Pick the crew — Assign units is right on their card.');
+      return;
+    }
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
     window.requestAnimationFrame(() => {
       setCaptureOpen(true);

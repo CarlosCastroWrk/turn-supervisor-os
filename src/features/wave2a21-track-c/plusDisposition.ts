@@ -26,6 +26,9 @@ export const TRACK_C_PRIMARY_SAFE_PLUS_ACTIONS: Readonly<
   'import-work': {
     availability: 'available',
   },
+  'assign-units': {
+    availability: 'available',
+  },
   note: { availability: 'available' },
   'paste-text': {
     availability: 'hidden',

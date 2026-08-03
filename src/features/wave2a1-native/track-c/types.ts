@@ -7,7 +7,8 @@ export type TrackCPlusAction =
   | 'photos'
   | 'files'
   | 'paste-text'
-  | 'import-work';
+  | 'import-work'
+  | 'assign-units';
 
 export type TrackCNativeFileAction = Extract<TrackCPlusAction, 'camera' | 'photos' | 'files'>;
 

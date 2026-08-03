@@ -741,8 +741,11 @@ function LaunchOperationalApp({
         item.access === 'clear' && item.property !== 'property-accepted');
       if (inPlay.length === 0) continue;
       released += 1;
+      // Working = a crew is IN there right now. Crew-done-awaiting-Los and
+      // passed-awaiting-walk are their own queues, not "working" — this must
+      // agree with the portal's In progress count.
       if (inPlay.some((item) =>
-        ['assigned', 'working', 'crew-reported-complete'].includes(item.execution))) {
+        ['assigned', 'working'].includes(item.execution))) {
         working += 1;
       }
     }

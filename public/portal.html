@@ -179,10 +179,10 @@
       el('q').hidden = false;
       el('pickHint').hidden = false;
       const count = (pred) => units.filter(pred).length;
-      el('cWorking').textContent = count((u) => ['working', 'crew-done'].includes(u.p) || ['working', 'crew-done'].includes(u.c));
+      el('cWorking').textContent = count((u) => u.p === 'working' || u.c === 'working');
       el('cPaintDone').textContent = count((u) => DONE.includes(u.p));
       el('cCleanDone').textContent = count((u) => DONE.includes(u.c));
-      el('cApproved').textContent = count((u) => u.p === 'approved' || u.c === 'approved');
+      el('cApproved').textContent = count((u) => classify(u) === 'done');
       const updated = new Date(body.updatedAt);
       el('updated').textContent = `Updated ${updated.toLocaleString([], { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}`;
       render();

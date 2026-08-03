@@ -22,6 +22,7 @@ import { trackCSectionLabel } from './model';
 import {
   projectTrackCCrewDetail,
   projectTrackCCrewSummaries,
+  projectTrackCUnitWork,
   trackCUnitForTarget,
 } from './projections';
 
@@ -33,6 +34,7 @@ interface CrewViewProps {
   readonly onEditCrew?: (crewId: string) => void;
   readonly onContactCrew?: (crewId: string) => void;
   readonly onAssignCrew?: (crewId: string) => void;
+  readonly onQuickAssign?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly propertyContacts?: readonly {
@@ -243,11 +245,49 @@ export const CrewView = ({
   onEditCrew,
   onContactCrew,
   onAssignCrew,
+  onQuickAssign,
   onAddCrewRequested,
   crewDirectory,
   propertyContacts,
 }: CrewViewProps) => {
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
+  // Per-trade roundup so this page agrees with the boards: "unassigned" is
+  // exactly the board's Needs crew (released, clear, nobody's name on it) and
+  // "working" is a unit a crew currently owns.
+  const tradeRollup = useMemo(() => {
+    const rollup = {
+      clean: { unassigned: [] as { unitId: string; unitNumber: string; rooms: number }[], working: 0 },
+      paint: { unassigned: [] as { unitId: string; unitNumber: string; rooms: number }[], working: 0 },
+    };
+    for (const unit of state.units) {
+      const work = projectTrackCUnitWork(state, unit.id);
+      for (const trade of ['paint', 'clean'] as const) {
+        const inPlay = work.filter((item) =>
+          item.trade === trade
+          && item.release === 'released'
+          && item.access === 'clear'
+          && item.property !== 'property-accepted');
+        if (inPlay.length === 0) continue;
+        if (inPlay.some((item) => item.activeCrewIds.length > 0)) {
+          if (inPlay.some((item) =>
+            ['assigned', 'working'].includes(item.execution) && !item.callbackOpen)) {
+            rollup[trade].working += 1;
+          }
+          continue;
+        }
+        rollup[trade].unassigned.push({
+          rooms: inPlay.length,
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+        });
+      }
+    }
+    for (const trade of ['paint', 'clean'] as const) {
+      rollup[trade].unassigned.sort((left, right) =>
+        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+    }
+    return rollup;
+  }, [state]);
   const [expandedContactId, setExpandedContactId] = useState<string>();
   // Device-local "who did I contact today" receipts — deliberately outside the
   // event ledger (schema freeze), so a lost entry costs nothing operationally.
@@ -461,12 +501,54 @@ export const CrewView = ({
       <div className="track-c-crew-list">
         {(['paint', 'clean'] as const).map((tradeGroup) => {
           const group = crews.filter(({ crew }) => crew.trade === tradeGroup);
-          if (group.length === 0) return null;
+          if (group.length === 0 && tradeRollup[tradeGroup].unassigned.length === 0) return null;
+          const rollup = tradeRollup[tradeGroup];
+          const tradeCrews = group.map(({ crew }) => crew);
           return (
             <div key={tradeGroup}>
               <h2 className={`track-c-crew-group is-${tradeGroup}`}>
                 {tradeGroup === 'paint' ? 'PAINT CREWS' : 'CLEAN CREWS'}
+                <span className="track-c-crew-group__counts">
+                  {rollup.working} working
+                  {rollup.unassigned.length > 0
+                    ? ` · ${rollup.unassigned.length} unassigned`
+                    : ''}
+                </span>
               </h2>
+              {rollup.unassigned.length > 0 ? (
+                <section
+                  aria-label={`Unassigned ${tradeGroup} units`}
+                  className={`track-c-unassigned is-${tradeGroup}`}
+                >
+                  <h3>Unassigned — tap a crew to put them on it</h3>
+                  {rollup.unassigned.map((entry) => (
+                    <div className="track-c-unassigned__row" key={entry.unitId}>
+                      <span className="track-c-unassigned__unit">
+                        <strong>{entry.unitNumber}</strong>
+                        <small>{entry.rooms} room{entry.rooms === 1 ? '' : 's'}</small>
+                      </span>
+                      {onQuickAssign && tradeCrews.length > 0 ? (
+                        <span className="track-c-unassigned__crews">
+                          {tradeCrews.map((crew) => (
+                            <button
+                              aria-label={`Assign ${crew.name} to unit ${entry.unitNumber}`}
+                              data-track-c-critical-target="true"
+                              key={crew.id}
+                              onClick={() => onQuickAssign(entry.unitId, tradeGroup, crew.id)}
+                              type="button"
+                            >
+                              {crew.name}
+                            </button>
+                          ))}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                  {tradeCrews.length === 0 ? (
+                    <small>No {tradeGroup} crew on the roster yet — add one below to assign these.</small>
+                  ) : null}
+                </section>
+              ) : null}
               {group.map(({ crew, stats }) => {
           const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;
           const today = todayByCrew.get(crew.id);

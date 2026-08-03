@@ -521,6 +521,7 @@ export const TrackCFieldOps = ({
               onNavigate?.({ crewId, view: 'crews' });
               setLocalSelectedCrewId(crewId);
             }}
+            onQuickAssign={quickAssign}
             selectedCrewId={selectedCrewId}
             state={state}
           />

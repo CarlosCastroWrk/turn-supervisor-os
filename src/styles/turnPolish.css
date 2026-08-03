@@ -444,3 +444,49 @@ select:focus-visible {
 
 /* ---------- No double titles: the compact bar defers to the big h1 ---------- */
 .w2a1b-page__compact-title { opacity: 0; }
+
+/* ---------- Crews: unassigned roundup + group counts ---------- */
+.track-c-crew-group { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.track-c-crew-group__counts {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--turn-color-secondary);
+  text-transform: none;
+}
+.track-c-unassigned {
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  display: grid;
+  gap: 8px;
+}
+.track-c-unassigned h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--turn-color-secondary);
+}
+.track-c-unassigned__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.track-c-unassigned__unit { display: flex; align-items: baseline; gap: 8px; min-width: 74px; }
+.track-c-unassigned__unit strong { font-size: 17px; font-variant-numeric: tabular-nums; }
+.track-c-unassigned__unit small { color: var(--turn-color-secondary); font-size: 12px; white-space: nowrap; }
+.track-c-unassigned__crews { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.track-c-unassigned__crews button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-grouped);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 36px;
+}
+.track-c-unassigned.is-paint .track-c-unassigned__crews button { border-color: color-mix(in srgb, var(--turn-color-brand) 45%, var(--turn-color-divider)); }

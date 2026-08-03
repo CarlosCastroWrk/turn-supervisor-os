@@ -726,3 +726,40 @@ select:focus-visible {
   font-size: 14px;
   color: var(--turn-color-primary);
 }
+
+/* ---------- Hold a room: iOS-style menu ---------- */
+.track-c-section-row { position: relative; }
+.track-c-room-menu {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 30;
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  display: grid;
+  min-width: 220px;
+  overflow: hidden;
+}
+.track-c-room-menu p {
+  margin: 0;
+  padding: 8px 14px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--turn-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.track-c-room-menu button {
+  border: none;
+  border-top: 1px solid var(--turn-color-divider);
+  background: transparent;
+  color: var(--turn-color-primary);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  padding: 11px 14px;
+  min-height: 44px;
+}
+.track-c-room-menu button.is-remove { color: var(--turn-color-destructive, #b4232d); }

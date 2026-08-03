@@ -351,9 +351,18 @@ const WorkSection = ({
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in') => void;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
-  // second tap confirms.
+  // second tap confirms. A HOLD (iOS-style) opens the room menu instead.
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const holdTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+  const clearHold = () => {
+    if (holdTimer.current !== null) {
+      window.clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  };
   useEffect(() => {
     if (!confirmRemove) return undefined;
     const timer = window.setTimeout(() => setConfirmRemove(false), 6000);
@@ -376,7 +385,13 @@ const WorkSection = ({
   return (
     <div
       className={`track-c-section-row ${isSelected ? 'is-open' : ''}`}
+      onContextMenu={(event) => {
+        if (work.release !== 'released') return;
+        event.preventDefault();
+        setMenuOpen(true);
+      }}
       onTouchEnd={(event) => {
+        clearHold();
         if (touchStartX.current === null || !canRemove) return;
         const delta = event.changedTouches[0].clientX - touchStartX.current;
         touchStartX.current = null;
@@ -385,17 +400,71 @@ const WorkSection = ({
           setConfirmRemove(true);
         }
       }}
+      onTouchMove={(event) => {
+        const startX = touchStartX.current;
+        if (startX !== null
+          && Math.abs(event.touches[0].clientX - startX) > 10) clearHold();
+      }}
       onTouchStart={(event) => {
         touchStartX.current = event.touches[0]?.clientX ?? null;
+        if (work.release !== 'released') return;
+        clearHold();
+        holdTimer.current = window.setTimeout(() => {
+          longPressed.current = true;
+          setMenuOpen(true);
+        }, 450);
       }}
     >
+      {menuOpen ? (
+        <div className="track-c-room-menu" role="menu">
+          <p>{trackCSectionLabel(work.section)}</p>
+          {work.trade === 'paint' && onSetWorkType
+            ? (['full', 'touch-up', 'cut-in'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => {
+                  onSetWorkType(type);
+                  setMenuOpen(false);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                {type === 'full' ? 'Full paint' : type === 'touch-up' ? 'Touch-up' : 'Cut-in'}
+                {(work.workType ?? 'full') === type ? ' \u2713' : ''}
+              </button>
+            ))
+            : null}
+          {canRemove && onToggleRelease ? (
+            <button
+              className="is-remove"
+              onClick={() => {
+                setMenuOpen(false);
+                onToggleRelease(false);
+              }}
+              role="menuitem"
+              type="button"
+            >
+              Delete {trackCSectionLabel(work.section)} from this release
+            </button>
+          ) : null}
+          <button onClick={() => setMenuOpen(false)} role="menuitem" type="button">
+            Cancel
+          </button>
+        </div>
+      ) : null}
       <div className="track-c-section-row__bar">
         <button
           aria-label={`${trackCSectionLabel(work.section)}: ${executionLabel(work)}`}
           aria-expanded={isSelected}
           className="track-c-section-row__trigger"
           data-track-c-critical-target="true"
-          onClick={onSelect}
+          onClick={() => {
+            if (longPressed.current) {
+              longPressed.current = false;
+              return;
+            }
+            onSelect();
+          }}
           type="button"
         >
           <span className="track-c-section-row__section">

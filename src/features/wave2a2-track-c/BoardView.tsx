@@ -82,6 +82,7 @@ interface BoardViewProps {
     trade: TrackCTrade,
     released: boolean,
   ) => void;
+  readonly onSetUnitBeds?: (unitId: string, beds: number) => void;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -679,6 +680,7 @@ const UnitDetail = ({
   onSetSectionRelease,
   onSetSectionWorkType,
   onSetTradeRelease,
+  onSetUnitBeds,
 }: {
   state: TrackCState;
   unitId: string;
@@ -700,6 +702,7 @@ const UnitDetail = ({
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
   onSetSectionWorkType?: BoardViewProps['onSetSectionWorkType'];
   onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
+  onSetUnitBeds?: BoardViewProps['onSetUnitBeds'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -835,6 +838,36 @@ const UnitDetail = ({
           ))}
         </div>
       ) : null}
+      {onSetUnitBeds ? (() => {
+        // Joseph gives rooms Turn OS didn't know a unit had (a "studio" that's
+        // really got beds). Set the rooms right here — can't drop below a room
+        // that already has released work.
+        const bedLetters = ['A', 'B', 'C', 'D', 'E'] as const;
+        const currentBeds = unit.applicableSections
+          .filter((section) => section !== 'common').length;
+        const highestReleasedBed = work
+          .filter((item) => item.release === 'released' && item.section !== 'common')
+          .reduce((max, item) => Math.max(max, bedLetters.indexOf(item.section as 'A') + 1), 0);
+        return (
+          <div className="track-c-rooms-editor">
+            <h3>Rooms</h3>
+            <div className="track-c-rooms-editor__choices" role="group" aria-label="Rooms in this unit">
+              {[0, 2, 3, 4, 5].map((beds) => (
+                <button
+                  aria-pressed={currentBeds === beds}
+                  disabled={beds < highestReleasedBed}
+                  key={beds}
+                  onClick={() => onSetUnitBeds(unitId, beds)}
+                  type="button"
+                >
+                  {beds === 0 ? 'Studio' : `A–${bedLetters[beds - 1]}`}
+                </button>
+              ))}
+            </div>
+            <small>Common area stays. Release only the rooms Joseph gave you.</small>
+          </div>
+        );
+      })() : null}
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
           Number(right === focusTrade) - Number(left === focusTrade))
@@ -1377,6 +1410,7 @@ export const BoardView = ({
   onSetSectionRelease,
   onSetSectionWorkType,
   onSetTradeRelease,
+  onSetUnitBeds,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
@@ -1490,6 +1524,7 @@ export const BoardView = ({
         onSetSectionRelease={onSetSectionRelease}
         onSetSectionWorkType={onSetSectionWorkType}
         onSetTradeRelease={onSetTradeRelease}
+        onSetUnitBeds={onSetUnitBeds}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onChangeCrew={onChangeCrew}

@@ -75,6 +75,7 @@ export interface TrackCFieldOpsProps {
   }[];
   readonly onCrewContactRequested?: (crewId: string) => void;
   readonly onToggleCrewActive?: (crewId: string, active: boolean) => void;
+  readonly onSetUnitBeds?: (unitId: string, beds: number) => void;
   readonly onNavigate?: (route: TrackCRouteState) => void;
   readonly onRequestUnitNote?: () => void;
   readonly now?: () => string;
@@ -113,6 +114,7 @@ export const TrackCFieldOps = ({
   propertyContacts,
   onCrewContactRequested,
   onToggleCrewActive,
+  onSetUnitBeds,
   onNavigate,
   onRequestUnitNote,
   now = () => new Date().toISOString(),
@@ -543,6 +545,7 @@ export const TrackCFieldOps = ({
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}
             onSetSectionWorkType={onSetSectionWorkType}
+            onSetUnitBeds={onSetUnitBeds}
             onSetTradeRelease={onSetTradeRelease}
           />
         ) : null}

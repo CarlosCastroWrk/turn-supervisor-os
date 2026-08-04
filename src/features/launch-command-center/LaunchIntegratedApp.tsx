@@ -172,7 +172,7 @@ import {
 } from '../wave2a21-field-activation/model';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
-import { addCrewMember, addPhotoNote, archiveProject, updateCrewMember } from '../../lib/actions';
+import { addCrewMember, addPhotoNote, archiveProject, updateCrewMember, updateUnit } from '../../lib/actions';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
 import { useAiAuth } from '../../lib/ai/useAiAuth';
 import { createId, nowISO } from '../../lib/constants';
@@ -2836,6 +2836,15 @@ function LaunchOperationalApp({
           }))}
           initialState={activeFieldState}
           onRequestUnitNote={openUnitNote}
+          onSetUnitBeds={(unitId, beds) => {
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === unitId)?.unitNumber ?? '';
+            const saved = commitDataNow((current) =>
+              updateUnit(current, unitId, { bedCount: beds, hasCommonArea: true }, 'Los adjusted the unit rooms.'));
+            setFieldToast(saved
+              ? `Unit ${unitNumber} set to ${beds === 0 ? 'studio (common only)' : `${beds} room${beds === 1 ? '' : 's'} + common`}.`
+              : 'Could not save — try again.');
+          }}
           onToggleCrewActive={(crewId, active) => {
             const name = crewRecords.find((crew) => crew.id === crewId)?.name ?? 'Crew';
             const saved = commitDataNow((current) =>

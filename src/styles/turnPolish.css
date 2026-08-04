@@ -1263,3 +1263,40 @@ select:focus-visible {
   font-weight: 700;
   min-height: 30px;
 }
+
+/* ---------- Unit page: fix a unit's rooms (studio → has beds) ---------- */
+.track-c-rooms-editor {
+  background: var(--turn-color-elevated);
+  border: 1px dashed var(--turn-color-divider);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  display: grid;
+  gap: 8px;
+}
+.track-c-rooms-editor > h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--turn-color-secondary);
+}
+.track-c-rooms-editor__choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.track-c-rooms-editor__choices button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-grouped);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 38px;
+}
+.track-c-rooms-editor__choices button[aria-pressed="true"] {
+  background: var(--turn-color-brand);
+  border-color: var(--turn-color-brand);
+  color: #fff;
+}
+.track-c-rooms-editor__choices button:disabled { opacity: 0.4; }
+.track-c-rooms-editor small { color: var(--turn-color-secondary); font-size: 12px; }

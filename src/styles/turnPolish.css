@@ -1319,3 +1319,42 @@ select:focus-visible {
 }
 
 .lcc-dayhist-row__chev { color: var(--turn-color-secondary); }
+
+/* Unit page: move a mis-released unit to the right one */
+.track-c-move-unit {
+  border: 1px dashed var(--turn-color-divider);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  display: grid;
+  gap: 8px;
+}
+.track-c-move-unit > span,
+.track-c-move-unit__triggers > span { font-size: 13px; color: var(--turn-color-secondary); }
+.track-c-move-unit__triggers { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.track-c-move-unit__triggers button,
+.track-c-move-unit__row button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 38px;
+}
+.track-c-move-unit__row { display: flex; gap: 8px; align-items: center; }
+.track-c-move-unit__row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-input-bg, var(--turn-color-grouped));
+  color: var(--turn-color-primary);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 16px;
+  min-height: 40px;
+}
+.track-c-move-unit__row button:not(.is-cancel) { background: var(--turn-color-brand); border-color: var(--turn-color-brand); color: #fff; }
+.track-c-move-unit__row button:disabled { opacity: 0.5; }
+.track-c-move-unit__row button.is-cancel { color: var(--turn-color-secondary); }

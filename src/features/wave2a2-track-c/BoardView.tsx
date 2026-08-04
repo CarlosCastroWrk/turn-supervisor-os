@@ -84,6 +84,7 @@ interface BoardViewProps {
     released: boolean,
   ) => void;
   readonly onSetUnitBeds?: (unitId: string, beds: number) => void;
+  readonly onMoveUnitTrade?: (sourceUnitId: string, trade: TrackCTrade, targetUnitNumber: string) => void;
 }
 
 const tradeLabel = (trade: TrackCTrade) =>
@@ -683,6 +684,7 @@ const UnitDetail = ({
   onSetSectionWorkType,
   onSetTradeRelease,
   onSetUnitBeds,
+  onMoveUnitTrade,
 }: {
   state: TrackCState;
   unitId: string;
@@ -706,6 +708,7 @@ const UnitDetail = ({
   onSetSectionWorkType?: BoardViewProps['onSetSectionWorkType'];
   onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
   onSetUnitBeds?: BoardViewProps['onSetUnitBeds'];
+  onMoveUnitTrade?: BoardViewProps['onMoveUnitTrade'];
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -731,6 +734,8 @@ const UnitDetail = ({
   // `more:paint`/`more:clean` (Delete/Block). Keeps the page calm instead of
   // stacking a wall of buttons.
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [moveTarget, setMoveTarget] = useState('');
+  const [moveTrade, setMoveTrade] = useState<TrackCTrade | null>(null);
   // PDS approval is heavyweight truth with no undo — it takes two taps.
   const [pdsConfirmTrade, setPdsConfirmTrade] = useState<TrackCTrade>();
   useEffect(() => {
@@ -871,6 +876,49 @@ const UnitDetail = ({
           </div>
         );
       })() : null}
+      {onMoveUnitTrade && work.some((item) => item.release === 'released') ? (
+        <div className="track-c-move-unit">
+          {moveTrade ? (
+            <>
+              <span>Move {tradeLabel(moveTrade)} from {unit.unitNumber} to unit #</span>
+              <div className="track-c-move-unit__row">
+                <input
+                  aria-label="Target unit number"
+                  inputMode="numeric"
+                  onChange={(event) => setMoveTarget(event.target.value)}
+                  placeholder="1103"
+                  type="text"
+                  value={moveTarget}
+                />
+                <button
+                  disabled={!moveTarget.trim()}
+                  onClick={() => {
+                    onMoveUnitTrade(unitId, moveTrade, moveTarget.trim());
+                    setMoveTarget('');
+                    setMoveTrade(null);
+                  }}
+                  type="button"
+                >
+                  Move
+                </button>
+                <button className="is-cancel" onClick={() => setMoveTrade(null)} type="button">
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="track-c-move-unit__triggers">
+              <span>Wrong unit? Move the release:</span>
+              {[...new Set(work.filter((item) => item.release === 'released').map((item) => item.trade))]
+                .map((trade) => (
+                  <button key={trade} onClick={() => setMoveTrade(trade)} type="button">
+                    Move {tradeLabel(trade)}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      ) : null}
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
           Number(right === focusTrade) - Number(left === focusTrade))
@@ -1427,6 +1475,7 @@ export const BoardView = ({
   onSetSectionWorkType,
   onSetTradeRelease,
   onSetUnitBeds,
+  onMoveUnitTrade,
 }: BoardViewProps) => {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'released' | 'working' | 'callbacks' | 'approved' | 'all'>('released');
@@ -1542,6 +1591,7 @@ export const BoardView = ({
         onSetSectionWorkType={onSetSectionWorkType}
         onSetTradeRelease={onSetTradeRelease}
         onSetUnitBeds={onSetUnitBeds}
+        onMoveUnitTrade={onMoveUnitTrade}
         onClose={onCloseUnit}
         onQuickAssign={onQuickAssign}
         onChangeCrew={onChangeCrew}

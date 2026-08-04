@@ -1758,10 +1758,16 @@ function DayTaskHome({
                   return ordered.map(([label, groupLines]) => {
                     const gkey = `${trade}:${label}`;
                     const collapsed = collapsedCrews.has(gkey);
+                    // Order within a crew: units they're AT now first (📍),
+                    // then the work still in front of them, then passed/approved
+                    // sink to the bottom — no more blue-green-blue zig-zag.
+                    const doneRank = (line: LiveBoardLine) =>
+                      line.stage === 'passed' ? 1 : 0;
                     const sorted = [...groupLines].sort((left, right) => {
                       const lh = hereNow.has(`${left.unitId}:${left.trade}`) ? 0 : 1;
                       const rh = hereNow.has(`${right.unitId}:${right.trade}`) ? 0 : 1;
                       return lh - rh
+                        || doneRank(left) - doneRank(right)
                         || left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true });
                     });
                     return (

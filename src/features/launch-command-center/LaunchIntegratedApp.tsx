@@ -2854,6 +2854,66 @@ function LaunchOperationalApp({
               ? `Unit ${unitNumber} set to ${beds === 0 ? 'studio (common only)' : `${beds} room${beds === 1 ? '' : 's'} + common`}.`
               : 'Could not save — try again.');
           }}
+          onMoveUnitTrade={(sourceUnitId, trade, targetUnitNumber) => {
+            const source = trackCState.units.find((unit) => unit.id === sourceUnitId);
+            const target = trackCState.units.find((unit) =>
+              unit.unitNumber === targetUnitNumber.trim());
+            if (!source) return;
+            if (!target) {
+              setFieldToast(`No unit ${targetUnitNumber.trim()} in the roster.`);
+              return;
+            }
+            if (target.id === source.id) return;
+            // Wrong unit → move this trade's released rooms + tasks to the right
+            // unit: release them on the target, unrelease the source. Only rooms
+            // the target actually has come over. Re-assign the crew there after.
+            const moving = source.workFacts
+              .filter((fact) => fact.trade === trade && fact.release === 'released'
+                && target.applicableSections.includes(fact.section));
+            if (moving.length === 0) {
+              setFieldToast(`Nothing released on ${source.unitNumber} ${trade} to move (or ${target.unitNumber} lacks those rooms).`);
+              return;
+            }
+            const saved = commitDataNow((current) => {
+              let next = current;
+              for (const fact of moving) {
+                next = setSectionReleaseState(next, {
+                  idFactory: createId,
+                  nowIso: nowISO(),
+                  released: true,
+                  section: fact.section,
+                  trade,
+                  unitId: target.id,
+                });
+                if (trade === 'paint' && fact.workType) {
+                  next = setReleaseWorkType(next, {
+                    section: fact.section,
+                    trade,
+                    unitId: target.id,
+                    workType: fact.workType,
+                  });
+                }
+              }
+              const cleared = clearTrackCAssignments(trackCState, {
+                eventIdPrefix: createId('move-unrelease'),
+                recordedAt: nowISO(),
+                recordedBy: 'Los',
+                trade,
+                unitId: source.id,
+              });
+              if (cleared.ok) next = applyTrackCStateChange(next, cleared.value);
+              return setTradeReleaseState(next, {
+                idFactory: createId,
+                nowIso: nowISO(),
+                released: false,
+                trade,
+                unitId: source.id,
+              });
+            });
+            setFieldToast(saved
+              ? `Moved ${trade === 'paint' ? 'Paint' : 'Clean'} from ${source.unitNumber} to ${target.unitNumber} — assign the crew there.`
+              : 'Start the day first, then move it.');
+          }}
           onToggleCrewActive={(crewId, active) => {
             const name = crewRecords.find((crew) => crew.id === crewId)?.name ?? 'Crew';
             const saved = commitDataNow((current) =>

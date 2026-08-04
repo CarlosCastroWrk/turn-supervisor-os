@@ -540,9 +540,12 @@ export const CrewView = ({
               || left.crew.name.localeCompare(right.crew.name));
           if (group.length === 0 && tradeRollup[tradeGroup].unassigned.length === 0) return null;
           const rollup = tradeRollup[tradeGroup];
+          // Show EVERY crew of this trade — present ones first — so a crew Los
+          // just added is never hidden behind the present filter.
           const allTradeCrews = group.map(({ crew }) => crew);
-          const presentCrews = allTradeCrews.filter((crew) => crew.activeToday);
-          const tradeCrews = presentCrews.length > 0 ? presentCrews : allTradeCrews;
+          const tradeCrews = [...allTradeCrews].sort((left, right) =>
+            Number(right.activeToday) - Number(left.activeToday)
+            || left.name.localeCompare(right.name));
           return (
             <div key={tradeGroup}>
               <h2 className={`track-c-crew-group is-${tradeGroup}`}>

@@ -65,6 +65,7 @@ const themeOptions: readonly {
 ];
 
 export interface ThemeAwareMorePageProps {
+  onBack?: () => void;
   onNavigate: (destination: TrackBToolDestination) => void;
   onPreferenceChange: (preference: TurnThemePreference) => void;
   onRequestSignOut: () => void;
@@ -76,6 +77,7 @@ export interface ThemeAwareMorePageProps {
 }
 
 export function ThemeAwareMorePage({
+  onBack,
   onNavigate,
   onPreferenceChange,
   onRequestSignOut,
@@ -88,6 +90,7 @@ export function ThemeAwareMorePage({
   return (
     <NativeDetailShell
       description="Personal field tools, project setup, and device controls."
+      onBack={onBack}
       statusLabel={statusLabel}
       title="More"
     >

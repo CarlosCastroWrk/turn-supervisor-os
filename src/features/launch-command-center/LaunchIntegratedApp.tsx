@@ -3779,6 +3779,7 @@ function LaunchOperationalApp({
         </NativeDetailShell>
       ) : (
         <ThemeAwareMorePage
+          onBack={() => handlePrimaryNavigation('home')}
           onNavigate={handleMoreNavigation}
           onPreferenceChange={theme.setPreference}
           onRequestSignOut={requestSignOut}

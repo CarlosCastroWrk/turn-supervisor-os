@@ -1601,9 +1601,18 @@ function LaunchOperationalApp({
 
   const openDestination = useCallback((destinationId: string) => {
     if (destinationId.startsWith('unit:')) {
-      const [unitId, tradePart] = destinationId.slice('unit:'.length).split(':');
-      unitDetailTradeRef.current =
-        tradePart === 'paint' || tradePart === 'clean' ? tradePart : undefined;
+      // Unit ids are colon-composite (project:building:floor:unit), so the
+      // trade suffix must be stripped from the END — splitting on the first
+      // colon truncated the id to garbage and broke every "ready to walk" tap.
+      let unitId = destinationId.slice('unit:'.length);
+      unitDetailTradeRef.current = undefined;
+      if (unitId.endsWith(':paint')) {
+        unitDetailTradeRef.current = 'paint';
+        unitId = unitId.slice(0, -':paint'.length);
+      } else if (unitId.endsWith(':clean')) {
+        unitDetailTradeRef.current = 'clean';
+        unitId = unitId.slice(0, -':clean'.length);
+      }
       unitDetailOriginRef.current =
         routeRef.current.view === 'dashboard'
           ? routeRef.current.homeSummary ?? 'home'

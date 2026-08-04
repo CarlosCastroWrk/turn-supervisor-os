@@ -1353,11 +1353,26 @@ function DayTaskHome({
   }, [armedStage]);
   // Collapse the board by crew so 12 units read as a few crew headers you open
   // as needed — tap a name to drop it down, tap again to fold it up.
-  const [collapsedCrews, setCollapsedCrews] = useState<ReadonlySet<string>>(new Set());
+  // Collapse state sticks across tab switches — folds you closed stay closed
+  // when you come back, so you keep the view you set up.
+  const [collapsedCrews, setCollapsedCrews] = useState<ReadonlySet<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem('turn-os:collapsed-crews');
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
   const toggleCrew = (key: string) => setCollapsedCrews((current) => {
     const next = new Set(current);
     if (next.has(key)) next.delete(key);
     else next.add(key);
+    try {
+      window.localStorage.setItem('turn-os:collapsed-crews', JSON.stringify([...next]));
+    } catch {
+      // Session-only then.
+    }
     return next;
   });
   // "Here now": which units a crew is physically in right this minute — device

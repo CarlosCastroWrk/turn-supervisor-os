@@ -1154,3 +1154,36 @@ select:focus-visible {
 .lcc-dayhist-row.is-rank4 .lcc-dayhist-row__status,
 .lcc-dayhist-row.is-rank3 .lcc-dayhist-row__status { color: #237a45; }
 .lcc-dayhist-row.is-rank1 .lcc-dayhist-row__status { color: #b4232d; }
+
+/* ---------- Home: "Needs your eyes" (the silent-failure detector) ---------- */
+.w2a2b-needseyes {
+  background: color-mix(in srgb, var(--turn-color-waiting, #9b5b00) 10%, var(--turn-color-elevated));
+  border: 1px solid color-mix(in srgb, var(--turn-color-waiting, #9b5b00) 35%, var(--turn-color-divider));
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  display: grid;
+  gap: 4px;
+}
+.w2a2b-needseyes > h3 {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--turn-color-waiting, #9b5b00);
+}
+.w2a2b-needseyes__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 7px 2px;
+  min-height: 40px;
+  color: var(--turn-color-primary);
+}
+.w2a2b-needseyes__row strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+.w2a2b-needseyes__row span { font-size: 13px; color: var(--turn-color-secondary); }

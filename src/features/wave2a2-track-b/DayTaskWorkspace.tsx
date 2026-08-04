@@ -1227,6 +1227,11 @@ export function EndDayFlow({
   );
 }
 
+export interface NeedsEyes {
+  blocked: readonly { unitId: string; unitNumber: string; label: string }[];
+  carryover: readonly { unitId: string; unitNumber: string; label: string }[];
+}
+
 export interface LiveBoardLine {
   unitId: string;
   unitNumber: string;
@@ -1281,6 +1286,8 @@ interface DayTaskHomeProps {
   onOpenCrews?: () => void;
   onPeekUnit?: (unitId: string) => void;
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
+  needsEyes?: NeedsEyes;
+  onOpenNeedsEyesUnit?: (unitId: string) => void;
 }
 
 function DayTaskHome({
@@ -1295,6 +1302,8 @@ function DayTaskHome({
   onOpenCrews,
   onPeekUnit,
   onPeekQueue,
+  needsEyes,
+  onOpenNeedsEyesUnit,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1517,6 +1526,23 @@ function DayTaskHome({
       </section>
       )}
 
+      {needsEyes && (needsEyes.blocked.length + needsEyes.carryover.length) > 0 ? (
+        <section className="w2a2b-needseyes" aria-label="Needs your eyes">
+          <h3>Needs your eyes</h3>
+          {[...needsEyes.blocked, ...needsEyes.carryover].map((item) => (
+            <button
+              className="w2a2b-needseyes__row"
+              key={`${item.unitId}:${item.label}`}
+              onClick={() => onOpenNeedsEyesUnit?.(item.unitId)}
+              type="button"
+            >
+              <strong>{item.unitNumber}</strong>
+              <span>{item.label}</span>
+              <span aria-hidden="true">→</span>
+            </button>
+          ))}
+        </section>
+      ) : null}
       <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
         {([
           ['working', 'WORKING', 'w'],
@@ -1968,6 +1994,8 @@ export interface DayTaskWorkspaceProps {
   onOpenCrews?: () => void;
   onPeekUnit?: (unitId: string) => void;
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
+  needsEyes?: NeedsEyes;
+  onOpenNeedsEyesUnit?: (unitId: string) => void;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -2019,6 +2047,8 @@ export function DayTaskWorkspace({
   onOpenCrews,
   onPeekUnit,
   onPeekQueue,
+  needsEyes,
+  onOpenNeedsEyesUnit,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2224,6 +2254,8 @@ export function DayTaskWorkspace({
         onOpenCrews={onOpenCrews}
         onPeekUnit={onPeekUnit}
         onPeekQueue={onPeekQueue}
+        needsEyes={needsEyes}
+        onOpenNeedsEyesUnit={onOpenNeedsEyesUnit}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

@@ -795,6 +795,51 @@ function LaunchOperationalApp({
     }
     return { approved, left: trackCState.units.length - approved, readyToWalk, released, unassigned, working };
   }, [trackCState]);
+  // "Needs your eyes" — the silent-failure detector. On a heavy day the danger
+  // isn't what's in front of Los; it's what quietly stalled. Two classes:
+  // blocked work (the ladder/occupied situations to escalate) and carryover
+  // (work released on a PRIOR day that still has no crew — the stuff that falls
+  // through the cracks when the pile is big). Read-only; empty when all clear.
+  const needsEyes = useMemo(() => {
+    const releaseDate = new Map<string, string>();
+    for (const batch of data.dailyReleaseBatches) {
+      if (batch.projectId !== data.activeProjectId) continue;
+      for (const item of batch.items) {
+        const key = `${item.unitId}:${item.trade}`;
+        const prior = releaseDate.get(key);
+        if (!prior || batch.date < prior) releaseDate.set(key, batch.date);
+      }
+    }
+    const blocked: { unitId: string; unitNumber: string; label: string }[] = [];
+    const carryover: { unitId: string; unitNumber: string; label: string }[] = [];
+    for (const unit of trackCState.units) {
+      const work = projectTrackCUnitWork(trackCState, unit.id);
+      for (const trade of ['paint', 'clean'] as const) {
+        const released = work.filter((item) =>
+          item.trade === trade && item.release === 'released');
+        if (released.length === 0) continue;
+        const tradeWord = trade === 'paint' ? 'Paint' : 'Clean';
+        if (released.some((item) => item.access !== 'clear')) {
+          const reason = (released.find((item) => item.access !== 'clear')?.restrictionLabel ?? '')
+            .replace(/^Blocked — /u, '') || 'on hold';
+          blocked.push({ label: `${tradeWord} blocked — ${reason}`, unitId: unit.id, unitNumber: unit.unitNumber });
+          continue;
+        }
+        const firstReleased = releaseDate.get(`${unit.id}:${trade}`);
+        const stillNoCrew = released.every((item) =>
+          item.activeCrewIds.length === 0
+          && item.execution === 'unassigned'
+          && item.property !== 'property-accepted');
+        if (firstReleased && firstReleased < currentDate && stillNoCrew) {
+          const [, m, d] = firstReleased.split('-').map(Number);
+          const when = new Date(2000, (m ?? 1) - 1, d ?? 1)
+            .toLocaleDateString([], { month: 'short', day: 'numeric' });
+          carryover.push({ label: `${tradeWord} released ${when} — still no crew`, unitId: unit.id, unitNumber: unit.unitNumber });
+        }
+      }
+    }
+    return { blocked, carryover };
+  }, [currentDate, data.activeProjectId, data.dailyReleaseBatches, trackCState]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'> = {};
     for (const unit of trackCState.units) {
@@ -3223,6 +3268,11 @@ function LaunchOperationalApp({
           liveBoard={liveBoard}
           onAdvanceUnitTrade={advanceUnitTrade}
           glance={homeGlance}
+          needsEyes={needsEyes}
+          onOpenNeedsEyesUnit={(unitId) => {
+            unitDetailOriginRef.current = 'home';
+            navigate('unitDetail', unitId);
+          }}
           onOpenCrew={(crewId) => {
             crewOriginHomeRef.current = true;
             navigate('crews', undefined, { crewId });

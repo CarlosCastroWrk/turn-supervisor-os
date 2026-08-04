@@ -1531,23 +1531,6 @@ function DayTaskHome({
       </section>
       )}
 
-      {needsEyes && (needsEyes.blocked.length + needsEyes.carryover.length) > 0 ? (
-        <section className="w2a2b-needseyes" aria-label="Needs your eyes">
-          <h3>Needs your eyes</h3>
-          {[...needsEyes.blocked, ...needsEyes.carryover].map((item) => (
-            <button
-              className="w2a2b-needseyes__row"
-              key={`${item.unitId}:${item.label}`}
-              onClick={() => onOpenNeedsEyesUnit?.(item.unitId, item.trade)}
-              type="button"
-            >
-              <strong>{item.unitNumber}</strong>
-              <span>{item.label}</span>
-              <span aria-hidden="true">→</span>
-            </button>
-          ))}
-        </section>
-      ) : null}
       <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
         {([
           ['working', 'WORKING', 'w'],

@@ -106,7 +106,15 @@ export function ManualReleaseReview({
           // issues, special instructions) rides along as a unit note.
           importNotesRef.current.set(unit.id, row.note.trim());
         }
-        const trades = row.trades.length > 0 ? row.trades : ['paint', 'clean'];
+        // Joseph hands SEPARATE paint and clean sheets. When Los has picked
+        // Paint or Clean above, the photo IS that one trade — never cross-tag
+        // the other. Only 'both' falls back to whatever the reader guessed.
+        const scopeTrade = tradeScope === 'Paint'
+          ? 'paint'
+          : tradeScope === 'Clean' ? 'clean' : null;
+        const trades = scopeTrade
+          ? [scopeTrade]
+          : row.trades.length > 0 ? row.trades : ['paint', 'clean'];
         for (const trade of trades) {
           for (const section of unit.applicableSections) {
             if (!section.trades.includes(trade === 'paint' ? 'Paint' : 'Clean')) continue;
@@ -440,6 +448,20 @@ export function ManualReleaseReview({
                     .map(([unitId, list]) => (
                       <div className="w2a2-core-selected__unit" key={unitId}>
                         <strong>{numberOf(unitId)}</strong>
+                        <button
+                          aria-label={`Remove unit ${numberOf(unitId)}`}
+                          className="w2a2-core-selected__remove"
+                          onClick={() => setSelected((current) => {
+                            const next = new Map(current);
+                            for (const key of [...next.keys()]) {
+                              if (next.get(key)?.unitId === unitId) next.delete(key);
+                            }
+                            return next;
+                          })}
+                          type="button"
+                        >
+                          Remove ✕
+                        </button>
                         <span>
                           {list
                             .sort((a, b) => `${a.trade}${a.section}`.localeCompare(`${b.trade}${b.section}`))

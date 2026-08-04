@@ -1250,3 +1250,16 @@ select:focus-visible {
   padding-left: 12px;
   border-left: 3px solid var(--turn-color-brand);
 }
+
+/* Quick-add: remove a whole unit from the selection */
+.w2a2-core-selected__unit { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.w2a2-core-selected__remove {
+  border: 1px solid var(--turn-color-divider);
+  background: transparent;
+  color: var(--turn-color-destructive, #b4232d);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 30px;
+}

@@ -1223,3 +1223,30 @@ select:focus-visible {
   color: var(--turn-color-brand);
   font-weight: 800;
 }
+
+/* ---------- Unit page: notes right on the unit ---------- */
+.track-c-unit-notes {
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
+  display: grid;
+  gap: 6px;
+}
+.track-c-unit-notes > h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--turn-color-secondary);
+}
+.track-c-unit-notes p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--turn-color-primary);
+  padding-left: 12px;
+  border-left: 3px solid var(--turn-color-brand);
+}

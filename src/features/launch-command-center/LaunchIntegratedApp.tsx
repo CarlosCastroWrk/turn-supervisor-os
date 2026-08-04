@@ -104,7 +104,7 @@ import {
 import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
-import { appendPersonalNoteActivity } from '../wave2a1-native/track-c/personalActivity';
+import { appendPersonalNoteActivity, PERSONAL_NOTE_ACTIVITY_ACTION } from '../wave2a1-native/track-c/personalActivity';
 import { TellTurnOS } from './TellTurnOS';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
@@ -840,6 +840,19 @@ function LaunchOperationalApp({
     }
     return { blocked, carryover };
   }, [currentDate, data.activeProjectId, data.dailyReleaseBatches, trackCState]);
+  const unitNotes = useMemo(() =>
+    data.activityLogs
+      .filter((log) => log.action === PERSONAL_NOTE_ACTIVITY_ACTION
+        && log.entityType === 'Unit'
+        && log.projectId === data.activeProjectId
+        && Boolean(log.note))
+      .map((log) => ({
+        createdAt: log.createdAt,
+        id: log.id,
+        text: log.note ?? '',
+        unitId: log.entityId,
+      })),
+    [data.activityLogs, data.activeProjectId]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'> = {};
     for (const unit of trackCState.units) {
@@ -2832,6 +2845,7 @@ function LaunchOperationalApp({
               : 'Could not save — try again.');
           }}
           initialView={trackCRouteState.view}
+          unitNotes={unitNotes}
           unitPhotos={data.photoNotes.filter((photo) =>
             photo.projectId === data.activeProjectId && Boolean(photo.unitId))}
           onUnblockUnit={(unitId, trade) => {

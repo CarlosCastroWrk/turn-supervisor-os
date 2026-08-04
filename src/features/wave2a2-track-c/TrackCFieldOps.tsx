@@ -80,6 +80,7 @@ export interface TrackCFieldOpsProps {
   readonly now?: () => string;
   readonly routeState?: TrackCRouteState;
   readonly walkIntegration?: TrackCWalkIntegration;
+  readonly unitNotes?: readonly { id: string; unitId: string; text: string; createdAt: string }[];
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: (photo: PhotoNote) => boolean | Promise<boolean>;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
@@ -117,6 +118,7 @@ export const TrackCFieldOps = ({
   now = () => new Date().toISOString(),
   routeState,
   walkIntegration,
+  unitNotes,
   unitPhotos,
   onCommitUnitPhoto,
   onUnblockUnit,
@@ -533,6 +535,7 @@ export const TrackCFieldOps = ({
             onTradeComplete={recordTradeComplete}
             selectedUnitId={selectedUnitId}
             state={state}
+            unitNotes={unitNotes}
             unitPhotos={unitPhotos}
             onCommitUnitPhoto={onCommitUnitPhoto}
             onPdsApprove={pdsApprove}

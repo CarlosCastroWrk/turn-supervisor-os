@@ -63,6 +63,7 @@ interface BoardViewProps {
   ) => void;
   readonly onRequestNote?: () => void;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
+  readonly unitNotes?: readonly { id: string; unitId: string; text: string; createdAt: string }[];
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
@@ -668,6 +669,7 @@ const UnitDetail = ({
   onRequestAssign,
   onRequestNote,
   onRequestMirror,
+  unitNotes,
   unitPhotos,
   onCommitUnitPhoto,
   focusTrade,
@@ -688,6 +690,7 @@ const UnitDetail = ({
   onRequestAssign?: BoardViewProps['onRequestAssign'];
   onRequestNote?: BoardViewProps['onRequestNote'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
+  unitNotes?: BoardViewProps['unitNotes'];
   unitPhotos?: BoardViewProps['unitPhotos'];
   onCommitUnitPhoto?: BoardViewProps['onCommitUnitPhoto'];
   focusTrade?: TrackCTrade;
@@ -708,6 +711,12 @@ const UnitDetail = ({
   const photosForUnit = useMemo(
     () => (unitPhotos ?? []).filter((photo) => photo.unitId === unitId),
     [unitPhotos, unitId],
+  );
+  const notesForUnit = useMemo(
+    () => (unitNotes ?? [])
+      .filter((note) => note.unitId === unitId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    [unitNotes, unitId],
   );
   // From a trade board the unit page IS that board's page — the other trade
   // stays one tap away, while notes/photos/change orders remain shared.
@@ -818,6 +827,14 @@ const UnitDetail = ({
           </>
         ) : null}
       </div>
+      {notesForUnit.length > 0 ? (
+        <div className="track-c-unit-notes">
+          <h3>Notes</h3>
+          {notesForUnit.map((note) => (
+            <p key={note.id}>{note.text}</p>
+          ))}
+        </div>
+      ) : null}
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
           Number(right === focusTrade) - Number(left === focusTrade))
@@ -1351,6 +1368,7 @@ export const BoardView = ({
   onRequestAssign,
   onRequestNote,
   onRequestMirror,
+  unitNotes,
   unitPhotos,
   onCommitUnitPhoto,
   onPdsApprove,
@@ -1482,6 +1500,7 @@ export const BoardView = ({
         onTradeComplete={onTradeComplete}
         state={state}
         unitId={selectedUnitId}
+        unitNotes={unitNotes}
         unitPhotos={unitPhotos}
         onCommitUnitPhoto={onCommitUnitPhoto}
       />

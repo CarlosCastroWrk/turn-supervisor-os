@@ -108,6 +108,7 @@ import { appendPersonalNoteActivity, PERSONAL_NOTE_ACTIVITY_ACTION } from '../wa
 import { TellTurnOS } from './TellTurnOS';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
+import { paintWorkTypeLabel } from '../wave2a2-track-c/model';
 import type { TurnIntent } from '../../lib/intelligenceClient';
 import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
 import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
@@ -3752,10 +3753,57 @@ function LaunchOperationalApp({
                   </div>
                 );
               };
+              // Paint tasks by crew — Los tracks who did how many cut-ins and
+              // on which units. Per crew, per work type, the units they worked.
+              const paintTaskByCrew = (() => {
+                const byCrew = new Map<string, Map<string, Set<string>>>();
+                for (const row of dayRowMap.values()) {
+                  if (row.trade !== 'paint' || row.rank < 2) continue;
+                  const crew = [...row.crewIds]
+                    .map((id) => crewRecords.find((c) => c.id === id)?.name)
+                    .filter(Boolean).join(' + ') || 'unassigned';
+                  const unit = trackCState.units.find((u) => u.id === row.unitId);
+                  if (!unit) continue;
+                  const typeMap = byCrew.get(crew) ?? new Map<string, Set<string>>();
+                  for (const fact of unit.workFacts) {
+                    if (fact.trade !== 'paint' || fact.release !== 'released') continue;
+                    const label = paintWorkTypeLabel(fact.workType);
+                    const set = typeMap.get(label) ?? new Set<string>();
+                    set.add(unit.unitNumber);
+                    typeMap.set(label, set);
+                  }
+                  byCrew.set(crew, typeMap);
+                }
+                return [...byCrew.entries()];
+              })();
               return (
                 <div key={historySession.daySessionId}>
                 {dayGroup('paint')}
                 {dayGroup('clean')}
+                {paintTaskByCrew.length > 0 ? (
+                  <GroupedInsetSection
+                    key={`${historySession.daySessionId}:bycrew`}
+                    label="Paint tasks by crew"
+                  >
+                    <div className="lcc-bycrew">
+                      {paintTaskByCrew.map(([crew, typeMap]) => (
+                        <div className="lcc-bycrew__crew" key={crew}>
+                          <strong>{crew}</strong>
+                          {[...typeMap.entries()]
+                            .sort((left, right) => right[1].size - left[1].size)
+                            .map(([type, units]) => (
+                              <p key={type}>
+                                <b>{units.size} {type}</b>
+                                {' — '}
+                                {[...units].sort((a, b) =>
+                                  a.localeCompare(b, undefined, { numeric: true })).join(', ')}
+                              </p>
+                            ))}
+                        </div>
+                      ))}
+                    </div>
+                  </GroupedInsetSection>
+                ) : null}
                 <GroupedInsetSection
                   key={`${historySession.daySessionId}:totals`}
                   label={`Day ${daySessions.length - index} · ${(() => {

@@ -363,6 +363,40 @@ export const TrackCFieldOps = ({
     commitState(nextState, 'trade-callback');
   };
 
+  // Record Los's inspection pass on a whole trade from the unit page — needed
+  // for clean (whole-unit, no per-room rows), handy for paint. Only sections
+  // the crew has reported complete move to passed.
+  const recordTradeLosPass = (unitId: string, trade: TrackCTrade) => {
+    const targets = projectTrackCUnitWork(state, unitId)
+      .filter((work) => work.trade === trade
+        && work.release === 'released'
+        && work.inspection === 'needs-los-inspection')
+      .map((work) => ({ section: work.section, trade: work.trade, unitId: work.unitId }));
+    if (targets.length === 0) {
+      setNotice('Nothing waiting for your inspection on this trade yet.');
+      return;
+    }
+    let nextState = state;
+    for (const target of targets) {
+      const result = applyTrackCSectionAction(nextState, {
+        action: 'record-los-pass',
+        eventId: createId('track-c-los-pass'),
+        recordedAt: now(),
+        recordedBy: 'Los',
+        target,
+      });
+      if (!result.ok) {
+        setNotice(result.error.message);
+        return;
+      }
+      nextState = result.value;
+    }
+    setNotice(
+      `${trade === 'paint' ? 'Paint' : 'Clean'} passed your inspection — ready to walk with the property.`,
+    );
+    commitState(nextState, 'trade-los-pass');
+  };
+
   const quickAssign = (
     unitId: string,
     trade: TrackCTrade,
@@ -578,6 +612,7 @@ export const TrackCFieldOps = ({
             onCommitUnitPhoto={onCommitUnitPhoto}
             onPdsApprove={pdsApprove}
             onOpenCallback={openTradeCallback}
+            onTradePass={recordTradeLosPass}
             onUnblockUnit={onUnblockUnit}
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}

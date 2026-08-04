@@ -1358,3 +1358,20 @@ select:focus-visible {
 .track-c-move-unit__row button:not(.is-cancel) { background: var(--turn-color-brand); border-color: var(--turn-color-brand); color: #fff; }
 .track-c-move-unit__row button:disabled { opacity: 0.5; }
 .track-c-move-unit__row button.is-cancel { color: var(--turn-color-secondary); }
+
+.track-c-trade-lospass {
+  background: var(--turn-color-ready, #237a45) !important;
+  border-color: var(--turn-color-ready, #237a45) !important;
+  color: #fff !important;
+}
+
+/* Day History: paint tasks by crew */
+.lcc-bycrew { padding: 4px 2px; display: grid; gap: 10px; }
+.lcc-bycrew__crew > strong { font-size: 15px; display: block; margin-bottom: 2px; }
+.lcc-bycrew__crew p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--turn-color-secondary);
+  padding-left: 10px;
+}
+.lcc-bycrew__crew p b { color: var(--turn-color-primary); font-weight: 700; }

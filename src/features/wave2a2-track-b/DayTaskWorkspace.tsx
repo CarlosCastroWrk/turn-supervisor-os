@@ -1360,6 +1360,51 @@ function DayTaskHome({
     else next.add(key);
     return next;
   });
+  // "Here now": which units a crew is physically in right this minute — device
+  // -local, not the ledger. Marked units float to the top of their group.
+  const [hereNow, setHereNow] = useState<ReadonlySet<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem('turn-os:here-now');
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
+    } catch {
+      return new Set<string>();
+    }
+  });
+  const toggleHereNow = (key: string) => setHereNow((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    try {
+      window.localStorage.setItem('turn-os:here-now', JSON.stringify([...next]));
+    } catch {
+      // Session-only then.
+    }
+    return next;
+  });
+  // Group the board by crew (who has what) or by status (what needs me).
+  const [boardGroupBy, setBoardGroupBy] = useState<'crew' | 'status'>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:board-groupby') === 'status' ? 'status' : 'crew';
+    } catch {
+      return 'crew';
+    }
+  });
+  const pickGroupBy = (mode: 'crew' | 'status') => {
+    setBoardGroupBy(mode);
+    try {
+      window.localStorage.setItem('turn-os:board-groupby', mode);
+    } catch {
+      // Session-only.
+    }
+  };
+  const statusGroupName = (stage: LiveBoardLine['stage']) =>
+    stage === 'working' ? 'Working'
+      : stage === 'crew-done' ? 'Crew done — check'
+        : stage === 'passed' ? 'Ready to walk'
+          : stage === 'callback' ? 'Callback'
+            : 'Needs crew';
+  const STATUS_ORDER = ['Working', 'Crew done — check', 'Ready to walk', 'Callback', 'Needs crew'];
   // Done-today can grow to dozens of units; keep it collapsed to a tappable
   // summary so it never stacks up and buries the rest of Home.
   const [doneExpanded, setDoneExpanded] = useState(false);
@@ -1569,6 +1614,22 @@ function DayTaskHome({
       </div>
       {liveBoard ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
+          <div className="w2a2b-groupby" role="group" aria-label="Group the board by">
+            <button
+              aria-pressed={boardGroupBy === 'crew'}
+              onClick={() => pickGroupBy('crew')}
+              type="button"
+            >
+              By crew
+            </button>
+            <button
+              aria-pressed={boardGroupBy === 'status'}
+              onClick={() => pickGroupBy('status')}
+              type="button"
+            >
+              By status
+            </button>
+          </div>
           {(['paint', 'clean'] as const).map((trade) => {
             const lines = liveBoard.filter((line) => line.trade === trade);
             return (
@@ -1606,7 +1667,21 @@ function DayTaskHome({
                   const advanceable = (line.stage === 'working' || line.stage === 'crew-done')
                     && Boolean(onAdvanceUnitTrade);
                   return (
-                    <div className={`w2a2b-live-card is-${line.stage}`} key={`${line.unitId}:${line.trade}`}>
+                    <div
+                      className={`w2a2b-live-card is-${line.stage}${hereNow.has(`${line.unitId}:${line.trade}`) ? ' is-here' : ''}`}
+                      key={`${line.unitId}:${line.trade}`}
+                    >
+                      <button
+                        aria-label={hereNow.has(`${line.unitId}:${line.trade}`)
+                          ? `Crew is not here at ${line.unitNumber}`
+                          : `Mark crew here now at ${line.unitNumber}`}
+                        aria-pressed={hereNow.has(`${line.unitId}:${line.trade}`)}
+                        className="w2a2b-live-card__here"
+                        onClick={() => toggleHereNow(`${line.unitId}:${line.trade}`)}
+                        type="button"
+                      >
+                        📍
+                      </button>
                       <button
                         className="w2a2b-live-card__unit"
                         onClick={() => {
@@ -1652,16 +1727,28 @@ function DayTaskHome({
                   };
                   const groups = new Map<string, LiveBoardLine[]>();
                   for (const line of lines) {
-                    const crew = line.crewNames.length > 0
-                      ? line.crewNames.join(' + ')
-                      : 'Needs crew';
-                    const bucket = groups.get(crew) ?? [];
+                    const label = boardGroupBy === 'status'
+                      ? statusGroupName(line.stage)
+                      : line.crewNames.length > 0
+                        ? line.crewNames.join(' + ')
+                        : 'Needs crew';
+                    const bucket = groups.get(label) ?? [];
                     bucket.push(line);
-                    groups.set(crew, bucket);
+                    groups.set(label, bucket);
                   }
-                  return [...groups.entries()].map(([crew, crewLines]) => {
-                    const gkey = `${trade}:${crew}`;
+                  const ordered = [...groups.entries()].sort((left, right) =>
+                    boardGroupBy === 'status'
+                      ? STATUS_ORDER.indexOf(left[0]) - STATUS_ORDER.indexOf(right[0])
+                      : left[0].localeCompare(right[0]));
+                  return ordered.map(([label, groupLines]) => {
+                    const gkey = `${trade}:${label}`;
                     const collapsed = collapsedCrews.has(gkey);
+                    const sorted = [...groupLines].sort((left, right) => {
+                      const lh = hereNow.has(`${left.unitId}:${left.trade}`) ? 0 : 1;
+                      const rh = hereNow.has(`${right.unitId}:${right.trade}`) ? 0 : 1;
+                      return lh - rh
+                        || left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true });
+                    });
                     return (
                       <div className="w2a2b-crewgroup" key={gkey}>
                         <button
@@ -1670,13 +1757,13 @@ function DayTaskHome({
                           onClick={() => toggleCrew(gkey)}
                           type="button"
                         >
-                          <span className="w2a2b-crewgroup__name">{crew}</span>
+                          <span className="w2a2b-crewgroup__name">{label}</span>
                           <span className="w2a2b-crewgroup__count">
-                            {crewLines.length} unit{crewLines.length === 1 ? '' : 's'}
+                            {groupLines.length} unit{groupLines.length === 1 ? '' : 's'}
                           </span>
                           <i aria-hidden="true">{collapsed ? '▸' : '▾'}</i>
                         </button>
-                        {collapsed ? null : crewLines.map(renderCard)}
+                        {collapsed ? null : sorted.map(renderCard)}
                       </div>
                     );
                   });

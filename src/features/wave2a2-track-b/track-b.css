@@ -1376,3 +1376,34 @@ button.w2a2b-done-toggle {
   padding: 2px 9px;
 }
 .w2a2b-crewgroup__head i { color: #66707c; font-style: normal; font-size: 13px; }
+
+/* Group-by toggle */
+.w2a2b-groupby { display: flex; gap: 6px; margin-bottom: 8px; }
+.w2a2b-groupby button {
+  border: 1px solid #d9dde3;
+  background: #fff;
+  color: #66707c;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 36px;
+}
+.w2a2b-groupby button[aria-pressed="true"] { background: #12294b; border-color: #12294b; color: #fff; }
+
+/* Here-now pin */
+.w2a2b-live-card__here {
+  align-self: center;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  padding: 0 2px;
+  min-width: 30px;
+  min-height: 36px;
+  filter: grayscale(1) opacity(0.35);
+}
+.w2a2b-live-card__here[aria-pressed="true"] { filter: none; }
+.w2a2b-live-card.is-here {
+  border-inline-start-color: #0877d1;
+  box-shadow: 0 0 0 1.5px rgba(8,119,209,0.35);
+}

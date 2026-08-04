@@ -40,7 +40,7 @@ import {
   recordTrackCPersonalPdsMirror,
   type TrackCSectionAction,
 } from './operations';
-import { projectTrackCUnitWork } from './projections';
+import { projectTrackCUnitWork, projectTrackCWork } from './projections';
 import {
   WalkView,
   type TrackCWalkIntegration,
@@ -375,11 +375,20 @@ export const TrackCFieldOps = ({
       return;
     }
     let nextState = state;
+    // A section under callback can be at "callback open" (needs correction
+    // reported) OR "reinspection pending" (needs the pass) — both keep
+    // callbackOpen true. Advance whatever step it's on until it clears, so one
+    // tap always lands it back at Los passed / ready to walk.
     for (const target of targets) {
-      for (const action of ['record-correction-ready', 'record-reinspection-pass'] as const) {
+      for (let guard = 0; guard < 3; guard += 1) {
+        const projected = projectTrackCWork(nextState, target);
+        if (!projected || !projected.callbackOpen) break;
+        const action = projected.inspection === 'reinspection-pending'
+          ? 'record-reinspection-pass'
+          : 'record-correction-ready';
         const result = applyTrackCSectionAction(nextState, {
           action,
-          eventId: createId('track-c-callback-resolve'),
+          eventId: createId('track-c-cb-resolve'),
           recordedAt: now(),
           recordedBy: 'Los',
           target,
@@ -392,7 +401,7 @@ export const TrackCFieldOps = ({
       }
     }
     setNotice(
-      `${trade === 'paint' ? 'Paint' : 'Clean'} callback cleared — passed reinspection, ready to walk.`,
+      `${trade === 'paint' ? 'Paint' : 'Clean'} callback cleared — ready to walk with the property.`,
     );
     commitState(nextState, 'trade-callback-resolved');
   };

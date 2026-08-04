@@ -3656,7 +3656,17 @@ function LaunchOperationalApp({
                         ? trackCTradeWorkTypeLabel(trackCState, row.unitId, 'paint')
                         : '';
                       return (
-                        <div className={`lcc-dayhist-row is-rank${row.rank}`} key={`${row.unitId}:${row.trade}`}>
+                        <button
+                          className={`lcc-dayhist-row is-rank${row.rank}`}
+                          key={`${row.unitId}:${row.trade}`}
+                          onClick={() => {
+                            setMoreDetailPage(null);
+                            unitDetailOriginRef.current = undefined;
+                            unitDetailTradeRef.current = trade;
+                            navigate('unitDetail', row.unitId);
+                          }}
+                          type="button"
+                        >
                           <strong>{row.unitNumber}</strong>
                           <div className="lcc-dayhist-row__body">
                             <small>
@@ -3666,7 +3676,8 @@ function LaunchOperationalApp({
                             </small>
                             <span className="lcc-dayhist-row__status">{rankLabel(row.rank)}</span>
                           </div>
-                        </div>
+                          <span aria-hidden="true" className="lcc-dayhist-row__chev">›</span>
+                        </button>
                       );
                     })}
                   </div>

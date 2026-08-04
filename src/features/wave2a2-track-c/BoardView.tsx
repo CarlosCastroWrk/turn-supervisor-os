@@ -67,6 +67,7 @@ interface BoardViewProps {
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onOpenCallback?: (unitId: string, trade: TrackCTrade) => void;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
   readonly onSetSectionWorkType?: (
@@ -675,6 +676,7 @@ const UnitDetail = ({
   onCommitUnitPhoto,
   focusTrade,
   onPdsApprove,
+  onOpenCallback,
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
@@ -697,6 +699,7 @@ const UnitDetail = ({
   onCommitUnitPhoto?: BoardViewProps['onCommitUnitPhoto'];
   focusTrade?: TrackCTrade;
   onPdsApprove?: BoardViewProps['onPdsApprove'];
+  onOpenCallback?: BoardViewProps['onOpenCallback'];
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
   onRequestBlock?: BoardViewProps['onRequestBlock'];
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
@@ -1099,6 +1102,18 @@ const UnitDetail = ({
                     : `PDS approved — walked ${tradeLabel(trade)} with the property`}
                 </button>
               ) : null}
+            {onOpenCallback && tradeWork.some((item) =>
+              item.release === 'released'
+              && !item.callbackOpen
+              && (item.inspection === 'los-passed' || item.property === 'property-accepted')) ? (
+                <button
+                  className="track-c-callback-link"
+                  onClick={() => onOpenCallback(unitId, trade)}
+                  type="button"
+                >
+                  Open a callback — {tradeLabel(trade)} needs to be fixed
+                </button>
+              ) : null}
             {trade === 'clean' ? (
               <p className="track-c-clean-wholeunit">
                 {(() => {
@@ -1405,6 +1420,7 @@ export const BoardView = ({
   unitPhotos,
   onCommitUnitPhoto,
   onPdsApprove,
+  onOpenCallback,
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
@@ -1519,6 +1535,7 @@ export const BoardView = ({
       <UnitDetail
         focusTrade={focusTrade ?? focusTradeHint ?? boardTrade}
         onPdsApprove={onPdsApprove}
+        onOpenCallback={onOpenCallback}
         onUnblockUnit={onUnblockUnit}
         onRequestBlock={onRequestBlock}
         onSetSectionRelease={onSetSectionRelease}

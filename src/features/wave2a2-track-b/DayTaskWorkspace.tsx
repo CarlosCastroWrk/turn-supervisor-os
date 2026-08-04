@@ -1773,6 +1773,14 @@ function DayTaskHome({
                           type="button"
                         >
                           <span className="w2a2b-crewgroup__name">{label}</span>
+                          {(() => {
+                            const pinned = groupLines
+                              .filter((line) => hereNow.has(`${line.unitId}:${line.trade}`))
+                              .map((line) => line.unitNumber);
+                            return pinned.length > 0 ? (
+                              <span className="w2a2b-crewgroup__pinned">📍 {pinned.join(', ')}</span>
+                            ) : null;
+                          })()}
                           <span className="w2a2b-crewgroup__count">
                             {groupLines.length} unit{groupLines.length === 1 ? '' : 's'}
                           </span>
@@ -1832,7 +1840,9 @@ function DayTaskHome({
                     .filter(([, count]) => count > 0)
                     .map(([trade, count]) => `${count} ${trade}`)
                     .join(' · ');
-                  return `Done today · ${acceptedToday.length} Unit${acceptedToday.length === 1 ? '' : 's'}${tradeCounts ? ` · ${tradeCounts}` : ''}`;
+                  // Trade-grain: an approval is a paint OR a clean, not a whole
+                  // unit (a unit's "done" only when both are). Lead with the trade.
+                  return `Approved today · ${tradeCounts || `${acceptedToday.length} unit${acceptedToday.length === 1 ? '' : 's'}`}`;
                 })()}
               </h2>
             </span>

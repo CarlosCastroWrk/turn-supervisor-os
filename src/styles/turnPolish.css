@@ -1132,9 +1132,12 @@ select:focus-visible {
 }
 .lcc-dayhist-row {
   display: grid;
-  grid-template-columns: 58px 1fr;
+  grid-template-columns: 58px 1fr auto;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
   background: var(--turn-color-elevated);
   border: 1px solid var(--turn-color-divider);
   border-left: 4px solid var(--turn-color-divider);
@@ -1300,3 +1303,19 @@ select:focus-visible {
 }
 .track-c-rooms-editor__choices button:disabled { opacity: 0.4; }
 .track-c-rooms-editor small { color: var(--turn-color-secondary); font-size: 12px; }
+
+/* Unit page: open a callback after a pass/approval */
+.track-c-callback-link {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--turn-color-destructive, #b4232d) 40%, var(--turn-color-divider));
+  background: transparent;
+  color: var(--turn-color-destructive, #b4232d);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 44px;
+  margin-top: 6px;
+}
+
+.lcc-dayhist-row__chev { color: var(--turn-color-secondary); }

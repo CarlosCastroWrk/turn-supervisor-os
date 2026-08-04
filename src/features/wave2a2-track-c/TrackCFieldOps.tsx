@@ -327,6 +327,40 @@ export const TrackCFieldOps = ({
     commitState(result.value, `pds-approved-${trade}`);
   };
 
+  // Open a callback on work Los already passed OR the property already
+  // accepted — the crew has to come back and fix it. Opening a callback undoes
+  // the acceptance (property found a problem), which is exactly the field truth.
+  const openTradeCallback = (unitId: string, trade: TrackCTrade) => {
+    const targets = projectTrackCUnitWork(state, unitId)
+      .filter((work) => work.trade === trade
+        && work.release === 'released'
+        && (work.execution === 'crew-reported-complete' || work.inspection === 'los-passed'))
+      .map((work) => ({ section: work.section, trade: work.trade, unitId: work.unitId }));
+    if (targets.length === 0) {
+      setNotice('No completed work to call back on this trade yet.');
+      return;
+    }
+    let nextState = state;
+    for (const target of targets) {
+      const result = applyTrackCSectionAction(nextState, {
+        action: 'open-callback',
+        eventId: createId('track-c-callback'),
+        recordedAt: now(),
+        recordedBy: 'Los',
+        target,
+      });
+      if (!result.ok) {
+        setNotice(result.error.message);
+        return;
+      }
+      nextState = result.value;
+    }
+    setNotice(
+      `${trade === 'paint' ? 'Paint' : 'Clean'} callback opened — the crew fixes it, then it walks again.`,
+    );
+    commitState(nextState, 'trade-callback');
+  };
+
   const quickAssign = (
     unitId: string,
     trade: TrackCTrade,
@@ -541,6 +575,7 @@ export const TrackCFieldOps = ({
             unitPhotos={unitPhotos}
             onCommitUnitPhoto={onCommitUnitPhoto}
             onPdsApprove={pdsApprove}
+            onOpenCallback={openTradeCallback}
             onUnblockUnit={onUnblockUnit}
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}

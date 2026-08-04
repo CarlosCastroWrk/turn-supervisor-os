@@ -1187,3 +1187,21 @@ select:focus-visible {
 }
 .w2a2b-needseyes__row strong { font-size: 16px; font-variant-numeric: tabular-nums; }
 .w2a2b-needseyes__row span { font-size: 13px; color: var(--turn-color-secondary); }
+
+/* Home header: quick Text Joseph up top (no scrolling) */
+.w2a2b-joseph-quick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  border: 1px solid var(--turn-color-brand);
+  background: var(--turn-color-brand);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 15px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  min-height: 40px;
+  width: fit-content;
+}

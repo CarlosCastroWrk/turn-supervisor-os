@@ -810,8 +810,8 @@ function LaunchOperationalApp({
         if (!prior || batch.date < prior) releaseDate.set(key, batch.date);
       }
     }
-    const blocked: { unitId: string; unitNumber: string; label: string }[] = [];
-    const carryover: { unitId: string; unitNumber: string; label: string }[] = [];
+    const blocked: { unitId: string; unitNumber: string; trade: 'paint' | 'clean'; label: string }[] = [];
+    const carryover: { unitId: string; unitNumber: string; trade: 'paint' | 'clean'; label: string }[] = [];
     for (const unit of trackCState.units) {
       const work = projectTrackCUnitWork(trackCState, unit.id);
       for (const trade of ['paint', 'clean'] as const) {
@@ -822,7 +822,7 @@ function LaunchOperationalApp({
         if (released.some((item) => item.access !== 'clear')) {
           const reason = (released.find((item) => item.access !== 'clear')?.restrictionLabel ?? '')
             .replace(/^Blocked — /u, '') || 'on hold';
-          blocked.push({ label: `${tradeWord} blocked — ${reason}`, unitId: unit.id, unitNumber: unit.unitNumber });
+          blocked.push({ label: `${tradeWord} blocked — ${reason}`, trade, unitId: unit.id, unitNumber: unit.unitNumber });
           continue;
         }
         const firstReleased = releaseDate.get(`${unit.id}:${trade}`);
@@ -834,7 +834,7 @@ function LaunchOperationalApp({
           const [, m, d] = firstReleased.split('-').map(Number);
           const when = new Date(2000, (m ?? 1) - 1, d ?? 1)
             .toLocaleDateString([], { month: 'short', day: 'numeric' });
-          carryover.push({ label: `${tradeWord} released ${when} — still no crew`, unitId: unit.id, unitNumber: unit.unitNumber });
+          carryover.push({ label: `${tradeWord} released ${when} — still no crew`, trade, unitId: unit.id, unitNumber: unit.unitNumber });
         }
       }
     }
@@ -3269,8 +3269,9 @@ function LaunchOperationalApp({
           onAdvanceUnitTrade={advanceUnitTrade}
           glance={homeGlance}
           needsEyes={needsEyes}
-          onOpenNeedsEyesUnit={(unitId) => {
+          onOpenNeedsEyesUnit={(unitId, trade) => {
             unitDetailOriginRef.current = 'home';
+            unitDetailTradeRef.current = trade;
             navigate('unitDetail', unitId);
           }}
           onOpenCrew={(crewId) => {

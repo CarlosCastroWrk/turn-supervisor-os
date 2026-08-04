@@ -1228,8 +1228,8 @@ export function EndDayFlow({
 }
 
 export interface NeedsEyes {
-  blocked: readonly { unitId: string; unitNumber: string; label: string }[];
-  carryover: readonly { unitId: string; unitNumber: string; label: string }[];
+  blocked: readonly { unitId: string; unitNumber: string; trade: 'paint' | 'clean'; label: string }[];
+  carryover: readonly { unitId: string; unitNumber: string; trade: 'paint' | 'clean'; label: string }[];
 }
 
 export interface LiveBoardLine {
@@ -1287,7 +1287,7 @@ interface DayTaskHomeProps {
   onPeekUnit?: (unitId: string) => void;
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
-  onOpenNeedsEyesUnit?: (unitId: string) => void;
+  onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
 }
 
 function DayTaskHome({
@@ -1496,6 +1496,11 @@ function DayTaskHome({
             </p>
           </>
         ) : null}
+        {josephContact ? (
+          <a className="w2a2b-joseph-quick" href={`sms:${josephContact.phone}`}>
+            Text {josephContact.name}
+          </a>
+        ) : null}
       </header>
 
       {active ? null : (
@@ -1533,7 +1538,7 @@ function DayTaskHome({
             <button
               className="w2a2b-needseyes__row"
               key={`${item.unitId}:${item.label}`}
-              onClick={() => onOpenNeedsEyesUnit?.(item.unitId)}
+              onClick={() => onOpenNeedsEyesUnit?.(item.unitId, item.trade)}
               type="button"
             >
               <strong>{item.unitNumber}</strong>
@@ -1995,7 +2000,7 @@ export interface DayTaskWorkspaceProps {
   onPeekUnit?: (unitId: string) => void;
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
-  onOpenNeedsEyesUnit?: (unitId: string) => void;
+  onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;

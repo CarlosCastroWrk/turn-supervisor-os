@@ -3526,9 +3526,80 @@ function LaunchOperationalApp({
                   return `${name} — ${splitLabel(line.beds, line.commons)}`;
                 })
                 .join('   ·   ');
+              // Per-unit breakdown for the day, in the Home format: who did what,
+              // which rooms, the task, and how far it got — grouped Paint/Clean,
+              // property-approved included instead of vanishing.
+              const dayRowMap = new Map<string, {
+                unitId: string; unitNumber: string; trade: string;
+                crewIds: Set<string>; beds: Set<string>; commons: number;
+                rank: number;
+              }>();
+              for (const event of dayFieldEvents) {
+                if (!event.target.unitId || !event.target.trade) continue;
+                const rank = event.eventType === 'property-accepted' ? 4
+                  : (event.eventType === 'los-passed' || event.eventType === 'callback-resolved') ? 3
+                    : event.eventType === 'crew-reported-complete' ? 2
+                      : event.eventType === 'callback-opened' ? 1 : 0;
+                if (rank === 0 && event.eventType !== 'assignment-confirmed') continue;
+                const key = `${event.target.unitId}:${event.target.trade}`;
+                const row = dayRowMap.get(key) ?? {
+                  beds: new Set<string>(), commons: 0, crewIds: new Set<string>(),
+                  rank: 0, trade: event.target.trade, unitId: event.target.unitId,
+                  unitNumber: unitNumberById.get(event.target.unitId) ?? event.target.unitId,
+                };
+                if (event.crewId) row.crewIds.add(event.crewId);
+                if (rank >= 2) {
+                  if (event.target.section === 'common') row.commons += 0;
+                  else row.beds.add(event.target.section);
+                  if (event.target.section === 'common') row.commons = 1;
+                }
+                row.rank = Math.max(row.rank, rank);
+                dayRowMap.set(key, row);
+              }
+              const rankLabel = (rank: number) => rank === 4
+                ? 'Property approved'
+                : rank === 3 ? 'Passed my inspection'
+                  : rank === 2 ? 'Crew reported done' : 'Callback opened';
+              const dayGroup = (trade: 'paint' | 'clean') => {
+                const rows = [...dayRowMap.values()]
+                  .filter((row) => row.trade === trade && row.rank >= 1)
+                  .sort((left, right) =>
+                    right.rank - left.rank
+                    || left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+                if (rows.length === 0) return null;
+                return (
+                  <div className="lcc-dayhist-group" key={`${historySession.daySessionId}:${trade}`}>
+                    <h3>{trade === 'paint' ? 'PAINT' : 'CLEAN'} · {rows.length}</h3>
+                    {rows.map((row) => {
+                      const crew = [...row.crewIds]
+                        .map((id) => crewRecords.find((c) => c.id === id)?.name)
+                        .filter(Boolean).join(' + ') || 'unassigned';
+                      const task = trade === 'paint'
+                        ? trackCTradeWorkTypeLabel(trackCState, row.unitId, 'paint')
+                        : '';
+                      return (
+                        <div className={`lcc-dayhist-row is-rank${row.rank}`} key={`${row.unitId}:${row.trade}`}>
+                          <strong>{row.unitNumber}</strong>
+                          <div className="lcc-dayhist-row__body">
+                            <small>
+                              <b>{crew}</b>
+                              {row.rank >= 2 ? ` · ${splitLabel(row.beds.size, row.commons)}` : ''}
+                              {task ? ` · ${task}` : ''}
+                            </small>
+                            <span className="lcc-dayhist-row__status">{rankLabel(row.rank)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              };
               return (
+                <div key={historySession.daySessionId}>
+                {dayGroup('paint')}
+                {dayGroup('clean')}
                 <GroupedInsetSection
-                  key={historySession.daySessionId}
+                  key={`${historySession.daySessionId}:totals`}
                   label={`Day ${daySessions.length - index} · ${(() => {
                     const [y, m, d] = historySession.date.split('-').map(Number);
                     return new Date(y, (m ?? 1) - 1, d ?? 1)
@@ -3569,6 +3640,7 @@ function LaunchOperationalApp({
                     Save Day {daySessions.length - index} report (PDF)
                   </button>
                 </GroupedInsetSection>
+                </div>
               );
               })];
           })()}

@@ -1120,3 +1120,37 @@ select:focus-visible {
 
 /* Wall grid: hint that you can swipe floors */
 .track-c-wall__grid.is-rooms { touch-action: pan-y; }
+
+/* ---------- Day History: per-unit, Home-format ---------- */
+.lcc-dayhist-group { margin: 0 0 14px; }
+.lcc-dayhist-group > h3 {
+  margin: 0 2px 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--turn-color-secondary);
+}
+.lcc-dayhist-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  align-items: center;
+  gap: 10px;
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-left: 4px solid var(--turn-color-divider);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+.lcc-dayhist-row.is-rank4 { border-left-color: #237a45; }
+.lcc-dayhist-row.is-rank3 { border-left-color: #237a45; }
+.lcc-dayhist-row.is-rank2 { border-left-color: #0877d1; }
+.lcc-dayhist-row.is-rank1 { border-left-color: #b4232d; }
+.lcc-dayhist-row > strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.lcc-dayhist-row__body { display: grid; gap: 2px; min-width: 0; }
+.lcc-dayhist-row__body small { color: var(--turn-color-secondary); font-size: 13px; }
+.lcc-dayhist-row__body small b { color: var(--turn-color-primary); font-weight: 700; }
+.lcc-dayhist-row__status { font-size: 14px; font-weight: 700; color: var(--turn-color-primary); }
+.lcc-dayhist-row.is-rank4 .lcc-dayhist-row__status,
+.lcc-dayhist-row.is-rank3 .lcc-dayhist-row__status { color: #237a45; }
+.lcc-dayhist-row.is-rank1 .lcc-dayhist-row__status { color: #b4232d; }

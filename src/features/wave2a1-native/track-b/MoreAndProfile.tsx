@@ -38,6 +38,7 @@ const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   crews: <Users size={21} />,
   'my-notes': <NotebookPen size={21} />,
   'official-pds-forms': <FileText size={21} />,
+  'field-standard': <FileText size={21} />,
   portal: <Globe size={21} />,
   privacy: <ShieldCheck size={21} />,
   profile: <UserRound size={21} />,

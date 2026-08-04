@@ -4,6 +4,7 @@ export type TrackBToolDestination =
   | 'day-history'
   | 'my-notes'
   | 'official-pds-forms'
+  | 'field-standard'
   | 'portal'
   | 'privacy'
   | 'profile'
@@ -40,6 +41,11 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
         id: 'day-history',
         label: 'Day History',
         detail: 'Every day of this Turn — released, passed, accepted',
+      },
+      {
+        id: 'field-standard',
+        label: 'The Standard',
+        detail: 'Clean + paint pass bar, change-order + pay rules — one tap on a walk',
       },
       {
         id: 'reports-and-proof',

@@ -220,7 +220,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'storage' | null;
+type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -2108,6 +2108,10 @@ function LaunchOperationalApp({
       setMoreDetailPage('my-notes');
       return;
     }
+    if (destination === 'field-standard') {
+      setMoreDetailPage('standard');
+      return;
+    }
     if (
       destination === 'profile'
       || destination === 'privacy'
@@ -3695,6 +3699,56 @@ function LaunchOperationalApp({
               );
               })];
           })()}
+        </NativeDetailShell>
+      ) : moreDetailPage === 'standard' ? (
+        <NativeDetailShell
+          description="The bar, one tap away on a walk. Correct anything that drifts — this is your playbook, not mine."
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel="Field Standard"
+          title="The Standard"
+        >
+          {[
+            ['Clean pass (Paige’s bar)', [
+              'Shower heads: orange/white water stains FAIL; green oxidation is borderline.',
+              'Zero hair, anywhere. All four corners. Floors not sticky.',
+              'Stainless sinks wiped DRY — no water spots.',
+            ]],
+            ['Paint pass', [
+              'Full coverage, clean cut lines, no misses or holidays.',
+              'Walk with Joseph sets the bar — match it, then hold every unit to it.',
+            ]],
+            ['Change orders', [
+              'Wall hole bigger than a quarter = change order. Smaller = in scope.',
+              'Tubs = change order. Flag Tony immediately (Guillermo / resurfacers).',
+              'Resurface BEFORE cleaners, or it needs a re-clean.',
+              'Common-area paint: crew flags → you text Tony PICTURES → Tony decides. The thread is the proof.',
+            ]],
+            ['The X rule (Tony)', [
+              'Crew reports done + it looks done → X it, even with small callbacks (fix them on the spot).',
+              'Only skip the X if it’s flat-out not done.',
+            ]],
+            ['Pay', [
+              'Did the work = gets paid, checked or not. Unsure? Send Rocky to verify.',
+              'Re-clean through no fault of the crew = paid twice.',
+            ]],
+            ['Walking', [
+              'Batches of 5: assign 5, walk 5. Proven crews graduate to 10. Never walk 20 at once.',
+            ]],
+            ['Wall-board marks', [
+              '/ released · name = assigned · X = done · CC = approved · highlight = pay week.',
+            ]],
+            ['Staff units', [
+              'A unit marked Staff = you walk it alone, no crew. See work? Photo Joseph → he approves → then it’s released.',
+            ]],
+          ].map(([heading, lines]) => (
+            <GroupedInsetSection key={heading as string} label={heading as string}>
+              <div className="lcc-standard-card">
+                {(lines as string[]).map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </GroupedInsetSection>
+          ))}
         </NativeDetailShell>
       ) : moreDetailPage === 'storage' ? (
         <NativeDetailShell

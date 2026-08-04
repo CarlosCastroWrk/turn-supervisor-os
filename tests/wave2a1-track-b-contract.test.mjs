@@ -25,7 +25,7 @@ test('More preserves the approved grouped information architecture', () => {
     [
       {
         label: 'Work',
-        items: ['Crews', 'My Notes', 'Activity', 'Day History', 'Reports and Proof', 'Official PDS Forms', 'Property Portal'],
+        items: ['Crews', 'My Notes', 'Activity', 'Day History', 'The Standard', 'Reports and Proof', 'Official PDS Forms', 'Property Portal'],
       },
       {
         label: 'Project',

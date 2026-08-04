@@ -1205,3 +1205,21 @@ select:focus-visible {
   min-height: 40px;
   width: fit-content;
 }
+
+/* ---------- The Standard: field reference ---------- */
+.lcc-standard-card { padding: 4px 2px; display: grid; gap: 8px; }
+.lcc-standard-card p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: var(--turn-color-primary);
+  padding-left: 14px;
+  position: relative;
+}
+.lcc-standard-card p::before {
+  content: "•";
+  position: absolute;
+  left: 2px;
+  color: var(--turn-color-brand);
+  font-weight: 800;
+}

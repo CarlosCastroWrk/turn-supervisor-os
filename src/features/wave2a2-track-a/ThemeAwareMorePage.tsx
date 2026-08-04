@@ -17,6 +17,7 @@ import { CalendarDays,
   UserRound,
   Users,
   Activity,
+  ClipboardCheck,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
@@ -43,6 +44,7 @@ const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   crews: <Users aria-hidden="true" size={21} />,
   'my-notes': <NotebookPen aria-hidden="true" size={21} />,
   'official-pds-forms': <FileText aria-hidden="true" size={21} />,
+  'field-standard': <ClipboardCheck aria-hidden="true" size={21} />,
   portal: <Globe aria-hidden="true" size={21} />,
   privacy: <ShieldCheck aria-hidden="true" size={21} />,
   profile: <UserRound aria-hidden="true" size={21} />,

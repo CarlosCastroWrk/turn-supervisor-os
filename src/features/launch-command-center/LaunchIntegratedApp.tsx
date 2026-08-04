@@ -392,6 +392,10 @@ function LaunchOperationalApp({
   // Which trade the user was LOOKING AT when they tapped into a unit — from
   // Home's twin boards or the wall grid. Route-level so remounts can't lose it.
   const unitDetailTradeRef = useRef<'paint' | 'clean' | undefined>(undefined);
+  // Return to where Los was scrolled on Home (mid-crew-dropdown) after backing
+  // out of a unit, instead of snapping to the top.
+  const homeScrollRef = useRef(0);
+  const restoreHomeScrollRef = useRef(false);
   // Same rule for crews: opened from Home's "Crews right now" → Back returns
   // to Home, not the Crews tab.
   const crewOriginHomeRef = useRef(false);
@@ -1472,7 +1476,14 @@ function LaunchOperationalApp({
       window.history.pushState(null, '', nextHash);
     }
     setRoute(nextRoute);
-    window.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
+    if (restoreHomeScrollRef.current && nextRoute.view === 'dashboard') {
+      restoreHomeScrollRef.current = false;
+      const y = homeScrollRef.current;
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(() => window.scrollTo(0, y)));
+    } else {
+      window.scrollTo({ top: 0, behavior: motionSafeScrollBehavior() });
+    }
   }, [rememberRouteInTab]);
 
   const openFullPage = useCallback((view: 'search' | 'notifications') => {
@@ -3061,8 +3072,10 @@ function LaunchOperationalApp({
             if (unitDetailOriginRef.current) {
               const origin = unitDetailOriginRef.current;
               unitDetailOriginRef.current = undefined;
-              if (origin === 'home') navigate('dashboard');
-              else navigate('dashboard', undefined, { homeSummary: origin });
+              if (origin === 'home') {
+                restoreHomeScrollRef.current = true;
+                navigate('dashboard');
+              } else navigate('dashboard', undefined, { homeSummary: origin });
               return;
             }
             navigate('units');
@@ -3440,6 +3453,7 @@ function LaunchOperationalApp({
           onOpenUnitFromHome={(unitId, trade) => {
             unitDetailOriginRef.current = 'home';
             unitDetailTradeRef.current = trade;
+            homeScrollRef.current = window.scrollY;
             navigate('unitDetail', unitId);
           }}
           onExportBackup={async () => {

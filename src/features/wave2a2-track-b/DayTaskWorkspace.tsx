@@ -1858,38 +1858,32 @@ function DayTaskHome({
           </button>
           {doneExpanded ? (
           <div className="w2a2b-inset-list w2a2b-done-list" id="w2a2b-done-list">
-            {acceptedToday.map((unit) => {
-              const meta = acceptedWalkMeta?.[unit.unitId];
-              const body = (
-                <>
-                  <span className="w2a2b-done-list__unit">
-                    <strong>Unit {unit.unitNumber}</strong>
-                    {meta ? (
-                      <small>
-                        with {meta.contact}
-                        {meta.at ? ` · ${new Intl.DateTimeFormat(undefined, {
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        }).format(new Date(meta.at))}` : ''}
-                      </small>
-                    ) : null}
-                  </span>
-                  <span>{unit.trades.map((trade) => `${trade} ✓`).join('  ')}</span>
-                </>
-              );
-              return onOpenUnit ? (
-                <button
-                  data-track-b-critical-target="true"
-                  key={unit.unitId}
-                  onClick={() => onOpenUnit(unit.unitId)}
-                  type="button"
-                >
-                  {body}
-                </button>
-              ) : (
-                <div key={unit.unitId}>{body}</div>
-              );
-            })}
+            {acceptedToday.flatMap((unit) =>
+              unit.trades.map((trade) => {
+                const meta = acceptedWalkMeta?.[unit.unitId];
+                const tradeKey = trade.toLowerCase() === 'paint' ? 'paint' : 'clean';
+                const body = (
+                  <>
+                    <span className="w2a2b-done-list__unit">
+                      <strong>{unit.unitNumber} · {trade}</strong>
+                      <small>approved by {meta?.contact ?? 'the property'}</small>
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </>
+                );
+                return onOpenUnit ? (
+                  <button
+                    data-track-b-critical-target="true"
+                    key={`${unit.unitId}:${trade}`}
+                    onClick={() => onOpenUnit(unit.unitId, tradeKey)}
+                    type="button"
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <div key={`${unit.unitId}:${trade}`}>{body}</div>
+                );
+              }))}
           </div>
           ) : null}
         </section>

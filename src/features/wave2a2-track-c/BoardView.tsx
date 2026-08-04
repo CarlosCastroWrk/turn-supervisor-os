@@ -69,6 +69,7 @@ interface BoardViewProps {
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
   readonly onOpenCallback?: (unitId: string, trade: TrackCTrade) => void;
   readonly onTradePass?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onResolveCallback?: (unitId: string, trade: TrackCTrade) => void;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
   readonly onSetSectionWorkType?: (
@@ -680,6 +681,7 @@ const UnitDetail = ({
   onPdsApprove,
   onOpenCallback,
   onTradePass,
+  onResolveCallback,
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
@@ -705,6 +707,7 @@ const UnitDetail = ({
   onPdsApprove?: BoardViewProps['onPdsApprove'];
   onOpenCallback?: BoardViewProps['onOpenCallback'];
   onTradePass?: BoardViewProps['onTradePass'];
+  onResolveCallback?: BoardViewProps['onResolveCallback'];
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
   onRequestBlock?: BoardViewProps['onRequestBlock'];
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
@@ -1131,6 +1134,17 @@ const UnitDetail = ({
                 Crew reports {tradeLabel(trade)} complete
               </button>
             ) : null}
+            {onResolveCallback && tradeWork.some((item) =>
+              item.release === 'released' && item.callbackOpen) ? (
+                <button
+                  className="track-c-trade-complete track-c-trade-lospass"
+                  data-track-c-critical-target="true"
+                  onClick={() => onResolveCallback(unitId, trade)}
+                  type="button"
+                >
+                  Callback fixed — {tradeLabel(trade)} passes, back to walk
+                </button>
+              ) : null}
             {onTradePass && tradeWork.some((item) =>
               item.release === 'released'
               && item.access === 'clear'
@@ -1486,6 +1500,7 @@ export const BoardView = ({
   onPdsApprove,
   onOpenCallback,
   onTradePass,
+  onResolveCallback,
   onUnblockUnit,
   onRequestBlock,
   onSetSectionRelease,
@@ -1603,6 +1618,7 @@ export const BoardView = ({
         onPdsApprove={onPdsApprove}
         onOpenCallback={onOpenCallback}
         onTradePass={onTradePass}
+        onResolveCallback={onResolveCallback}
         onUnblockUnit={onUnblockUnit}
         onRequestBlock={onRequestBlock}
         onSetSectionRelease={onSetSectionRelease}

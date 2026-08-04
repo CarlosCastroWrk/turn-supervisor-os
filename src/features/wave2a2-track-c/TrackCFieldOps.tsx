@@ -363,6 +363,40 @@ export const TrackCFieldOps = ({
     commitState(nextState, 'trade-callback');
   };
 
+  // Callback fixed and it looks good — clear the whole trade's open callback in
+  // one tap (correction ready -> reinspection pass), landing it back at Los
+  // passed / ready to walk. Needed for clean (no per-room rows), handy for paint.
+  const resolveTradeCallback = (unitId: string, trade: TrackCTrade) => {
+    const targets = projectTrackCUnitWork(state, unitId)
+      .filter((work) => work.trade === trade && work.callbackOpen)
+      .map((work) => ({ section: work.section, trade: work.trade, unitId: work.unitId }));
+    if (targets.length === 0) {
+      setNotice('No open callback on this trade.');
+      return;
+    }
+    let nextState = state;
+    for (const target of targets) {
+      for (const action of ['record-correction-ready', 'record-reinspection-pass'] as const) {
+        const result = applyTrackCSectionAction(nextState, {
+          action,
+          eventId: createId('track-c-callback-resolve'),
+          recordedAt: now(),
+          recordedBy: 'Los',
+          target,
+        });
+        if (!result.ok) {
+          setNotice(result.error.message);
+          return;
+        }
+        nextState = result.value;
+      }
+    }
+    setNotice(
+      `${trade === 'paint' ? 'Paint' : 'Clean'} callback cleared — passed reinspection, ready to walk.`,
+    );
+    commitState(nextState, 'trade-callback-resolved');
+  };
+
   // Record Los's inspection pass on a whole trade from the unit page — needed
   // for clean (whole-unit, no per-room rows), handy for paint. Only sections
   // the crew has reported complete move to passed.
@@ -613,6 +647,7 @@ export const TrackCFieldOps = ({
             onPdsApprove={pdsApprove}
             onOpenCallback={openTradeCallback}
             onTradePass={recordTradeLosPass}
+            onResolveCallback={resolveTradeCallback}
             onUnblockUnit={onUnblockUnit}
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}

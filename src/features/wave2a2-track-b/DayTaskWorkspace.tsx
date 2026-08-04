@@ -1351,6 +1351,15 @@ function DayTaskHome({
     const timer = window.setTimeout(() => setArmedStage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [armedStage]);
+  // Collapse the board by crew so 12 units read as a few crew headers you open
+  // as needed — tap a name to drop it down, tap again to fold it up.
+  const [collapsedCrews, setCollapsedCrews] = useState<ReadonlySet<string>>(new Set());
+  const toggleCrew = (key: string) => setCollapsedCrews((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   // Done-today can grow to dozens of units; keep it collapsed to a tappable
   // summary so it never stacks up and buries the rest of Home.
   const [doneExpanded, setDoneExpanded] = useState(false);
@@ -1581,7 +1590,8 @@ function DayTaskHome({
                 </div>
                 {lines.length === 0 ? (
                   <p className="w2a2b-board__empty">Nothing in play — tap + Joseph when he releases.</p>
-                ) : lines.map((line) => {
+                ) : (() => {
+                  const renderCard = (line: LiveBoardLine) => {
                   const stageLabel = line.stage === 'callback'
                     ? 'Callback open'
                     : line.stage === 'passed'
@@ -1639,7 +1649,38 @@ function DayTaskHome({
                       </div>
                     </div>
                   );
-                })}
+                  };
+                  const groups = new Map<string, LiveBoardLine[]>();
+                  for (const line of lines) {
+                    const crew = line.crewNames.length > 0
+                      ? line.crewNames.join(' + ')
+                      : 'Needs crew';
+                    const bucket = groups.get(crew) ?? [];
+                    bucket.push(line);
+                    groups.set(crew, bucket);
+                  }
+                  return [...groups.entries()].map(([crew, crewLines]) => {
+                    const gkey = `${trade}:${crew}`;
+                    const collapsed = collapsedCrews.has(gkey);
+                    return (
+                      <div className="w2a2b-crewgroup" key={gkey}>
+                        <button
+                          aria-expanded={!collapsed}
+                          className="w2a2b-crewgroup__head"
+                          onClick={() => toggleCrew(gkey)}
+                          type="button"
+                        >
+                          <span className="w2a2b-crewgroup__name">{crew}</span>
+                          <span className="w2a2b-crewgroup__count">
+                            {crewLines.length} unit{crewLines.length === 1 ? '' : 's'}
+                          </span>
+                          <i aria-hidden="true">{collapsed ? '▸' : '▾'}</i>
+                        </button>
+                        {collapsed ? null : crewLines.map(renderCard)}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             );
           })}

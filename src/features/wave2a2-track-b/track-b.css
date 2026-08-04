@@ -1353,3 +1353,26 @@ button.w2a2b-done-toggle {
 }
 
 .w2a2b-live-card__stage.is-armed { background: #fdf3e4; color: #9b5b00; font-weight: 800; }
+
+/* Home board: collapsible crew groups */
+.w2a2b-crewgroup { margin-bottom: 4px; }
+.w2a2b-crewgroup__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 8px 4px 4px;
+  text-align: left;
+}
+.w2a2b-crewgroup__name { font-size: 15px; font-weight: 800; color: #111318; flex: 1; }
+.w2a2b-crewgroup__count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #66707c;
+  background: #eef0f3;
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+.w2a2b-crewgroup__head i { color: #66707c; font-style: normal; font-size: 13px; }

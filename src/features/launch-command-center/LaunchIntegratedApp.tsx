@@ -825,7 +825,10 @@ function LaunchOperationalApp({
         item.access === 'clear' && item.property !== 'property-accepted');
       if (inPlay.length === 0) continue;
       released += 1;
-      if (inPlay.some((item) => item.inspection === 'los-passed')) readyToWalk += 1;
+      // A unit with ANY room in callback is not ready to walk — it belongs in
+      // Callbacks until that room is fixed, even if its other rooms passed.
+      if (inPlay.some((item) => item.inspection === 'los-passed')
+        && !inPlay.some((item) => item.callbackOpen)) readyToWalk += 1;
       if (inPlay.every((item) => item.activeCrewIds.length === 0)) unassigned += 1;
       // Working = a crew is IN there right now. Crew-done-awaiting-Los and
       // passed-awaiting-walk are their own queues, not "working" — this must

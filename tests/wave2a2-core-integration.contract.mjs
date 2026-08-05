@@ -213,6 +213,41 @@ test('Day Session adapter persists exact boundaries without duplicate local even
   );
 });
 
+test('field truth still persists after the day session is CLOSED (evening inspection)', () => {
+  // Los walks and inspects units in the evening, after End Day has closed the
+  // session. Recording a pass / callback resolution / acceptance then must still
+  // persist — it used to throw ("requires one active Day Session") and the write
+  // silently reverted, so a cleared callback popped back red. It now falls back
+  // to the most recent day session.
+  const initial = cloneSeed();
+  const activeData = startAcceptedDay({ ...initial, dailyReleaseBatches: [createRelease(initial)] });
+  const closed = {
+    ...activeData,
+    daySessions: activeData.daySessions.map((session) => ({ ...session, status: 'closed' })),
+  };
+
+  const trackC = projectTrackCState(closed);
+  const proposal = createTrackCBulkAssignmentProposal(trackC, {
+    createdAt: '2026-08-01T20:00:00.000Z', createdBy: 'Los', crewId: 'crew_painter',
+    proposalId: 'evening-proposal', sectionMode: 'specific', sections: ['common'],
+    trade: 'paint', unitIds: ['unit_101'],
+  });
+  const result = confirmTrackCBulkAssignmentProposal(trackC, proposal, {
+    confirmed: true, eventIdPrefix: 'evening-assign',
+    recordedAt: '2026-08-01T20:01:00.000Z', recordedBy: 'Los',
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+
+  // Must NOT throw, and the new event must actually be written.
+  const persisted = applyTrackCStateChange(closed, result.value.state);
+  assert.equal(
+    persisted.fieldEvents.filter((event) => event.eventType === 'assignment-confirmed').length,
+    1,
+    'the evening write persisted despite the closed session',
+  );
+});
+
 test('Track C adapter keeps release, assignment, crew report, inspection, and paper boundaries separate', () => {
   const initial = cloneSeed();
   const withRelease = {

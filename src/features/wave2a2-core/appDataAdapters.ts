@@ -1204,21 +1204,31 @@ export function applyTrackCStateChange(
   nextState: TrackCState,
 ): AppData {
   const { activeSession, projectBatches: batches } = selectedReleaseBatches(data);
-  if (!activeSession) {
-    throw new Error('Field Operations requires one active personal Day Session.');
+  // Field truth gets recorded after hours too — Los walks and inspects units in
+  // the evening, once the workday's Day Session is already closed. Requiring an
+  // ACTIVE session here silently threw away those writes (a passed unit, a
+  // cleared callback, a property acceptance) — they'd flash done, then revert on
+  // the next reprojection. Fall back to the most recent Day Session so the event
+  // still attaches to this project and every projection sees it. Only a project
+  // that has never started a single day has nowhere to record.
+  const session = activeSession ?? [...data.daySessions]
+    .filter((candidate) => candidate.projectId === data.activeProjectId)
+    .sort((left, right) => (left.updatedAt < right.updatedAt ? 1 : -1))[0];
+  if (!session) {
+    throw new Error('Field Operations requires at least one personal Day Session.');
   }
   const currentEventIds = new Set(data.fieldEvents.map((event) => event.id));
   const newEvents = nextState.events
     .filter((event) => event.confirmation === 'confirmed' && !currentEventIds.has(event.id))
     .map((event) =>
-      toFoundationTrackCEvent(data.activeProjectId, activeSession.id, event));
+      toFoundationTrackCEvent(data.activeProjectId, session.id, event));
   const nextWalks = [
     ...nextState.completedWalks,
     ...(nextState.activeWalk ? [nextState.activeWalk] : []),
   ].reduce(
     (records, walk) => upsertById(
       records,
-      persistWalk(data, walk, activeSession.id, batches),
+      persistWalk(data, walk, session.id, batches),
     ),
     [...data.walkSessions] as AppWalkSession[],
   );

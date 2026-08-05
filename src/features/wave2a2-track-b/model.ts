@@ -43,7 +43,7 @@ export const END_DAY_SUMMARY_LABELS: Readonly<Record<EndDaySummaryCountKey, stri
   inspected: 'Inspected · section-trades',
   notePhotoEvents: 'Notes/photos · events',
   propertyAccepted: 'Property accepted · section-trades',
-  readyToWalk: 'Ready to walk · section-trades',
+  readyToWalk: 'Ready to walk · whole units',
   releasedToday: 'Released today · section-trades',
   waiting: 'Waiting / Blocked · section-trades',
   working: 'Working · section-trades',
@@ -62,7 +62,7 @@ const queueMetadata: Record<TodayTaskQueueId, Pick<TodayTaskQueue, 'emptyMessage
     label: 'Needs Inspection',
   },
   'ready-to-walk': {
-    emptyMessage: 'No released sections are ready for a property walk.',
+    emptyMessage: 'No units are ready for a property walk yet.',
     label: 'Ready to walk',
   },
   waiting: { emptyMessage: 'Nothing is waiting or blocked.', label: 'Waiting / Blocked' },

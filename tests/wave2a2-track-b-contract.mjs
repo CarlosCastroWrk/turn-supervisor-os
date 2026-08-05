@@ -347,7 +347,7 @@ test('Home queue filters return only exact released section records', () => {
   );
   const emptyReady = selectTodayTaskQueue(untouched, 'ready-to-walk');
   assert.equal(emptyReady.records.length, 0);
-  assert.equal(emptyReady.emptyMessage, 'No released sections are ready for a property walk.');
+  assert.equal(emptyReady.emptyMessage, 'No units are ready for a property walk yet.');
 });
 
 test('a callback in ONE room pulls that whole unit+trade out of Ready to Walk (into Callbacks)', () => {

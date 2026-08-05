@@ -103,7 +103,9 @@ const executionLabel = (work: TrackCWorkProjection) => {
   if (work.property === 'property-accepted') {
     return work.personalPdsMirror ? 'Accepted · mirror recorded' : 'Accepted';
   }
-  if (work.inspection === 'los-passed') return 'Los passed · property walk pending';
+  // A room is just "passed" — walking happens at the UNIT level once every room
+  // is done, so a single room never reads as "needs to be walked".
+  if (work.inspection === 'los-passed') return 'Los passed';
   if (work.inspection === 'needs-los-inspection') return 'Needs Los inspection';
   if (work.execution === 'crew-reported-complete') return 'Crew reported complete';
   if (work.execution === 'working') return 'Working';
@@ -164,7 +166,7 @@ const layerCopy = (state: TrackCState, work: TrackCWorkProjection) => {
     ? work.personalPdsMirror
       ? 'Accepted · noted for paper'
       : 'Accepted'
-    : 'Not walked yet';
+    : 'Pending property';
   return [
     ['Crew', crew],
     ['Crew says', crewSays],

@@ -561,7 +561,7 @@ try {
     await runSectionAction(
       section,
       'Record Los pass',
-      'Los passed · property walk pending',
+      'Los passed',
     );
   }
   await runSectionAction('A', 'Open callback', 'Callback open');
@@ -574,7 +574,7 @@ try {
   await runSectionAction(
     'A',
     'Pass reinspection',
-    'Los passed · property walk pending',
+    'Los passed',
   );
   await paintPanel.getByText('4/4 Los passed', { exact: true }).waitFor();
   await cleanPanel.getByText('4/4 working', { exact: true }).waitFor();

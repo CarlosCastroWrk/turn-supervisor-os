@@ -96,6 +96,123 @@ const confirmInput = (prefix = 'confirm-test') => ({
   confirmed: true,
 });
 
+test('a callback closes even when the crew was cleared or two crews touched the section', () => {
+  // Field truth: Los opens a callback, the crew fixes it, but by the time he
+  // taps "Callback fixed" the crew may have been cleared or swapped, or two
+  // crews may have both touched the room. Closing the callback is HIS
+  // re-inspection record and must not be trapped by crew-assignment purity.
+  const F = '2026-08-04T12:00:00.000Z';
+  const rawEvent = (eventType, workTarget, crewId, index) => ({
+    id: `cb-close-${workTarget.section}-${eventType}-${index}`,
+    eventType,
+    confirmation: 'confirmed',
+    target: workTarget,
+    crewId,
+    recordedAt: F,
+    recordedBy: 'Los',
+    sourceType: 'personal-confirmation',
+    sourceLabel: 'Synthetic callback-close scenario',
+    summary: '',
+    personalRecordOnly: true,
+    officialPaperChanged: false,
+    payrollChanged: false,
+  });
+
+  const closeCallback = (state, workTarget) => {
+    let next = state;
+    for (let guard = 0; guard < 3; guard += 1) {
+      const projected = projectTrackCWork(next, workTarget);
+      if (!projected || !projected.callbackOpen) break;
+      const action =
+        projected.inspection === 'reinspection-pending'
+          ? 'record-reinspection-pass'
+          : 'record-correction-ready';
+      const result = applyTrackCSectionAction(next, {
+        action,
+        eventId: `resolve-${workTarget.section}-${guard}`,
+        recordedAt: F,
+        recordedBy: 'Los',
+        target: workTarget,
+      });
+      assert.equal(result.ok, true, `close step ${action} must succeed`);
+      next = result.value;
+    }
+    return next;
+  };
+
+  // Scenario 1 — crew CLEARED after the callback was opened (0 active crews).
+  {
+    const cleared = target('707', 'clean', 'A');
+    let state = createSyntheticTrackCState();
+    state = {
+      ...state,
+      events: [
+        ...state.events,
+        rawEvent('assignment-confirmed', cleared, 'crew-x', 0),
+        rawEvent('work-started', cleared, 'crew-x', 1),
+        rawEvent('crew-reported-complete', cleared, 'crew-x', 2),
+        rawEvent('los-passed', cleared, 'crew-x', 3),
+        rawEvent('callback-opened', cleared, 'crew-x', 4),
+        rawEvent('assignment-cleared', cleared, 'crew-x', 5),
+      ],
+    };
+    assert.equal(projectTrackCWork(state, cleared).callbackOpen, true);
+    assert.equal(projectTrackCWork(state, cleared).activeCrewIds.length, 0);
+    const resolved = projectTrackCWork(closeCallback(state, cleared), cleared);
+    assert.equal(resolved.callbackOpen, false, 'callback must clear with no crew assigned');
+    assert.equal(resolved.inspection, 'los-passed', 'clears back to ready to walk');
+  }
+
+  // Scenario 2 — TWO crews touched the section (assignment conflict).
+  {
+    const conflicted = target('707', 'clean', 'B');
+    let state = createSyntheticTrackCState();
+    state = {
+      ...state,
+      events: [
+        ...state.events,
+        rawEvent('assignment-confirmed', conflicted, 'crew-x', 0),
+        rawEvent('assignment-confirmed', conflicted, 'crew-y', 1),
+        rawEvent('work-started', conflicted, 'crew-x', 2),
+        rawEvent('crew-reported-complete', conflicted, 'crew-x', 3),
+        rawEvent('los-passed', conflicted, 'crew-x', 4),
+        rawEvent('callback-opened', conflicted, 'crew-x', 5),
+      ],
+    };
+    assert.equal(projectTrackCWork(state, conflicted).callbackOpen, true);
+    assert.equal(projectTrackCWork(state, conflicted).activeCrewIds.length, 2);
+    const resolved = projectTrackCWork(closeCallback(state, conflicted), conflicted);
+    assert.equal(resolved.callbackOpen, false, 'callback must clear with a crew conflict');
+    assert.equal(resolved.inspection, 'los-passed', 'clears back to ready to walk');
+  }
+
+  // Guard rail: opening a callback still needs an intact single crew — only the
+  // CLOSE actions are exempt, so fresh work can't skip assignment.
+  {
+    const t = target('707', 'clean', 'common');
+    let state = createSyntheticTrackCState();
+    state = {
+      ...state,
+      events: [
+        ...state.events,
+        rawEvent('assignment-confirmed', t, 'crew-x', 0),
+        rawEvent('assignment-confirmed', t, 'crew-y', 1),
+        rawEvent('work-started', t, 'crew-x', 2),
+        rawEvent('crew-reported-complete', t, 'crew-x', 3),
+        rawEvent('los-passed', t, 'crew-x', 4),
+      ],
+    };
+    const open = applyTrackCSectionAction(state, {
+      action: 'open-callback',
+      eventId: 'open-should-block',
+      recordedAt: F,
+      recordedBy: 'Los',
+      target: t,
+    });
+    assert.equal(open.ok, false, 'opening a callback still requires one confirmed crew');
+  }
+});
+
 test('Track C preserves every field-truth layer and has no whole-Unit completion state', () => {
   const state = createSyntheticTrackCState();
   const work = projectTrackCWork(state, target('301', 'paint', 'B'));

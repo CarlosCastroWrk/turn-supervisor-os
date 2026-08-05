@@ -88,10 +88,22 @@ const accessBlocker = (
   return undefined;
 };
 
+// Closing out a callback Los already opened — the crew reported the correction
+// ready, then Los re-inspected and passed it. These record HIS inspection of
+// work whose callback was already validly opened; the crew may have been
+// cleared or swapped since, the source label may have drifted, or access may be
+// blocked now. None of that should trap an open callback forever. The inspection
+// state machine (callback-open -> reinspection-pending -> los-passed) is the
+// real gate. Same spirit as record-crew-complete ignoring current access.
+const isCallbackCloseAction = (action: TrackCSectionAction): boolean =>
+  action === 'record-correction-ready' || action === 'record-reinspection-pass';
+
 const transitionBlocker = (
   projection: TrackCWorkProjection,
   action: TrackCSectionAction,
 ): string | undefined => {
+  if (isCallbackCloseAction(action)) return undefined;
+
   const sourceBlocker = sourceOrAssignmentBlocker(projection);
   if (sourceBlocker) return sourceBlocker;
 
@@ -128,7 +140,11 @@ export const applyTrackCSectionAction = (
 
   const blocker = transitionBlocker(projection, request.action);
   if (blocker) return error('blocked', blocker);
-  if (projection.activeCrewIds.length !== 1) {
+  // Closing a callback is Los's inspection record, not fresh crew work, so it
+  // must not require an intact single-crew assignment — the crew that has to fix
+  // it may have been cleared or moved. Every other action still needs exactly
+  // one confirmed responsible crew before it can touch the work.
+  if (!isCallbackCloseAction(request.action) && projection.activeCrewIds.length !== 1) {
     return error(
       'blocked',
       'Exactly one confirmed responsible crew is required before work actions.',

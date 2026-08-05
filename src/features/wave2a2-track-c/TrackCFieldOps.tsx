@@ -18,6 +18,7 @@ import { AssignmentView } from './AssignmentView';
 import { BoardView } from './BoardView';
 import { CrewView } from './CrewView';
 import type {
+  TrackCSection,
   TrackCState,
   TrackCTrade,
   TrackCWorkTarget,
@@ -327,6 +328,35 @@ export const TrackCFieldOps = ({
       `${trade === 'paint' ? 'Paint' : 'Clean'} PDS approved for this unit — it counts as walked and accepted.`,
     );
     commitState(result.value, `pds-approved-${trade}`);
+  };
+
+  // Open a callback on ONE room — the room that failed Los's walk. Only that
+  // room goes back into callback (and the unit drops out of ready-to-walk),
+  // so Los knows exactly which room to send the crew back to.
+  const openSectionCallback = (unitId: string, trade: TrackCTrade, section: TrackCSection) => {
+    const target = { unitId, trade, section };
+    const work = projectTrackCWork(state, target);
+    if (!work || work.release !== 'released'
+      || !(work.execution === 'crew-reported-complete' || work.inspection === 'los-passed'
+        || work.property === 'property-accepted')) {
+      setNotice('That room has no completed work to call back yet.');
+      return;
+    }
+    const result = applyTrackCSectionAction(state, {
+      action: 'open-callback',
+      eventId: createId('track-c-callback'),
+      recordedAt: now(),
+      recordedBy: 'Los',
+      target,
+    });
+    if (!result.ok) {
+      setNotice(result.error.message);
+      return;
+    }
+    setNotice(
+      `Callback on ${section === 'common' ? 'Common' : section} — the crew fixes that room, then it walks again.`,
+    );
+    commitState(result.value, 'section-callback');
   };
 
   // Open a callback on work Los already passed OR the property already
@@ -664,6 +694,7 @@ export const TrackCFieldOps = ({
             onCommitUnitPhoto={onCommitUnitPhoto}
             onPdsApprove={pdsApprove}
             onOpenCallback={openTradeCallback}
+            onOpenSectionCallback={openSectionCallback}
             onTradePass={recordTradeLosPass}
             onResolveCallback={resolveTradeCallback}
             onUnblockUnit={onUnblockUnit}

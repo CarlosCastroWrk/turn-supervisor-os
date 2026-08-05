@@ -68,6 +68,7 @@ interface BoardViewProps {
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
   readonly onOpenCallback?: (unitId: string, trade: TrackCTrade) => void;
+  readonly onOpenSectionCallback?: (unitId: string, trade: TrackCTrade, section: TrackCSection) => void;
   readonly onTradePass?: (unitId: string, trade: TrackCTrade) => void;
   readonly onResolveCallback?: (unitId: string, trade: TrackCTrade) => void;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
@@ -680,6 +681,7 @@ const UnitDetail = ({
   focusTrade,
   onPdsApprove,
   onOpenCallback,
+  onOpenSectionCallback,
   onTradePass,
   onResolveCallback,
   onUnblockUnit,
@@ -706,6 +708,7 @@ const UnitDetail = ({
   focusTrade?: TrackCTrade;
   onPdsApprove?: BoardViewProps['onPdsApprove'];
   onOpenCallback?: BoardViewProps['onOpenCallback'];
+  onOpenSectionCallback?: BoardViewProps['onOpenSectionCallback'];
   onTradePass?: BoardViewProps['onTradePass'];
   onResolveCallback?: BoardViewProps['onResolveCallback'];
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
@@ -1162,6 +1165,18 @@ const UnitDetail = ({
                 Crew reports {tradeLabel(trade)} complete
               </button>
             ) : null}
+            {anyCallbackOpen ? (
+              <p className="track-c-callback-rooms">
+                ⚠ Callback — go fix{' '}
+                <strong>
+                  {tradeWork
+                    .filter((item) => item.release === 'released' && item.callbackOpen)
+                    .map((item) => trackCSectionLabel(item.section))
+                    .join(', ')}
+                </strong>
+                {' '}in {tradeLabel(trade)}.
+              </p>
+            ) : null}
             {onResolveCallback && tradeWork.some((item) =>
               item.release === 'released' && item.callbackOpen) ? (
                 <button
@@ -1208,10 +1223,40 @@ const UnitDetail = ({
                     : `PDS approved — walked ${tradeLabel(trade)} with the property`}
                 </button>
               ) : null}
-            {onOpenCallback && !anyCallbackOpen && tradeWork.some((item) =>
-              item.release === 'released'
-              && !item.callbackOpen
-              && (item.inspection === 'los-passed' || item.property === 'property-accepted')) ? (
+            {(() => {
+              // Pick the ROOM that failed the walk — only that room goes back to
+              // callback, so Los knows exactly where to send the crew (no "all of
+              // them" and no guessing which room). Falls back to a whole-trade
+              // button only if per-room isn't wired.
+              if (anyCallbackOpen) return null;
+              const callbackable = tradeWork.filter((item) =>
+                item.release === 'released'
+                && !item.callbackOpen
+                && (item.inspection === 'los-passed' || item.property === 'property-accepted'));
+              if (callbackable.length === 0) return null;
+              if (onOpenSectionCallback) {
+                return (
+                  <div className="track-c-callback-pick">
+                    <span className="track-c-callback-pick__label">
+                      Callback a room that needs fixing:
+                    </span>
+                    <div className="track-c-callback-pick__chips">
+                      {callbackable.map((item) => (
+                        <button
+                          className="track-c-callback-pick__chip"
+                          data-track-c-critical-target="true"
+                          key={trackCWorkKey(item)}
+                          onClick={() => onOpenSectionCallback(unitId, trade, item.section)}
+                          type="button"
+                        >
+                          {trackCSectionLabel(item.section)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+              return onOpenCallback ? (
                 <button
                   className="track-c-callback-link"
                   onClick={() => onOpenCallback(unitId, trade)}
@@ -1219,7 +1264,8 @@ const UnitDetail = ({
                 >
                   Open a callback — {tradeLabel(trade)} needs to be fixed
                 </button>
-              ) : null}
+              ) : null;
+            })()}
             {trade === 'clean' ? (() => {
               const releasedRooms = tradeWork.filter((item) => item.release === 'released');
               const addableRooms = tradeWork.filter((item) => item.release !== 'released');
@@ -1636,6 +1682,7 @@ export const BoardView = ({
   onCommitUnitPhoto,
   onPdsApprove,
   onOpenCallback,
+  onOpenSectionCallback,
   onTradePass,
   onResolveCallback,
   onUnblockUnit,
@@ -1754,6 +1801,7 @@ export const BoardView = ({
         focusTrade={focusTrade ?? focusTradeHint ?? boardTrade}
         onPdsApprove={onPdsApprove}
         onOpenCallback={onOpenCallback}
+        onOpenSectionCallback={onOpenSectionCallback}
         onTradePass={onTradePass}
         onResolveCallback={onResolveCallback}
         onUnblockUnit={onUnblockUnit}

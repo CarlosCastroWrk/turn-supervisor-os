@@ -689,6 +689,7 @@ function LaunchOperationalApp({
       done: number;
       total: number;
       rooms: string[];
+      callbackRooms: string[];
       passedAgo?: string;
       noCrewOnRoster?: boolean;
       workLabel?: string;
@@ -743,11 +744,19 @@ function LaunchOperationalApp({
           .sort((left, right) =>
             left === 'common' ? -1 : right === 'common' ? 1 : left.localeCompare(right))
           .map((section) => (section === 'common' ? 'Com' : section));
+        // The specific rooms in callback — so Home names the room to go fix.
+        const callbackRooms = work
+          .filter((item) => item.callbackOpen)
+          .map((item) => item.section)
+          .sort((left, right) =>
+            left === 'common' ? -1 : right === 'common' ? 1 : left.localeCompare(right))
+          .map((section) => (section === 'common' ? 'Com' : section));
         lines.push({
           crewNames,
           workLabel: trackCTradeWorkTypeLabel(trackCState, unit.id, trade),
           done: donePlus,
           rooms,
+          callbackRooms,
           stage,
           total: work.length,
           trade,

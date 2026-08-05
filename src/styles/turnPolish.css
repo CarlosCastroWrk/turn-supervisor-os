@@ -643,6 +643,41 @@ select:focus-visible {
   font-weight: 600;
   color: var(--turn-color-secondary);
 }
+.track-c-callback-rooms {
+  margin: 6px 0 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--turn-color-destructive-soft, #fdecec);
+  color: var(--turn-color-destructive, #b4232d);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.track-c-callback-rooms strong { font-weight: 800; }
+.track-c-callback-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.track-c-callback-pick__label {
+  font-size: 12px;
+  color: var(--turn-color-secondary);
+}
+.track-c-callback-pick__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.track-c-callback-pick__chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--turn-color-destructive, #b4232d);
+  background: transparent;
+  color: var(--turn-color-destructive, #b4232d);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
 .lcc-host-alert { position: relative; }
 .lcc-host-alert__dismiss {
   position: absolute;

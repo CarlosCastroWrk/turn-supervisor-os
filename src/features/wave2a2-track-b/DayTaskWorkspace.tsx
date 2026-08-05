@@ -1242,6 +1242,7 @@ export interface LiveBoardLine {
   done: number;
   total: number;
   rooms?: string[];
+  callbackRooms?: string[];
   passedAgo?: string;
   noCrewOnRoster?: boolean;
 }
@@ -1683,7 +1684,9 @@ function DayTaskHome({
                 ) : (() => {
                   const renderCard = (line: LiveBoardLine) => {
                   const stageLabel = line.stage === 'callback'
-                    ? 'Callback open'
+                    ? (line.callbackRooms && line.callbackRooms.length > 0
+                      ? `Callback — fix ${line.callbackRooms.join(', ')}`
+                      : 'Callback open')
                     : line.stage === 'passed'
                       ? `Passed${line.passedAgo ? ` ${line.passedAgo}` : ''} — awaiting walk`
                       : line.stage === 'crew-done'

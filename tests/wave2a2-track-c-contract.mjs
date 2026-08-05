@@ -1262,3 +1262,35 @@ test('payroll breaks paint work down by type (cut-in/touch-up/full) per day and 
   assert.equal(summed.touchUp, 1);
   assert.equal(summed.full, 1);
 });
+
+test('a callback on ONE room only calls back that room and pulls the unit from ready-to-walk', () => {
+  // Two clean rooms both los-passed & pending walk. Callback just room A.
+  let state = createSyntheticTrackCState();
+  const mk = (section, type, at, i) => ({
+    id: `rm-${section}-${type}-${i}`, eventType: type,
+    target: { unitId: 'unit-707', trade: 'clean', section },
+    crewId: 'crew-z', confirmation: 'confirmed', recordedAt: at, recordedBy: 'Los',
+    sourceType: 'personal-confirmation', sourceLabel: 't', summary: '',
+    personalRecordOnly: true, officialPaperChanged: false, payrollChanged: false,
+  });
+  const evs = [];
+  let t = Date.parse('2026-08-05T10:00:00.000Z');
+  for (const section of ['A', 'B']) {
+    for (const type of ['assignment-confirmed', 'work-started', 'crew-reported-complete', 'los-passed']) {
+      evs.push(mk(section, type, new Date(t).toISOString(), t)); t += 1000;
+    }
+  }
+  state = { ...state, events: [...state.events, ...evs] };
+  // Callback room A only (the per-room action openSectionCallback uses).
+  const r = applyTrackCSectionAction(state, {
+    action: 'open-callback', eventId: 'cb-A-only',
+    recordedAt: new Date(t).toISOString(), recordedBy: 'Los',
+    target: { unitId: 'unit-707', trade: 'clean', section: 'A' },
+  });
+  assert.equal(r.ok, true);
+  const A = projectTrackCWork(r.value, { unitId: 'unit-707', trade: 'clean', section: 'A' });
+  const B = projectTrackCWork(r.value, { unitId: 'unit-707', trade: 'clean', section: 'B' });
+  assert.equal(A.callbackOpen, true, 'room A is in callback');
+  assert.equal(B.callbackOpen, false, 'room B is NOT dragged into callback');
+  assert.equal(B.inspection, 'los-passed', 'room B stays passed');
+});

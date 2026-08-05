@@ -20,6 +20,7 @@ import {
   startDaySession,
   validateSelectedReleaseSet,
   validateReleaseAgainstRoster,
+  walkReadyPackageKeys,
 } from '../src/features/wave2a2-track-b/model.ts';
 import {
   SYNTHETIC_ACCOUNT_ID,
@@ -306,7 +307,9 @@ test('Home queue filters return only exact released section records', () => {
     waiting: 6,
     working: 12,
   });
-  assert.equal(selectTodayTaskQueue(task, 'ready-to-walk').records.length, 34);
+  // Package-grain: a room shows in Ready to Walk only when its whole unit+trade
+  // is ready — the stray room from a not-fully-ready unit is excluded (33, not 34).
+  assert.equal(selectTodayTaskQueue(task, 'ready-to-walk').records.length, 33);
   for (const queueId of Object.keys(counts)) {
     const queue = selectTodayTaskQueue(task, queueId);
     assert.ok(queue.records.every((record) => task.sections.some((section) => (
@@ -329,10 +332,12 @@ test('Home queue filters return only exact released section records', () => {
         : section
     )),
   };
+  // Package-grain: making ONE room not-pending drops the whole unit+trade out of
+  // Ready to Walk (22 → 21 packages) — it never sits half in walk, half elsewhere.
   assert.equal(
-    selectTodayTaskQueue(notExplicitlyPending, 'ready-to-walk').records.length,
-    33,
-    'Ready to walk requires every released section-trade to be explicitly pending',
+    getTodayTaskQueueCounts(notExplicitlyPending)['ready-to-walk'],
+    21,
+    'Ready to walk is package-grain: one room not pending drops the whole unit+trade',
   );
 
   const untouched = createTodayTask(
@@ -343,6 +348,45 @@ test('Home queue filters return only exact released section records', () => {
   const emptyReady = selectTodayTaskQueue(untouched, 'ready-to-walk');
   assert.equal(emptyReady.records.length, 0);
   assert.equal(emptyReady.emptyMessage, 'No released sections are ready for a property walk.');
+});
+
+test('a callback in ONE room pulls that whole unit+trade out of Ready to Walk (into Callbacks)', () => {
+  const task = createSyntheticTodayTask();
+  // Find a unit+trade package that IS ready to walk, then put ONE of its rooms
+  // in callback. That unit+trade must leave Ready to Walk entirely.
+  const ready = selectTodayTaskQueue(task, 'ready-to-walk').records[0];
+  assert.ok(ready, 'need a walk-ready unit to start from');
+  const readyTrade = task.sections
+    .find((section) => section.unitId === ready.unitId && section.sectionId === ready.sectionId)
+    ?.tradeStates[0]?.trade;
+  const packageKey = `${ready.unitId}:${readyTrade}`;
+  assert.ok(walkReadyPackageKeys(task).has(packageKey), 'package starts walk-ready');
+
+  const withCallback = {
+    ...task,
+    sections: task.sections.map((section) =>
+      section.unitId === ready.unitId && section.sectionId === ready.sectionId
+        ? {
+            ...section,
+            tradeStates: section.tradeStates.map((state) =>
+              state.trade === readyTrade
+                ? { ...state, inspection: 'callback-required' }
+                : state),
+          }
+        : section),
+  };
+
+  // The whole unit+trade package must leave Ready to Walk once one room callbacks.
+  assert.equal(
+    walkReadyPackageKeys(withCallback).has(packageKey),
+    false,
+    'a room in callback pulls the whole unit+trade out of Ready to Walk',
+  );
+  assert.ok(
+    selectTodayTaskQueue(withCallback, 'callbacks').records.some((record) =>
+      record.unitId === ready.unitId),
+    'and the unit appears in Callbacks',
+  );
 });
 
 test('Start Day uses eight grouped steps, requires confirmation, and treats keys as access only', () => {

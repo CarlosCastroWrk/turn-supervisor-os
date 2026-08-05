@@ -113,11 +113,6 @@ export const passedInspection = (state: LosInspectionState) => (
   state === 'passed' || state === 'passed-after-callback'
 );
 
-const everyTrade = (
-  section: TodayTaskSection,
-  predicate: (state: TodayTaskTradeState) => boolean,
-) => section.tradeStates.length > 0 && section.tradeStates.every(predicate);
-
 const hasOpenCallback = (section: TodayTaskSection) => section.tradeStates.some(
   (state) => state.inspection === 'callback-required' || state.inspection === 'reinspection-pending',
 );
@@ -458,6 +453,12 @@ export function selectTodayTaskQueue(
   queueId: TodayTaskQueueId,
 ): TodayTaskQueue {
   const source = task?.sections ?? [];
+  // Ready to Walk is package-grain: precompute which unit+trades are fully ready
+  // so a room only shows here when its whole unit+trade is — never split across
+  // Ready to Walk and Callbacks at the same time.
+  const walkReady = queueId === 'ready-to-walk'
+    ? walkReadyPackageKeys(task)
+    : new Set<string>();
   const records = source.filter((section) => {
     if (queueId === 'needs-crew') {
       return (
@@ -483,14 +484,10 @@ export function selectTodayTaskQueue(
     if (queueId === 'callbacks') {
       return hasOpenCallback(section);
     }
-    return (
-      section.waitingReasons.length === 0
-      && !hasOpenCallback(section)
-      && everyTrade(section, (state) => (
-        passedInspection(state.inspection)
-        && state.propertyWalk === 'pending'
-      ))
-    );
+    // ready-to-walk: this room shows only if its whole unit+trade package is
+    // ready (checked across ALL the unit's rooms), not just this room alone.
+    return section.tradeStates.some((state) =>
+      walkReady.has(`${section.unitId}:${state.trade}`));
   });
 
   return {
@@ -506,34 +503,47 @@ export function selectTodayTaskQueue(
   };
 }
 
-// Ready to Walk is counted at Unit+Trade package grain: a package is ready
-// when every released section of that Unit and trade passed Los inspection
-// and is pending the property walk.
-export function countReadyToWalkPackages(task: TodayTask | null): number {
-  if (!task) return 0;
+// Ready to Walk is a Unit+Trade PACKAGE, not a room. A package is ready only
+// when EVERY released room of that unit+trade passed Los inspection and is
+// pending the walk — with no room in callback, needing inspection, or blocked.
+// If even one room fails, the whole unit+trade stays out of Ready to Walk (it
+// lives in Callbacks / Check instead) so a unit never shows in two queues at
+// once. Returns the ready `${unitId}:${trade}` keys so the count and the queue
+// use the exact same rule and always agree.
+export function walkReadyPackageKeys(task: TodayTask | null): Set<string> {
+  const keys = new Set<string>();
+  if (!task) return keys;
   const byUnit = new Map<string, TodayTaskSection[]>();
   for (const section of task.sections) {
     const group = byUnit.get(section.unitId) ?? [];
     group.push(section);
     byUnit.set(section.unitId, group);
   }
-  let packages = 0;
-  for (const sections of byUnit.values()) {
+  for (const [unitId, sections] of byUnit) {
     for (const trade of ['Paint', 'Clean'] as const) {
-      const tradeStates = sections
-        .map((section) => section.tradeStates.find((state) => state.trade === trade))
-        .filter((state): state is TodayTaskTradeState => Boolean(state));
-      if (tradeStates.length === 0) continue;
-      const blocked = sections.some((section) =>
-        section.waitingReasons.length > 0 || hasOpenCallback(section));
-      if (blocked) continue;
-      if (tradeStates.every((state) =>
-        passedInspection(state.inspection) && state.propertyWalk === 'pending')) {
-        packages += 1;
-      }
+      const rooms = sections
+        .map((section) => ({
+          section,
+          state: section.tradeStates.find((state) => state.trade === trade),
+        }))
+        .filter((room): room is { section: TodayTaskSection; state: TodayTaskTradeState } =>
+          Boolean(room.state));
+      if (rooms.length === 0) continue;
+      // Every room of this unit+trade must be walk-ready: not blocked, not in
+      // callback (callback-required/reinspection-pending aren't "passed"), and
+      // passed + pending the walk.
+      const ready = rooms.every(({ section, state }) =>
+        section.waitingReasons.length === 0
+        && passedInspection(state.inspection)
+        && state.propertyWalk === 'pending');
+      if (ready) keys.add(`${unitId}:${trade}`);
     }
   }
-  return packages;
+  return keys;
+}
+
+export function countReadyToWalkPackages(task: TodayTask | null): number {
+  return walkReadyPackageKeys(task).size;
 }
 
 // Every queue counts Unit+Trade jobs — the grain Los thinks in — not

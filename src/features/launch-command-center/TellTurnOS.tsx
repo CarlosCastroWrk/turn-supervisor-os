@@ -66,23 +66,24 @@ export const TellTurnOS = ({
   const apply = () => {
     if (!result) return;
     const lines: string[] = [];
-    const releaseTexts: string[] = [];
+    // Apply every intent IN ORDER (the interpreter emits release before assign),
+    // so "1806 A B clean, Sandra" releases the rooms and THEN assigns Sandra in
+    // one pass. If a release can't apply directly, fall back to Quick add.
+    let fallbackToQuickAdd = false;
     result.intents.forEach((intent, index) => {
       if (!checked.has(index)) return;
-      if (intent.kind === 'release') {
-        releaseTexts.push(intent.summary);
-        return;
-      }
       try {
         lines.push(onApplyIntent(intent));
       } catch (caught) {
-        lines.push(`${intent.unitNumber}: ${caught instanceof Error ? caught.message : 'failed'}`);
+        if (intent.kind === 'release') {
+          fallbackToQuickAdd = true;
+          lines.push(`${intent.unitNumber}: opening in Quick add to finish the release.`);
+        } else {
+          lines.push(`${intent.unitNumber}: ${caught instanceof Error ? caught.message : 'failed'}`);
+        }
       }
     });
-    if (releaseTexts.length > 0) {
-      onRouteRelease(text.trim());
-      lines.push(`${releaseTexts.length} new release${releaseTexts.length === 1 ? '' : 's'} → opened in Quick add for your confirm.`);
-    }
+    if (fallbackToQuickAdd) onRouteRelease(text.trim());
     setOutcomes(lines);
   };
 

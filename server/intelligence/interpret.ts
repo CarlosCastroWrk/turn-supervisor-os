@@ -125,8 +125,11 @@ SPOKEN INPUT (this is DICTATED — snap his messy speech to the real values):
   ("rocky"/"rockie" -> the roster's Rocky). Dictation garbles names; a first-name
   match is enough. If no crew of that trade is close, uncertainty.
 - Fillers to ignore: "uh", "like", "okay so", "put down", "go ahead and".
-- When Los says a unit then rooms then a task then a crew in one breath, that is
-  usually ONE unit's release or assign — keep them together, don't split the unit.
+- RELEASE + ASSIGN in one breath: when Los names rooms to release AND a crew for
+  the same unit ("1806 A B need cleaned, Sandra" / "1007 A B C D paint, A B C
+  cut-in, give it to Rocky"), emit BOTH a release intent (the rooms + work types)
+  AND an assign intent (the crew) for that unit — the RELEASE intent FIRST, then
+  the assign. Keep them on the same unit; never split the unit across others.
 ${request.rosterUnitNumbers?.length ? `\nROSTER UNITS: ${request.rosterUnitNumbers.join(', ')}` : ''}
 ${request.crews?.length ? `\nCREWS: ${request.crews.map((crew) => `${crew.name} (${crew.trade})`).join(', ')}` : ''}
 ${request.today ? `\nTODAY: ${request.today}` : ''}

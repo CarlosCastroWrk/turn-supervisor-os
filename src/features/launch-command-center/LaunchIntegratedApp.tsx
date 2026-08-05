@@ -1980,6 +1980,41 @@ function LaunchOperationalApp({
     const trade = intent.trade ?? 'paint';
     const tradeWord = trade === 'paint' ? 'Paint' : 'Clean';
     switch (intent.kind) {
+      case 'release': {
+        // Release the exact rooms Los named (and set paint work types), directly
+        // — so "1806 A B clean, Sandra" both releases AND (via the assign intent
+        // that follows) assigns in one message. Re-project tellOsTrackRef from the
+        // committed data so the next intent in the batch sees the new release.
+        const sections = intent.sections?.length
+          ? intent.sections
+          : (['common', 'A', 'B', 'C', 'D', 'E'] as const).filter((section) =>
+            unit.workFacts.some((fact) => fact.trade === trade && fact.section === section));
+        if (sections.length === 0) throw new Error('say which rooms');
+        const workType = intent.workType ?? undefined;
+        let updatedData: typeof data | undefined;
+        const saved = commitDataNow((current) => {
+          let next = current;
+          for (const section of sections) {
+            next = setSectionReleaseState(next, {
+              idFactory: createId,
+              nowIso: nowISO(),
+              released: true,
+              section,
+              trade,
+              unitId: unit.id,
+            });
+            if (trade === 'paint' && workType) {
+              next = setReleaseWorkType(next, { section, trade: 'paint', unitId: unit.id, workType });
+            }
+          }
+          updatedData = next;
+          return next;
+        });
+        if (!saved || !updatedData) throw new Error('could not save');
+        tellOsTrackRef.current = projectTrackCState(updatedData);
+        return `${unit.unitNumber} ${tradeWord} released: ${sections.join(', ')}`
+          + (trade === 'paint' && workType ? ` (${workType})` : '');
+      }
       case 'set-task': {
         const workType = intent.workType ?? 'full';
         const sections = intent.sections?.length

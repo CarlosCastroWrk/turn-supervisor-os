@@ -16,6 +16,7 @@ import {
 import {
   createTodayTask,
   createTodayTaskGoal,
+  selectTodayTaskQueue,
   startDaySession,
 } from '../src/features/wave2a2-track-b/model.ts';
 import {
@@ -246,6 +247,55 @@ test('field truth still persists after the day session is CLOSED (evening inspec
     1,
     'the evening write persisted despite the closed session',
   );
+});
+
+test('the day-task queues reflect field events from EVERY day session, not just the active one', () => {
+  // Field truth accumulates across days. A unit passed under the active session
+  // but called back under a LATER session must still leave Ready to Walk and show
+  // in Callbacks — the day-task must read all the project's sessions' events.
+  const initial = cloneSeed();
+  const activeData = startAcceptedDay({ ...initial, dailyReleaseBatches: [createRelease(initial)] });
+  const session = projectDaySessions(activeData).find((candidate) =>
+    candidate.daySessionId === 'day-session-contract');
+  assert.ok(session);
+
+  // Pass the clean common room under the active session…
+  const evt = (id, eventType, daySessionId, at) => ({
+    actorId: eventType === 'crew-reported-complete' ? 'crew_cleaner' : 'Los',
+    actorType: eventType === 'crew-reported-complete' ? 'crew' : 'los',
+    boundary: 'personal-record', daySessionId, eventType, id,
+    projectId: activeData.activeProjectId, recordedAt: at, recordedBy: 'Los',
+    reportedBy: 'crew_cleaner', section: 'A', sourceType: 'personal-confirmation',
+    summary: '', trade: 'clean', unitId: 'unit_101',
+  });
+  // A SECOND (later, closed) day session exists on the project.
+  const withSecondSession = {
+    ...activeData,
+    daySessions: [
+      ...activeData.daySessions,
+      { ...activeData.daySessions[0], id: 'day-session-2', status: 'closed' },
+    ],
+  };
+  const passed = {
+    ...withSecondSession,
+    fieldEvents: [
+      ...withSecondSession.fieldEvents,
+      evt('asg', 'assignment-confirmed', 'day-session-contract', '2026-08-01T13:00:00.000Z'),
+      evt('ws', 'work-started', 'day-session-contract', '2026-08-01T13:00:01.000Z'),
+      evt('cc', 'crew-reported-complete', 'day-session-contract', '2026-08-01T13:00:02.000Z'),
+      evt('lp', 'los-passed', 'day-session-contract', '2026-08-01T13:00:03.000Z'),
+      // …but the callback is recorded under the LATER session (the next day).
+      evt('cb', 'callback-opened', 'day-session-2', '2026-08-02T09:00:00.000Z'),
+    ],
+  };
+
+  const task = projectTodayTask(passed, session);
+  const inWalk = selectTodayTaskQueue(task, 'ready-to-walk').records
+    .some((record) => record.unitId === 'unit_101' && record.sectionId === 'A');
+  const inCallbacks = selectTodayTaskQueue(task, 'callbacks').records
+    .some((record) => record.unitId === 'unit_101' && record.sectionId === 'A');
+  assert.equal(inWalk, false, 'a callback from another day must pull the room out of Ready to Walk');
+  assert.equal(inCallbacks, true, 'and put it in Callbacks');
 });
 
 test('Track C adapter keeps release, assignment, crew report, inspection, and paper boundaries separate', () => {

@@ -372,9 +372,24 @@ export function projectTodayTask(
     session,
   );
   if (!result.task || result.errors.length > 0) return null;
+  // Execution truth accumulates across DAYS, not within one session: a unit
+  // passed Monday and called back Tuesday must reflect BOTH. Scoping to only the
+  // active session made the day-task queues (Ready to Walk, Callbacks) blind to
+  // a callback opened on another day — so a called-back unit kept showing in
+  // Ready to Walk while the field-ops board correctly moved it to Callbacks.
+  // Reduce every field event for THIS project's day sessions (same rule the
+  // field-ops projection uses), so both sides always agree. The reducer already
+  // scopes each event to its exact unit+section, so other sessions can't leak.
+  const projectSessionIds = new Set(
+    data.daySessions
+      .filter((candidate) => candidate.projectId === data.activeProjectId)
+      .map((candidate) => candidate.id),
+  );
   return taskExecutionState(
     result.task,
-    data.fieldEvents.filter((event) => event.daySessionId === session.daySessionId),
+    data.fieldEvents.filter((event) =>
+      event.projectId === data.activeProjectId
+      && Boolean(event.daySessionId && projectSessionIds.has(event.daySessionId))),
     session.keyStatus,
   );
 }

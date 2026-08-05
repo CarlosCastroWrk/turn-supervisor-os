@@ -19,6 +19,7 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
+import { buildAllCrewPayroll, formatPayLine } from './crewPayroll';
 import {
   crewMessageHref,
   crewUnitsTextBody,
@@ -53,11 +54,6 @@ interface CrewViewProps {
     phone?: string;
   }[];
 }
-
-const localEventDate = (iso: string) => {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
 
 const CrewDetail = ({
   state,
@@ -323,58 +319,14 @@ export const CrewView = ({
   // event ledger (schema freeze), so a lost entry costs nothing operationally.
   const [contactLog, setContactLog] = useState(() => readContactLog());
   const [whatsappCrews, setWhatsappCrews] = useState<ReadonlySet<string>>(() => readWhatsappCrews());
-  // Beds + common areas each crew reported complete TODAY — the 5-second
-  // payroll glance.
-  const todayByCrew = useMemo(() => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const map = new Map<string, { beds: number; commons: number }>();
-    const seen = new Set<string>();
-    for (const event of state.events) {
-      if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-      if (event.confirmation !== 'confirmed') continue;
-      if (localEventDate(event.recordedAt) !== today) continue;
-      const key = `${event.crewId}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
-      line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
-      map.set(event.crewId, line);
-    }
-    return map;
-  }, [state.events]);
-  // Pay-week totals (week runs Sunday -> Saturday 5pm; counted from Sunday).
-  const weekByCrew = useMemo(() => {
-    const now = new Date();
-    const sunday = new Date(now);
-    sunday.setDate(now.getDate() - now.getDay());
-    sunday.setHours(0, 0, 0, 0);
-    const startIso = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
-    // Pay week = Sunday 00:00 → Saturday 5:00 PM. Work reported after the
-    // Saturday cutoff rolls into the NEXT pay week — same as the wall board.
-    const payWeekSunday = (iso: string) => {
-      const date = new Date(iso);
-      if (date.getDay() === 6 && date.getHours() >= 17) date.setDate(date.getDate() + 1);
-      date.setDate(date.getDate() - date.getDay());
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    };
-    void startIso;
-    const currentWeek = payWeekSunday(new Date().toISOString());
-    const map = new Map<string, { beds: number; commons: number }>();
-    const seen = new Set<string>();
-    for (const event of state.events) {
-      if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-      if (event.confirmation !== 'confirmed') continue;
-      if (payWeekSunday(event.recordedAt) !== currentWeek) continue;
-      const key = `${event.crewId}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const line = map.get(event.crewId) ?? { beds: 0, commons: 0 };
-      line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
-      map.set(event.crewId, line);
-    }
-    return map;
-  }, [state.events]);
+  // Every crew's pay picture — today, this pay week, and the whole Turn — from
+  // ONE shared calculation so the card, the receipts, and Tony's counts always
+  // agree. Each room pays once (deduped), attributed to the day it was first
+  // reported done. See crewPayroll.ts for the pay-week/dedup rules.
+  const payrollByCrew = useMemo(
+    () => buildAllCrewPayroll(state, new Date()),
+    [state.events],
+  );
   // Prefilled, organized text from the crew's REAL current assignments —
   // bilingual-lite so it works for Spanish- and English-speaking crews.
   const composeBody = (crewId: string, crewName: string) => {
@@ -593,16 +545,16 @@ export const CrewView = ({
               ) : null}
               {group.map(({ crew, stats }) => {
           const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;
-          const today = todayByCrew.get(crew.id);
-          const todayLabel = today
-            ? [
-              today.beds > 0 ? `${today.beds} bed${today.beds === 1 ? '' : 's'}` : '',
-              today.commons > 0 ? `${today.commons} common` : '',
-            ].filter(Boolean).join(' · ')
+          const pay = payrollByCrew.get(crew.id);
+          const todayLabel = pay && (pay.today.beds > 0 || pay.today.commons > 0)
+            ? formatPayLine(pay.today)
             : '';
-          const week = weekByCrew.get(crew.id);
-          const weekLabel = week && (week.beds > 0 || week.commons > 0)
-            ? `this week: ${week.beds} bed${week.beds === 1 ? '' : 's'}${week.commons > 0 ? ` · ${week.commons} common` : ''}`
+          const weekLabel = pay && (pay.week.beds > 0 || pay.week.commons > 0)
+            ? `this week: ${formatPayLine(pay.week)}`
+            : '';
+          // Whole-Turn running total — the cumulative count Tony pays off.
+          const turnLabel = pay && (pay.turn.beds > 0 || pay.turn.commons > 0)
+            ? `Turn: ${formatPayLine(pay.turn)}`
             : '';
           const phone = crewDirectory?.[crew.id]?.phone?.trim();
           const contactedToday = lastContactTodayFor(contactLog, crew.id);
@@ -629,6 +581,7 @@ export const CrewView = ({
                     {crew.activeToday ? 'Active today' : 'Not active today'}
                     {todayLabel ? ` · today: ${todayLabel}` : ''}
                     {weekLabel ? ` · ${weekLabel}` : ''}
+                    {turnLabel ? ` · ${turnLabel}` : ''}
                     {contactedLabel ? ` · ✓ ${contactedLabel}` : ''}
                   </small>
                 </span>
@@ -699,63 +652,39 @@ export const CrewView = ({
       <details className="track-c-crew-totals">
         <summary>Crew totals — payroll receipts</summary>
         {(() => {
-          // Per crew, per day: beds + commons reported complete (the pay
-          // basis: did the work = gets paid). Sun-Sat pay-week totals + Turn
+          // Per crew, per day: the rooms reported complete (the pay basis — did
+          // the work = gets paid), plus the whole-Turn total. Same shared
+          // calculation as the crew card, so per-day always sums to the Turn
           // total. This is Los's receipt when a count gets pushed back on.
-          const byCrew = new Map<string, Map<string, { beds: number; commons: number }>>();
-          const seenTotals = new Set<string>();
-          for (const event of state.events) {
-            if (event.eventType !== 'crew-reported-complete' || !event.crewId) continue;
-            if (event.confirmation !== 'confirmed') continue;
-            const date = localEventDate(event.recordedAt);
-            const totalsKey = `${event.crewId}:${date}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
-            if (seenTotals.has(totalsKey)) continue;
-            seenTotals.add(totalsKey);
-            const days = byCrew.get(event.crewId) ?? new Map();
-            const line = days.get(date) ?? { beds: 0, commons: 0 };
-            line[event.target.section === 'common' ? 'commons' : 'beds'] += 1;
-            days.set(date, line);
-            byCrew.set(event.crewId, days);
-          }
-          const fmtLine = (line: { beds: number; commons: number }) =>
-            [
-              line.beds > 0 ? `${line.beds} bed${line.beds === 1 ? '' : 's'}` : '',
-              line.commons > 0 ? `${line.commons} common` : '',
-            ].filter(Boolean).join(' + ') || '0';
+          const emptyPay = { today: { beds: 0, commons: 0 }, week: { beds: 0, commons: 0 }, turn: { beds: 0, commons: 0 }, perDay: [] };
+          const payFor = (crewId: string) => payrollByCrew.get(crewId) ?? emptyPay;
           const buildText = () => state.crews.map((crew) => {
-            const days = [...(byCrew.get(crew.id) ?? new Map()).entries()]
-              .sort((left, right) => left[0].localeCompare(right[0]));
-            const total = days.reduce((sum, [, line]) =>
-              ({ beds: sum.beds + line.beds, commons: sum.commons + line.commons }),
-              { beds: 0, commons: 0 });
+            const pay = payFor(crew.id);
             return [
               `${crew.name} (${crew.trade === 'paint' ? 'Paint' : 'Clean'})`,
-              ...days.map(([date, line]) => `  ${date}: ${fmtLine(line)}`),
-              `  Turn total: ${fmtLine(total)}`,
+              ...pay.perDay.map((day) => `  ${day.date}: ${formatPayLine(day.line)}`),
+              `  Turn total: ${formatPayLine(pay.turn)}`,
             ].join('\n');
           }).join('\n');
           return (
             <div className="track-c-crew-totals__body">
               {state.crews.map((crew) => {
-                const days = [...(byCrew.get(crew.id) ?? new Map()).entries()]
-                  .sort((left, right) => right[0].localeCompare(left[0]));
-                const total = days.reduce((sum, [, line]) =>
-                  ({ beds: sum.beds + line.beds, commons: sum.commons + line.commons }),
-                  { beds: 0, commons: 0 });
+                const pay = payFor(crew.id);
+                const days = [...pay.perDay].reverse(); // newest first for the eye
                 return (
                   <section key={crew.id}>
                     <header>
                       <strong>{crew.name}</strong>
-                      <span>{crew.trade === 'paint' ? 'Paint' : 'Clean'} · Turn total {fmtLine(total)}</span>
+                      <span>{crew.trade === 'paint' ? 'Paint' : 'Clean'} · Turn total {formatPayLine(pay.turn)}</span>
                     </header>
                     {days.length > 0 ? (
                       <ul>
-                        {days.map(([date, line]) => (
-                          <li key={date}>
-                            <span>{new Date(`${date}T12:00:00`).toLocaleDateString([], {
+                        {days.map((day) => (
+                          <li key={day.date}>
+                            <span>{new Date(`${day.date}T12:00:00`).toLocaleDateString([], {
                               weekday: 'short', month: 'short', day: 'numeric',
                             })}</span>
-                            <strong>{fmtLine(line)}</strong>
+                            <strong>{formatPayLine(day.line)}</strong>
                           </li>
                         ))}
                       </ul>

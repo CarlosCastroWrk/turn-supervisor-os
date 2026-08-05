@@ -1000,6 +1000,7 @@ export function projectTrackCState(data: AppData): TrackCState {
             trade,
             unitId: unit.id,
             workType: item?.workType,
+            releasedAt: item ? batch?.confirmedAt ?? batch?.updatedAt : undefined,
           };
         })),
     })),

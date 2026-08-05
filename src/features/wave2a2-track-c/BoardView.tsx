@@ -1041,6 +1041,22 @@ const UnitDetail = ({
                 );
               })()}
             </header>
+            {(() => {
+              // Which day this trade came onto the wall — so Los can reconcile
+              // the unit against his physical board day by day.
+              let earliest = '';
+              for (const item of tradeWork) {
+                if (item.release !== 'released' || !item.releasedAt) continue;
+                if (!earliest || item.releasedAt < earliest) earliest = item.releasedAt;
+              }
+              return earliest ? (
+                <p className="track-c-unit-released">
+                  Released {new Date(earliest).toLocaleDateString([], {
+                    weekday: 'short', month: 'short', day: 'numeric',
+                  })} · {tradeLabel(trade)}
+                </p>
+              ) : null;
+            })()}
             {onSetTradeRelease
               && tradeWork.filter((item) => item.release === 'released').length === 0 ? (
                 <button
@@ -1387,6 +1403,17 @@ const WallGrid = ({
     }
     return [...names].join('+');
   };
+  // The pay week this unit's work entered the board (earliest release of any of
+  // this trade's rooms). Drives the little week chip so Los sees the Turn build
+  // up week by week and can rebuild the wall in the order units came on.
+  const releaseWeekOf = (unitId: string): number | undefined => {
+    let earliest = '';
+    for (const work of projectTrackCUnitWork(state, unitId)) {
+      if (work.trade !== trade || work.release !== 'released' || !work.releasedAt) continue;
+      if (!earliest || work.releasedAt < earliest) earliest = work.releasedAt;
+    }
+    return earliest ? wallWeekIndex(earliest) : undefined;
+  };
   const trimmed = query.trim().toLowerCase();
   const rows = (trimmed
     ? state.units.filter((unit) => unit.unitNumber.toLowerCase().includes(trimmed))
@@ -1420,6 +1447,10 @@ const WallGrid = ({
           ))}
         </div>
       ) : null}
+      <p className="track-c-wall__legend">
+        Whole Turn · every unit released, all days. The
+        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip = the pay week it came onto the board.
+      </p>
       <div
         aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}
         className="track-c-wall__grid is-rooms"
@@ -1451,7 +1482,17 @@ const WallGrid = ({
             role="row"
             type="button"
           >
-            <span className="track-c-wall__unit" role="rowheader">{unit.unitNumber}</span>
+            <span className="track-c-wall__unit" role="rowheader">
+              {unit.unitNumber}
+              {(() => {
+                const wk = releaseWeekOf(unit.id);
+                return wk === undefined ? null : (
+                  <em className={`track-c-wall__wk wall-wk${wk}`} title={`Released week ${wk + 1}`}>
+                    w{wk + 1}
+                  </em>
+                );
+              })()}
+            </span>
             {ROOM_COLUMNS.map((section) => {
               const cell = cellFor(unit.id, section);
               return (
@@ -1695,6 +1736,10 @@ export const BoardView = ({
           <Droplets aria-hidden="true" size={15} /> Clean board
         </button>
       </div>
+      <p className="track-c-board-turnline">
+        <strong>Whole Turn</strong> · {boardTrade === 'paint' ? 'Paint' : 'Clean'} across every day
+        {' · '}{releasedCount} in play · {workingCount} working · {approvedCount} approved
+      </p>
       <div className="track-c-board-scope" role="group" aria-label="Board scope">
         <button
           aria-pressed={scope === 'released'}

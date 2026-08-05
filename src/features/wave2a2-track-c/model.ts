@@ -32,6 +32,10 @@ export interface TrackCWorkFact extends TrackCWorkTarget {
   readonly sourceLabel: string;
   readonly restrictionLabel?: string;
   readonly workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in';
+  // When this room:trade was confirmed released (the batch's confirmed time).
+  // Lets the board show the day/week each unit came onto the wall so Los can
+  // rebuild it day by day. Projection-only — not stored.
+  readonly releasedAt?: string;
 }
 
 export interface TrackCUnit {

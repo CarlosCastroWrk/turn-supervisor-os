@@ -15,6 +15,11 @@ import {
   startTrackCWalk,
 } from '../src/features/wave2a2-track-c/operations.ts';
 import {
+  buildAllCrewPayroll,
+  buildCrewPayroll,
+  payWeekSunday,
+} from '../src/features/wave2a2-track-c/crewPayroll.ts';
+import {
   buildDailyReportData,
 } from '../src/features/wave2a2-track-c/dailyReport.ts';
 import {
@@ -1061,4 +1066,105 @@ test('500-Unit compact projection and search remain bounded', () => {
     elapsedMs < 1_500,
     `500-Unit projection/search took ${elapsedMs.toFixed(2)}ms.`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Cumulative payroll across the whole Turn — Tony pays off these counts, so
+// they must accumulate across every day, dedup re-reports, and respect the
+// Sunday->Saturday-5PM pay week. These pin buildAllCrewPayroll.
+// ---------------------------------------------------------------------------
+
+const payEvent = (unitNumber, trade, section, crewId, recordedAt, idSuffix) => ({
+  id: `pay-${unitNumber}-${trade}-${section}-${idSuffix}`,
+  eventType: 'crew-reported-complete',
+  confirmation: 'confirmed',
+  target: { unitId: `unit-${unitNumber}`, trade, section },
+  crewId,
+  recordedAt,
+  recordedBy: 'Los',
+  sourceType: 'crew-report',
+  sourceLabel: 'test',
+  summary: '',
+  personalRecordOnly: true,
+  officialPaperChanged: false,
+  payrollChanged: false,
+});
+
+const withEvents = (state, events) => ({ ...state, events: [...state.events, ...events] });
+
+test('payroll accumulates across all days and the per-day breakdown sums to the Turn total', () => {
+  // Dania (clean) reports rooms on three different days across two pay weeks.
+  // Week 1 (Sun Jul 26 -> Sat Aug 1 5PM): Jul 30, Jul 31.  Week 2: Aug 3.
+  let state = createSyntheticTrackCState();
+  state = withEvents(state, [
+    payEvent('410', 'clean', 'A', 'crew-dania', '2026-07-30T15:00:00.000Z', 'd1a'),
+    payEvent('410', 'clean', 'B', 'crew-dania', '2026-07-30T15:05:00.000Z', 'd1b'),
+    payEvent('410', 'clean', 'common', 'crew-dania', '2026-07-31T14:00:00.000Z', 'd2c'),
+    payEvent('707', 'clean', 'A', 'crew-dania', '2026-08-03T16:00:00.000Z', 'd3a'),
+  ]);
+  const now = new Date('2026-08-03T18:00:00.000Z'); // "today" = Aug 3, week 2
+  const payroll = buildCrewPayroll(state, 'crew-dania', now);
+
+  // Turn total = 3 beds (410 A, 410 B, 707 A) + 1 common (410 common) = every room once.
+  assert.equal(payroll.turn.beds, 3, 'Turn beds must count every day');
+  assert.equal(payroll.turn.commons, 1, 'Turn commons must count every day');
+
+  // Per-day breakdown must sum to the Turn total (numbers reconcile).
+  const summed = payroll.perDay.reduce(
+    (acc, day) => ({ beds: acc.beds + day.line.beds, commons: acc.commons + day.line.commons }),
+    { beds: 0, commons: 0 },
+  );
+  assert.equal(summed.beds, payroll.turn.beds, 'per-day beds must sum to Turn total');
+  assert.equal(summed.commons, payroll.turn.commons, 'per-day commons must sum to Turn total');
+  assert.equal(payroll.perDay.length, 3, 'three distinct work days');
+
+  // Today (Aug 3) = just the 707 A bed.
+  assert.equal(payroll.today.beds, 1);
+  assert.equal(payroll.today.commons, 0);
+
+  // Current pay week (week 2, starting Aug 2) = only the Aug 3 room.
+  assert.equal(payroll.week.beds, 1, 'this pay week excludes prior-week work');
+  assert.equal(payroll.week.commons, 0);
+});
+
+test('payroll never pays the same room twice — re-reports and callback re-reports dedup', () => {
+  let state = createSyntheticTrackCState();
+  state = withEvents(state, [
+    payEvent('410', 'clean', 'A', 'crew-dania', '2026-07-30T15:00:00.000Z', 'first'),
+    // Same room reported again next day (callback re-report / mistap) — must NOT pay twice.
+    payEvent('410', 'clean', 'A', 'crew-dania', '2026-07-31T15:00:00.000Z', 'again'),
+    payEvent('410', 'clean', 'A', 'crew-dania', '2026-08-01T15:00:00.000Z', 'third'),
+  ]);
+  const now = new Date('2026-08-01T18:00:00.000Z');
+  const payroll = buildCrewPayroll(state, 'crew-dania', now);
+  assert.equal(payroll.turn.beds, 1, 'a room pays once no matter how many reports');
+  assert.equal(payroll.perDay.length, 1, 'attributed only to the first day it was done');
+  assert.equal(payroll.perDay[0].date, '2026-07-30', 'attributed to first completion day');
+});
+
+test('pay week cuts at Saturday 5PM — work after rolls into the next week', () => {
+  // Saturday Aug 1 2026. 4:59 PM local is still week 1; 5:00 PM local is week 2.
+  const beforeCutoff = new Date('2026-08-01T16:59:00');
+  const afterCutoff = new Date('2026-08-01T17:00:00');
+  assert.notEqual(
+    payWeekSunday(beforeCutoff.toISOString()),
+    payWeekSunday(afterCutoff.toISOString()),
+    'Saturday 5PM must split the pay week',
+  );
+  assert.equal(payWeekSunday(new Date('2026-08-02T09:00:00').toISOString()),
+    payWeekSunday(afterCutoff.toISOString()),
+    'Saturday after 5PM belongs to the same week as the following Sunday');
+});
+
+test('each crew gets its own cumulative total — no cross-crew bleed', () => {
+  let state = createSyntheticTrackCState();
+  state = withEvents(state, [
+    payEvent('410', 'clean', 'A', 'crew-dania', '2026-07-30T15:00:00.000Z', 'da'),
+    payEvent('410', 'clean', 'B', 'crew-dania', '2026-07-30T15:01:00.000Z', 'db'),
+    payEvent('707', 'clean', 'A', 'crew-paige', '2026-07-30T15:02:00.000Z', 'pa'),
+  ]);
+  const now = new Date('2026-07-30T18:00:00.000Z');
+  const all = buildAllCrewPayroll(state, now);
+  assert.equal(all.get('crew-dania').turn.beds, 2);
+  assert.equal(all.get('crew-paige').turn.beds, 1);
 });

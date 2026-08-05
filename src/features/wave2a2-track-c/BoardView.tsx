@@ -282,6 +282,32 @@ const CompactTrade = ({
   );
 };
 
+// "today" / "yesterday" / "Aug 2" for an ISO time, in local days — so Los can
+// tell at a glance whether a unit came onto the board today or is carryover.
+const relativeDayLabel = (iso: string): string => {
+  const localDay = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const day = localDay(new Date(iso));
+  if (day === localDay(new Date())) return 'today';
+  if (day === localDay(new Date(Date.now() - 86_400_000))) return 'yesterday';
+  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
+// The day a unit's work (for this trade) was released onto the board.
+const releasedDayOf = (
+  state: TrackCState,
+  unitId: string,
+  trade?: TrackCTrade,
+): string | undefined => {
+  let earliest = '';
+  for (const work of projectTrackCUnitWork(state, unitId)) {
+    if (trade && work.trade !== trade) continue;
+    if (work.release !== 'released' || !work.releasedAt) continue;
+    if (!earliest || work.releasedAt < earliest) earliest = work.releasedAt;
+  }
+  return earliest ? relativeDayLabel(earliest) : undefined;
+};
+
 const CompactUnitRow = ({
   state,
   unit,
@@ -315,6 +341,14 @@ const CompactUnitRow = ({
           return full ? ` · ${trackCUnitMakeupLabel(full)}` : '';
         })()}
       </span>
+      {(() => {
+        const since = releasedDayOf(state, unit.unitId, trade);
+        return since ? (
+          <span className={`track-c-unit-row__since${since === 'today' ? '' : ' is-old'}`}>
+            released {since}
+          </span>
+        ) : null;
+      })()}
     </div>
     <div className="track-c-unit-row__trades">
       {trade !== 'clean' ? <CompactTrade progress={unit.paint} state={state} workLabel={trackCTradeWorkTypeLabel(state, unit.unitId, 'paint')} /> : null}

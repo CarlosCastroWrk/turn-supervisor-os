@@ -1244,6 +1244,7 @@ export interface LiveBoardLine {
   rooms?: string[];
   callbackRooms?: string[];
   passedAgo?: string;
+  since?: string;
   noCrewOnRoster?: boolean;
 }
 
@@ -1734,6 +1735,11 @@ function DayTaskHome({
                             ? ` · ${line.rooms.join(' · ')}`
                             : ` · ${line.done}/${line.total} rooms`}
                           {line.workLabel ? ` · ${line.workLabel}` : ''}
+                          {line.since ? (
+                            <span className={`w2a2b-live-card__since${line.since === 'today' ? '' : ' is-old'}`}>
+                              {' '}· released {line.since}
+                            </span>
+                          ) : null}
                         </small>
                         {(() => {
                           const stageKey = `${line.unitId}:${line.trade}`;

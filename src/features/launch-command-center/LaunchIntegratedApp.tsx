@@ -691,6 +691,7 @@ function LaunchOperationalApp({
       rooms: string[];
       callbackRooms: string[];
       passedAgo?: string;
+      since?: string;
       noCrewOnRoster?: boolean;
       workLabel?: string;
     }[] = [];
@@ -751,6 +752,21 @@ function LaunchOperationalApp({
           .sort((left, right) =>
             left === 'common' ? -1 : right === 'common' ? 1 : left.localeCompare(right))
           .map((section) => (section === 'common' ? 'Com' : section));
+        // Which day this unit came onto the board (its earliest release) — so
+        // Los never has to wonder "was that one from today or yesterday?".
+        const releasedAt = work
+          .map((item) => item.releasedAt)
+          .filter((value): value is string => Boolean(value))
+          .sort()[0];
+        let since: string | undefined;
+        if (releasedAt) {
+          const day = localEventDate(releasedAt);
+          since = day === today
+            ? 'today'
+            : day === localEventDate(new Date(Date.now() - 86_400_000).toISOString())
+              ? 'yesterday'
+              : new Date(releasedAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
         lines.push({
           crewNames,
           workLabel: trackCTradeWorkTypeLabel(trackCState, unit.id, trade),
@@ -763,6 +779,7 @@ function LaunchOperationalApp({
           unitId: unit.id,
           unitNumber: unit.unitNumber,
           passedAgo,
+          since,
           noCrewOnRoster: stage === 'needs-crew'
             && !trackCState.crews.some((crew) => crew.trade === trade),
         });

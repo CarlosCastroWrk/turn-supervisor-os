@@ -678,6 +678,20 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
 }
+.track-c-unit-row__since {
+  display: block;
+  font-size: 11px;
+  color: var(--turn-color-secondary);
+}
+.track-c-unit-row__since.is-old {
+  color: var(--turn-color-waiting, #9b5b00);
+  font-weight: 700;
+}
+.w2a2b-live-card__since { color: var(--turn-color-secondary); }
+.w2a2b-live-card__since.is-old {
+  color: var(--turn-color-waiting, #9b5b00);
+  font-weight: 700;
+}
 .lcc-host-alert { position: relative; }
 .lcc-host-alert__dismiss {
   position: absolute;

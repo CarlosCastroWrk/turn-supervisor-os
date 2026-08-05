@@ -638,6 +638,58 @@ select:focus-visible {
   font-size: 12px;
   line-height: 1.35;
 }
+.track-c-crew-totals__types {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--turn-color-secondary);
+}
+.track-c-clean-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.track-c-clean-rooms__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--turn-color-secondary);
+}
+.track-c-clean-rooms__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.track-c-clean-rooms__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid var(--turn-color-divider);
+}
+.track-c-clean-rooms__chip.is-on {
+  background: var(--turn-color-surface-raised, #eef2ff);
+  color: var(--turn-color-primary);
+}
+.track-c-clean-rooms__chip.is-on button {
+  border: none;
+  background: transparent;
+  color: var(--turn-color-secondary);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px;
+  cursor: pointer;
+}
+.track-c-clean-rooms__chip.is-add {
+  background: transparent;
+  color: var(--turn-color-brand, #2563eb);
+  border-style: dashed;
+  cursor: pointer;
+}
 .track-c-board-turnline {
   margin: 2px 2px 8px;
   font-size: 12.5px;

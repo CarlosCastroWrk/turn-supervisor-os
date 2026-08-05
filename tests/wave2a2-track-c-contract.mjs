@@ -1226,3 +1226,39 @@ test('a resolved callback stays cleared after the ledger is re-sorted (no same-m
   );
   assert.equal(scrambled.callbackOpen, true, 'same-ms would scramble — why increasing time is required');
 });
+
+test('payroll breaks paint work down by type (cut-in/touch-up/full) per day and total', () => {
+  // Give unit-707 paint rooms explicit work types via workFacts, then report them.
+  let state = createSyntheticTrackCState();
+  const withTypes = {
+    ...state,
+    units: state.units.map((unit) =>
+      unit.id !== 'unit-707' ? unit : {
+        ...unit,
+        workFacts: unit.workFacts.map((fact) =>
+          fact.trade !== 'paint' ? fact : {
+            ...fact,
+            workType: fact.section === 'A' ? 'cut-in'
+              : fact.section === 'B' ? 'touch-up' : 'full',
+          }),
+      }),
+  };
+  state = withEvents(withTypes, [
+    payEvent('707', 'paint', 'A', 'crew-sandra', '2026-08-04T15:00:00.000Z', 'a'),
+    payEvent('707', 'paint', 'B', 'crew-sandra', '2026-08-04T15:01:00.000Z', 'b'),
+    payEvent('707', 'paint', 'common', 'crew-sandra', '2026-08-04T15:02:00.000Z', 'c'),
+  ]);
+  const pay = buildCrewPayroll(state, 'crew-sandra', new Date('2026-08-04T18:00:00.000Z'));
+  assert.equal(pay.turnTypes['cut-in'], 1, 'one cut-in room');
+  assert.equal(pay.turnTypes['touch-up'], 1, 'one touch-up room');
+  assert.equal(pay.turnTypes.full, 1, 'common defaulted to full');
+  // per-day types sum to the turn types
+  const summed = pay.perDay.reduce((acc, d) => ({
+    cutIn: acc.cutIn + d.types['cut-in'],
+    touchUp: acc.touchUp + d.types['touch-up'],
+    full: acc.full + d.types.full,
+  }), { cutIn: 0, touchUp: 0, full: 0 });
+  assert.equal(summed.cutIn, 1);
+  assert.equal(summed.touchUp, 1);
+  assert.equal(summed.full, 1);
+});

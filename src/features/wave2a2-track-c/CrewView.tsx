@@ -19,7 +19,7 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
-import { buildAllCrewPayroll, formatPayLine } from './crewPayroll';
+import { buildAllCrewPayroll, formatPayLine, formatTypeTally } from './crewPayroll';
 import {
   crewMessageHref,
   crewUnitsTextBody,
@@ -656,37 +656,53 @@ export const CrewView = ({
           // the work = gets paid), plus the whole-Turn total. Same shared
           // calculation as the crew card, so per-day always sums to the Turn
           // total. This is Los's receipt when a count gets pushed back on.
-          const emptyPay = { today: { beds: 0, commons: 0 }, week: { beds: 0, commons: 0 }, turn: { beds: 0, commons: 0 }, perDay: [] };
+          const emptyTypes = { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0 };
+          const emptyPay = { today: { beds: 0, commons: 0 }, week: { beds: 0, commons: 0 }, turn: { beds: 0, commons: 0 }, turnTypes: emptyTypes, perDay: [] };
           const payFor = (crewId: string) => payrollByCrew.get(crewId) ?? emptyPay;
           const buildText = () => state.crews.map((crew) => {
             const pay = payFor(crew.id);
+            const isPaint = crew.trade === 'paint';
             return [
-              `${crew.name} (${crew.trade === 'paint' ? 'Paint' : 'Clean'})`,
-              ...pay.perDay.map((day) => `  ${day.date}: ${formatPayLine(day.line)}`),
-              `  Turn total: ${formatPayLine(pay.turn)}`,
+              `${crew.name} (${isPaint ? 'Paint' : 'Clean'})`,
+              ...pay.perDay.map((day) => {
+                const types = isPaint ? formatTypeTally(day.types) : '';
+                return `  ${day.date}: ${formatPayLine(day.line)}${types ? ` (${types})` : ''}`;
+              }),
+              `  Turn total: ${formatPayLine(pay.turn)}${isPaint && formatTypeTally(pay.turnTypes) ? ` (${formatTypeTally(pay.turnTypes)})` : ''}`,
             ].join('\n');
           }).join('\n');
           return (
             <div className="track-c-crew-totals__body">
               {state.crews.map((crew) => {
                 const pay = payFor(crew.id);
+                const isPaint = crew.trade === 'paint';
                 const days = [...pay.perDay].reverse(); // newest first for the eye
+                const turnTypeLabel = isPaint ? formatTypeTally(pay.turnTypes) : '';
                 return (
                   <section key={crew.id}>
                     <header>
                       <strong>{crew.name}</strong>
-                      <span>{crew.trade === 'paint' ? 'Paint' : 'Clean'} · Turn total {formatPayLine(pay.turn)}</span>
+                      <span>
+                        {isPaint ? 'Paint' : 'Clean'} · Turn total {formatPayLine(pay.turn)}
+                        {turnTypeLabel ? ` · ${turnTypeLabel}` : ''}
+                      </span>
                     </header>
                     {days.length > 0 ? (
                       <ul>
-                        {days.map((day) => (
-                          <li key={day.date}>
-                            <span>{new Date(`${day.date}T12:00:00`).toLocaleDateString([], {
-                              weekday: 'short', month: 'short', day: 'numeric',
-                            })}</span>
-                            <strong>{formatPayLine(day.line)}</strong>
-                          </li>
-                        ))}
+                        {days.map((day) => {
+                          const typeLabel = isPaint ? formatTypeTally(day.types) : '';
+                          return (
+                            <li key={day.date}>
+                              <span>{new Date(`${day.date}T12:00:00`).toLocaleDateString([], {
+                                weekday: 'short', month: 'short', day: 'numeric',
+                              })}</span>
+                              <strong>
+                                {formatPayLine(day.line)}
+                                {typeLabel ? <em className="track-c-crew-totals__types"> · {typeLabel}</em> : null}
+                              </strong>
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : <p>No completed work reported yet.</p>}
                   </section>

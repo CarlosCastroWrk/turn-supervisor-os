@@ -1220,17 +1220,59 @@ const UnitDetail = ({
                   Open a callback — {tradeLabel(trade)} needs to be fixed
                 </button>
               ) : null}
-            {trade === 'clean' ? (
-              <p className="track-c-clean-wholeunit">
-                {(() => {
-                  const beds = tradeWork.filter((item) => item.section !== 'common').length;
-                  const hasCommon = tradeWork.some((item) => item.section === 'common');
-                  return `Whole unit — ${beds} bed${beds === 1 ? '' : 's'}${hasCommon ? ' + common' : ''}. `;
-                })()}
-                The crew cleans everything; report it done above, walk it, and
-                keep anything that needs work in Notes.
-              </p>
-            ) : (() => {
+            {trade === 'clean' ? (() => {
+              const releasedRooms = tradeWork.filter((item) => item.release === 'released');
+              const addableRooms = tradeWork.filter((item) => item.release !== 'released');
+              const beds = releasedRooms.filter((item) => item.section !== 'common').length;
+              const hasCommon = releasedRooms.some((item) => item.section === 'common');
+              return (
+                <>
+                  <p className="track-c-clean-wholeunit">
+                    Whole unit — {beds} bed{beds === 1 ? '' : 's'}{hasCommon ? ' + common' : ''}.
+                    {' '}The crew cleans everything; report it done above and walk it.
+                  </p>
+                  {/* Room control for Clean, same as Paint: see the rooms in play,
+                      drop one Joseph didn't release (✕), add one back (+). */}
+                  <div className="track-c-clean-rooms">
+                    <span className="track-c-clean-rooms__label">Rooms</span>
+                    <div className="track-c-clean-rooms__chips">
+                      {releasedRooms.map((item) => (
+                        <span className="track-c-clean-rooms__chip is-on" key={trackCWorkKey(item)}>
+                          {trackCSectionLabel(item.section)}
+                          {onSetSectionRelease
+                            && item.property !== 'property-accepted' ? (
+                            <button
+                              aria-label={`Remove ${trackCSectionLabel(item.section)} from Clean`}
+                              onClick={() => onSetSectionRelease(
+                                { unitId: item.unitId, trade: item.trade, section: item.section },
+                                false,
+                              )}
+                              type="button"
+                            >
+                              ✕
+                            </button>
+                          ) : null}
+                        </span>
+                      ))}
+                      {onSetSectionRelease && addableRooms.map((item) => (
+                        <button
+                          className="track-c-clean-rooms__chip is-add"
+                          data-track-c-critical-target="true"
+                          key={trackCWorkKey(item)}
+                          onClick={() => onSetSectionRelease(
+                            { unitId: item.unitId, trade: item.trade, section: item.section },
+                            true,
+                          )}
+                          type="button"
+                        >
+                          + {trackCSectionLabel(item.section)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              );
+            })() : (() => {
               // The unit page shows the ROOMS BEING WORKED (released). Deleting a
               // room drops it out of this list and into the "add a room" strip —
               // so 1608 shows only B when only B was released, exactly like Los

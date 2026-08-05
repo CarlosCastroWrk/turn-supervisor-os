@@ -16,9 +16,20 @@ export interface PayLine {
   readonly commons: number;
 }
 
+// Paint rooms carry a work type; a crew's day should read "2 cut-in · 1 full".
+// Clean rooms have no type — the tally stays all zero for clean crews.
+export type PaintTypeKey = 'full' | 'touch-up' | 'cut-in' | 'full-cut-in';
+export interface TypeTally {
+  readonly full: number;
+  readonly 'touch-up': number;
+  readonly 'cut-in': number;
+  readonly 'full-cut-in': number;
+}
+
 export interface CrewPayDay {
   readonly date: string; // local calendar day YYYY-MM-DD
   readonly line: PayLine;
+  readonly types: TypeTally; // paint work types done that day (zero for clean)
 }
 
 export interface CrewPayroll {
@@ -26,15 +37,21 @@ export interface CrewPayroll {
   readonly today: PayLine;
   readonly week: PayLine; // current pay week (Sun 00:00 -> Sat 5:00 PM)
   readonly turn: PayLine; // whole Turn, deduped
+  readonly turnTypes: TypeTally; // whole-Turn paint work-type totals
   readonly perDay: readonly CrewPayDay[]; // ascending by date, each room on its first day
 }
 
 const emptyLine = (): PayLine => ({ beds: 0, commons: 0 });
+const emptyTypes = (): TypeTally =>
+  ({ full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0 });
 
 const addRoom = (line: PayLine, section: string): PayLine =>
   section === 'common'
     ? { beds: line.beds, commons: line.commons + 1 }
     : { beds: line.beds + 1, commons: line.commons };
+
+const addType = (tally: TypeTally, type: PaintTypeKey): TypeTally =>
+  ({ ...tally, [type]: tally[type] + 1 });
 
 // Local calendar day (days are local even though timestamps are UTC).
 export const payLocalDate = (iso: string): string => {
@@ -70,6 +87,19 @@ export const buildAllCrewPayroll = (
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const currentWeek = payWeekSunday(now.toISOString());
 
+  // Work type per paint room (unit:trade:section -> full/touch-up/cut-in/…),
+  // read off the release so a completed paint room can be tallied by its kind.
+  const workTypeOf = new Map<string, PaintTypeKey>();
+  for (const unit of state.units) {
+    for (const fact of unit.workFacts) {
+      if (fact.trade !== 'paint') continue;
+      workTypeOf.set(
+        `${fact.unitId}:${fact.trade}:${fact.section}`,
+        (fact.workType ?? 'full') as PaintTypeKey,
+      );
+    }
+  }
+
   // First confirmed completion per (crew, unit, trade, section) — the payable
   // room, attributed to that first day. Events are read oldest-first so "first"
   // is the earliest report.
@@ -82,7 +112,9 @@ export const buildAllCrewPayroll = (
     today: PayLine;
     week: PayLine;
     turn: PayLine;
+    turnTypes: TypeTally;
     perDay: Map<string, PayLine>;
+    perDayTypes: Map<string, TypeTally>;
   }
   const byCrew = new Map<string, Accum>();
   const seenRooms = new Set<string>();
@@ -99,12 +131,19 @@ export const buildAllCrewPayroll = (
       today: emptyLine(),
       week: emptyLine(),
       turn: emptyLine(),
+      turnTypes: emptyTypes(),
       perDay: new Map<string, PayLine>(),
+      perDayTypes: new Map<string, TypeTally>(),
     };
     accum.turn = addRoom(accum.turn, event.target.section);
     if (date === today) accum.today = addRoom(accum.today, event.target.section);
     if (week === currentWeek) accum.week = addRoom(accum.week, event.target.section);
     accum.perDay.set(date, addRoom(accum.perDay.get(date) ?? emptyLine(), event.target.section));
+    if (event.target.trade === 'paint') {
+      const type = workTypeOf.get(`${event.target.unitId}:paint:${event.target.section}`) ?? 'full';
+      accum.turnTypes = addType(accum.turnTypes, type);
+      accum.perDayTypes.set(date, addType(accum.perDayTypes.get(date) ?? emptyTypes(), type));
+    }
     byCrew.set(crewId, accum);
   }
 
@@ -112,17 +151,31 @@ export const buildAllCrewPayroll = (
   for (const [crewId, accum] of byCrew) {
     const perDay = [...accum.perDay.entries()]
       .sort((left, right) => left[0].localeCompare(right[0]))
-      .map(([date, line]) => ({ date, line }));
+      .map(([date, line]) => ({
+        date,
+        line,
+        types: accum.perDayTypes.get(date) ?? emptyTypes(),
+      }));
     result.set(crewId, {
       crewId,
       today: accum.today,
       week: accum.week,
       turn: accum.turn,
+      turnTypes: accum.turnTypes,
       perDay,
     });
   }
   return result;
 };
+
+// Short human label for a paint work-type tally, e.g. "2 cut-in · 1 full".
+export const formatTypeTally = (types: TypeTally): string =>
+  [
+    types.full > 0 ? `${types.full} full` : '',
+    types['touch-up'] > 0 ? `${types['touch-up']} touch-up` : '',
+    types['cut-in'] > 0 ? `${types['cut-in']} cut-in` : '',
+    types['full-cut-in'] > 0 ? `${types['full-cut-in']} full+cut-in` : '',
+  ].filter(Boolean).join(' · ');
 
 // Convenience for one crew (empty payroll if they've reported nothing).
 export const buildCrewPayroll = (
@@ -135,6 +188,7 @@ export const buildCrewPayroll = (
     today: emptyLine(),
     week: emptyLine(),
     turn: emptyLine(),
+    turnTypes: emptyTypes(),
     perDay: [],
   };
 

@@ -1506,14 +1506,11 @@ const WallGrid = ({
     const work = projectTrackCWork(state, { section, trade, unitId });
     if (!work || work.release !== 'released') return { cls: 'is-empty', mark: '\u2014' };
     if (work.property === 'property-accepted') {
-      const latest = state.events
-        .filter((event) =>
-          event.eventType === 'property-accepted'
-          && event.target.unitId === unitId
-          && event.target.trade === trade
-          && event.target.section === section)
-        .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
-      return { cls: `is-cc wall-wk${latest ? wallWeekIndex(latest) : 1}`, mark: 'CC' };
+      // Color the CC to MATCH the row's week chip (including Los's tap-to-fix
+      // override) so the whole unit reads one consistent pay-week color — the
+      // chip and the approved cells never disagree.
+      const wk = releaseWeekOf(unitId);
+      return { cls: `is-cc wall-wk${wk ?? 1}`, mark: 'CC' };
     }
     if (work.callbackOpen) return { cls: 'is-cb', mark: 'CB' };
     if (work.access !== 'clear') return { cls: 'is-blocked', mark: 'W' };

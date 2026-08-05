@@ -1398,6 +1398,19 @@ function DayTaskHome({
     }
     return next;
   });
+  // Once work passes, the crew has moved on — drop the "here now" pin so the
+  // card turns green immediately instead of waiting for Los to un-pin it.
+  const clearHereNow = (key: string) => setHereNow((current) => {
+    if (!current.has(key)) return current;
+    const next = new Set(current);
+    next.delete(key);
+    try {
+      window.localStorage.setItem('turn-os:here-now', JSON.stringify([...next]));
+    } catch {
+      // Session-only then.
+    }
+    return next;
+  });
   // Group the board by crew (who has what) or by status (what needs me).
   const [boardGroupBy, setBoardGroupBy] = useState<'crew' | 'status'>(() => {
     try {
@@ -1684,7 +1697,7 @@ function DayTaskHome({
                     && Boolean(onAdvanceUnitTrade);
                   return (
                     <div
-                      className={`w2a2b-live-card is-${line.stage}${hereNow.has(`${line.unitId}:${line.trade}`) ? ' is-here' : ''}`}
+                      className={`w2a2b-live-card is-${line.stage}${hereNow.has(`${line.unitId}:${line.trade}`) && line.stage !== 'passed' ? ' is-here' : ''}`}
                       key={`${line.unitId}:${line.trade}`}
                     >
                       <button
@@ -1730,6 +1743,9 @@ function DayTaskHome({
                                 if (!advanceable) return;
                                 if (!armed) { setArmedStage(stageKey); return; }
                                 setArmedStage(null);
+                                // Advancing a crew-done unit passes it — the crew
+                                // is no longer here, so drop the pin as it goes green.
+                                if (line.stage === 'crew-done') clearHereNow(stageKey);
                                 onAdvanceUnitTrade?.(line.unitId, line.trade);
                               }}
                               type="button"

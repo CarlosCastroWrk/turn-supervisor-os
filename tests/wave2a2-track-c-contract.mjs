@@ -1168,3 +1168,61 @@ test('each crew gets its own cumulative total — no cross-crew bleed', () => {
   assert.equal(all.get('crew-dania').turn.beds, 2);
   assert.equal(all.get('crew-paige').turn.beds, 1);
 });
+
+// ---------------------------------------------------------------------------
+// Callback resolution must survive the ledger re-sort. projectTrackCState sorts
+// events by recordedAt then breaks ties with the (random) event id. If the two
+// resolve steps (correction-reported -> resolved) share a millisecond, that
+// tie-break can replay them out of causal order and the callback reads OPEN
+// again after it syncs back from storage. Resolve stamps strictly increasing
+// timestamps so the order can never scramble. This pins that.
+// ---------------------------------------------------------------------------
+const sortByRecordedAtAndId = (left, right) =>
+  (left.recordedAt < right.recordedAt ? -1 : left.recordedAt > right.recordedAt ? 1 : 0)
+  || left.id.localeCompare(right.id);
+
+const cbEvent = (id, eventType, recordedAt) => ({
+  id, eventType,
+  target: { unitId: 'unit-707', trade: 'clean', section: 'A' },
+  crewId: 'crew-x', confirmation: 'confirmed',
+  recordedAt, recordedBy: 'Los',
+  sourceType: 'personal-confirmation', sourceLabel: 'test', summary: '',
+  personalRecordOnly: true, officialPaperChanged: false, payrollChanged: false,
+});
+
+test('a resolved callback stays cleared after the ledger is re-sorted (no same-ms scramble)', () => {
+  const base = createSyntheticTrackCState();
+  const lead = [
+    cbEvent('a', 'assignment-confirmed', '2026-08-04T10:00:00.000Z'),
+    cbEvent('w', 'work-started', '2026-08-04T10:00:01.000Z'),
+    cbEvent('cc', 'crew-reported-complete', '2026-08-04T10:00:02.000Z'),
+    cbEvent('lp', 'los-passed', '2026-08-04T10:00:03.000Z'),
+    cbEvent('ob', 'callback-opened', '2026-08-04T10:00:04.000Z'),
+  ];
+  // Resolve steps carry STRICTLY INCREASING timestamps (what resolveTradeCallback
+  // does), even though the ids are adversarial (resolved sorts before correction).
+  const resolve = [
+    cbEvent('zzz-correction', 'callback-correction-reported', '2026-08-04T10:00:05.000Z'),
+    cbEvent('aaa-resolved', 'callback-resolved', '2026-08-04T10:00:05.001Z'),
+  ];
+  const ledger = [...lead, ...resolve].sort(sortByRecordedAtAndId);
+  const projected = projectTrackCWork(
+    { ...base, events: ledger },
+    { unitId: 'unit-707', trade: 'clean', section: 'A' },
+  );
+  assert.equal(projected.callbackOpen, false, 'callback must stay cleared after re-sort');
+  assert.equal(projected.inspection, 'los-passed', 'back to ready to walk');
+
+  // Guard rail: prove the SAME events sharing a millisecond WOULD scramble —
+  // i.e. the increasing timestamp is load-bearing, not incidental.
+  const sameMs = [
+    ...lead,
+    cbEvent('zzz-correction', 'callback-correction-reported', '2026-08-04T10:00:05.000Z'),
+    cbEvent('aaa-resolved', 'callback-resolved', '2026-08-04T10:00:05.000Z'),
+  ].sort(sortByRecordedAtAndId);
+  const scrambled = projectTrackCWork(
+    { ...base, events: sameMs },
+    { unitId: 'unit-707', trade: 'clean', section: 'A' },
+  );
+  assert.equal(scrambled.callbackOpen, true, 'same-ms would scramble — why increasing time is required');
+});

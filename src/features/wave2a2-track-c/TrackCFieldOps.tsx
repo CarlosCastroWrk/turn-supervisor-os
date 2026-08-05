@@ -379,6 +379,14 @@ export const TrackCFieldOps = ({
     // reported) OR "reinspection pending" (needs the pass) — both keep
     // callbackOpen true. Advance whatever step it's on until it clears, so one
     // tap always lands it back at Los passed / ready to walk.
+    //
+    // CRITICAL: the two steps (correction reported -> reinspection passed) must
+    // stay in causal order when the ledger is re-sorted. Event sort breaks
+    // timestamp ties with the random event id, so if both steps share a
+    // millisecond the replay can put "resolved" before "correction reported"
+    // and the callback reads OPEN again after it syncs back. Stamp each step
+    // with a strictly increasing time so their order can never be scrambled.
+    let stepMs = new Date(now()).getTime();
     for (const target of targets) {
       for (let guard = 0; guard < 3; guard += 1) {
         const projected = projectTrackCWork(nextState, target);
@@ -389,7 +397,7 @@ export const TrackCFieldOps = ({
         const result = applyTrackCSectionAction(nextState, {
           action,
           eventId: createId('track-c-cb-resolve'),
-          recordedAt: now(),
+          recordedAt: new Date(stepMs).toISOString(),
           recordedBy: 'Los',
           target,
         });
@@ -398,6 +406,7 @@ export const TrackCFieldOps = ({
           return;
         }
         nextState = result.value;
+        stepMs += 1;
       }
     }
     setNotice(

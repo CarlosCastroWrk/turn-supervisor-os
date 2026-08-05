@@ -589,12 +589,16 @@ select:focus-visible {
 .track-c-wall__head span { padding: 8px 10px; }
 .track-c-wall__unit {
   display: flex;
-  align-items: center;
-  padding: 0 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 6px;
   font-size: 16px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--turn-color-primary);
+  overflow: hidden;
 }
 .track-c-wall__cell {
   border: none;
@@ -648,14 +652,15 @@ select:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 .track-c-wall__wk {
-  margin-left: 6px;
-  padding: 1px 5px;
-  border-radius: 6px;
-  font-size: 11px;
+  align-self: flex-start;
+  margin: 0;
+  padding: 0 4px;
+  border-radius: 5px;
+  font-size: 10px;
+  line-height: 1.5;
   font-weight: 700;
   font-style: normal;
   letter-spacing: 0.02em;
-  vertical-align: middle;
 }
 .track-c-wall__wk.wall-wk0 { background: #fde68a; color: #713f12; }
 .track-c-wall__wk.wall-wk1 { background: #bbf7d0; color: #14532d; }
@@ -720,7 +725,7 @@ select:focus-visible {
 }
 .track-c-wall__grid.is-rooms .track-c-wall__head,
 .track-c-wall__grid.is-rooms .track-c-wall__row {
-  grid-template-columns: 52px repeat(6, 1fr) 64px;
+  grid-template-columns: 58px repeat(6, 1fr) 60px;
 }
 .track-c-wall__grid.is-rooms .track-c-wall__row {
   width: 100%;

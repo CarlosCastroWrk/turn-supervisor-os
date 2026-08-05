@@ -643,6 +643,21 @@ select:focus-visible {
   font-weight: 600;
   color: var(--turn-color-secondary);
 }
+.lcc-host-alert { position: relative; }
+.lcc-host-alert__dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: var(--turn-color-secondary);
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.lcc-host-alert__dismiss:hover { background: rgba(0, 0, 0, 0.06); }
 .track-c-clean-rooms {
   display: flex;
   flex-direction: column;
@@ -717,6 +732,7 @@ select:focus-visible {
 .track-c-wall__wk.wall-wk0 { background: #fde68a; color: #713f12; }
 .track-c-wall__wk.wall-wk1 { background: #bbf7d0; color: #14532d; }
 .track-c-wall__wk.wall-wk2 { background: #fbcfe8; color: #831843; }
+span.track-c-wall__wk[role="button"] { cursor: pointer; }
 .track-c-wall__legend {
   color: var(--turn-color-secondary);
   font-size: 12px;

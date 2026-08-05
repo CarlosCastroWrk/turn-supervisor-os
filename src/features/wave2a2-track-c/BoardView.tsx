@@ -1366,7 +1366,10 @@ const UnitDetail = ({
 // and a Clean cell carrying the board's own marks ("/" released, name =
 // working, X = crew done, PASS = Los passed, CC = approved in that pay
 // week's color).
-const WALL_WEEK_EPOCH = new Date(2026, 6, 26); // Sunday, week 1 = yellow
+// Week 1 of the Turn starts Sunday Aug 2 2026 (yellow). Counting from here,
+// Aug 2–8 = w1 yellow, Aug 9–15 = w2 green, Aug 16+ = w3 pink — matching how Los
+// reads his wall board.
+const WALL_WEEK_EPOCH = new Date(2026, 7, 2);
 
 const wallWeekIndex = (iso: string): number => {
   const date = new Date(iso);
@@ -1405,6 +1408,32 @@ const WallGrid = ({
       return '';
     }
   });
+  // Los can correct a unit's pay-week chip when the release date lands it on the
+  // wrong week — tap the chip to cycle w1 → w2 → w3 → back to auto. Overrides are
+  // device-local, keyed by unit:trade.
+  const [weekOverrides, setWeekOverrides] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem('turn-os:wall-week') ?? '{}');
+    } catch {
+      return {};
+    }
+  });
+  const cycleWeek = (unitId: string, computed: number | undefined) => {
+    const key = `${unitId}:${trade}`;
+    setWeekOverrides((current) => {
+      const base = current[key] ?? computed ?? 0;
+      const next = { ...current };
+      // Cycle 0→1→2→auto. "auto" removes the override so it tracks the date again.
+      if (base >= 2) delete next[key];
+      else next[key] = base + 1;
+      try {
+        window.localStorage.setItem('turn-os:wall-week', JSON.stringify(next));
+      } catch {
+        // Session-only then.
+      }
+      return next;
+    });
+  };
   const activeFloor = floors.includes(floor) ? floor : floors[0];
   const pickFloor = (next: string) => {
     setFloor(next);
@@ -1461,6 +1490,8 @@ const WallGrid = ({
   // this trade's rooms). Drives the little week chip so Los sees the Turn build
   // up week by week and can rebuild the wall in the order units came on.
   const releaseWeekOf = (unitId: string): number | undefined => {
+    const override = weekOverrides[`${unitId}:${trade}`];
+    if (override !== undefined) return override; // Los corrected it by hand.
     let earliest = '';
     for (const work of projectTrackCUnitWork(state, unitId)) {
       if (work.trade !== trade || work.release !== 'released' || !work.releasedAt) continue;
@@ -1503,7 +1534,8 @@ const WallGrid = ({
       ) : null}
       <p className="track-c-wall__legend">
         Whole Turn · every unit released, all days. The
-        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip = the pay week it came onto the board.
+        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip = the pay week
+        (w1 yellow · w2 green · w3 pink). Tap it to fix the week.
       </p>
       <div
         aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}
@@ -1541,9 +1573,19 @@ const WallGrid = ({
               {(() => {
                 const wk = releaseWeekOf(unit.id);
                 return wk === undefined ? null : (
-                  <em className={`track-c-wall__wk wall-wk${wk}`} title={`Released week ${wk + 1}`}>
+                  <span
+                    aria-label={`Week ${wk + 1} — tap to change`}
+                    className={`track-c-wall__wk wall-wk${wk}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      cycleWeek(unit.id, wk);
+                    }}
+                    role="button"
+                    title="Tap to change the pay week"
+                  >
                     w{wk + 1}
-                  </em>
+                  </span>
                 );
               })()}
             </span>

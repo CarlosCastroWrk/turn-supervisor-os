@@ -381,6 +381,25 @@ function LaunchOperationalApp({
     storagePersistence,
   } = persistence;
   const sync = useSupabaseSync(data, setData, hasStoredData);
+  // The load-warning banner can be tucked away once Los has seen it. It re-shows
+  // only if a NEW set of warnings appears (the signature changes), so it never
+  // silently hides a fresh problem.
+  const loadWarnSignature = loadWarnings.join('|');
+  const [dismissedLoadWarn, setDismissedLoadWarn] = useState<string>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:loadwarn-dismissed') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const dismissLoadWarn = () => {
+    setDismissedLoadWarn(loadWarnSignature);
+    try {
+      window.localStorage.setItem('turn-os:loadwarn-dismissed', loadWarnSignature);
+    } catch {
+      // Session-only then.
+    }
+  };
   const [route, setRoute] = useState(
     () => resolveAppHash(typeof window === 'undefined' ? '' : window.location.hash).route,
   );
@@ -2392,17 +2411,26 @@ function LaunchOperationalApp({
     </section>
   ) : null;
 
-  const loadWarningAlert = loadWarnings.length > 0 ? (
+  const loadWarningAlert = loadWarnings.length > 0
+    && dismissedLoadWarn !== loadWarnSignature ? (
     <section className="persistence-alert lcc-host-alert" role="status">
       <AlertTriangle size={22} aria-hidden="true" />
       <div>
-        <strong>Saved lifecycle details need review</strong>
+        <strong>Saved details need a quick review</strong>
         <p>
-          {loadWarnings.length} recoverable validation warning
-          {loadWarnings.length === 1 ? '' : 's'} loaded without replacing your records.
-          Export a backup before correcting them.
+          {loadWarnings.length} thing{loadWarnings.length === 1 ? '' : 's'} loaded fine but
+          should be double-checked. Your records are safe — nothing was replaced.
+          Back up from More → Storage when you get a chance.
         </p>
       </div>
+      <button
+        aria-label="Dismiss this notice"
+        className="lcc-host-alert__dismiss"
+        onClick={dismissLoadWarn}
+        type="button"
+      >
+        ✕
+      </button>
     </section>
   ) : null;
 

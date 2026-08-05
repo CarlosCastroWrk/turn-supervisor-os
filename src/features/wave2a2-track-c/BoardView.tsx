@@ -781,9 +781,6 @@ const UnitDetail = ({
           <p>{unit.unitType} · {trackCUnitMakeupLabel(unit)}</p>
         </div>
       </header>
-      <p className="track-c-detail__truth">
-        Crew completion, Los inspection, and property acceptance stay separate.
-      </p>
       <div className="track-c-util-row">
         <button
           aria-expanded={openMenu === 'add'}
@@ -932,6 +929,9 @@ const UnitDetail = ({
         .map((trade) => {
         const Icon = trade === 'paint' ? Paintbrush : Droplets;
         const tradeWork = work.filter((item) => item.trade === trade);
+        // An open callback takes priority over every other action on this trade.
+        const anyCallbackOpen = tradeWork.some((item) =>
+          item.release === 'released' && item.callbackOpen);
         const progress = projectTrackCTradeProgress(state, unitId, trade);
         const crewNames = progress.crewIds
           .map((crewId) => trackCCrewName(state, crewId))
@@ -1140,7 +1140,10 @@ const UnitDetail = ({
                 </div>
               </>
             ) : null}
-            {canRecordTradeComplete ? (
+            {/* An open callback is the one thing to deal with — while it's open,
+                show ONLY "Callback fixed" and hide the pass/approve/open actions
+                so the panel isn't a wall of buttons. They come back once it clears. */}
+            {canRecordTradeComplete && !anyCallbackOpen ? (
               <button
                 className="track-c-trade-complete"
                 data-track-c-critical-target="true"
@@ -1161,7 +1164,7 @@ const UnitDetail = ({
                   Callback fixed — {tradeLabel(trade)} passes, back to walk
                 </button>
               ) : null}
-            {onTradePass && tradeWork.some((item) =>
+            {onTradePass && !anyCallbackOpen && tradeWork.some((item) =>
               item.release === 'released'
               && item.access === 'clear'
               && item.inspection === 'needs-los-inspection') ? (
@@ -1174,7 +1177,7 @@ const UnitDetail = ({
                   Los passed {tradeLabel(trade)} — my inspection
                 </button>
               ) : null}
-            {onPdsApprove && tradeWork.some((item) =>
+            {onPdsApprove && !anyCallbackOpen && tradeWork.some((item) =>
               item.release === 'released'
               && item.inspection === 'los-passed'
               && item.property !== 'property-accepted') ? (
@@ -1196,7 +1199,7 @@ const UnitDetail = ({
                     : `PDS approved — walked ${tradeLabel(trade)} with the property`}
                 </button>
               ) : null}
-            {onOpenCallback && tradeWork.some((item) =>
+            {onOpenCallback && !anyCallbackOpen && tradeWork.some((item) =>
               item.release === 'released'
               && !item.callbackOpen
               && (item.inspection === 'los-passed' || item.property === 'property-accepted')) ? (

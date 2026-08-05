@@ -669,6 +669,7 @@ function LaunchOperationalApp({
       stage: 'needs-crew' | 'working' | 'crew-done' | 'passed' | 'callback';
       done: number;
       total: number;
+      rooms: string[];
       passedAgo?: string;
       noCrewOnRoster?: boolean;
       workLabel?: string;
@@ -716,10 +717,18 @@ function LaunchOperationalApp({
             passedAgo = day === today ? 'today' : day === localEventDate(new Date(Date.now() - 86_400_000).toISOString()) ? 'yesterday' : new Date(latest).toLocaleDateString([], { month: 'short', day: 'numeric' });
           }
         }
+        // The actual rooms in play (Common · A · B …) so Home shows what's in
+        // the unit, not an abstract "5/5 sections".
+        const rooms = work
+          .map((item) => item.section)
+          .sort((left, right) =>
+            left === 'common' ? -1 : right === 'common' ? 1 : left.localeCompare(right))
+          .map((section) => (section === 'common' ? 'Com' : section));
         lines.push({
           crewNames,
           workLabel: trackCTradeWorkTypeLabel(trackCState, unit.id, trade),
           done: donePlus,
+          rooms,
           stage,
           total: work.length,
           trade,

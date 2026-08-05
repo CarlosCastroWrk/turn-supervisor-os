@@ -1241,6 +1241,7 @@ export interface LiveBoardLine {
   workLabel?: string;
   done: number;
   total: number;
+  rooms?: string[];
   passedAgo?: string;
   noCrewOnRoster?: boolean;
 }
@@ -1713,7 +1714,9 @@ function DayTaskHome({
                       <div className="w2a2b-live-card__body">
                         <small>
                           <b>{line.crewNames.length > 0 ? line.crewNames.join(' + ') : 'unassigned'}</b>
-                          {' · '}{line.done}/{line.total} sections
+                          {line.rooms && line.rooms.length > 0
+                            ? ` · ${line.rooms.join(' · ')}`
+                            : ` · ${line.done}/${line.total} rooms`}
                           {line.workLabel ? ` · ${line.workLabel}` : ''}
                         </small>
                         {(() => {

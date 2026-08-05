@@ -619,6 +619,21 @@ select:focus-visible {
 .track-c-wall__cell.is-cc.wall-wk0 { background: #fde68a; color: #713f12; }
 .track-c-wall__cell.is-cc.wall-wk1 { background: #bbf7d0; color: #14532d; }
 .track-c-wall__cell.is-cc.wall-wk2 { background: #fbcfe8; color: #831843; }
+.track-c-trade-assign-hint {
+  display: inline-block;
+  max-width: 220px;
+  color: var(--turn-color-waiting, #9b5b00);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: right;
+}
+.w2a1b-fieldset__hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--turn-color-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
 .track-c-board-turnline {
   margin: 2px 2px 8px;
   font-size: 12.5px;

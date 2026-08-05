@@ -123,6 +123,8 @@ export function TrackBCrewFormPage({
   onSave,
   statusLabel,
 }: TrackBCrewFormPageProps) {
+  // Persistence boundary: this form only calls the provided save handler and
+  // does not claim persistence on its own — the host owns writing to storage.
   const [draft, setDraft] = useState<TrackBCrewDraft>(
     () => initialCrew ? { ...initialCrew } : emptyCrew,
   );
@@ -220,6 +222,10 @@ export function TrackBCrewFormPage({
                 );
               })}
             </div>
+            <small className="w2a1b-fieldset__hint">
+              Pick <strong>Clean</strong> for cleaners — a Paint crew won’t show
+              when you assign a Clean unit.
+            </small>
           </fieldset>
 
           <label className="w2a1b-field">
@@ -258,10 +264,6 @@ export function TrackBCrewFormPage({
         {!validation.valid && draft.name.length > 0 ? (
           <p className="w2a1b-form__error" role="alert">{validation.errors[0]}</p>
         ) : null}
-
-        <p className="w2a1b-form__notice">
-          This form calls the provided save handler. It does not claim persistence on its own.
-        </p>
 
         <div className="w2a1b-form__actions">
           <button className="w2a1b-secondary-button" type="button" onClick={onCancel}>

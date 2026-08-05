@@ -984,6 +984,15 @@ const UnitDetail = ({
                           <option key={crew.id} value={crew.id}>{crew.name}</option>
                         ))}
                     </select>
+                  ) : state.crews.length > 0
+                    && !state.crews.some((crew) => crew.trade === trade) ? (
+                    // Los has crews, but none of THIS trade — the usual reason a
+                    // just-added crew "won't show" is it was saved as the other
+                    // trade. Say so instead of a dead "Assign" button.
+                    <small className="track-c-trade-assign-hint">
+                      No {tradeLabel(trade)} crew yet — add one in Crews and pick{' '}
+                      {tradeLabel(trade)}.
+                    </small>
                   ) : onRequestAssign ? (
                     <button
                       className="track-c-trade-assign"

@@ -69,6 +69,7 @@ interface BoardViewProps {
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
   readonly onOpenCallback?: (unitId: string, trade: TrackCTrade) => void;
   readonly onOpenSectionCallback?: (unitId: string, trade: TrackCTrade, section: TrackCSection) => void;
+  readonly onResolveSectionCallback?: (unitId: string, trade: TrackCTrade, section: TrackCSection) => void;
   readonly onTradePass?: (unitId: string, trade: TrackCTrade) => void;
   readonly onResolveCallback?: (unitId: string, trade: TrackCTrade) => void;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
@@ -740,6 +741,7 @@ const UnitDetail = ({
   onPdsApprove,
   onOpenCallback,
   onOpenSectionCallback,
+  onResolveSectionCallback,
   onTradePass,
   onResolveCallback,
   onUnblockUnit,
@@ -767,6 +769,7 @@ const UnitDetail = ({
   onPdsApprove?: BoardViewProps['onPdsApprove'];
   onOpenCallback?: BoardViewProps['onOpenCallback'];
   onOpenSectionCallback?: BoardViewProps['onOpenSectionCallback'];
+  onResolveSectionCallback?: BoardViewProps['onResolveSectionCallback'];
   onTradePass?: BoardViewProps['onTradePass'];
   onResolveCallback?: BoardViewProps['onResolveCallback'];
   onUnblockUnit?: BoardViewProps['onUnblockUnit'];
@@ -1023,6 +1026,24 @@ const UnitDetail = ({
                 </p>
               );
             })()}
+            {(() => {
+              // Joseph added a room to an already-walked unit (e.g. a common-area
+              // touch-up on 507 after A/B/C were approved). The new room re-opens
+              // the unit — it can't be "done" until that room is finished and the
+              // property re-walks. Make that explicit so Los isn't surprised.
+              const released = tradeWork.filter((item) => item.release === 'released');
+              const accepted = released.filter((item) => item.property === 'property-accepted');
+              const reopened = released.filter((item) =>
+                item.property !== 'property-accepted' && !item.callbackOpen);
+              if (accepted.length === 0 || reopened.length === 0) return null;
+              return (
+                <p className="track-c-rewalk-note">
+                  New work added ({reopened.map((item) => trackCSectionLabel(item.section)).join(', ')})
+                  — finish it, then the property re-walks {unit.unitNumber}. The
+                  already-approved rooms stay approved.
+                </p>
+              );
+            })()}
             {onSetTradeRelease
               && tradeWork.filter((item) => item.release === 'released').length === 0 ? (
                 <button
@@ -1119,29 +1140,51 @@ const UnitDetail = ({
                 Crew reports {tradeLabel(trade)} complete
               </button>
             ) : null}
-            {anyCallbackOpen ? (
-              <p className="track-c-callback-rooms">
-                ⚠ Callback — go fix{' '}
-                <strong>
-                  {tradeWork
-                    .filter((item) => item.release === 'released' && item.callbackOpen)
-                    .map((item) => trackCSectionLabel(item.section))
-                    .join(', ')}
-                </strong>
-                {' '}in {tradeLabel(trade)}.
-              </p>
-            ) : null}
-            {onResolveCallback && tradeWork.some((item) =>
-              item.release === 'released' && item.callbackOpen) ? (
-                <button
-                  className="track-c-trade-complete track-c-trade-lospass"
-                  data-track-c-critical-target="true"
-                  onClick={() => onResolveCallback(unitId, trade)}
-                  type="button"
-                >
-                  Callback fixed — {tradeLabel(trade)} passes, back to walk
-                </button>
-              ) : null}
+            {anyCallbackOpen ? (() => {
+              // Every room currently on callback — Los sees exactly which rooms,
+              // and clears them ONE AT A TIME as the crew finishes each (several
+              // rooms can be on callback at once).
+              const callbackRooms = tradeWork.filter((item) =>
+                item.release === 'released' && item.callbackOpen);
+              return (
+                <div className="track-c-callback-open">
+                  <p className="track-c-callback-rooms">
+                    ⚠ Callback — go fix{' '}
+                    <strong>
+                      {callbackRooms.map((item) => trackCSectionLabel(item.section)).join(', ')}
+                    </strong>
+                    {' '}in {tradeLabel(trade)}.
+                  </p>
+                  {onResolveSectionCallback ? (
+                    <div className="track-c-callback-fix">
+                      <span className="track-c-callback-fix__label">Fixed &amp; checked:</span>
+                      <div className="track-c-callback-fix__chips">
+                        {callbackRooms.map((item) => (
+                          <button
+                            className="track-c-callback-fix__chip"
+                            data-track-c-critical-target="true"
+                            key={trackCWorkKey(item)}
+                            onClick={() => onResolveSectionCallback(unitId, trade, item.section)}
+                            type="button"
+                          >
+                            ✓ {trackCSectionLabel(item.section)} fixed
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : onResolveCallback ? (
+                    <button
+                      className="track-c-trade-complete track-c-trade-lospass"
+                      data-track-c-critical-target="true"
+                      onClick={() => onResolveCallback(unitId, trade)}
+                      type="button"
+                    >
+                      Callback fixed — {tradeLabel(trade)} passes, back to walk
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })() : null}
             {onTradePass && !anyCallbackOpen && tradeWork.some((item) =>
               item.release === 'released'
               && item.access === 'clear'
@@ -1179,10 +1222,9 @@ const UnitDetail = ({
               ) : null}
             {(() => {
               // Pick the ROOM that failed the walk — only that room goes back to
-              // callback, so Los knows exactly where to send the crew (no "all of
-              // them" and no guessing which room). Falls back to a whole-trade
-              // button only if per-room isn't wired.
-              if (anyCallbackOpen) return null;
+              // callback, so Los knows exactly where to send the crew. Stays
+              // available even when OTHER rooms are already on callback, so he
+              // can call back several rooms of the same unit independently.
               const callbackable = tradeWork.filter((item) =>
                 item.release === 'released'
                 && !item.callbackOpen
@@ -1192,7 +1234,9 @@ const UnitDetail = ({
                 return (
                   <div className="track-c-callback-pick">
                     <span className="track-c-callback-pick__label">
-                      Callback a room that needs fixing:
+                      {anyCallbackOpen
+                        ? 'Callback another room:'
+                        : 'Callback a room that needs fixing:'}
                     </span>
                     <div className="track-c-callback-pick__chips">
                       {callbackable.map((item) => (
@@ -1780,6 +1824,7 @@ export const BoardView = ({
   onPdsApprove,
   onOpenCallback,
   onOpenSectionCallback,
+  onResolveSectionCallback,
   onTradePass,
   onResolveCallback,
   onUnblockUnit,
@@ -1899,6 +1944,7 @@ export const BoardView = ({
         onPdsApprove={onPdsApprove}
         onOpenCallback={onOpenCallback}
         onOpenSectionCallback={onOpenSectionCallback}
+        onResolveSectionCallback={onResolveSectionCallback}
         onTradePass={onTradePass}
         onResolveCallback={onResolveCallback}
         onUnblockUnit={onUnblockUnit}

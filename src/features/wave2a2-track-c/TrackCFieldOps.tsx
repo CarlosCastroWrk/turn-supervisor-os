@@ -445,6 +445,37 @@ export const TrackCFieldOps = ({
     commitState(nextState, 'trade-callback-resolved');
   };
 
+  // Clear the callback on ONE room — when several rooms are in callback Los
+  // fixes and clears them one at a time as the crew finishes each, instead of
+  // clearing all of them at once.
+  const resolveSectionCallback = (unitId: string, trade: TrackCTrade, section: TrackCSection) => {
+    const target = { unitId, trade, section };
+    let nextState = state;
+    let stepMs = new Date(now()).getTime();
+    for (let guard = 0; guard < 3; guard += 1) {
+      const projected = projectTrackCWork(nextState, target);
+      if (!projected || !projected.callbackOpen) break;
+      const action = projected.inspection === 'reinspection-pending'
+        ? 'record-reinspection-pass'
+        : 'record-correction-ready';
+      const result = applyTrackCSectionAction(nextState, {
+        action,
+        eventId: createId('track-c-cb-resolve'),
+        recordedAt: new Date(stepMs).toISOString(),
+        recordedBy: 'Los',
+        target,
+      });
+      if (!result.ok) {
+        setNotice(result.error.message);
+        return;
+      }
+      nextState = result.value;
+      stepMs += 1;
+    }
+    setNotice(`${section === 'common' ? 'Common' : section} cleared — back to ready to walk.`);
+    commitState(nextState, 'section-callback-resolved');
+  };
+
   // Record Los's inspection pass on a whole trade from the unit page — needed
   // for clean (whole-unit, no per-room rows), handy for paint. Only sections
   // the crew has reported complete move to passed.
@@ -697,6 +728,7 @@ export const TrackCFieldOps = ({
             onOpenSectionCallback={openSectionCallback}
             onTradePass={recordTradeLosPass}
             onResolveCallback={resolveTradeCallback}
+            onResolveSectionCallback={resolveSectionCallback}
             onUnblockUnit={onUnblockUnit}
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}

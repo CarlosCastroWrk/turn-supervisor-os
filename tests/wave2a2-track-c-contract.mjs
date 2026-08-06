@@ -1332,3 +1332,74 @@ test('payroll answers Tony directly: which units, what kind of work, per crew', 
   assert.ok(cleanLines.some((line) => line.startsWith('410 — ') && line.includes('(2)')),
     `clean line groups by unit with a count: ${cleanLines.join(' | ')}`);
 });
+
+test('adding a room to an approved unit re-opens it — the approved rooms stay, the unit leaves ready-to-walk', () => {
+  // 507 clean: A, B, C released, all los-passed + property-accepted. Then Joseph
+  // adds Common (new work). The unit must no longer be walk-ready; A/B/C stay
+  // accepted. (Uses unit-707 clean which is unseeded in the fixture.)
+  const F = (i) => new Date(Date.parse('2026-08-05T13:00:00.000Z') + i * 1000).toISOString();
+  const ev = (section, type, i) => ({
+    id: `add-${section}-${type}-${i}`, eventType: type,
+    target: { unitId: 'unit-707', trade: 'clean', section },
+    crewId: 'crew-z', confirmation: 'confirmed', recordedAt: F(i), recordedBy: 'Los',
+    sourceType: 'personal-confirmation', sourceLabel: 't', summary: '',
+    personalRecordOnly: true, officialPaperChanged: false, payrollChanged: false,
+  });
+  let state = createSyntheticTrackCState();
+  const evs = [];
+  let i = 0;
+  for (const section of ['A', 'B']) {
+    for (const type of ['assignment-confirmed', 'work-started', 'crew-reported-complete', 'los-passed', 'property-accepted']) {
+      evs.push(ev(section, type, i++));
+    }
+  }
+  // Common: released but only just assigned + working (the newly-added room).
+  evs.push(ev('common', 'assignment-confirmed', i++), ev('common', 'work-started', i++));
+  state = withEvents(state, evs);
+
+  const A = projectTrackCWork(state, { unitId: 'unit-707', trade: 'clean', section: 'A' });
+  const common = projectTrackCWork(state, { unitId: 'unit-707', trade: 'clean', section: 'common' });
+  assert.equal(A.property, 'property-accepted', 'approved room stays approved');
+  assert.equal(common.property, 'not-ready', 'the new room needs work');
+  assert.equal(common.inspection, 'not-ready', 'new room not passed');
+  // Unit is NOT walk-ready — a room (common) is not los-passed.
+  const rooms = projectTrackCUnitWork(state, 'unit-707').filter((w) => w.trade === 'clean' && w.release === 'released');
+  const walkReady = rooms.length > 0 && rooms.every((w) =>
+    w.inspection === 'los-passed' && w.property === 'pending-property-walk' && !w.callbackOpen);
+  assert.equal(walkReady, false, 'unit with a fresh room is not ready to walk');
+});
+
+test('several rooms of one unit can be on callback at the same time', () => {
+  // Two rooms both los-passed; open a callback on A, then on B — both stay open.
+  const F = (i) => new Date(Date.parse('2026-08-05T14:00:00.000Z') + i * 1000).toISOString();
+  const ev = (section, type, i) => ({
+    id: `mc-${section}-${type}-${i}`, eventType: type,
+    target: { unitId: 'unit-707', trade: 'clean', section },
+    crewId: 'crew-z', confirmation: 'confirmed', recordedAt: F(i), recordedBy: 'Los',
+    sourceType: 'personal-confirmation', sourceLabel: 't', summary: '',
+    personalRecordOnly: true, officialPaperChanged: false, payrollChanged: false,
+  });
+  let state = createSyntheticTrackCState();
+  const evs = [];
+  let i = 0;
+  for (const section of ['A', 'B']) {
+    for (const type of ['assignment-confirmed', 'work-started', 'crew-reported-complete', 'los-passed']) {
+      evs.push(ev(section, type, i++));
+    }
+  }
+  state = withEvents(state, evs);
+  // open-callback on A then B
+  for (const section of ['A', 'B']) {
+    const r = applyTrackCSectionAction(state, {
+      action: 'open-callback', eventId: `ob-${section}`, recordedAt: F(i++), recordedBy: 'Los',
+      target: { unitId: 'unit-707', trade: 'clean', section },
+    });
+    assert.equal(r.ok, true, r.ok ? '' : r.error.message);
+    state = r.value;
+  }
+  const open = projectTrackCUnitWork(state, 'unit-707')
+    .filter((w) => w.trade === 'clean' && w.callbackOpen)
+    .map((w) => w.section)
+    .sort();
+  assert.deepEqual(open, ['A', 'B'], 'both A and B are on callback at once');
+});

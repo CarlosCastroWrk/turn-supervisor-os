@@ -692,6 +692,7 @@ function LaunchOperationalApp({
       callbackRooms: string[];
       passedAgo?: string;
       since?: string;
+      assignedSince?: string;
       noCrewOnRoster?: boolean;
       workLabel?: string;
     }[] = [];
@@ -758,15 +759,24 @@ function LaunchOperationalApp({
           .map((item) => item.releasedAt)
           .filter((value): value is string => Boolean(value))
           .sort()[0];
-        let since: string | undefined;
-        if (releasedAt) {
-          const day = localEventDate(releasedAt);
-          since = day === today
+        const dayWord = (iso: string) => {
+          const day = localEventDate(iso);
+          return day === today
             ? 'today'
             : day === localEventDate(new Date(Date.now() - 86_400_000).toISOString())
               ? 'yesterday'
-              : new Date(releasedAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+              : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        };
+        const since = releasedAt ? dayWord(releasedAt) : undefined;
+        // When Los last put a crew on this unit+trade — the second date he
+        // thinks in ("when did I crew it?").
+        let latestAssign = '';
+        for (const event of trackCState.events) {
+          if (event.eventType !== 'assignment-confirmed') continue;
+          if (event.target.unitId !== unit.id || event.target.trade !== trade) continue;
+          if (event.recordedAt > latestAssign) latestAssign = event.recordedAt;
         }
+        const assignedSince = latestAssign ? dayWord(latestAssign) : undefined;
         lines.push({
           crewNames,
           workLabel: trackCTradeWorkTypeLabel(trackCState, unit.id, trade),
@@ -780,6 +790,7 @@ function LaunchOperationalApp({
           unitNumber: unit.unitNumber,
           passedAgo,
           since,
+          assignedSince,
           noCrewOnRoster: stage === 'needs-crew'
             && !trackCState.crews.some((crew) => crew.trade === trade),
         });

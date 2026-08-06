@@ -1245,6 +1245,7 @@ export interface LiveBoardLine {
   callbackRooms?: string[];
   passedAgo?: string;
   since?: string;
+  assignedSince?: string;
   noCrewOnRoster?: boolean;
 }
 
@@ -1738,6 +1739,11 @@ function DayTaskHome({
                           {line.since ? (
                             <span className={`w2a2b-live-card__since${line.since === 'today' ? '' : ' is-old'}`}>
                               {' '}· released {line.since}
+                            </span>
+                          ) : null}
+                          {line.assignedSince ? (
+                            <span className="w2a2b-live-card__since">
+                              {' '}· assigned {line.assignedSince}
                             </span>
                           ) : null}
                         </small>

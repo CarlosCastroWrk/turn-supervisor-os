@@ -308,6 +308,24 @@ const releasedDayOf = (
   return earliest ? relativeDayLabel(earliest) : undefined;
 };
 
+// The day Los last put a crew on this unit+trade (latest confirmed assignment)
+// — shown next to the released day so "when did I get it" and "when did I crew
+// it" are both answerable at a glance.
+const assignedDayOf = (
+  state: TrackCState,
+  unitId: string,
+  trade?: TrackCTrade,
+): string | undefined => {
+  let latest = '';
+  for (const event of state.events) {
+    if (event.eventType !== 'assignment-confirmed') continue;
+    if (event.target.unitId !== unitId) continue;
+    if (trade && event.target.trade !== trade) continue;
+    if (event.recordedAt > latest) latest = event.recordedAt;
+  }
+  return latest ? relativeDayLabel(latest) : undefined;
+};
+
 const CompactUnitRow = ({
   state,
   unit,
@@ -343,11 +361,15 @@ const CompactUnitRow = ({
       </span>
       {(() => {
         const since = releasedDayOf(state, unit.unitId, trade);
-        return since ? (
-          <span className={`track-c-unit-row__since${since === 'today' ? '' : ' is-old'}`}>
-            released {since}
+        const assigned = assignedDayOf(state, unit.unitId, trade);
+        if (!since && !assigned) return null;
+        return (
+          <span className={`track-c-unit-row__since${since && since !== 'today' ? ' is-old' : ''}`}>
+            {since ? `released ${since}` : ''}
+            {since && assigned ? ' · ' : ''}
+            {assigned ? `assigned ${assigned}` : ''}
           </span>
-        ) : null;
+        );
       })()}
     </div>
     <div className="track-c-unit-row__trades">
@@ -1090,20 +1112,23 @@ const UnitDetail = ({
               })()}
             </header>
             {(() => {
-              // Which day this trade came onto the wall — so Los can reconcile
-              // the unit against his physical board day by day.
+              // Which day this trade came onto the wall + which day Los crewed
+              // it — so he can reconcile the unit against his physical board.
               let earliest = '';
               for (const item of tradeWork) {
                 if (item.release !== 'released' || !item.releasedAt) continue;
                 if (!earliest || item.releasedAt < earliest) earliest = item.releasedAt;
               }
-              return earliest ? (
+              if (!earliest) return null;
+              const assigned = assignedDayOf(state, unitId, trade);
+              return (
                 <p className="track-c-unit-released">
                   Released {new Date(earliest).toLocaleDateString([], {
                     weekday: 'short', month: 'short', day: 'numeric',
                   })} · {tradeLabel(trade)}
+                  {assigned ? ` · assigned ${assigned}` : ''}
                 </p>
-              ) : null;
+              );
             })()}
             {onSetTradeRelease
               && tradeWork.filter((item) => item.release === 'released').length === 0 ? (

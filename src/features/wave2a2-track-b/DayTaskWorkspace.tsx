@@ -1294,6 +1294,10 @@ interface DayTaskHomeProps {
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnit?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
+  walkContacts?: {
+    paint?: { name: string; phone: string };
+    clean?: { name: string; phone: string };
+  };
   onOpenCrews?: () => void;
   onPeekUnit?: (unitId: string) => void;
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
@@ -1310,6 +1314,7 @@ function DayTaskHome({
   onExportReport,
   onOpenUnit,
   josephContact,
+  walkContacts,
   onOpenCrews,
   onPeekUnit,
   onPeekQueue,
@@ -1470,11 +1475,21 @@ function DayTaskHome({
       setRitualStatus(summaryText());
     }
   };
+  // Nightly protection: payroll lives on this phone, so from 5 PM on, an
+  // un-missable card asks for the one-tap backup until today's file exists.
+  const [lastBackupDay, setLastBackupDay] = useState<string>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:last-backup') ?? '';
+    } catch {
+      return '';
+    }
+  });
   const exportBackup = async () => {
     if (!onExportBackup) return;
     setRitualStatus('Building the backup file…');
     try {
       setRitualStatus(await onExportBackup());
+      setLastBackupDay(currentDate);
     } catch {
       setRitualStatus('The backup could not be built. Try again from More → Backup.');
     }
@@ -1660,6 +1675,54 @@ function DayTaskHome({
           ) : null}
         </section>
       ) : null}
+
+      {onExportBackup && lastBackupDay !== currentDate && new Date().getHours() >= 17 ? (
+        <section className="w2a2b-backup-nag" role="status">
+          <span>
+            <strong>Protect today’s payroll</strong>
+            <small>Everything lives on this phone — one tap saves tonight’s file, then move it to iCloud Drive.</small>
+          </span>
+          <button
+            data-track-b-critical-target="true"
+            onClick={() => void exportBackup()}
+            type="button"
+          >
+            Back up now
+          </button>
+        </section>
+      ) : null}
+      {(() => {
+        // One tap tells the property what's ready: Paige walks Cleans, Joseph
+        // walks Paint. Built from the live board's passed units.
+        if (!walkContacts) return null;
+        const ready = (trade: 'paint' | 'clean') => (liveBoard ?? [])
+          .filter((line) => line.trade === trade && line.stage === 'passed')
+          .map((line) => line.unitNumber);
+        const smsDigits = (phone: string) => phone.replace(/[^+\d]/g, '');
+        const links = (['clean', 'paint'] as const).map((trade) => {
+          const units = ready(trade);
+          const contact = walkContacts[trade];
+          if (units.length === 0 || !contact) return null;
+          const word = trade === 'clean' ? 'Clean' : 'Paint';
+          const body = `Ready to walk — ${word} (${units.length}): ${units.join(', ')}. Whenever you’re ready!`;
+          return (
+            <a
+              className="w2a2b-walkreq__link"
+              href={`sms:${smsDigits(contact.phone)}&body=${encodeURIComponent(body)}`}
+              key={trade}
+            >
+              Text {contact.name} — {units.length} {word.toLowerCase()}{units.length === 1 ? '' : 's'} ready
+            </a>
+          );
+        }).filter(Boolean);
+        if (links.length === 0) return null;
+        return (
+          <div className="w2a2b-walkreq" role="group" aria-label="Request the property walk">
+            <span>Request the walk:</span>
+            {links}
+          </div>
+        );
+      })()}
 
       <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
         {([
@@ -2211,6 +2274,10 @@ export interface DayTaskWorkspaceProps {
   onExportReport?: (dayNumber?: number) => Promise<string>;
   onOpenUnitFromHome?: (unitId: string, trade?: 'paint' | 'clean') => void;
   josephContact?: { name: string; phone: string };
+  walkContacts?: {
+    paint?: { name: string; phone: string };
+    clean?: { name: string; phone: string };
+  };
   onOpenCrews?: () => void;
   onPeekUnit?: (unitId: string) => void;
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
@@ -2265,6 +2332,7 @@ export function DayTaskWorkspace({
   onExportReport,
   onOpenUnitFromHome,
   josephContact,
+  walkContacts,
   onOpenCrews,
   onPeekUnit,
   onPeekQueue,
@@ -2468,6 +2536,7 @@ export function DayTaskWorkspace({
         supervisorName={supervisorName}
         liveBoard={liveBoard}
         morningBrief={morningBrief}
+        walkContacts={walkContacts}
         onAdvanceUnitTrade={onAdvanceUnitTrade}
         glance={glance}
         onOpenCrew={onOpenCrew}

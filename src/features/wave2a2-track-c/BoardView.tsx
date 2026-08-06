@@ -1567,11 +1567,17 @@ const WallGrid = ({
     const work = projectTrackCWork(state, { section, trade, unitId });
     if (!work || work.release !== 'released') return { cls: 'is-empty', mark: '\u2014' };
     if (work.property === 'property-accepted') {
-      // Color the CC to MATCH the row's week chip (including Los's tap-to-fix
-      // override) so the whole unit reads one consistent pay-week color — the
-      // chip and the approved cells never disagree.
-      const wk = releaseWeekOf(unitId);
-      return { cls: `is-cc wall-wk${wk ?? 1}`, mark: 'CC' };
+      // Wall SOP: the CC highlight is the PAY WEEK IT WAS APPROVED — automatic
+      // from the approval date, no tapping. (The w# chip stays the release
+      // week; two different facts, two markers.)
+      const latest = state.events
+        .filter((event) =>
+          event.eventType === 'property-accepted'
+          && event.target.unitId === unitId
+          && event.target.trade === trade
+          && event.target.section === section)
+        .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
+      return { cls: `is-cc wall-wk${latest ? wallWeekIndex(latest) : wallWeekIndex(new Date().toISOString())}`, mark: 'CC' };
     }
     if (work.callbackOpen) return { cls: 'is-cb', mark: 'CB' };
     if (work.access !== 'clear') return { cls: 'is-blocked', mark: 'W' };
@@ -1637,9 +1643,11 @@ const WallGrid = ({
         </div>
       ) : null}
       <p className="track-c-wall__legend">
-        Whole Turn · every unit released, all days. The
-        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip = the pay week
-        (w1 yellow · w2 green · w3 pink). Tap it to fix the week.
+        Whole Turn · every unit, all days. Marks: / released · X crew done ·
+        ✓ passed · CC approved (highlight = the week it was approved, automatic)
+        · CB callback · W waiting/blocked. The
+        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip = the week it
+        came onto the board (tap to fix).
       </p>
       <div
         aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}

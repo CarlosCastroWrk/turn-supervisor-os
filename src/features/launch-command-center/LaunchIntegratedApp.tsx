@@ -3615,6 +3615,20 @@ function LaunchOperationalApp({
               ? { name: contact.name.split(' ')[0], phone: contact.phone }
               : undefined;
           })()}
+          walkContacts={(() => {
+            // Who walks each trade: Joseph walks Paint, Paige walks Clean.
+            // Fall back to the primary contact so the button still works.
+            const pick = (pattern: RegExp) => {
+              const contact = activeProjectContacts.find((candidate) =>
+                pattern.test(candidate.name))
+                ?? activeProjectContacts.find((candidate) => candidate.isPrimary)
+                ?? activeProjectContacts[0];
+              return contact?.phone
+                ? { name: contact.name.split(' ')[0], phone: contact.phone }
+                : undefined;
+            };
+            return { clean: pick(/paige/i), paint: pick(/jose/i) };
+          })()}
           onOpenUnitFromHome={(unitId, trade) => {
             unitDetailOriginRef.current = 'home';
             unitDetailTradeRef.current = trade;
@@ -3628,6 +3642,13 @@ function LaunchOperationalApp({
               result.text,
               'application/json',
             );
+            // Remember the last backup day so the nightly nag knows when
+            // tonight's payroll record is already protected.
+            try {
+              window.localStorage.setItem('turn-os:last-backup', currentDate);
+            } catch {
+              // Session-only then.
+            }
             return result.missingPhotoFiles > 0
               ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device. Move it to iCloud Drive.`
               : 'Backup saved. Move the file from Downloads to iCloud Drive and tonight is safe.';

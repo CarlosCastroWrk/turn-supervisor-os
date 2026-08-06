@@ -471,44 +471,48 @@ export function ManualReleaseReview({
                     roster.units.find((unit) => unit.id === unitId)?.unitNumber ?? unitId;
                   return [...byUnit.entries()]
                     .sort((left, right) => compareUnitTopFloorFirst(numberOf(left[0]), numberOf(right[0])))
-                    .map(([unitId, list]) => (
-                      <div className="w2a2-core-selected__unit" key={unitId}>
-                        <strong>{numberOf(unitId)}</strong>
-                        <button
-                          aria-label={`Remove unit ${numberOf(unitId)}`}
-                          className="w2a2-core-selected__remove"
-                          onClick={() => setSelected((current) => {
-                            const next = new Map(current);
-                            for (const key of [...next.keys()]) {
-                              if (next.get(key)?.unitId === unitId) next.delete(key);
-                            }
-                            return next;
-                          })}
-                          type="button"
-                        >
-                          Remove ✕
-                        </button>
-                        <span>
-                          {list
-                            .sort((a, b) => `${a.trade}${a.section}`.localeCompare(`${b.trade}${b.section}`))
-                            .map((selection) => {
-                              const label = selection.section === 'common' ? 'Common' : selection.section;
-                              const kind = selection.trade === 'clean'
-                                ? 'clean'
-                                : selection.workType ?? 'full';
-                              const kindLabel = selection.trade === 'clean'
-                                ? 'clean'
-                                : kind === 'full' ? 'full paint'
-                                  : kind === 'full-cut-in' ? 'full+cut-in'
-                                    : kind === 'touch-up-cut-in' ? 'touch-up+cut-in'
-                                      : kind;
-                              const key = selectionKey(selection);
-                              const isPaint = selection.trade === 'paint';
-                              return (
-                                <span className="w2a2-core-roompill" key={key}>
+                    .map(([unitId, list]) => {
+                      const rooms = [...list]
+                        .sort((a, b) => `${a.trade}${a.section}`.localeCompare(`${b.trade}${b.section}`));
+                      const openRoom = rooms.find((selection) =>
+                        selection.trade === 'paint' && selectionKey(selection) === taskPickerKey);
+                      return (
+                        <div className="w2a2-core-selected__unit" key={unitId}>
+                          <div className="w2a2-core-selected__row">
+                            <strong>{numberOf(unitId)}</strong>
+                            <button
+                              aria-label={`Remove unit ${numberOf(unitId)}`}
+                              className="w2a2-core-selected__remove"
+                              onClick={() => setSelected((current) => {
+                                const next = new Map(current);
+                                for (const key of [...next.keys()]) {
+                                  if (next.get(key)?.unitId === unitId) next.delete(key);
+                                }
+                                return next;
+                              })}
+                              type="button"
+                            >
+                              Remove ✕
+                            </button>
+                            <span className="w2a2-core-selected__pills">
+                              {rooms.map((selection) => {
+                                const label = selection.section === 'common' ? 'Common' : selection.section;
+                                const kind = selection.trade === 'clean'
+                                  ? 'clean'
+                                  : selection.workType ?? 'full';
+                                const kindLabel = selection.trade === 'clean'
+                                  ? 'clean'
+                                  : kind === 'full' ? 'full'
+                                    : kind === 'full-cut-in' ? 'full+cut'
+                                      : kind === 'touch-up-cut-in' ? 'TU+cut'
+                                        : kind === 'touch-up' ? 'touch-up' : 'cut-in';
+                                const key = selectionKey(selection);
+                                const isPaint = selection.trade === 'paint';
+                                return (
                                   <button
                                     aria-expanded={isPaint ? taskPickerKey === key : undefined}
-                                    className={`w2a2-core-typepill is-${kind}`}
+                                    className={`w2a2-core-typepill is-${kind}${taskPickerKey === key ? ' is-open' : ''}`}
+                                    key={key}
                                     onClick={() => {
                                       if (isPaint) {
                                         setTaskPickerKey((current) => (current === key ? null : key));
@@ -518,36 +522,39 @@ export function ManualReleaseReview({
                                     }}
                                     type="button"
                                   >
-                                    {label} · {kindLabel}
-                                    {isPaint ? ' ▾' : ''}
+                                    {label} · {kindLabel}{isPaint ? ' ▾' : ''}
                                   </button>
-                                  {isPaint && taskPickerKey === key ? (
-                                    <div className="w2a2-core-taskpicker">
-                                      {PAINT_TASKS.map((task) => (
-                                        <button
-                                          className={kind === task.key ? 'is-current' : undefined}
-                                          key={task.key}
-                                          onClick={() => setRoomTask(selection, task.key)}
-                                          type="button"
-                                        >
-                                          {task.label}
-                                        </button>
-                                      ))}
-                                      <button
-                                        className="is-remove"
-                                        onClick={() => setRoomTask(selection, 'remove')}
-                                        type="button"
-                                      >
-                                        Remove
-                                      </button>
-                                    </div>
-                                  ) : null}
-                                </span>
-                              );
-                            })}
-                        </span>
-                      </div>
-                    ));
+                                );
+                              })}
+                            </span>
+                          </div>
+                          {openRoom ? (
+                            <div className="w2a2-core-taskpicker">
+                              <span className="w2a2-core-taskpicker__for">
+                                {openRoom.section === 'common' ? 'Common' : openRoom.section}:
+                              </span>
+                              {PAINT_TASKS.map((task) => (
+                                <button
+                                  className={(openRoom.workType ?? 'full') === task.key ? 'is-current' : undefined}
+                                  key={task.key}
+                                  onClick={() => setRoomTask(openRoom, task.key)}
+                                  type="button"
+                                >
+                                  {task.label}
+                                </button>
+                              ))}
+                              <button
+                                className="is-remove"
+                                onClick={() => setRoomTask(openRoom, 'remove')}
+                                type="button"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    });
                 })()}
               </div>
             ) : null}

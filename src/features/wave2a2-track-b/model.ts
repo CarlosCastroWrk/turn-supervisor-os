@@ -232,9 +232,30 @@ export function createTodayTask(
   ));
   if (confirmed.length === 0) return null;
 
-  const errors = confirmed.flatMap((release) => validateReleaseAgainstRoster(roster, release));
-  if (errors.length > 0) {
-    throw new Error(`Confirmed release is incompatible with the property roster:\n${errors.join('\n')}`);
+  // A release section that no longer fits the roster (e.g. Los corrected a
+  // unit's bed count after releasing one of its bedrooms) must NEVER take the
+  // whole day down with it. Only a wrong-property release is fatal; every other
+  // mismatch drops just that one section and is surfaced to Los so he knows the
+  // board is showing a corrected picture, not hiding work silently.
+  const fatal: string[] = [];
+  const dropped: string[] = [];
+  for (const release of confirmed) {
+    for (const message of validateReleaseAgainstRoster(roster, release)) {
+      if (message.includes('does not match the roster property')) {
+        fatal.push(message);
+      } else if (
+        message.includes('is not applicable to Unit')
+        || message.includes('is not present in the property roster')
+        || message.includes('is not structurally available')
+        || message.includes('has no released trade')
+      ) {
+        dropped.push(message);
+      }
+      // Duplicate-section messages are not dropped — the builder merges them.
+    }
+  }
+  if (fatal.length > 0) {
+    throw new Error(`Confirmed release is incompatible with the property roster:\n${fatal.join('\n')}`);
   }
 
   const unitMap = new Map(roster.units.map((unit) => [unit.id, unit]));
@@ -286,6 +307,7 @@ export function createTodayTask(
   return {
     date,
     daySessionId,
+    droppedReleases: unique(dropped),
     propertyId: roster.propertyId,
     releaseBatchIds: confirmed.map((release) => release.id),
     sections: [...sections.values()],

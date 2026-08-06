@@ -1596,6 +1596,18 @@ function DayTaskHome({
         ) : null}
       </header>
 
+      {task?.droppedReleases && task.droppedReleases.length > 0 ? (
+        <section className="w2a2b-dropped-warning" role="alert">
+          <b>{task.droppedReleases.length} released {task.droppedReleases.length === 1 ? 'room isn’t' : 'rooms aren’t'} showing — a unit’s rooms were changed after release.</b>
+          <ul>
+            {task.droppedReleases.map((message) => (
+              <li key={message}>{message.replace(/\.$/, '')}</li>
+            ))}
+          </ul>
+          <span>Everything else is safe and still saved. Re-release that room after fixing the unit’s rooms if it still needs work.</span>
+        </section>
+      ) : null}
+
       {active ? null : (
       <section className="w2a2b-day-status" aria-labelledby="w2a2b-day-status-title">
         <span className={`w2a2b-day-status__icon is-${session?.status ?? 'not-started'}`}>

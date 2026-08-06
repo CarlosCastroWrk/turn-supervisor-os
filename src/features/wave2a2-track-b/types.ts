@@ -181,6 +181,10 @@ export interface TodayTaskSection {
 export interface TodayTask {
   date: string;
   daySessionId?: string;
+  // Released sections that no longer fit the current roster and were skipped
+  // (e.g. a bedroom released before Los corrected the unit's bed count). Kept
+  // so the board can tell Los what it dropped instead of hiding it silently.
+  droppedReleases?: readonly string[];
   propertyId: string;
   releaseBatchIds: readonly string[];
   sections: readonly TodayTaskSection[];

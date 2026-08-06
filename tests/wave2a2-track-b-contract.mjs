@@ -92,7 +92,7 @@ test('only an explicitly confirmed release creates Today’s Task', () => {
   assert.equal(new Set(task.sections.map((section) => section.unitId)).size, 40);
 });
 
-test('an incompatible confirmed release fails instead of inventing roster structure', () => {
+test('an incompatible confirmed section is dropped and surfaced — it never blanks the day or invents roster structure', () => {
   const roster = createSyntheticRoster();
   const release = createSyntheticRelease(roster);
   const incompatible = {
@@ -109,10 +109,16 @@ test('an incompatible confirmed release fails instead of inventing roster struct
   assert.deepEqual(validateReleaseAgainstRoster(roster, incompatible), [
     `Released section not-a-section is not applicable to Unit ${roster.units[0].unitNumber}.`,
   ]);
-  assert.throws(
-    () => createTodayTask(roster, [incompatible], SYNTHETIC_DATE),
-    /Confirmed release is incompatible with the property roster/u,
-  );
+  // A room that no longer fits the roster (e.g. after Los corrects a unit's bed
+  // count) must NOT take the whole day's task down. The bad section is skipped —
+  // never invented into the roster — and reported in droppedReleases so Los sees
+  // exactly what isn't showing and why.
+  const task = createTodayTask(roster, [incompatible], SYNTHETIC_DATE);
+  assert.ok(task, 'the task survives instead of throwing');
+  assert.ok(!task.sections.some((section) => section.sectionId === 'not-a-section'));
+  assert.deepEqual(task.droppedReleases, [
+    `Released section not-a-section is not applicable to Unit ${roster.units[0].unitNumber}.`,
+  ]);
 });
 
 test('Start Day rejects every invalid selected release ID and validates the exact goal target', () => {

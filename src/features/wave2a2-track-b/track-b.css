@@ -555,6 +555,36 @@ button.w2a2b-done-toggle {
   font-weight: 700;
 }
 
+.w2a2b-dropped-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--w2a2b-danger);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--w2a2b-danger) 8%, #fff);
+  color: #7a1020;
+}
+
+.w2a2b-dropped-warning b {
+  color: var(--w2a2b-danger);
+  line-height: 1.3;
+}
+
+.w2a2b-dropped-warning ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.w2a2b-dropped-warning span {
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
 .w2a2b-review-card dl,
 .w2a2b-review-list dl {
   margin: 0;

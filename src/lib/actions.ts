@@ -668,6 +668,20 @@ export const updateCrewMember = (data: AppData, crewId: EntityId, patch: Partial
   activityLogs: [activity(data.activeProjectId, 'CrewMember', crewId, 'Updated crew contact', patch.notes ?? ''), ...data.activityLogs],
 });
 
+// Only safe for a crew with NO recorded work — callers must check first; a crew
+// with completions is payroll history and gets deactivated instead of deleted.
+export const removeCrewMember = (data: AppData, crewId: EntityId): AppData => {
+  const crew = data.crewMembers.find((candidate) => candidate.id === crewId);
+  return {
+    ...data,
+    crewMembers: data.crewMembers.filter((candidate) => candidate.id !== crewId),
+    activityLogs: [
+      activity(data.activeProjectId, 'CrewMember', crewId, 'Deleted crew contact', crew?.name ?? ''),
+      ...data.activityLogs,
+    ],
+  };
+};
+
 export const addAssignment = (data: AppData, assignment: Assignment): AppData => ({
   ...data,
   assignments: [{ ...assignment, createdAt: assignment.createdAt || nowISO(), updatedAt: assignment.updatedAt || nowISO() }, ...data.assignments],

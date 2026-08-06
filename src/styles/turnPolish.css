@@ -689,6 +689,21 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
 }
+.w2a1b-crew-delete {
+  margin-top: 14px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--turn-color-destructive, #b4232d);
+  background: transparent;
+  color: var(--turn-color-destructive, #b4232d);
+  font-weight: 700;
+  font-size: 14px;
+}
+.w2a1b-crew-delete.is-armed {
+  background: var(--turn-color-destructive, #b4232d);
+  color: #fff;
+}
 .w2a2b-backup-nag {
   display: flex;
   align-items: center;

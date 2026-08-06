@@ -106,6 +106,9 @@ export interface TrackBCrewFormPageProps {
   onBack: () => void;
   onCancel: () => void;
   onSave: (crew: TrackBCrewDraft) => void;
+  // Delete this crew (edit mode). The host decides: a crew with recorded work
+  // is payroll history and gets deactivated instead of removed.
+  onDelete?: () => void;
 }
 
 const emptyCrew: TrackBCrewDraft = {
@@ -120,6 +123,7 @@ export function TrackBCrewFormPage({
   mode,
   onBack,
   onCancel,
+  onDelete,
   onSave,
   statusLabel,
 }: TrackBCrewFormPageProps) {
@@ -128,6 +132,7 @@ export function TrackBCrewFormPage({
   const [draft, setDraft] = useState<TrackBCrewDraft>(
     () => initialCrew ? { ...initialCrew } : emptyCrew,
   );
+  const [deleteArmed, setDeleteArmed] = useState(false);
   const validation = validateTrackBCrewDraft(draft);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -273,6 +278,23 @@ export function TrackBCrewFormPage({
             {mode === 'add' ? 'Add crew' : 'Save changes'}
           </button>
         </div>
+        {mode === 'edit' && onDelete ? (
+          <button
+            className={`w2a1b-crew-delete${deleteArmed ? ' is-armed' : ''}`}
+            onClick={() => {
+              if (!deleteArmed) {
+                setDeleteArmed(true);
+                return;
+              }
+              onDelete();
+            }}
+            type="button"
+          >
+            {deleteArmed
+              ? `Tap again to delete ${draft.name.trim() || 'this crew'}`
+              : 'Delete this crew'}
+          </button>
+        ) : null}
       </form>
     </NativeDetailShell>
   );

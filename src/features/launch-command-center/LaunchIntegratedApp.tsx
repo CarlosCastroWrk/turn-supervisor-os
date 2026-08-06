@@ -173,7 +173,7 @@ import {
 } from '../wave2a21-field-activation/model';
 import type { CaptureResultReceipt } from '../../lib/captureSession';
 import { motionSafeScrollBehavior } from '../../lib/accessibility';
-import { addCrewMember, addPhotoNote, archiveProject, updateCrewMember, updateUnit } from '../../lib/actions';
+import { addCrewMember, addPhotoNote, archiveProject, removeCrewMember, updateCrewMember, updateUnit } from '../../lib/actions';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
 import { useAiAuth } from '../../lib/ai/useAiAuth';
 import { createId, nowISO } from '../../lib/constants';
@@ -2977,6 +2977,22 @@ function LaunchOperationalApp({
   const editingCrew = crewEditor?.mode === 'edit'
     ? crewRecords.find((crew) => crew.id === crewEditor.crewId)
     : undefined;
+  // Delete from the crew editor. A crew with recorded work is payroll history —
+  // Tony pays off those events — so they deactivate (kept for receipts) instead
+  // of deleting; a crew with no work deletes clean.
+  const deleteEditingCrew = crewEditor?.mode === 'edit' ? () => {
+    const crewId = crewEditor.crewId;
+    const crewName = crewRecords.find((crew) => crew.id === crewId)?.name ?? 'Crew';
+    const hasWork = data.fieldEvents.some((event) => event.reportedBy === crewId);
+    if (hasWork) {
+      commitDataNow((current) => updateCrewMember(current, crewId, { active: false }));
+      setMoreStatus(`${crewName} has recorded work — kept for payroll, moved to Not active.`);
+    } else {
+      commitDataNow((current) => removeCrewMember(current, crewId));
+      setMoreStatus(`${crewName} deleted.`);
+    }
+    setCrewEditor(null);
+  } : undefined;
   const currentRouteKey = buildAppHash(route);
   const currentRouteTab = trackCTabForRoute(route.view);
   const rememberedRoute = getTrackCCurrentTabRoute(
@@ -2999,6 +3015,7 @@ function LaunchOperationalApp({
           mode={crewEditor.mode}
           onBack={() => setCrewEditor(null)}
           onCancel={() => setCrewEditor(null)}
+          onDelete={deleteEditingCrew}
           onSave={saveCrew}
           statusLabel="Personal project contact"
         />
@@ -4281,6 +4298,7 @@ function LaunchOperationalApp({
           mode={crewEditor.mode}
           onBack={() => setCrewEditor(null)}
           onCancel={() => setCrewEditor(null)}
+          onDelete={deleteEditingCrew}
           onSave={saveCrew}
           statusLabel="Personal project contact"
         />

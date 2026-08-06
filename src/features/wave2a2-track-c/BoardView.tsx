@@ -842,145 +842,12 @@ const UnitDetail = ({
           <p>{unit.unitType} · {trackCUnitMakeupLabel(unit)}</p>
         </div>
       </header>
-      <div className="track-c-util-row">
-        <button
-          aria-expanded={openMenu === 'add'}
-          className="track-c-addmenu-trigger"
-          data-track-c-critical-target="true"
-          onClick={() => setOpenMenu(openMenu === 'add' ? null : 'add')}
-          type="button"
-        >
-          <span aria-hidden="true">＋</span> Add note · change order · photo
-        </button>
-        {openMenu === 'add' ? (
-          <>
-            <button
-              aria-label="Close menu"
-              className="track-c-menu-backdrop"
-              onClick={() => setOpenMenu(null)}
-              type="button"
-            />
-            <div className="track-c-popmenu">
-              {onRequestNote ? (
-                <button
-                  onClick={() => { setOpenMenu(null); onRequestNote(); }}
-                  type="button"
-                >
-                  Note
-                </button>
-              ) : null}
-              <button
-                onClick={() => {
-                  setOpenMenu(null);
-                  const summary = `Change order — Unit ${unit.unitNumber} (${trackCUnitMakeupLabel(unit)}). `
-                    + 'Reason: tub resurface / wall hole larger than a quarter / other (edit). '
-                    + 'Flagged from Turn OS.';
-                  void navigator.clipboard?.writeText(summary).catch(() => undefined);
-                  window.open(
-                    OFFICIAL_PDS_LINKS.find((link) => link.id === 'change-order')?.url,
-                    '_blank',
-                    'noopener,noreferrer',
-                  );
-                }}
-                type="button"
-              >
-                Change order
-              </button>
-              {onCommitUnitPhoto ? (
-                <UnitPhotoAddButton
-                  compact
-                  onCommitPhoto={(photo) => {
-                    setOpenMenu(null);
-                    return onCommitUnitPhoto(photo);
-                  }}
-                  projectId={state.propertyId}
-                  unitId={unitId}
-                  unitNumber={unit.unitNumber}
-                />
-              ) : null}
-            </div>
-          </>
-        ) : null}
-      </div>
       {notesForUnit.length > 0 ? (
         <div className="track-c-unit-notes">
           <h3>Notes</h3>
           {notesForUnit.map((note) => (
             <p key={note.id}>{note.text}</p>
           ))}
-        </div>
-      ) : null}
-      {onSetUnitBeds ? (() => {
-        // Joseph gives rooms Turn OS didn't know a unit had (a "studio" that's
-        // really got beds). Set the rooms right here — can't drop below a room
-        // that already has released work.
-        const bedLetters = ['A', 'B', 'C', 'D', 'E'] as const;
-        const currentBeds = unit.applicableSections
-          .filter((section) => section !== 'common').length;
-        const highestReleasedBed = work
-          .filter((item) => item.release === 'released' && item.section !== 'common')
-          .reduce((max, item) => Math.max(max, bedLetters.indexOf(item.section as 'A') + 1), 0);
-        return (
-          <div className="track-c-rooms-editor">
-            <h3>Rooms</h3>
-            <div className="track-c-rooms-editor__choices" role="group" aria-label="Rooms in this unit">
-              {[0, 2, 3, 4, 5].map((beds) => (
-                <button
-                  aria-pressed={currentBeds === beds}
-                  disabled={beds < highestReleasedBed}
-                  key={beds}
-                  onClick={() => onSetUnitBeds(unitId, beds)}
-                  type="button"
-                >
-                  {beds === 0 ? 'Studio' : `A–${bedLetters[beds - 1]}`}
-                </button>
-              ))}
-            </div>
-            <small>Common area stays. Release only the rooms Joseph gave you.</small>
-          </div>
-        );
-      })() : null}
-      {onMoveUnitTrade && work.some((item) => item.release === 'released') ? (
-        <div className="track-c-move-unit">
-          {moveTrade ? (
-            <>
-              <span>Move {tradeLabel(moveTrade)} from {unit.unitNumber} to unit #</span>
-              <div className="track-c-move-unit__row">
-                <input
-                  aria-label="Target unit number"
-                  inputMode="numeric"
-                  onChange={(event) => setMoveTarget(event.target.value)}
-                  placeholder="1103"
-                  type="text"
-                  value={moveTarget}
-                />
-                <button
-                  disabled={!moveTarget.trim()}
-                  onClick={() => {
-                    onMoveUnitTrade(unitId, moveTrade, moveTarget.trim());
-                    setMoveTarget('');
-                    setMoveTrade(null);
-                  }}
-                  type="button"
-                >
-                  Move
-                </button>
-                <button className="is-cancel" onClick={() => setMoveTrade(null)} type="button">
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="track-c-move-unit__triggers">
-              <span>Wrong unit? Move the release:</span>
-              {[...new Set(work.filter((item) => item.release === 'released').map((item) => item.trade))]
-                .map((trade) => (
-                  <button key={trade} onClick={() => setMoveTrade(trade)} type="button">
-                    Move {tradeLabel(trade)}
-                  </button>
-                ))}
-            </div>
-          )}
         </div>
       ) : null}
       {[...TRACK_C_TRADES]
@@ -993,6 +860,27 @@ const UnitDetail = ({
         // An open callback takes priority over every other action on this trade.
         const anyCallbackOpen = tradeWork.some((item) =>
           item.release === 'released' && item.callbackOpen);
+        // One-glance status chip that LEADS the panel, so opening a unit answers
+        // "where is this trade?" in a second — before any of the controls.
+        const releasedItems = tradeWork.filter((item) => item.release === 'released');
+        const callbackRoomsLabel = releasedItems
+          .filter((item) => item.callbackOpen)
+          .map((item) => trackCSectionLabel(item.section))
+          .join(', ');
+        const tradeStatus: { text: string; tone: string } = anyCallbackOpen
+          ? { text: `Callback — ${callbackRoomsLabel}`, tone: 'callback' }
+          : releasedItems.length === 0
+            ? { text: 'Not released', tone: 'idle' }
+            : releasedItems.every((item) => item.property === 'property-accepted')
+              ? { text: 'Approved', tone: 'approved' }
+              : releasedItems.every((item) => item.inspection === 'los-passed')
+                ? { text: 'Ready to walk', tone: 'ready' }
+                : releasedItems.every((item) =>
+                  item.execution === 'crew-reported-complete' || item.inspection === 'los-passed')
+                  ? { text: 'Crew done — your inspection', tone: 'check' }
+                  : releasedItems.some((item) => ['assigned', 'working'].includes(item.execution))
+                    ? { text: 'Working', tone: 'working' }
+                    : { text: 'Needs crew', tone: 'idle' };
         const progress = projectTrackCTradeProgress(state, unitId, trade);
         const crewNames = progress.crewIds
           .map((crewId) => trackCCrewName(state, crewId))
@@ -1017,7 +905,12 @@ const UnitDetail = ({
             <header>
               <Icon aria-hidden="true" size={18} />
               <div className="track-c-trade-panel__identity">
-                <h2 id={`track-c-${trade}-heading`}>{tradeLabel(trade)}</h2>
+                <div className="track-c-trade-panel__title">
+                  <h2 id={`track-c-${trade}-heading`}>{tradeLabel(trade)}</h2>
+                  <span className={`track-c-trade-status is-${tradeStatus.tone}`}>
+                    {tradeStatus.text}
+                  </span>
+                </div>
                 <span>
                   {crewNames.length === 0
                     ? progress.released > 0 ? 'Needs crew' : 'Unreleased'
@@ -1465,6 +1358,144 @@ const UnitDetail = ({
         </button>
       ) : null}
       <UnitPhotoStrip photos={photosForUnit} unitNumber={unit.unitNumber} />
+      <details className="track-c-manage">
+        <summary>Manage this unit — notes, rooms, move</summary>
+        <div className="track-c-manage__body">
+      <div className="track-c-util-row">
+        <button
+          aria-expanded={openMenu === 'add'}
+          className="track-c-addmenu-trigger"
+          data-track-c-critical-target="true"
+          onClick={() => setOpenMenu(openMenu === 'add' ? null : 'add')}
+          type="button"
+        >
+          <span aria-hidden="true">＋</span> Add note · change order · photo
+        </button>
+        {openMenu === 'add' ? (
+          <>
+            <button
+              aria-label="Close menu"
+              className="track-c-menu-backdrop"
+              onClick={() => setOpenMenu(null)}
+              type="button"
+            />
+            <div className="track-c-popmenu">
+              {onRequestNote ? (
+                <button
+                  onClick={() => { setOpenMenu(null); onRequestNote(); }}
+                  type="button"
+                >
+                  Note
+                </button>
+              ) : null}
+              <button
+                onClick={() => {
+                  setOpenMenu(null);
+                  const summary = `Change order — Unit ${unit.unitNumber} (${trackCUnitMakeupLabel(unit)}). `
+                    + 'Reason: tub resurface / wall hole larger than a quarter / other (edit). '
+                    + 'Flagged from Turn OS.';
+                  void navigator.clipboard?.writeText(summary).catch(() => undefined);
+                  window.open(
+                    OFFICIAL_PDS_LINKS.find((link) => link.id === 'change-order')?.url,
+                    '_blank',
+                    'noopener,noreferrer',
+                  );
+                }}
+                type="button"
+              >
+                Change order
+              </button>
+              {onCommitUnitPhoto ? (
+                <UnitPhotoAddButton
+                  compact
+                  onCommitPhoto={(photo) => {
+                    setOpenMenu(null);
+                    return onCommitUnitPhoto(photo);
+                  }}
+                  projectId={state.propertyId}
+                  unitId={unitId}
+                  unitNumber={unit.unitNumber}
+                />
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </div>
+      {onSetUnitBeds ? (() => {
+        // Joseph gives rooms Turn OS didn't know a unit had (a "studio" that's
+        // really got beds). Set the rooms right here — can't drop below a room
+        // that already has released work.
+        const bedLetters = ['A', 'B', 'C', 'D', 'E'] as const;
+        const currentBeds = unit.applicableSections
+          .filter((section) => section !== 'common').length;
+        const highestReleasedBed = work
+          .filter((item) => item.release === 'released' && item.section !== 'common')
+          .reduce((max, item) => Math.max(max, bedLetters.indexOf(item.section as 'A') + 1), 0);
+        return (
+          <div className="track-c-rooms-editor">
+            <h3>Rooms</h3>
+            <div className="track-c-rooms-editor__choices" role="group" aria-label="Rooms in this unit">
+              {[0, 2, 3, 4, 5].map((beds) => (
+                <button
+                  aria-pressed={currentBeds === beds}
+                  disabled={beds < highestReleasedBed}
+                  key={beds}
+                  onClick={() => onSetUnitBeds(unitId, beds)}
+                  type="button"
+                >
+                  {beds === 0 ? 'Studio' : `A–${bedLetters[beds - 1]}`}
+                </button>
+              ))}
+            </div>
+            <small>Common area stays. Release only the rooms Joseph gave you.</small>
+          </div>
+        );
+      })() : null}
+      {onMoveUnitTrade && work.some((item) => item.release === 'released') ? (
+        <div className="track-c-move-unit">
+          {moveTrade ? (
+            <>
+              <span>Move {tradeLabel(moveTrade)} from {unit.unitNumber} to unit #</span>
+              <div className="track-c-move-unit__row">
+                <input
+                  aria-label="Target unit number"
+                  inputMode="numeric"
+                  onChange={(event) => setMoveTarget(event.target.value)}
+                  placeholder="1103"
+                  type="text"
+                  value={moveTarget}
+                />
+                <button
+                  disabled={!moveTarget.trim()}
+                  onClick={() => {
+                    onMoveUnitTrade(unitId, moveTrade, moveTarget.trim());
+                    setMoveTarget('');
+                    setMoveTrade(null);
+                  }}
+                  type="button"
+                >
+                  Move
+                </button>
+                <button className="is-cancel" onClick={() => setMoveTrade(null)} type="button">
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="track-c-move-unit__triggers">
+              <span>Wrong unit? Move the release:</span>
+              {[...new Set(work.filter((item) => item.release === 'released').map((item) => item.trade))]
+                .map((trade) => (
+                  <button key={trade} onClick={() => setMoveTrade(trade)} type="button">
+                    Move {tradeLabel(trade)}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+        </div>
+      </details>
     </article>
   );
 };

@@ -689,6 +689,51 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
 }
+.track-c-trade-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.track-c-trade-status {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+.track-c-trade-status.is-idle { background: var(--turn-color-grouped, #eef0f3); color: var(--turn-color-secondary, #66707c); }
+.track-c-trade-status.is-working { background: #eaf3fb; color: #0877d1; }
+.track-c-trade-status.is-check { background: #fdf3e4; color: #9b5b00; }
+.track-c-trade-status.is-ready { background: #e2f2e8; color: #237a45; }
+.track-c-trade-status.is-approved { background: #d1fae5; color: #065f46; }
+.track-c-trade-status.is-callback { background: #fbe8ea; color: #b4232d; }
+.track-c-manage {
+  margin-top: 18px;
+  border-top: 1px solid var(--turn-color-divider);
+  padding-top: 6px;
+}
+.track-c-manage > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--turn-color-secondary);
+}
+.track-c-manage > summary::-webkit-details-marker { display: none; }
+.track-c-manage > summary::before { content: '⚙ '; }
+.track-c-manage[open] > summary::before { content: '⚙ '; }
+.track-c-manage__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+/* Move-release is rare + can't be undone easily — quiet it down inside Manage. */
+.track-c-manage .track-c-move-unit__triggers button {
+  color: var(--turn-color-destructive, #b4232d);
+}
 .w2a1b-crew-delete {
   margin-top: 14px;
   width: 100%;

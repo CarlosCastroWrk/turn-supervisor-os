@@ -598,6 +598,49 @@ button.w2a2b-done-toggle {
 .w2a2b-reminders li button b { color: #8a1c2b; font-weight: 800; }
 .w2a2b-reminders li button span { white-space: pre-wrap; overflow-wrap: anywhere; }
 
+.w2a2b-changeorders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #7a4b00;
+  border-radius: 12px;
+  background: #fbf3e6;
+}
+.w2a2b-changeorders__head {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #7a4b00;
+}
+.w2a2b-changeorders ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.w2a2b-changeorders li button {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 1px solid rgba(122, 75, 0, 0.25);
+  border-radius: 10px;
+  background: #fff;
+  color: #3f2900;
+  font-size: 14px;
+  line-height: 1.35;
+  min-height: 44px;
+}
+.w2a2b-changeorders li button b { color: #7a4b00; font-weight: 800; }
+.w2a2b-changeorders li button span { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 .w2a2b-dropped-warning {
   display: flex;
   flex-direction: column;

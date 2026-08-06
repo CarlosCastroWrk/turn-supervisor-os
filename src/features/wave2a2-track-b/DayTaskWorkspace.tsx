@@ -1313,6 +1313,7 @@ interface DayTaskHomeProps {
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
   reminders?: readonly HomeReminder[];
+  changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
 }
 
@@ -1332,6 +1333,7 @@ function DayTaskHome({
   needsEyes,
   onOpenNeedsEyesUnit,
   reminders,
+  changeOrders,
   onOpenReminderUnit,
   onAction,
   onEndDay,
@@ -1622,6 +1624,27 @@ function DayTaskHome({
                 >
                   {reminder.unitNumber ? <b>Unit {reminder.unitNumber}</b> : null}
                   <span>{reminder.text}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {changeOrders && changeOrders.length > 0 ? (
+        <section className="w2a2b-changeorders" aria-label="Change orders">
+          <div className="w2a2b-changeorders__head">
+            <span aria-hidden="true">＄</span> Change orders · {changeOrders.length}
+          </div>
+          <ul>
+            {changeOrders.map((changeOrder) => (
+              <li key={changeOrder.id}>
+                <button
+                  onClick={() => onOpenReminderUnit?.(changeOrder.unitId)}
+                  type="button"
+                >
+                  {changeOrder.unitNumber ? <b>Unit {changeOrder.unitNumber}</b> : null}
+                  <span>{changeOrder.text}</span>
                 </button>
               </li>
             ))}
@@ -2323,6 +2346,7 @@ export interface DayTaskWorkspaceProps {
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
   reminders?: readonly HomeReminder[];
+  changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
@@ -2380,6 +2404,7 @@ export function DayTaskWorkspace({
   needsEyes,
   onOpenNeedsEyesUnit,
   reminders,
+  changeOrders,
   onOpenReminderUnit,
   releaseWorkTypes,
   onRequestStartDay,
@@ -2591,6 +2616,7 @@ export function DayTaskWorkspace({
         needsEyes={needsEyes}
         onOpenNeedsEyesUnit={onOpenNeedsEyesUnit}
         reminders={reminders}
+        changeOrders={changeOrders}
         onOpenReminderUnit={onOpenReminderUnit}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>

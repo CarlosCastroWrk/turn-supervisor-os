@@ -955,10 +955,10 @@ function LaunchOperationalApp({
     [data.activityLogs, data.activeProjectId]);
   // Reminders surface on Home too — the point of a reminder is that Los can't
   // forget it, so it can't live only on the unit page he'd have to remember to open.
-  const homeReminders = useMemo(() => {
+  const homeNoteStrips = useMemo(() => {
     const unitNumberById = new Map(trackCState.units.map((unit) => [unit.id, unit.unitNumber]));
-    return unitNotes
-      .filter((note) => note.kind === 'reminder')
+    const forKind = (kind: PersonalNoteKind) => unitNotes
+      .filter((note) => note.kind === kind)
       .map((note) => ({
         createdAt: note.createdAt,
         id: note.id,
@@ -967,7 +967,10 @@ function LaunchOperationalApp({
         unitNumber: unitNumberById.get(note.unitId) ?? '',
       }))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    return { changeOrders: forKind('change-order'), reminders: forKind('reminder') };
   }, [unitNotes, trackCState.units]);
+  const homeReminders = homeNoteStrips.reminders;
+  const homeChangeOrders = homeNoteStrips.changeOrders;
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'> = {};
     for (const unit of trackCState.units) {
@@ -3670,6 +3673,7 @@ function LaunchOperationalApp({
             navigate('unitDetail', unitId);
           }}
           reminders={homeReminders}
+          changeOrders={homeChangeOrders}
           onOpenReminderUnit={(unitId) => {
             unitDetailOriginRef.current = 'home';
             unitDetailTradeRef.current = undefined;

@@ -1383,6 +1383,22 @@ function DayTaskHome({
     const timer = window.setTimeout(() => setArmedStage(null), 4000);
     return () => window.clearTimeout(timer);
   }, [armedStage]);
+  // Reminders and change orders ride ON the unit's own board card (not a top
+  // banner that pushes the board down) — Los sees them right where the unit is.
+  const noteMarkersByUnit = useMemo(() => {
+    const map = new Map<string, { reminders: string[]; changeOrders: string[] }>();
+    const add = (list: readonly HomeReminder[] | undefined, key: 'reminders' | 'changeOrders') => {
+      (list ?? []).forEach((note) => {
+        const entry = map.get(note.unitId) ?? { reminders: [], changeOrders: [] };
+        entry[key].push(note.text);
+        map.set(note.unitId, entry);
+      });
+    };
+    add(reminders, 'reminders');
+    add(changeOrders, 'changeOrders');
+    return map;
+  }, [reminders, changeOrders]);
+
   // Collapse the board by crew so 12 units read as a few crew headers you open
   // as needed — tap a name to drop it down, tap again to fold it up.
   // Collapse state sticks across tab switches — folds you closed stay closed
@@ -1609,48 +1625,6 @@ function DayTaskHome({
           </a>
         ) : null}
       </header>
-
-      {reminders && reminders.length > 0 ? (
-        <section className="w2a2b-reminders" aria-label="Reminders">
-          <div className="w2a2b-reminders__head">
-            <span aria-hidden="true">★</span> Reminders · {reminders.length}
-          </div>
-          <ul>
-            {reminders.map((reminder) => (
-              <li key={reminder.id}>
-                <button
-                  onClick={() => onOpenReminderUnit?.(reminder.unitId)}
-                  type="button"
-                >
-                  {reminder.unitNumber ? <b>Unit {reminder.unitNumber}</b> : null}
-                  <span>{reminder.text}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {changeOrders && changeOrders.length > 0 ? (
-        <section className="w2a2b-changeorders" aria-label="Change orders">
-          <div className="w2a2b-changeorders__head">
-            <span aria-hidden="true">＄</span> Change orders · {changeOrders.length}
-          </div>
-          <ul>
-            {changeOrders.map((changeOrder) => (
-              <li key={changeOrder.id}>
-                <button
-                  onClick={() => onOpenReminderUnit?.(changeOrder.unitId)}
-                  type="button"
-                >
-                  {changeOrder.unitNumber ? <b>Unit {changeOrder.unitNumber}</b> : null}
-                  <span>{changeOrder.text}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       {task?.droppedReleases && task.droppedReleases.length > 0 ? (
         <section className="w2a2b-dropped-warning" role="alert">
@@ -1940,6 +1914,26 @@ function DayTaskHome({
                           );
                         })()}
                       </div>
+                      {(() => {
+                        const markers = noteMarkersByUnit.get(line.unitId);
+                        if (!markers || (markers.reminders.length === 0 && markers.changeOrders.length === 0)) {
+                          return null;
+                        }
+                        return (
+                          <div className="w2a2b-live-card__notes">
+                            {markers.reminders.map((text, index) => (
+                              <span className="w2a2b-cardnote is-reminder" key={`r${index}`}>
+                                <b aria-hidden="true">★</b> {text}
+                              </span>
+                            ))}
+                            {markers.changeOrders.map((text, index) => (
+                              <span className="w2a2b-cardnote is-change" key={`c${index}`}>
+                                <b aria-hidden="true">＄</b> {text}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                   };

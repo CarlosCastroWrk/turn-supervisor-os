@@ -678,6 +678,25 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
 }
+.w2a2b-morning-brief {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--turn-color-surface, #fff);
+  border: 1px solid var(--turn-color-divider);
+}
+.w2a2b-morning-brief p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--turn-color-primary);
+}
+.w2a2b-morning-brief p strong { display: block; }
+.w2a2b-morning-brief p.is-callback strong { color: var(--turn-color-destructive, #b4232d); }
+.w2a2b-morning-brief p.is-carryover strong { color: var(--turn-color-waiting, #9b5b00); }
 .track-c-unit-row__since {
   display: block;
   font-size: 11px;

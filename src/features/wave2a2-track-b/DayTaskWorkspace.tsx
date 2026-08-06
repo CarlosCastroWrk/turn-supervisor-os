@@ -1261,6 +1261,13 @@ export interface HomeGlance {
 interface DayTaskHomeProps {
   supervisorName?: string;
   liveBoard?: readonly LiveBoardLine[];
+  // Pre-Start-Day recap: what got approved yesterday and what's still waiting.
+  morningBrief?: {
+    approved: readonly { unitNumber: string; trade: string; contact?: string }[];
+    awaitingWalk: readonly string[];
+    callbacks: readonly string[];
+    carryover: readonly string[];
+  };
   onAdvanceUnitTrade?: (unitId: string, trade: 'paint' | 'clean') => void;
   glance?: HomeGlance;
   onOpenCrew?: (crewId: string) => void;
@@ -1317,6 +1324,7 @@ function DayTaskHome({
   rosterCount,
   supervisorName,
   liveBoard,
+  morningBrief,
   onAdvanceUnitTrade,
   glance,
   onOpenCrew,
@@ -1616,6 +1624,42 @@ function DayTaskHome({
         ) : null}
       </section>
       )}
+
+      {morningBrief && !active
+        && (morningBrief.approved.length > 0
+          || morningBrief.awaitingWalk.length > 0
+          || morningBrief.callbacks.length > 0
+          || morningBrief.carryover.length > 0) ? (
+        <section className="w2a2b-morning-brief" aria-label="Morning brief">
+          <span className="w2a2b-eyebrow">Morning brief — where you left off</span>
+          {morningBrief.approved.length > 0 ? (
+            <p>
+              <strong>Approved yesterday · {morningBrief.approved.length}</strong>{' '}
+              {morningBrief.approved.map((item) =>
+                `${item.unitNumber} ${item.trade}${item.contact ? ` (${item.contact})` : ''}`)
+                .join(' · ')}
+            </p>
+          ) : null}
+          {morningBrief.callbacks.length > 0 ? (
+            <p className="is-callback">
+              <strong>Callbacks open · {morningBrief.callbacks.length}</strong>{' '}
+              {morningBrief.callbacks.join(' · ')} — fix these first
+            </p>
+          ) : null}
+          {morningBrief.awaitingWalk.length > 0 ? (
+            <p>
+              <strong>Still to walk · {morningBrief.awaitingWalk.length}</strong>{' '}
+              {morningBrief.awaitingWalk.join(' · ')}
+            </p>
+          ) : null}
+          {morningBrief.carryover.length > 0 ? (
+            <p className="is-carryover">
+              <strong>From before, no crew yet · {morningBrief.carryover.length}</strong>{' '}
+              {morningBrief.carryover.join(' · ')}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
         {([
@@ -2151,6 +2195,7 @@ export interface DayTaskWorkspaceProps {
   onExternalAction?: (action: 'import-work' | 'assign-crews' | 'start-walk') => void;
   supervisorName?: string;
   liveBoard?: readonly LiveBoardLine[];
+  morningBrief?: DayTaskHomeProps['morningBrief'];
   onAdvanceUnitTrade?: (unitId: string, trade: 'paint' | 'clean') => void;
   glance?: HomeGlance;
   onOpenCrew?: (crewId: string) => void;
@@ -2201,6 +2246,7 @@ export function DayTaskWorkspace({
   existingSessions = [],
   supervisorName,
   liveBoard,
+  morningBrief,
   onAdvanceUnitTrade,
   glance,
   onOpenCrew,
@@ -2421,6 +2467,7 @@ export function DayTaskWorkspace({
         acceptedWalkMeta={acceptedWalkMeta}
         supervisorName={supervisorName}
         liveBoard={liveBoard}
+        morningBrief={morningBrief}
         onAdvanceUnitTrade={onAdvanceUnitTrade}
         glance={glance}
         onOpenCrew={onOpenCrew}

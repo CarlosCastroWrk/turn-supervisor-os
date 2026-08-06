@@ -951,6 +951,58 @@ function LaunchOperationalApp({
     }
     return meta;
   }, [trackCState.completedWalks]);
+  // Morning Brief — Los's 7am "what did I do yesterday, what's waiting on me"
+  // review, computed from real events so he doesn't rebuild it on paper.
+  const morningBrief = useMemo(() => {
+    const today = localEventDate(new Date().toISOString());
+    const yesterday = localEventDate(new Date(Date.now() - 86_400_000).toISOString());
+    const approved: { unitNumber: string; trade: string; contact?: string }[] = [];
+    const seenApproved = new Set<string>();
+    for (const event of trackCState.events) {
+      if (event.eventType !== 'property-accepted') continue;
+      if (localEventDate(event.recordedAt) !== yesterday) continue;
+      const key = `${event.target.unitId}:${event.target.trade}`;
+      if (seenApproved.has(key)) continue;
+      seenApproved.add(key);
+      const unitNumber = trackCState.units
+        .find((unit) => unit.id === event.target.unitId)?.unitNumber;
+      if (!unitNumber) continue;
+      approved.push({
+        contact: acceptedWalkMeta[event.target.unitId]?.contact,
+        trade: event.target.trade === 'paint' ? 'Paint' : 'Clean',
+        unitNumber,
+      });
+    }
+    const awaitingWalk: string[] = [];
+    const callbacks: string[] = [];
+    const carryover: string[] = [];
+    for (const unit of trackCState.units) {
+      for (const trade of ['paint', 'clean'] as const) {
+        const work = projectTrackCUnitWork(trackCState, unit.id).filter((item) =>
+          item.trade === trade
+          && item.release === 'released'
+          && item.property !== 'property-accepted');
+        if (work.length === 0) continue;
+        const label = `${unit.unitNumber} ${trade === 'paint' ? 'Paint' : 'Clean'}`;
+        const cbRooms = work.filter((item) => item.callbackOpen)
+          .map((item) => (item.section === 'common' ? 'Com' : item.section));
+        if (cbRooms.length > 0) {
+          callbacks.push(`${label} · ${cbRooms.join(', ')}`);
+          continue;
+        }
+        if (work.every((item) => item.inspection === 'los-passed')) {
+          awaitingWalk.push(label);
+          continue;
+        }
+        const fromEarlier = work.some((item) =>
+          item.releasedAt && localEventDate(item.releasedAt) !== today);
+        if (fromEarlier && work.every((item) => item.activeCrewIds.length === 0)) {
+          carryover.push(label);
+        }
+      }
+    }
+    return { approved, awaitingWalk, callbacks, carryover };
+  }, [acceptedWalkMeta, trackCState]);
   const doneUnitIds = useMemo(() => new Set(
     trackCState.units
       .filter((unit) => {
@@ -3488,6 +3540,7 @@ function LaunchOperationalApp({
           accountId={operationalScope.accountId}
           supervisorName={launchProjection.project?.supervisorName?.trim() || 'Los'}
           liveBoard={liveBoard}
+          morningBrief={activeDaySession ? undefined : morningBrief}
           onAdvanceUnitTrade={advanceUnitTrade}
           glance={homeGlance}
           needsEyes={needsEyes}

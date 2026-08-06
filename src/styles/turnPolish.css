@@ -664,6 +664,37 @@ select:focus-visible {
   line-height: 1.4;
 }
 .track-c-callback-rooms strong { font-weight: 800; }
+.track-c-worktype-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+.track-c-worktype-pick__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--turn-color-secondary);
+}
+.track-c-worktype-pick__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.track-c-worktype-pick__chip {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-surface, #fff);
+  color: var(--turn-color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 38px;
+}
+.track-c-worktype-pick__chip.is-current {
+  background: var(--turn-color-brand, #2563eb);
+  border-color: var(--turn-color-brand, #2563eb);
+  color: #fff;
+}
 .track-c-rewalk-note {
   margin: 4px 0;
   padding: 8px 12px;

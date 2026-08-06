@@ -614,21 +614,27 @@ const WorkSection = ({
             && work.trade === 'paint'
             && work.release === 'released'
             && work.property !== 'property-accepted' ? (
-              <button
-                className="track-c-release-toggle track-c-worktype-cycle"
-                onClick={() => {
-                  const current = work.workType ?? 'full';
-                  const next = current === 'full'
-                    ? 'touch-up'
-                    : current === 'touch-up'
-                      ? 'cut-in'
-                      : current === 'cut-in' ? 'full-cut-in' : 'full';
-                  onSetWorkType(next);
-                }}
-                type="button"
-              >
-                Task: {paintWorkTypeLabel(work.workType)} — tap to change
-              </button>
+              <div className="track-c-worktype-pick">
+                <span className="track-c-worktype-pick__label">Task:</span>
+                <div className="track-c-worktype-pick__chips">
+                  {(['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'] as const).map((type) => (
+                    <button
+                      className={`track-c-worktype-pick__chip${(work.workType ?? 'full') === type ? ' is-current' : ''}`}
+                      key={type}
+                      onClick={() => onSetWorkType(type)}
+                      type="button"
+                    >
+                      {type === 'full'
+                        ? 'Full'
+                        : type === 'touch-up'
+                          ? 'Touch-up'
+                          : type === 'cut-in'
+                            ? 'Cut-in'
+                            : type === 'full-cut-in' ? 'Full+cut-in' : 'Touch-up+cut-in'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : null}
           {canRemove && onToggleRelease ? (
               <button

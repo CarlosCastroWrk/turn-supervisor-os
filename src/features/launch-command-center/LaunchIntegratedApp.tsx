@@ -853,10 +853,17 @@ function LaunchOperationalApp({
         item.access === 'clear' && item.property !== 'property-accepted');
       if (inPlay.length === 0) continue;
       released += 1;
-      // A unit with ANY room in callback is not ready to walk — it belongs in
-      // Callbacks until that room is fixed, even if its other rooms passed.
-      if (inPlay.some((item) => item.inspection === 'los-passed')
-        && !inPlay.some((item) => item.callbackOpen)) readyToWalk += 1;
+      // Ready to walk is package grain: some trade of this unit has EVERY
+      // released room Los-passed and pending the walk — one callback or
+      // uninspected room and the unit stays out until Los re-confirms it all.
+      const walkReady = (['paint', 'clean'] as const).some((trade) => {
+        const rooms = inPlay.filter((item) => item.trade === trade);
+        return rooms.length > 0 && rooms.every((item) =>
+          item.inspection === 'los-passed'
+          && item.property === 'pending-property-walk'
+          && !item.callbackOpen);
+      });
+      if (walkReady) readyToWalk += 1;
       if (inPlay.every((item) => item.activeCrewIds.length === 0)) unassigned += 1;
       // Working = a crew is IN there right now. Crew-done-awaiting-Los and
       // passed-awaiting-walk are their own queues, not "working" — this must
@@ -3595,6 +3602,19 @@ function LaunchOperationalApp({
                 .filter((unit) => projectTrackCUnitWork(trackCState, unit.id)
                   .some((work) => work.release === 'released' && predicate(work)))
                 .map((unit) => unit.id);
+            // Ready-to-walk is package grain: a unit qualifies only when EVERY
+            // released room of a trade is Los-passed and pending the walk — one
+            // callback or uninspected room and the unit stays out.
+            const walkReadyUnits = () => trackCState.units
+              .filter((unit) => (['paint', 'clean'] as const).some((trade) => {
+                const rooms = projectTrackCUnitWork(trackCState, unit.id)
+                  .filter((work) => work.trade === trade && work.release === 'released');
+                return rooms.length > 0 && rooms.every((work) =>
+                  work.inspection === 'los-passed'
+                  && work.property === 'pending-property-walk'
+                  && !work.callbackOpen);
+              }))
+              .map((unit) => unit.id);
             const unitIds = queueId === 'working'
               ? inState((w) => ['working', 'assigned'].includes(w.execution) && !w.callbackOpen)
               : queueId === 'needs-inspection'
@@ -3602,7 +3622,7 @@ function LaunchOperationalApp({
                 : queueId === 'callbacks'
                   ? inState((w) => w.callbackOpen)
                   : queueId === 'ready-to-walk'
-                    ? inState((w) => w.inspection === 'los-passed' && w.property !== 'property-accepted')
+                    ? walkReadyUnits()
                     : inState((w) => w.access !== 'clear');
             setPeekTarget({ kind: 'queue', label, unitIds });
           }}

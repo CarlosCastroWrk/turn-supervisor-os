@@ -130,6 +130,41 @@ const canonicalWorkRecords = (
     || left.trade.localeCompare(right.trade)
     || left.target.section.localeCompare(right.target.section));
 
+// Ready-to-walk is a UNIT+TRADE package, never a lone room. A room only stays
+// in ready-to-walk when EVERY released room of its unit+trade is Los-passed and
+// pending the walk. If a sibling room has an open callback, the whole unit
+// belongs in Callbacks (Los's rule: one bad room pulls the unit until every
+// room is confirmed again); if a sibling just isn't inspected yet, the passed
+// room simply waits with no queue — the unit surfaces through the sibling's own
+// queue. Without this, a unit with one callback room showed in Callbacks AND
+// Ready to walk at the same time.
+const enforceWalkPackageGrain = (
+  records: readonly CanonicalWorkRecord[],
+): CanonicalWorkRecord[] => {
+  const packageReady = new Map<string, boolean>();
+  const packageCallback = new Map<string, boolean>();
+  for (const record of records) {
+    if (record.projection.release !== 'released') continue;
+    const key = `${record.target.unitId}:${record.trade}`;
+    const ready = record.projection.inspection === 'los-passed'
+      && record.projection.property === 'pending-property-walk';
+    packageReady.set(key, (packageReady.get(key) ?? true) && ready);
+    packageCallback.set(
+      key,
+      (packageCallback.get(key) ?? false) || record.projection.callbackOpen,
+    );
+  }
+  return records.map((record) => {
+    if (record.queue !== 'ready-to-walk') return record;
+    const key = `${record.target.unitId}:${record.trade}`;
+    if (packageReady.get(key)) return record;
+    return {
+      ...record,
+      queue: packageCallback.get(key) ? 'callbacks' as const : undefined,
+    };
+  });
+};
+
 export function buildCanonicalFieldProjection(
   input: CanonicalFieldProjectionInput,
 ): CanonicalFieldProjection {
@@ -157,7 +192,7 @@ export function buildCanonicalFieldProjection(
       .map((event) => event.unitId)
       .filter((unitId): unitId is string => Boolean(unitId)),
   ).size;
-  const workRecords = canonicalWorkRecords(input);
+  const workRecords = enforceWalkPackageGrain(canonicalWorkRecords(input));
   const queues = {
     'needs-crew': workRecords.filter((record) => record.queue === 'needs-crew'),
     'needs-inspection': workRecords.filter((record) => record.queue === 'needs-inspection'),

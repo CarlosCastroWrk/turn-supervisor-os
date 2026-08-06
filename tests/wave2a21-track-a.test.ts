@@ -1556,3 +1556,53 @@ test('the five-step setup clamp fails closed to a renderable controlled step', (
   assert.equal(clampProjectSetupStep(2.9), 2);
   assert.equal(clampProjectSetupStep(99), 4);
 });
+
+test('a unit with one callback room never shows in ready-to-walk — the passed sibling waits in Callbacks', () => {
+  // Los's rule: ready-to-walk is the whole unit+trade. Unit 103 paint has room C
+  // in callback and room D passed — the unit must live ONLY in Callbacks until
+  // every room is confirmed again.
+  const base = createTrackCState();
+  const state: TrackCState = {
+    ...base,
+    events: [
+      ...base.events,
+      trackCEvent('assignment-unit-103-d', 'assignment-confirmed', 'unit-103', 'D'),
+      trackCEvent('complete-unit-103-d', 'crew-reported-complete', 'unit-103', 'D'),
+      trackCEvent('pass-unit-103-d', 'los-passed', 'unit-103', 'D'),
+    ],
+    units: base.units.map((unit) =>
+      unit.id === 'unit-103'
+        ? {
+            ...unit,
+            applicableSections: ['C', 'D'],
+            workFacts: [
+              ...unit.workFacts,
+              { ...unit.workFacts[0], id: 'work-unit-103-d', section: 'D' as const },
+            ],
+          }
+        : unit),
+  };
+  const projection = buildCanonicalFieldProjection({
+    accountId: 'los-personal',
+    activeDaySessionId: DAY_SESSION_ID,
+    fieldEvents: [],
+    projectId: PROJECT_ID,
+    todayTask: createTodayTask(),
+    trackCState: state,
+  });
+  assert.equal(
+    projection.queues['ready-to-walk'].some((record) => record.target.unitId === 'unit-103'),
+    false,
+    'no room of a callback unit may sit in ready-to-walk',
+  );
+  assert.ok(
+    projection.queues.callbacks.some((record) =>
+      record.target.unitId === 'unit-103' && record.target.section === 'D'),
+    'the passed sibling waits in Callbacks with the unit',
+  );
+  // unit-104 (fully passed, no callback) still walks.
+  assert.ok(
+    projection.queues['ready-to-walk'].some((record) => record.target.unitId === 'unit-104'),
+    'a fully passed unit stays ready to walk',
+  );
+});

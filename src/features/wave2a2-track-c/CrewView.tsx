@@ -657,7 +657,7 @@ export const CrewView = ({
           // the work = gets paid), plus the whole-Turn total. Same shared
           // calculation as the crew card, so per-day always sums to the Turn
           // total. This is Los's receipt when a count gets pushed back on.
-          const emptyTypes = { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0 };
+          const emptyTypes = { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 };
           const emptyPay = { today: { beds: 0, commons: 0 }, week: { beds: 0, commons: 0 }, turn: { beds: 0, commons: 0 }, turnTypes: emptyTypes, perDay: [], rooms: [] };
           const payFor = (crewId: string) => payrollByCrew.get(crewId) ?? emptyPay;
           const buildText = () => state.crews.map((crew) => {

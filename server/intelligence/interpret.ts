@@ -23,7 +23,7 @@ const intentSchema = z.object({
   unitNumber: z.string(),
   trade: z.enum(['paint', 'clean']).nullable().optional(),
   sections: z.array(z.enum(['common', 'A', 'B', 'C', 'D', 'E'])).optional(),
-  workType: z.enum(['full', 'touch-up', 'cut-in', 'full-cut-in']).nullable().optional(),
+  workType: z.enum(['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in']).nullable().optional(),
   crewName: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
   summary: z.string(),
@@ -60,7 +60,7 @@ const JSON_SCHEMA = {
           summary: { type: 'string' },
           trade: { enum: ['paint', 'clean', null], type: ['string', 'null'] },
           unitNumber: { type: 'string' },
-          workType: { enum: ['full', 'touch-up', 'cut-in', 'full-cut-in', null], type: ['string', 'null'] },
+          workType: { enum: ['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in', null], type: ['string', 'null'] },
         },
         required: ['kind', 'unitNumber', 'trade', 'sections', 'workType', 'crewName', 'note', 'summary', 'confidence'],
         type: 'object',
@@ -116,11 +116,12 @@ SPOKEN INPUT (this is DICTATED — snap his messy speech to the real values):
   only fall back to an uncertainty when two roster units are equally likely.
 - Rooms: "room a"/"the a"/"unit a" -> A; "the common"/"común"/"comn"/"common
   area" -> common. "a and b" -> [A, B]. "all the beds" -> A..E for that unit.
-- Work-type words, snap to exactly full | touch-up | cut-in | full-cut-in:
+- Work-type words, snap to exactly full | touch-up | cut-in | full-cut-in | touch-up-cut-in:
   "cut in"/"cut-in"/"cutting"/"cuttings"/"cuts" -> cut-in;
   "touch up"/"touch-ups"/"touchups"/"TU" -> touch-up;
   "full"/"full paint"/"whole thing"/"paint it out" -> full;
-  "full paint and cut in"/"full plus cut-in"/"full and cuts" -> full-cut-in.
+  "full paint and cut in"/"full plus cut-in"/"full and cuts" -> full-cut-in;
+  "touch up and cut in"/"touch-up plus cut-in"/"touchup and cuts" -> touch-up-cut-in.
 - Crew names: snap the spoken name to the closest roster crew of that trade
   ("rocky"/"rockie" -> the roster's Rocky). Dictation garbles names; a first-name
   match is enough. If no crew of that trade is close, uncertainty.

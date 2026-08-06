@@ -12,6 +12,7 @@ import type {
   DailyReleaseBatch,
   FieldSection,
   FieldTrade,
+  ReleaseWorkType,
 } from '../../types';
 import type { PropertyRoster } from '../wave2a2-track-b';
 import {
@@ -226,6 +227,31 @@ export function ManualReleaseReview({
     setError('');
   };
 
+  // Which room's task PICKER is open (tap a room → choose the task, not cycle).
+  const [taskPickerKey, setTaskPickerKey] = useState<string | null>(null);
+  const setRoomTask = (
+    selection: ManualReleaseSelection,
+    workType: ReleaseWorkType | 'remove',
+  ) => {
+    const key = selectionKey(selection);
+    setSelected((current) => {
+      const next = new Map(current);
+      if (workType === 'remove') next.delete(key);
+      else next.set(key, { ...selection, workType });
+      return next;
+    });
+    setTaskPickerKey(null);
+    pendingBatchRef.current = undefined;
+    setError('');
+  };
+  const PAINT_TASKS: readonly { key: ReleaseWorkType; label: string }[] = [
+    { key: 'full', label: 'Full paint' },
+    { key: 'touch-up', label: 'Touch-up' },
+    { key: 'cut-in', label: 'Cut-in' },
+    { key: 'full-cut-in', label: 'Full + cut-in' },
+    { key: 'touch-up-cut-in', label: 'Touch-up + cut-in' },
+  ];
+
   const submit = async () => {
     if (submittingRef.current) return;
     if (unavailableReason) {
@@ -432,7 +458,7 @@ export function ManualReleaseReview({
             {selected.size > 0 ? (
               <div className="w2a2-core-selected">
                 <p className="w2a2-core-caption">
-                  Selected — tap a room to cycle: full paint → touch-up → cut-in → off
+                  Selected — tap a paint room to pick its task; tap a clean room to remove it.
                 </p>
                 {(() => {
                   const byUnit = new Map<string, ManualReleaseSelection[]>();
@@ -472,16 +498,51 @@ export function ManualReleaseReview({
                                 : selection.workType ?? 'full';
                               const kindLabel = selection.trade === 'clean'
                                 ? 'clean'
-                                : kind === 'full' ? 'full paint' : kind;
+                                : kind === 'full' ? 'full paint'
+                                  : kind === 'full-cut-in' ? 'full+cut-in'
+                                    : kind === 'touch-up-cut-in' ? 'touch-up+cut-in'
+                                      : kind;
+                              const key = selectionKey(selection);
+                              const isPaint = selection.trade === 'paint';
                               return (
-                                <button
-                                  className={`w2a2-core-typepill is-${kind}`}
-                                  key={selectionKey(selection)}
-                                  onClick={() => toggle(selection)}
-                                  type="button"
-                                >
-                                  {label} · {kindLabel}
-                                </button>
+                                <span className="w2a2-core-roompill" key={key}>
+                                  <button
+                                    aria-expanded={isPaint ? taskPickerKey === key : undefined}
+                                    className={`w2a2-core-typepill is-${kind}`}
+                                    onClick={() => {
+                                      if (isPaint) {
+                                        setTaskPickerKey((current) => (current === key ? null : key));
+                                      } else {
+                                        setRoomTask(selection, 'remove');
+                                      }
+                                    }}
+                                    type="button"
+                                  >
+                                    {label} · {kindLabel}
+                                    {isPaint ? ' ▾' : ''}
+                                  </button>
+                                  {isPaint && taskPickerKey === key ? (
+                                    <div className="w2a2-core-taskpicker">
+                                      {PAINT_TASKS.map((task) => (
+                                        <button
+                                          className={kind === task.key ? 'is-current' : undefined}
+                                          key={task.key}
+                                          onClick={() => setRoomTask(selection, task.key)}
+                                          type="button"
+                                        >
+                                          {task.label}
+                                        </button>
+                                      ))}
+                                      <button
+                                        className="is-remove"
+                                        onClick={() => setRoomTask(selection, 'remove')}
+                                        type="button"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </span>
                               );
                             })}
                         </span>

@@ -18,12 +18,13 @@ export interface PayLine {
 
 // Paint rooms carry a work type; a crew's day should read "2 cut-in · 1 full".
 // Clean rooms have no type — the tally stays all zero for clean crews.
-export type PaintTypeKey = 'full' | 'touch-up' | 'cut-in' | 'full-cut-in';
+export type PaintTypeKey = 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
 export interface TypeTally {
   readonly full: number;
   readonly 'touch-up': number;
   readonly 'cut-in': number;
   readonly 'full-cut-in': number;
+  readonly 'touch-up-cut-in': number;
 }
 
 export interface CrewPayDay {
@@ -54,7 +55,7 @@ export interface CrewPayroll {
 
 const emptyLine = (): PayLine => ({ beds: 0, commons: 0 });
 const emptyTypes = (): TypeTally =>
-  ({ full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0 });
+  ({ full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 });
 
 const addRoom = (line: PayLine, section: string): PayLine =>
   section === 'common'
@@ -201,9 +202,10 @@ export const formatRoomsByType = (rooms: readonly PayRoom[]): string[] => {
   const clean = rooms.filter((room) => room.trade === 'clean');
   const lines: string[] = [];
   const roomLabel = (section: string) => (section === 'common' ? 'Com' : section);
-  const typeOrder: PaintTypeKey[] = ['full', 'full-cut-in', 'cut-in', 'touch-up'];
+  const typeOrder: PaintTypeKey[] = ['full', 'full-cut-in', 'cut-in', 'touch-up-cut-in', 'touch-up'];
   const typeWord: Record<PaintTypeKey, string> = {
-    full: 'full', 'full-cut-in': 'full+cut-in', 'cut-in': 'cut-in', 'touch-up': 'touch-up',
+    full: 'full', 'full-cut-in': 'full+cut-in', 'cut-in': 'cut-in',
+    'touch-up-cut-in': 'touch-up+cut-in', 'touch-up': 'touch-up',
   };
   for (const type of typeOrder) {
     const ofType = paint.filter((room) => (room.workType ?? 'full') === type);
@@ -237,6 +239,7 @@ export const formatTypeTally = (types: TypeTally): string =>
     types.full > 0 ? `${types.full} full` : '',
     types['touch-up'] > 0 ? `${types['touch-up']} touch-up` : '',
     types['cut-in'] > 0 ? `${types['cut-in']} cut-in` : '',
+    types['touch-up-cut-in'] > 0 ? `${types['touch-up-cut-in']} touch-up+cut-in` : '',
     types['full-cut-in'] > 0 ? `${types['full-cut-in']} full+cut-in` : '',
   ].filter(Boolean).join(' · ');
 

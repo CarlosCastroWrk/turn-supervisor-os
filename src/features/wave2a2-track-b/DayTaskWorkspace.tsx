@@ -745,7 +745,7 @@ interface EndDayFlowProps {
   crews?: readonly TrackBCrewOption[];
   events: readonly DaySessionEvent[];
   now: () => string;
-  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'>>;
+  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   unitNumbers?: ReadonlyMap<string, string>;
   onCancel: () => void;
   onClosed: (
@@ -1057,7 +1057,7 @@ export function EndDayFlow({
             const byType = new Map<string, string[]>();
             for (const sectionId of line.sectionIds) {
               const type = releaseWorkTypes[`${line.unitId}:paint:${sectionId}`] ?? 'full';
-              const label = type === 'touch-up' ? 'touch-up' : type === 'cut-in' ? 'cut-in' : type === 'full-cut-in' ? 'full + cut-in' : 'full paint';
+              const label = type === 'touch-up' ? 'touch-up' : type === 'cut-in' ? 'cut-in' : type === 'full-cut-in' ? 'full + cut-in' : type === 'touch-up-cut-in' ? 'touch-up + cut-in' : 'full paint';
               const list = byType.get(label) ?? [];
               list.push(sectionId === 'common' ? 'Com' : sectionId);
               byType.set(label, list);
@@ -2277,7 +2277,7 @@ export interface DayTaskWorkspaceProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
-  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in'>>;
+  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;

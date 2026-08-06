@@ -551,12 +551,12 @@ export const trackCTradeWorkTypeLabel = (
     ?.workFacts.filter((fact) => fact.trade === trade && fact.release === 'released') ?? [];
   if (released.length === 0) return '';
   const label = (type: string) =>
-    paintWorkTypeLabel(type as 'full' | 'touch-up' | 'cut-in' | 'full-cut-in');
+    paintWorkTypeLabel(type as 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in');
   const types = new Set(released.map((fact) => fact.workType ?? 'full'));
   const first = [...types][0];
   if (types.size === 1 && first) return label(first);
   const parts: string[] = [];
-  for (const type of ['full', 'touch-up', 'cut-in', 'full-cut-in']) {
+  for (const type of ['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in']) {
     const sections = released
       .filter((fact) => (fact.workType ?? 'full') === type)
       .map((fact) => trackCSectionLabel(fact.section));

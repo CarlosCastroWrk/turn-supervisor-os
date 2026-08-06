@@ -77,7 +77,7 @@ interface BoardViewProps {
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
   readonly onSetSectionWorkType?: (
     target: TrackCWorkTarget,
-    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in',
+    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in',
   ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
@@ -418,7 +418,7 @@ const WorkSection = ({
   onAction: (action: TrackCSectionAction) => void;
   onRequestMirror: () => void;
   onToggleRelease?: (released: boolean) => void;
-  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in') => void;
+  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in') => void;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
@@ -503,7 +503,7 @@ const WorkSection = ({
         <div className="track-c-room-menu" role="menu">
           <p>{trackCSectionLabel(work.section)}</p>
           {work.trade === 'paint' && onSetWorkType
-            ? (['full', 'touch-up', 'cut-in', 'full-cut-in'] as const).map((type) => (
+            ? (['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'] as const).map((type) => (
               <button
                 key={type}
                 onClick={() => {
@@ -517,7 +517,9 @@ const WorkSection = ({
                   ? 'Full paint'
                   : type === 'touch-up'
                     ? 'Touch-up'
-                    : type === 'cut-in' ? 'Cut-in' : 'Full + cut-in'}
+                    : type === 'cut-in'
+                      ? 'Cut-in'
+                      : type === 'full-cut-in' ? 'Full + cut-in' : 'Touch-up + cut-in'}
                 {(work.workType ?? 'full') === type ? ' \u2713' : ''}
               </button>
             ))

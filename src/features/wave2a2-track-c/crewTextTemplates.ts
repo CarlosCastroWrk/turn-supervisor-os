@@ -30,7 +30,7 @@ export const writeCrewTextLang = (lang: CrewTextLang): void => {
 export interface CrewTextSection {
   readonly kind: 'common' | 'bed';
   readonly bed?: string;
-  readonly workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in';
+  readonly workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
 }
 
 export interface CrewTextRow {

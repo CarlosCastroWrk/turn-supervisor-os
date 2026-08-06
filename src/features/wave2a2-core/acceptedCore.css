@@ -619,4 +619,29 @@
 .w2a2-core-typepill.is-full { background: #0877d1; border: 2px solid #0877d1; color: #fff; }
 .w2a2-core-typepill.is-touch-up { background: #fff; border: 2px dashed #9b5b00; color: #9b5b00; }
 .w2a2-core-typepill.is-cut-in { background: #e0f2f1; border: 2px solid #0e6f6a; color: #0e6f6a; }
+.w2a2-core-typepill.is-full-cut-in { background: #dbeafe; border: 2px solid #1d4ed8; color: #1d4ed8; }
+.w2a2-core-typepill.is-touch-up-cut-in { background: #fef3c7; border: 2px solid #b45309; color: #b45309; }
 .w2a2-core-typepill.is-clean { background: #e2f2e8; border: 2px solid #237a45; color: #237a45; }
+
+.w2a2-core-roompill { display: inline-block; }
+.w2a2-core-taskpicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #f2f4f7;
+}
+.w2a2-core-taskpicker button {
+  border-radius: 999px;
+  border: 1px solid #cbd2da;
+  background: #fff;
+  color: #111318;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 13px;
+  min-block-size: 38px;
+}
+.w2a2-core-taskpicker button.is-current { background: #0877d1; border-color: #0877d1; color: #fff; }
+.w2a2-core-taskpicker button.is-remove { color: #b4232d; border-color: #b4232d; }

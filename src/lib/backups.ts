@@ -228,7 +228,7 @@ const dailyReleaseItemSchema = recordSchema.extend({
   trade: fieldTradeSchema,
   section: fieldSectionSchema,
   restriction: text.optional(),
-  workType: z.enum(['full', 'touch-up', 'cut-in', 'full-cut-in']).optional(),
+  workType: z.enum(['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in']).optional(),
   sourceExcerpt: nonEmptyText,
 });
 const dailyReleaseBatchSchema = recordSchema.extend({

@@ -5,7 +5,7 @@ export interface TurnIntent {
   unitNumber: string;
   trade?: 'paint' | 'clean' | null;
   sections?: ('common' | 'A' | 'B' | 'C' | 'D' | 'E')[];
-  workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | null;
+  workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | null;
   crewName?: string | null;
   note?: string | null;
   summary: string;

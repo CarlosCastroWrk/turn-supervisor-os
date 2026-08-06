@@ -24,6 +24,7 @@ import {
   trackCWorkKey,
 } from './model';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
+import { payWeekNumberOf, wallWeekColor, WALL_WORKTYPE_ABBR } from './wallWeek';
 import type { PhotoNote } from '../../types';
 import type { TrackCSectionAction } from './operations';
 import { UnitPhotoAddButton, UnitPhotoStrip, type UnitPhotoCommitter } from './UnitPhotos';
@@ -1737,19 +1738,9 @@ const UnitDetail = ({
 // and a Clean cell carrying the board's own marks ("/" released, name =
 // working, X = crew done, PASS = Los passed, CC = approved in that pay
 // week's color).
-// Week 1 of the Turn starts Sunday Aug 2 2026 (yellow). Counting from here,
-// Aug 2–8 = w1 yellow, Aug 9–15 = w2 green, Aug 16+ = w3 pink — matching how Los
-// reads his wall board.
-const WALL_WEEK_EPOCH = new Date(2026, 7, 2);
-
-const wallWeekIndex = (iso: string): number => {
-  const date = new Date(iso);
-  if (date.getDay() === 6 && date.getHours() >= 17) date.setDate(date.getDate() + 1);
-  date.setDate(date.getDate() - date.getDay());
-  date.setHours(0, 0, 0, 0);
-  const weeks = Math.round((date.getTime() - WALL_WEEK_EPOCH.getTime()) / 604_800_000);
-  return ((weeks % 3) + 3) % 3;
-};
+// Pay-week numbering (payWeekNumberOf / wallWeekColor) lives in ./wallWeek and
+// matches Home/Crews: the week of Sun Aug 2 2026 is week 2 (green), the week
+// before it is week 1 (yellow), Aug 9–15 is week 3 (pink).
 
 const wallFloorOf = (unitNumber: string): string => {
   const digits = unitNumber.replace(/\D/g, '');
@@ -1784,7 +1775,7 @@ const WallGrid = ({
   // device-local, keyed by unit:trade.
   const [weekOverrides, setWeekOverrides] = useState<Record<string, number>>(() => {
     try {
-      return JSON.parse(window.localStorage.getItem('turn-os:wall-week') ?? '{}');
+      return JSON.parse(window.localStorage.getItem('turn-os:wall-week-v2') ?? '{}');
     } catch {
       return {};
     }
@@ -1792,13 +1783,14 @@ const WallGrid = ({
   const cycleWeek = (unitId: string, computed: number | undefined) => {
     const key = `${unitId}:${trade}`;
     setWeekOverrides((current) => {
-      const base = current[key] ?? computed ?? 0;
+      const base = current[key] ?? computed ?? 1;
       const next = { ...current };
-      // Cycle 0→1→2→auto. "auto" removes the override so it tracks the date again.
-      if (base >= 2) delete next[key];
+      // Cycle up through the week numbers, then back to auto (removes the override
+      // so it tracks the release date again). Numbers are the real pay weeks now.
+      if (base >= 3) delete next[key];
       else next[key] = base + 1;
       try {
-        window.localStorage.setItem('turn-os:wall-week', JSON.stringify(next));
+        window.localStorage.setItem('turn-os:wall-week-v2', JSON.stringify(next));
       } catch {
         // Session-only then.
       }
@@ -1826,10 +1818,13 @@ const WallGrid = ({
   const cellFor = (unitId: string, section: TrackCSection) => {
     const unit = state.units.find((candidate) => candidate.id === unitId);
     if (!unit?.workFacts.some((fact) => fact.trade === trade && fact.section === section)) {
-      return { cls: 'is-na', mark: '' };
+      return { cls: 'is-na', mark: '', sub: '' };
     }
     const work = projectTrackCWork(state, { section, trade, unitId });
-    if (!work || work.release !== 'released') return { cls: 'is-empty', mark: '\u2014' };
+    if (!work || work.release !== 'released') return { cls: 'is-empty', mark: '\u2014', sub: '' };
+    // Paint task on this room (full / cut-in / touch-up \u2026) so the wall shows WHAT
+    // work each room got, not just its status. Clean has no task type.
+    const sub = trade === 'paint' && work.workType ? WALL_WORKTYPE_ABBR[work.workType] : '';
     if (work.property === 'property-accepted') {
       // Wall SOP: the CC highlight is the PAY WEEK IT WAS APPROVED — automatic
       // from the approval date, no tapping. (The w# chip stays the release
@@ -1841,13 +1836,13 @@ const WallGrid = ({
           && event.target.trade === trade
           && event.target.section === section)
         .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
-      return { cls: `is-cc wall-wk${latest ? wallWeekIndex(latest) : wallWeekIndex(new Date().toISOString())}`, mark: 'CC' };
+      return { cls: `is-cc wall-wk${wallWeekColor(payWeekNumberOf(latest || new Date().toISOString()))}`, mark: 'CC', sub };
     }
-    if (work.callbackOpen) return { cls: 'is-cb', mark: 'CB' };
-    if (work.access !== 'clear') return { cls: 'is-blocked', mark: 'W' };
-    if (work.inspection === 'los-passed') return { cls: 'is-passed', mark: '\u2713' };
-    if (work.execution === 'crew-reported-complete') return { cls: 'is-done', mark: 'X' };
-    return { cls: 'is-open', mark: '/' };
+    if (work.callbackOpen) return { cls: 'is-cb', mark: 'CB', sub };
+    if (work.access !== 'clear') return { cls: 'is-blocked', mark: 'W', sub };
+    if (work.inspection === 'los-passed') return { cls: 'is-passed', mark: '\u2713', sub };
+    if (work.execution === 'crew-reported-complete') return { cls: 'is-done', mark: 'X', sub };
+    return { cls: 'is-open', mark: '/', sub };
   };
   const crewFor = (unitId: string) => {
     const names = new Set<string>();
@@ -1871,7 +1866,7 @@ const WallGrid = ({
       if (work.trade !== trade || work.release !== 'released' || !work.releasedAt) continue;
       if (!earliest || work.releasedAt < earliest) earliest = work.releasedAt;
     }
-    return earliest ? wallWeekIndex(earliest) : undefined;
+    return earliest ? payWeekNumberOf(earliest) : undefined;
   };
   const trimmed = query.trim().toLowerCase();
   const rows = (trimmed
@@ -1950,8 +1945,8 @@ const WallGrid = ({
                 const wk = releaseWeekOf(unit.id);
                 return wk === undefined ? null : (
                   <span
-                    aria-label={`Week ${wk + 1} — tap to change`}
-                    className={`track-c-wall__wk wall-wk${wk}`}
+                    aria-label={`Week ${wk} — tap to change`}
+                    className={`track-c-wall__wk wall-wk${wallWeekColor(wk)}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       event.preventDefault();
@@ -1960,7 +1955,7 @@ const WallGrid = ({
                     role="button"
                     title="Tap to change the pay week"
                   >
-                    w{wk + 1}
+                    w{wk}
                   </span>
                 );
               })()}
@@ -1973,7 +1968,8 @@ const WallGrid = ({
                   key={section}
                   role="cell"
                 >
-                  {cell.mark}
+                  <span className="track-c-wall__mark">{cell.mark}</span>
+                  {cell.sub ? <em className="track-c-wall__wt">{cell.sub}</em> : null}
                 </span>
               );
             })}

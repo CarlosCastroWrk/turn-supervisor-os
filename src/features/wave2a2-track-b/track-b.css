@@ -560,7 +560,9 @@ button.w2a2b-done-toggle {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 6px;
+  margin-top: 2px;
+  flex-basis: 100%;
+  width: 100%;
 }
 .w2a2b-cardnote {
   display: block;
@@ -1198,6 +1200,7 @@ button.w2a2b-done-toggle {
   border-inline-start: 5px solid #d9dde3;
   border-radius: 14px;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 10px 12px;
 }

@@ -760,6 +760,22 @@ select:focus-visible {
   line-height: 1.45;
   color: var(--turn-color-primary);
 }
+.w2a2b-morning-brief__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.w2a2b-morning-brief__done {
+  border: none;
+  background: transparent;
+  color: var(--turn-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
 .w2a2b-morning-brief p strong { display: block; }
 .w2a2b-morning-brief p.is-callback strong { color: var(--turn-color-destructive, #b4232d); }
 .w2a2b-morning-brief p.is-carryover strong { color: var(--turn-color-waiting, #9b5b00); }

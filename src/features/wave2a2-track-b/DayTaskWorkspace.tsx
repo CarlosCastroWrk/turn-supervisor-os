@@ -1484,6 +1484,23 @@ function DayTaskHome({
       return '';
     }
   });
+  // Once Los has read the morning brief he can clear it for the day; it comes
+  // back fresh the next morning.
+  const [briefDismissedDay, setBriefDismissedDay] = useState<string>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:brief-dismissed') ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const dismissBrief = () => {
+    setBriefDismissedDay(currentDate);
+    try {
+      window.localStorage.setItem('turn-os:brief-dismissed', currentDate);
+    } catch {
+      // Session-only then.
+    }
+  };
   const exportBackup = async () => {
     if (!onExportBackup) return;
     setRitualStatus('Building the backup file…');
@@ -1565,45 +1582,11 @@ function DayTaskHome({
           ) : null;
         })()}
         {glance ? (
-          <>
-            <p className="w2a2b-glance-line">
-              {rosterCount} in roster · {glance.left ?? rosterCount} left
-            </p>
-            <p className="w2a2b-hero-stats">
-              {glance.released} released ·{' '}
-              {glance.working > 0 ? (
-                <button
-                  className="w2a2b-glance-link"
-                  onClick={() => onOpenQueue(selectTodayTaskQueue(task, 'working'))}
-                  type="button"
-                >
-                  {glance.working} working
-                </button>
-              ) : (
-                `${glance.working} working`
-              )}
-              {' · '}
-              {(glance.readyToWalk ?? 0) > 0 ? (
-                <button
-                  className="w2a2b-glance-link"
-                  onClick={() => onOpenQueue(selectTodayTaskQueue(task, 'ready-to-walk'))}
-                  type="button"
-                >
-                  {glance.readyToWalk} ready to walk
-                </button>
-              ) : (
-                `${glance.readyToWalk ?? 0} ready to walk`
-              )}
-              {' · '}
-              {onOpenCrews && (glance.unassigned ?? 0) > 0 ? (
-                <button className="w2a2b-glance-link" onClick={onOpenCrews} type="button">
-                  {glance.unassigned} unassigned — assign
-                </button>
-              ) : (
-                `${glance.unassigned ?? 0} unassigned`
-              )}
-            </p>
-          </>
+          // One clean context line. The working / walk / callback / unassigned /
+          // check counts live in the pill row below — no duplicates up here.
+          <p className="w2a2b-glance-line">
+            {rosterCount} in roster · {glance.left ?? rosterCount} left · {glance.released} released
+          </p>
         ) : null}
         {josephContact ? (
           <a className="w2a2b-joseph-quick" href={`sms:${josephContact.phone}`}>
@@ -1640,13 +1623,23 @@ function DayTaskHome({
       </section>
       )}
 
-      {morningBrief && !active
+      {morningBrief && !active && briefDismissedDay !== currentDate
         && (morningBrief.approved.length > 0
           || morningBrief.awaitingWalk.length > 0
           || morningBrief.callbacks.length > 0
           || morningBrief.carryover.length > 0) ? (
         <section className="w2a2b-morning-brief" aria-label="Morning brief">
-          <span className="w2a2b-eyebrow">Morning brief — where you left off</span>
+          <div className="w2a2b-morning-brief__top">
+            <span className="w2a2b-eyebrow">Morning brief — where you left off</span>
+            <button
+              aria-label="Dismiss the morning brief for today"
+              className="w2a2b-morning-brief__done"
+              onClick={dismissBrief}
+              type="button"
+            >
+              Got it ✕
+            </button>
+          </div>
           {morningBrief.approved.length > 0 ? (
             <p>
               <strong>Approved yesterday · {morningBrief.approved.length}</strong>{' '}
@@ -1727,10 +1720,10 @@ function DayTaskHome({
       <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
         {([
           ['working', 'WORKING', 'w'],
-          ['needs-inspection', 'CHECK', 'a'],
-          ['callbacks', 'CALLBACK', 'r'],
           ['ready-to-walk', 'WALK', 'g'],
-          ['waiting', 'BLOCKED', 'b'],
+          ['callbacks', 'CALLBACK', 'r'],
+          ['needs-crew', 'UNASSIGNED', 'b'],
+          ['needs-inspection', 'CHECK', 'a'],
         ] as const).map(([queueId, label, tone]) => (
           <button
             className={`w2a2b-needsme__chip is-${tone}`}

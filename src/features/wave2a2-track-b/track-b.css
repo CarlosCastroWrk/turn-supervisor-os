@@ -1244,7 +1244,13 @@ button.w2a2b-done-toggle {
 }
 
 .w2a2b-needsme__chip b { display: block; font-size: 19px; font-weight: 850; }
-.w2a2b-needsme__chip span { font-size: 10px; font-weight: 800; letter-spacing: .3px; }
+.w2a2b-needsme__chip span {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .2px;
+  white-space: nowrap;
+}
 .w2a2b-needsme__chip.is-a { background: #fdf3e4; color: #9b5b00; }
 .w2a2b-needsme__chip.is-r { background: #fbe8ea; color: #b4232d; }
 .w2a2b-needsme__chip.is-g { background: #e2f2e8; color: #237a45; }

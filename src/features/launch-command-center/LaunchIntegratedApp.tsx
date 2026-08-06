@@ -3640,7 +3640,10 @@ function LaunchOperationalApp({
                   ? inState((w) => w.callbackOpen)
                   : queueId === 'ready-to-walk'
                     ? walkReadyUnits()
-                    : inState((w) => w.access !== 'clear');
+                    : queueId === 'needs-crew'
+                      ? inState((w) => w.access === 'clear' && w.activeCrewIds.length === 0
+                        && !w.callbackOpen && w.property !== 'property-accepted')
+                      : inState((w) => w.access !== 'clear');
             setPeekTarget({ kind: 'queue', label, unitIds });
           }}
           josephContact={(() => {

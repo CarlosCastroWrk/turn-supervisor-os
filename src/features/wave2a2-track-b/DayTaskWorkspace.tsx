@@ -1259,6 +1259,14 @@ export interface HomeGlance {
   unassigned?: number;
 }
 
+export interface HomeReminder {
+  id: string;
+  unitId: string;
+  unitNumber: string;
+  text: string;
+  createdAt: string;
+}
+
 interface DayTaskHomeProps {
   supervisorName?: string;
   liveBoard?: readonly LiveBoardLine[];
@@ -1304,6 +1312,8 @@ interface DayTaskHomeProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
+  reminders?: readonly HomeReminder[];
+  onOpenReminderUnit?: (unitId: string) => void;
 }
 
 function DayTaskHome({
@@ -1321,6 +1331,8 @@ function DayTaskHome({
   onPeekQueue,
   needsEyes,
   onOpenNeedsEyesUnit,
+  reminders,
+  onOpenReminderUnit,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1595,6 +1607,27 @@ function DayTaskHome({
           </a>
         ) : null}
       </header>
+
+      {reminders && reminders.length > 0 ? (
+        <section className="w2a2b-reminders" aria-label="Reminders">
+          <div className="w2a2b-reminders__head">
+            <span aria-hidden="true">★</span> Reminders · {reminders.length}
+          </div>
+          <ul>
+            {reminders.map((reminder) => (
+              <li key={reminder.id}>
+                <button
+                  onClick={() => onOpenReminderUnit?.(reminder.unitId)}
+                  type="button"
+                >
+                  {reminder.unitNumber ? <b>Unit {reminder.unitNumber}</b> : null}
+                  <span>{reminder.text}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {task?.droppedReleases && task.droppedReleases.length > 0 ? (
         <section className="w2a2b-dropped-warning" role="alert">
@@ -2289,6 +2322,8 @@ export interface DayTaskWorkspaceProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
+  reminders?: readonly HomeReminder[];
+  onOpenReminderUnit?: (unitId: string) => void;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -2344,6 +2379,8 @@ export function DayTaskWorkspace({
   onPeekQueue,
   needsEyes,
   onOpenNeedsEyesUnit,
+  reminders,
+  onOpenReminderUnit,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2553,6 +2590,8 @@ export function DayTaskWorkspace({
         onPeekQueue={onPeekQueue}
         needsEyes={needsEyes}
         onOpenNeedsEyesUnit={onOpenNeedsEyesUnit}
+        reminders={reminders}
+        onOpenReminderUnit={onOpenReminderUnit}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

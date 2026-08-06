@@ -953,6 +953,21 @@ function LaunchOperationalApp({
         unitId: log.entityId,
       })),
     [data.activityLogs, data.activeProjectId]);
+  // Reminders surface on Home too — the point of a reminder is that Los can't
+  // forget it, so it can't live only on the unit page he'd have to remember to open.
+  const homeReminders = useMemo(() => {
+    const unitNumberById = new Map(trackCState.units.map((unit) => [unit.id, unit.unitNumber]));
+    return unitNotes
+      .filter((note) => note.kind === 'reminder')
+      .map((note) => ({
+        createdAt: note.createdAt,
+        id: note.id,
+        text: note.text,
+        unitId: note.unitId,
+        unitNumber: unitNumberById.get(note.unitId) ?? '',
+      }))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }, [unitNotes, trackCState.units]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'> = {};
     for (const unit of trackCState.units) {
@@ -3652,6 +3667,12 @@ function LaunchOperationalApp({
           onOpenNeedsEyesUnit={(unitId, trade) => {
             unitDetailOriginRef.current = 'home';
             unitDetailTradeRef.current = trade;
+            navigate('unitDetail', unitId);
+          }}
+          reminders={homeReminders}
+          onOpenReminderUnit={(unitId) => {
+            unitDetailOriginRef.current = 'home';
+            unitDetailTradeRef.current = undefined;
             navigate('unitDetail', unitId);
           }}
           onOpenCrew={(crewId) => {

@@ -2,9 +2,35 @@ import type { ActivityLog, AppData, EntityId } from '../../../types';
 import { createId, nowISO } from '../../../lib/constants';
 import type { PersonalActivityViewModel } from './types';
 
-export const PERSONAL_NOTE_ACTIVITY_ACTION = 'Added personal note';
+// A note's KIND is carried in the free-form ActivityLog.action string — no new
+// event type or stored-shape change (schema freeze safe). 'note' keeps the
+// original action so every note ever saved still reads back as a plain note.
+export type PersonalNoteKind = 'note' | 'change-order' | 'reminder';
+
+export const PERSONAL_NOTE_ACTIONS: Record<PersonalNoteKind, string> = {
+  note: 'Added personal note',
+  'change-order': 'Added change order',
+  reminder: 'Added reminder',
+};
+
+// Back-compat alias — existing imports and saved data use this exact string.
+export const PERSONAL_NOTE_ACTIVITY_ACTION = PERSONAL_NOTE_ACTIONS.note;
+
+export const PERSONAL_NOTE_ACTION_SET: ReadonlySet<string> = new Set(
+  Object.values(PERSONAL_NOTE_ACTIONS),
+);
+
+export const isPersonalNoteAction = (action: string): boolean =>
+  PERSONAL_NOTE_ACTION_SET.has(action);
+
+export const noteKindForAction = (action: string): PersonalNoteKind => {
+  const match = (Object.entries(PERSONAL_NOTE_ACTIONS) as [PersonalNoteKind, string][])
+    .find(([, value]) => value === action);
+  return match ? match[0] : 'note';
+};
 
 export interface PersonalNoteInput {
+  kind?: PersonalNoteKind;
   unitId?: EntityId;
   wording: string;
 }
@@ -56,7 +82,7 @@ export const appendPersonalNoteActivity = (
     projectId: project.id,
     entityType: unit ? 'Unit' : 'Project',
     entityId: unit?.id ?? project.id,
-    action: PERSONAL_NOTE_ACTIVITY_ACTION,
+    action: PERSONAL_NOTE_ACTIONS[input.kind ?? 'note'],
     note: input.wording,
     createdAt: (dependencies.now ?? nowISO)(),
   };
@@ -71,6 +97,61 @@ export const appendPersonalNoteActivity = (
   };
 };
 
+export type EditPersonalNoteResult =
+  | { data: AppData; ok: true }
+  | { data: AppData; error: 'empty-note' | 'missing-note'; ok: false };
+
+// Edit only ever touches a personal note (any kind) by id — it can never
+// rewrite a payroll/field event, which live in other collections entirely.
+export const editPersonalNoteActivity = (
+  data: AppData,
+  id: EntityId,
+  wording: string,
+): EditPersonalNoteResult => {
+  if (!wording.trim()) {
+    return { data, error: 'empty-note', ok: false };
+  }
+  const target = data.activityLogs.find(
+    (activity) => activity.id === id && isPersonalNoteAction(activity.action),
+  );
+  if (!target) {
+    return { data, error: 'missing-note', ok: false };
+  }
+  return {
+    data: {
+      ...data,
+      activityLogs: data.activityLogs.map((activity) =>
+        activity.id === id ? { ...activity, note: wording } : activity),
+    },
+    ok: true,
+  };
+};
+
+export type DeletePersonalNoteResult =
+  | { data: AppData; ok: true }
+  | { data: AppData; error: 'missing-note'; ok: false };
+
+// Delete is guarded to note-kind actions so this path can only ever remove a
+// note Los wrote — never a release, walk, or any other activity record.
+export const deletePersonalNoteActivity = (
+  data: AppData,
+  id: EntityId,
+): DeletePersonalNoteResult => {
+  const target = data.activityLogs.find(
+    (activity) => activity.id === id && isPersonalNoteAction(activity.action),
+  );
+  if (!target) {
+    return { data, error: 'missing-note', ok: false };
+  }
+  return {
+    data: {
+      ...data,
+      activityLogs: data.activityLogs.filter((activity) => activity.id !== id),
+    },
+    ok: true,
+  };
+};
+
 export const projectPersonalNoteActivity = (
   data: AppData,
   projectId: EntityId = data.activeProjectId,
@@ -78,7 +159,7 @@ export const projectPersonalNoteActivity = (
   data.activityLogs.filter(
     (activity) =>
       activity.projectId === projectId &&
-      activity.action === PERSONAL_NOTE_ACTIVITY_ACTION,
+      isPersonalNoteAction(activity.action),
   );
 
 export const projectUnitPersonalNoteHistory = (

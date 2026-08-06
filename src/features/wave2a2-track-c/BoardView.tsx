@@ -37,6 +37,187 @@ import {
   trackCUnitMakeupLabel,
 } from './projections';
 
+export type UnitNoteKind = 'note' | 'change-order' | 'reminder';
+
+const NOTE_KIND_META: Record<UnitNoteKind, { badge: string; label: string; cls: string }> = {
+  reminder: { badge: '★', label: 'Reminder', cls: 'is-reminder' },
+  'change-order': { badge: '＄', label: 'Change order', cls: 'is-change' },
+  note: { badge: '✎', label: 'Note', cls: 'is-note' },
+};
+
+const NOTE_KIND_ORDER: Record<UnitNoteKind, number> = { reminder: 0, 'change-order': 1, note: 2 };
+
+interface UnitNote {
+  id: string;
+  unitId: string;
+  kind?: UnitNoteKind;
+  text: string;
+  createdAt: string;
+}
+
+const UnitNotesPanel = ({
+  notes,
+  onAdd,
+  onEdit,
+  onDelete,
+}: {
+  notes: readonly UnitNote[];
+  onAdd?: (kind: UnitNoteKind, text: string) => boolean;
+  onEdit?: (noteId: string, text: string) => boolean;
+  onDelete?: (noteId: string) => boolean;
+}) => {
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [draftKind, setDraftKind] = useState<UnitNoteKind>('note');
+  const [draftText, setDraftText] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+
+  // Reminders pin to the top (the whole point — the thing Los can't forget),
+  // then change orders, then plain notes; newest first within each kind.
+  const ordered = [...notes].sort((left, right) => {
+    const kindDelta = NOTE_KIND_ORDER[left.kind ?? 'note'] - NOTE_KIND_ORDER[right.kind ?? 'note'];
+    return kindDelta !== 0 ? kindDelta : right.createdAt.localeCompare(left.createdAt);
+  });
+
+  const saveNew = () => {
+    if (!onAdd || !draftText.trim()) return;
+    if (onAdd(draftKind, draftText)) {
+      setDraftText('');
+      setDraftKind('note');
+      setComposerOpen(false);
+    }
+  };
+  const saveEdit = (id: string) => {
+    if (!onEdit || !editText.trim()) return;
+    if (onEdit(id, editText)) setEditingId(null);
+  };
+
+  const canAdd = Boolean(onAdd);
+  if (!canAdd && ordered.length === 0) return null;
+
+  return (
+    <section className="track-c-notes" aria-label="Unit notes and reminders">
+      <div className="track-c-notes__head">
+        <h3>Notes &amp; reminders</h3>
+        {canAdd ? (
+          <button
+            className="track-c-notes__add"
+            data-track-c-critical-target="true"
+            onClick={() => { setComposerOpen((open) => !open); setEditingId(null); }}
+            type="button"
+          >
+            {composerOpen ? 'Close' : '＋ Add'}
+          </button>
+        ) : null}
+      </div>
+
+      {composerOpen && canAdd ? (
+        <div className="track-c-notes__composer">
+          <div className="track-c-notes__kinds">
+            {(['note', 'change-order', 'reminder'] as const).map((kind) => (
+              <button
+                aria-pressed={draftKind === kind}
+                className={`track-c-notekind ${NOTE_KIND_META[kind].cls} ${draftKind === kind ? 'is-on' : ''}`}
+                key={kind}
+                onClick={() => setDraftKind(kind)}
+                type="button"
+              >
+                <span aria-hidden="true">{NOTE_KIND_META[kind].badge}</span> {NOTE_KIND_META[kind].label}
+              </button>
+            ))}
+          </div>
+          <textarea
+            autoFocus
+            className="track-c-notes__input"
+            onChange={(event) => setDraftText(event.target.value)}
+            placeholder={draftKind === 'change-order'
+              ? 'What changed? e.g. tub resurface, wall hole > quarter'
+              : draftKind === 'reminder'
+                ? 'What must you remember here?'
+                : 'Note for this unit'}
+            rows={3}
+            value={draftText}
+          />
+          <div className="track-c-notes__composer-actions">
+            <button
+              className="track-c-notes__save"
+              data-track-c-critical-target="true"
+              disabled={!draftText.trim()}
+              onClick={saveNew}
+              type="button"
+            >
+              Save {NOTE_KIND_META[draftKind].label.toLowerCase()}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {ordered.length > 0 ? (
+        <ul className="track-c-notes__list">
+          {ordered.map((note) => {
+            const meta = NOTE_KIND_META[note.kind ?? 'note'];
+            const editing = editingId === note.id;
+            return (
+              <li className={`track-c-note ${meta.cls}`} key={note.id}>
+                {editing ? (
+                  <div className="track-c-note__edit">
+                    <textarea
+                      autoFocus
+                      onChange={(event) => setEditText(event.target.value)}
+                      rows={3}
+                      value={editText}
+                    />
+                    <div className="track-c-note__edit-actions">
+                      <button disabled={!editText.trim()} onClick={() => saveEdit(note.id)} type="button">Save</button>
+                      <button className="track-c-note__cancel" onClick={() => setEditingId(null)} type="button">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="track-c-note__body">
+                      <span className={`track-c-note__badge ${meta.cls}`}>
+                        <span aria-hidden="true">{meta.badge}</span> {meta.label}
+                      </span>
+                      <p>{note.text}</p>
+                    </div>
+                    {(onEdit || onDelete) ? (
+                      <div className="track-c-note__actions">
+                        {onEdit ? (
+                          <button
+                            aria-label="Edit note"
+                            onClick={() => { setEditingId(note.id); setEditText(note.text); setArmedDelete(null); }}
+                            type="button"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                        {onDelete ? (
+                          <button
+                            aria-label={armedDelete === note.id ? 'Confirm delete note' : 'Delete note'}
+                            className={armedDelete === note.id ? 'track-c-note__del is-armed' : 'track-c-note__del'}
+                            onClick={() => {
+                              if (armedDelete === note.id) { onDelete(note.id); setArmedDelete(null); }
+                              else setArmedDelete(note.id);
+                            }}
+                            type="button"
+                          >
+                            {armedDelete === note.id ? 'Tap again' : 'Delete'}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </section>
+  );
+};
+
 interface BoardViewProps {
   readonly state: TrackCState;
   readonly selectedUnitId?: string;
@@ -63,8 +244,11 @@ interface BoardViewProps {
     crewId: string,
   ) => void;
   readonly onRequestNote?: () => void;
+  readonly onAddNote?: (unitId: string, kind: UnitNoteKind, text: string) => boolean;
+  readonly onEditNote?: (noteId: string, text: string) => boolean;
+  readonly onDeleteNote?: (noteId: string) => boolean;
   readonly onRequestMirror: (target: TrackCWorkTarget) => void;
-  readonly unitNotes?: readonly { id: string; unitId: string; text: string; createdAt: string }[];
+  readonly unitNotes?: readonly { id: string; unitId: string; kind?: UnitNoteKind; text: string; createdAt: string }[];
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
@@ -742,6 +926,9 @@ const UnitDetail = ({
   onChangeCrew,
   onRequestAssign,
   onRequestNote,
+  onAddNote,
+  onEditNote,
+  onDeleteNote,
   onRequestMirror,
   unitNotes,
   unitPhotos,
@@ -770,6 +957,9 @@ const UnitDetail = ({
   onChangeCrew?: BoardViewProps['onChangeCrew'];
   onRequestAssign?: BoardViewProps['onRequestAssign'];
   onRequestNote?: BoardViewProps['onRequestNote'];
+  onAddNote?: BoardViewProps['onAddNote'];
+  onEditNote?: BoardViewProps['onEditNote'];
+  onDeleteNote?: BoardViewProps['onDeleteNote'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
   unitNotes?: BoardViewProps['unitNotes'];
   unitPhotos?: BoardViewProps['unitPhotos'];
@@ -854,14 +1044,12 @@ const UnitDetail = ({
           <p>{unit.unitType} · {trackCUnitMakeupLabel(unit)}</p>
         </div>
       </header>
-      {notesForUnit.length > 0 ? (
-        <div className="track-c-unit-notes">
-          <h3>Notes</h3>
-          {notesForUnit.map((note) => (
-            <p key={note.id}>{note.text}</p>
-          ))}
-        </div>
-      ) : null}
+      <UnitNotesPanel
+        notes={notesForUnit}
+        onAdd={onAddNote ? (kind, text) => onAddNote(unitId, kind, text) : undefined}
+        onEdit={onEditNote}
+        onDelete={onDeleteNote}
+      />
       {[...TRACK_C_TRADES]
         .sort((left, right) =>
           Number(right === focusTrade) - Number(left === focusTrade))
@@ -1422,7 +1610,7 @@ const UnitDetail = ({
           onClick={() => setOpenMenu(openMenu === 'add' ? null : 'add')}
           type="button"
         >
-          <span aria-hidden="true">＋</span> Add note · change order · photo
+          <span aria-hidden="true">＋</span> Official change-order form · photo
         </button>
         {openMenu === 'add' ? (
           <>
@@ -1433,14 +1621,6 @@ const UnitDetail = ({
               type="button"
             />
             <div className="track-c-popmenu">
-              {onRequestNote ? (
-                <button
-                  onClick={() => { setOpenMenu(null); onRequestNote(); }}
-                  type="button"
-                >
-                  Note
-                </button>
-              ) : null}
               <button
                 onClick={() => {
                   setOpenMenu(null);
@@ -1456,7 +1636,7 @@ const UnitDetail = ({
                 }}
                 type="button"
               >
-                Change order
+                Submit official change order (JotForm)
               </button>
               {onCommitUnitPhoto ? (
                 <UnitPhotoAddButton
@@ -1826,6 +2006,9 @@ export const BoardView = ({
   onChangeCrew,
   onRequestAssign,
   onRequestNote,
+  onAddNote,
+  onEditNote,
+  onDeleteNote,
   onRequestMirror,
   unitNotes,
   unitPhotos,
@@ -1968,6 +2151,9 @@ export const BoardView = ({
         onChangeCrew={onChangeCrew}
         onRequestAssign={onRequestAssign}
         onRequestNote={onRequestNote}
+        onAddNote={onAddNote}
+        onEditNote={onEditNote}
+        onDeleteNote={onDeleteNote}
         onRequestMirror={onRequestMirror}
         onSectionAction={onSectionAction}
         onTradeComplete={onTradeComplete}

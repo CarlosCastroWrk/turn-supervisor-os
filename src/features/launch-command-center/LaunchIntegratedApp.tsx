@@ -105,7 +105,14 @@ import {
 import {
   OfficialPdsFormsPage,
 } from '../wave2a2-core/OfficialPdsFormsPage';
-import { appendPersonalNoteActivity, PERSONAL_NOTE_ACTIVITY_ACTION } from '../wave2a1-native/track-c/personalActivity';
+import {
+  appendPersonalNoteActivity,
+  deletePersonalNoteActivity,
+  editPersonalNoteActivity,
+  isPersonalNoteAction,
+  noteKindForAction,
+  type PersonalNoteKind,
+} from '../wave2a1-native/track-c/personalActivity';
 import { TellTurnOS } from './TellTurnOS';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
@@ -934,13 +941,14 @@ function LaunchOperationalApp({
   }, [currentDate, data.activeProjectId, data.dailyReleaseBatches, trackCState]);
   const unitNotes = useMemo(() =>
     data.activityLogs
-      .filter((log) => log.action === PERSONAL_NOTE_ACTIVITY_ACTION
+      .filter((log) => isPersonalNoteAction(log.action)
         && log.entityType === 'Unit'
         && log.projectId === data.activeProjectId
         && Boolean(log.note))
       .map((log) => ({
         createdAt: log.createdAt,
         id: log.id,
+        kind: noteKindForAction(log.action),
         text: log.note ?? '',
         unitId: log.entityId,
       })),
@@ -2018,6 +2026,25 @@ function LaunchOperationalApp({
     setPlusInitialScreen('note');
     setPlusOpen(true);
   }, []);
+  const addUnitNote = useCallback((unitId: string, kind: PersonalNoteKind, text: string): boolean => {
+    if (!text.trim()) return false;
+    return commitDataNow((current) => {
+      const result = appendPersonalNoteActivity(current, { kind, unitId, wording: text.trim() });
+      return result.ok ? result.data : current;
+    });
+  }, [commitDataNow]);
+  const editUnitNote = useCallback((noteId: string, text: string): boolean => {
+    if (!text.trim()) return false;
+    return commitDataNow((current) => {
+      const result = editPersonalNoteActivity(current, noteId, text.trim());
+      return result.ok ? result.data : current;
+    });
+  }, [commitDataNow]);
+  const deleteUnitNote = useCallback((noteId: string): boolean =>
+    commitDataNow((current) => {
+      const result = deletePersonalNoteActivity(current, noteId);
+      return result.ok ? result.data : current;
+    }), [commitDataNow]);
   const openNativePlus = useCallback(() => {
     setPlusInitialScreen('menu');
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
@@ -3075,6 +3102,9 @@ function LaunchOperationalApp({
           }))}
           initialState={activeFieldState}
           onRequestUnitNote={openUnitNote}
+          onAddUnitNote={addUnitNote}
+          onEditUnitNote={editUnitNote}
+          onDeleteUnitNote={deleteUnitNote}
           onSetUnitBeds={(unitId, beds) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === unitId)?.unitNumber ?? '';

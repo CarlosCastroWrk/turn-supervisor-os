@@ -16,7 +16,7 @@ import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { appendContactLog } from '../../lib/contactLog';
 import type { PhotoNote } from '../../types';
 import { AssignmentView } from './AssignmentView';
-import { BoardView } from './BoardView';
+import { BoardView, type UnitNoteKind } from './BoardView';
 import { CrewView } from './CrewView';
 import type {
   TrackCSection,
@@ -81,10 +81,13 @@ export interface TrackCFieldOpsProps {
   readonly onMoveUnitTrade?: (sourceUnitId: string, trade: TrackCTrade, targetUnitNumber: string) => void;
   readonly onNavigate?: (route: TrackCRouteState) => void;
   readonly onRequestUnitNote?: () => void;
+  readonly onAddUnitNote?: (unitId: string, kind: UnitNoteKind, text: string) => boolean;
+  readonly onEditUnitNote?: (noteId: string, text: string) => boolean;
+  readonly onDeleteUnitNote?: (noteId: string) => boolean;
   readonly now?: () => string;
   readonly routeState?: TrackCRouteState;
   readonly walkIntegration?: TrackCWalkIntegration;
-  readonly unitNotes?: readonly { id: string; unitId: string; text: string; createdAt: string }[];
+  readonly unitNotes?: readonly { id: string; unitId: string; kind?: UnitNoteKind; text: string; createdAt: string }[];
   readonly unitPhotos?: readonly PhotoNote[];
   readonly onCommitUnitPhoto?: (photo: PhotoNote) => boolean | Promise<boolean>;
   readonly onUnblockUnit?: (unitId: string, trade: TrackCTrade) => void;
@@ -121,6 +124,9 @@ export const TrackCFieldOps = ({
   onMoveUnitTrade,
   onNavigate,
   onRequestUnitNote,
+  onAddUnitNote,
+  onEditUnitNote,
+  onDeleteUnitNote,
   now = () => new Date().toISOString(),
   routeState,
   walkIntegration,
@@ -719,6 +725,9 @@ export const TrackCFieldOps = ({
             onQuickAssign={quickAssign}
             onChangeCrew={changeCrew}
             onRequestNote={onRequestUnitNote}
+            onAddNote={onAddUnitNote}
+            onEditNote={onEditUnitNote}
+            onDeleteNote={onDeleteUnitNote}
             onRequestAssign={(trade) => {
               setAssignInitialTrade(trade);
               navigate('assign');

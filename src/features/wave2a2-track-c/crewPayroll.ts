@@ -32,6 +32,16 @@ export interface CrewPayDay {
   readonly types: TypeTally; // paint work types done that day (zero for clean)
 }
 
+// One payable room with where it is and (for paint) what kind of work — the
+// grain Tony asks about: "how many cut-ins, in WHICH unit".
+export interface PayRoom {
+  readonly unitNumber: string;
+  readonly trade: 'paint' | 'clean';
+  readonly section: string; // 'common' | 'A'..'E'
+  readonly workType?: PaintTypeKey; // paint only
+  readonly date: string; // local day it was first reported done
+}
+
 export interface CrewPayroll {
   readonly crewId: string;
   readonly today: PayLine;
@@ -39,6 +49,7 @@ export interface CrewPayroll {
   readonly turn: PayLine; // whole Turn, deduped
   readonly turnTypes: TypeTally; // whole-Turn paint work-type totals
   readonly perDay: readonly CrewPayDay[]; // ascending by date, each room on its first day
+  readonly rooms: readonly PayRoom[]; // every payable room with unit + type
 }
 
 const emptyLine = (): PayLine => ({ beds: 0, commons: 0 });
@@ -90,7 +101,9 @@ export const buildAllCrewPayroll = (
   // Work type per paint room (unit:trade:section -> full/touch-up/cut-in/…),
   // read off the release so a completed paint room can be tallied by its kind.
   const workTypeOf = new Map<string, PaintTypeKey>();
+  const unitNumberOf = new Map<string, string>();
   for (const unit of state.units) {
+    unitNumberOf.set(unit.id, unit.unitNumber);
     for (const fact of unit.workFacts) {
       if (fact.trade !== 'paint') continue;
       workTypeOf.set(
@@ -115,6 +128,7 @@ export const buildAllCrewPayroll = (
     turnTypes: TypeTally;
     perDay: Map<string, PayLine>;
     perDayTypes: Map<string, TypeTally>;
+    rooms: PayRoom[];
   }
   const byCrew = new Map<string, Accum>();
   const seenRooms = new Set<string>();
@@ -134,16 +148,26 @@ export const buildAllCrewPayroll = (
       turnTypes: emptyTypes(),
       perDay: new Map<string, PayLine>(),
       perDayTypes: new Map<string, TypeTally>(),
+      rooms: [] as PayRoom[],
     };
     accum.turn = addRoom(accum.turn, event.target.section);
     if (date === today) accum.today = addRoom(accum.today, event.target.section);
     if (week === currentWeek) accum.week = addRoom(accum.week, event.target.section);
     accum.perDay.set(date, addRoom(accum.perDay.get(date) ?? emptyLine(), event.target.section));
-    if (event.target.trade === 'paint') {
-      const type = workTypeOf.get(`${event.target.unitId}:paint:${event.target.section}`) ?? 'full';
-      accum.turnTypes = addType(accum.turnTypes, type);
-      accum.perDayTypes.set(date, addType(accum.perDayTypes.get(date) ?? emptyTypes(), type));
+    const paintType = event.target.trade === 'paint'
+      ? workTypeOf.get(`${event.target.unitId}:paint:${event.target.section}`) ?? 'full'
+      : undefined;
+    if (paintType) {
+      accum.turnTypes = addType(accum.turnTypes, paintType);
+      accum.perDayTypes.set(date, addType(accum.perDayTypes.get(date) ?? emptyTypes(), paintType));
     }
+    accum.rooms.push({
+      date,
+      section: event.target.section,
+      trade: event.target.trade,
+      unitNumber: unitNumberOf.get(event.target.unitId) ?? event.target.unitId,
+      workType: paintType,
+    });
     byCrew.set(crewId, accum);
   }
 
@@ -163,9 +187,48 @@ export const buildAllCrewPayroll = (
       turn: accum.turn,
       turnTypes: accum.turnTypes,
       perDay,
+      rooms: accum.rooms,
     });
   }
   return result;
+};
+
+// Tony's question, answered directly: for a PAINT crew, group the payable
+// rooms by work type with the units — "cut-in ×3 — 1007 (A, C) · 1608 (B)".
+// For a CLEAN crew, group by unit — "1806 — Com, A, B".
+export const formatRoomsByType = (rooms: readonly PayRoom[]): string[] => {
+  const paint = rooms.filter((room) => room.trade === 'paint');
+  const clean = rooms.filter((room) => room.trade === 'clean');
+  const lines: string[] = [];
+  const roomLabel = (section: string) => (section === 'common' ? 'Com' : section);
+  const typeOrder: PaintTypeKey[] = ['full', 'full-cut-in', 'cut-in', 'touch-up'];
+  const typeWord: Record<PaintTypeKey, string> = {
+    full: 'full', 'full-cut-in': 'full+cut-in', 'cut-in': 'cut-in', 'touch-up': 'touch-up',
+  };
+  for (const type of typeOrder) {
+    const ofType = paint.filter((room) => (room.workType ?? 'full') === type);
+    if (ofType.length === 0) continue;
+    const byUnit = new Map<string, string[]>();
+    for (const room of ofType) {
+      byUnit.set(room.unitNumber, [...(byUnit.get(room.unitNumber) ?? []), roomLabel(room.section)]);
+    }
+    const units = [...byUnit.entries()]
+      .sort((left, right) => left[0].localeCompare(right[0], undefined, { numeric: true }))
+      .map(([unitNumber, sections]) => `${unitNumber} (${sections.sort().join(', ')})`)
+      .join(' · ');
+    lines.push(`${typeWord[type]} ×${ofType.length} — ${units}`);
+  }
+  if (clean.length > 0) {
+    const byUnit = new Map<string, string[]>();
+    for (const room of clean) {
+      byUnit.set(room.unitNumber, [...(byUnit.get(room.unitNumber) ?? []), roomLabel(room.section)]);
+    }
+    for (const [unitNumber, sections] of [...byUnit.entries()]
+      .sort((left, right) => left[0].localeCompare(right[0], undefined, { numeric: true }))) {
+      lines.push(`${unitNumber} — ${sections.sort().join(', ')} (${sections.length})`);
+    }
+  }
+  return lines;
 };
 
 // Short human label for a paint work-type tally, e.g. "2 cut-in · 1 full".
@@ -190,6 +253,7 @@ export const buildCrewPayroll = (
     turn: emptyLine(),
     turnTypes: emptyTypes(),
     perDay: [],
+    rooms: [],
   };
 
 // Short human label, e.g. "3 beds · 1 common" or "0".

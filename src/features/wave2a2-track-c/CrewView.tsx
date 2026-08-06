@@ -19,7 +19,7 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
-import { buildAllCrewPayroll, formatPayLine, formatTypeTally } from './crewPayroll';
+import { buildAllCrewPayroll, formatPayLine, formatRoomsByType, formatTypeTally } from './crewPayroll';
 import {
   crewMessageHref,
   crewUnitsTextBody,
@@ -657,7 +657,7 @@ export const CrewView = ({
           // calculation as the crew card, so per-day always sums to the Turn
           // total. This is Los's receipt when a count gets pushed back on.
           const emptyTypes = { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0 };
-          const emptyPay = { today: { beds: 0, commons: 0 }, week: { beds: 0, commons: 0 }, turn: { beds: 0, commons: 0 }, turnTypes: emptyTypes, perDay: [] };
+          const emptyPay = { today: { beds: 0, commons: 0 }, week: { beds: 0, commons: 0 }, turn: { beds: 0, commons: 0 }, turnTypes: emptyTypes, perDay: [], rooms: [] };
           const payFor = (crewId: string) => payrollByCrew.get(crewId) ?? emptyPay;
           const buildText = () => state.crews.map((crew) => {
             const pay = payFor(crew.id);
@@ -668,6 +668,8 @@ export const CrewView = ({
                 const types = isPaint ? formatTypeTally(day.types) : '';
                 return `  ${day.date}: ${formatPayLine(day.line)}${types ? ` (${types})` : ''}`;
               }),
+              // Tony's grain: what KIND of work, in WHICH units.
+              ...formatRoomsByType(pay.rooms).map((line) => `  ${line}`),
               `  Turn total: ${formatPayLine(pay.turn)}${isPaint && formatTypeTally(pay.turnTypes) ? ` (${formatTypeTally(pay.turnTypes)})` : ''}`,
             ].join('\n');
           }).join('\n');
@@ -705,6 +707,13 @@ export const CrewView = ({
                         })}
                       </ul>
                     ) : <p>No completed work reported yet.</p>}
+                    {pay.rooms.length > 0 ? (
+                      <div className="track-c-crew-totals__byunit">
+                        {formatRoomsByType(pay.rooms).map((line) => (
+                          <p key={line}>{line}</p>
+                        ))}
+                      </div>
+                    ) : null}
                   </section>
                 );
               })}

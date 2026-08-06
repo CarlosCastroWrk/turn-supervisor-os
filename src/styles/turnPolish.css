@@ -643,6 +643,17 @@ select:focus-visible {
   font-weight: 600;
   color: var(--turn-color-secondary);
 }
+.track-c-crew-totals__byunit {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--turn-color-divider);
+}
+.track-c-crew-totals__byunit p {
+  margin: 2px 0;
+  font-size: 12.5px;
+  color: var(--turn-color-primary);
+  font-variant-numeric: tabular-nums;
+}
 .track-c-callback-rooms {
   margin: 6px 0 2px;
   padding: 8px 12px;

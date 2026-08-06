@@ -17,6 +17,7 @@ import {
 import {
   buildAllCrewPayroll,
   buildCrewPayroll,
+  formatRoomsByType,
   payWeekSunday,
 } from '../src/features/wave2a2-track-c/crewPayroll.ts';
 import {
@@ -1293,4 +1294,41 @@ test('a callback on ONE room only calls back that room and pulls the unit from r
   assert.equal(A.callbackOpen, true, 'room A is in callback');
   assert.equal(B.callbackOpen, false, 'room B is NOT dragged into callback');
   assert.equal(B.inspection, 'los-passed', 'room B stays passed');
+});
+
+test('payroll answers Tony directly: which units, what kind of work, per crew', () => {
+  let state = createSyntheticTrackCState();
+  const typed = {
+    ...state,
+    units: state.units.map((unit) =>
+      unit.id !== 'unit-707' ? unit : {
+        ...unit,
+        workFacts: unit.workFacts.map((fact) =>
+          fact.trade !== 'paint' ? fact : {
+            ...fact,
+            workType: fact.section === 'A' ? 'cut-in'
+              : fact.section === 'B' ? 'cut-in' : 'full',
+          }),
+      }),
+  };
+  state = withEvents(typed, [
+    payEvent('707', 'paint', 'A', 'crew-sandra', '2026-08-05T15:00:00.000Z', 'a'),
+    payEvent('707', 'paint', 'B', 'crew-sandra', '2026-08-05T15:01:00.000Z', 'b'),
+    payEvent('707', 'paint', 'common', 'crew-sandra', '2026-08-05T15:02:00.000Z', 'c'),
+    payEvent('410', 'clean', 'A', 'crew-dania', '2026-08-05T15:03:00.000Z', 'd'),
+    payEvent('410', 'clean', 'common', 'crew-dania', '2026-08-05T15:04:00.000Z', 'e'),
+  ]);
+  const now = new Date('2026-08-05T18:00:00.000Z');
+  const sandra = buildCrewPayroll(state, 'crew-sandra', now);
+  assert.equal(sandra.rooms.length, 3, 'every payable room is listed');
+  assert.ok(sandra.rooms.every((room) => room.unitNumber === '707'), 'rooms carry the unit number');
+  const lines = formatRoomsByType(sandra.rooms);
+  assert.ok(lines.some((line) => line.startsWith('cut-in ×2') && line.includes('707 (A, B)')),
+    `cut-in line must name the unit and rooms: ${lines.join(' | ')}`);
+  assert.ok(lines.some((line) => line.startsWith('full ×1') && line.includes('707 (Com)')),
+    'full line must name the unit and room');
+  const dania = buildCrewPayroll(state, 'crew-dania', now);
+  const cleanLines = formatRoomsByType(dania.rooms);
+  assert.ok(cleanLines.some((line) => line.startsWith('410 — ') && line.includes('(2)')),
+    `clean line groups by unit with a count: ${cleanLines.join(' | ')}`);
 });

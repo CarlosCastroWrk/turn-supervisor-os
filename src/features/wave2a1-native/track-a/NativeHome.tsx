@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 import { NativePageHeader, NativePageTransition } from './NativePage';
+import { compareUnitTopFloorFirst } from '../../../lib/unitOrder';
 import {
   NATIVE_GOAL_METRICS,
   NATIVE_GOAL_MILESTONES,
@@ -402,7 +403,7 @@ export function NativeHomeSummaryPage({
                 // Los reads queues one column per trade (Paint | Clean), each in
                 // numerical order — not the two trades stacked on top of each other.
                 const numeric = (left: NativeHomeRecord, right: NativeHomeRecord) =>
-                  left.unitLabel.localeCompare(right.unitLabel, undefined, { numeric: true });
+                  compareUnitTopFloorFirst(left.unitLabel, right.unitLabel);
                 const paint = destination.records
                   .filter((record) => (record.meta ?? '').startsWith('Paint'))
                   .sort(numeric);

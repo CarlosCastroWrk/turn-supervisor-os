@@ -4,6 +4,7 @@ import type {
   TrackCWorkTarget,
 } from './model';
 import { projectTrackCWork } from './projections';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 
 // Builds the human-readable Daily Supervisor Report from the same event
 // ledger everything else reads. The backup JSON is the machine file; this is
@@ -125,7 +126,7 @@ export function buildDailyReportData(input: {
       };
     })
     .sort((left, right) =>
-      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+      compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
 
   const openCallbacks: { unitNumber: string; trade: string; section: string }[] = [];
   for (const unit of state.units) {

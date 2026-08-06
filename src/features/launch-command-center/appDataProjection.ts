@@ -7,6 +7,7 @@ import type {
   Unit,
 } from '../../types';
 import { isBlockedUnit, isInProgressUnit } from '../../lib/metrics';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { getProjectFollowUpTasks } from '../../lib/projectScope';
 import type { TurnCommandUnitOption } from '../../lib/turnCommand';
 import type { BoardFirstActivityItem } from '../wave1r-board-first';
@@ -341,11 +342,7 @@ export const projectLaunchAppData = (
         buildingName: data.buildings.find((building) => building.id === unit.buildingId)?.name ?? '',
         floorName: data.floors.find((floor) => floor.id === unit.floorId)?.name ?? '',
       }))
-      .sort((left, right) => left.unitNumber.localeCompare(
-        right.unitNumber,
-        undefined,
-        { numeric: true, sensitivity: 'base' },
-      )),
+      .sort((left, right) => compareUnitTopFloorFirst(left.unitNumber, right.unitNumber)),
     counts: {
       blocked: waitingRecords.length,
       callbacks: callbackIssues.length + callbackFollowUps.length,

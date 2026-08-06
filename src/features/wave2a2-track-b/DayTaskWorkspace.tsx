@@ -56,6 +56,7 @@ import type {
   TrackBTrade,
 } from './types';
 import './track-b.css';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 
 type WorkspaceView =
   | { id: 'home' }
@@ -1040,7 +1041,7 @@ export function EndDayFlow({
           .filter((line) => line.assigned.size > 0 || line.passed > 0
             || line.accepted > 0 || line.crewDone > 0)
           .sort((left, right) =>
-            left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true })
+            compareUnitTopFloorFirst(left.unitNumber, right.unitNumber)
             || left.trade.localeCompare(right.trade));
         if (lines.length === 0) return null;
         const rowKey = (line: (typeof lines)[number]) => `${line.unitId}:${line.trade}`;
@@ -1902,7 +1903,7 @@ function DayTaskHome({
                       const rh = hereNow.has(`${right.unitId}:${right.trade}`) ? 0 : 1;
                       return lh - rh
                         || doneRank(left) - doneRank(right)
-                        || left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true });
+                        || compareUnitTopFloorFirst(left.unitNumber, right.unitNumber);
                     });
                     return (
                       <div className="w2a2b-crewgroup" key={gkey}>
@@ -2393,7 +2394,7 @@ export function DayTaskWorkspace({
         unitId: entry.unitId,
         unitNumber: unitNumberById.get(entry.unitId) ?? entry.unitId,
       }))
-      .sort((left, right) => left.unitNumber.localeCompare(right.unitNumber));
+      .sort((left, right) => compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
   }, [currentDate, events, propertyRoster.units]);
 
   const externalAction = (action: 'import-work' | 'assign-crews' | 'start-walk') => {

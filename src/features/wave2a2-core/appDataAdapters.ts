@@ -34,6 +34,7 @@ import {
   type TrackCWalkSelectionReview,
 } from '../wave2a2-track-c/model';
 import { projectTrackCWork } from '../wave2a2-track-c/projections';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import type { TrackCWalkDraft } from '../wave2a2-track-c/phase2WalkWorkflow';
 
 const CONTEXT_EVENT_TYPES = {
@@ -105,7 +106,7 @@ export function projectPropertyRoster(data: AppData): PropertyRoster {
     units: data.units
       .filter((unit) => unit.projectId === data.activeProjectId)
       .sort((left, right) =>
-        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
+        compareUnitTopFloorFirst(left.unitNumber, right.unitNumber))
       .map((unit) => ({
         applicableSections: rosterSections(unit.bedCount, unit.hasCommonArea).map((section) => ({
           id: section,

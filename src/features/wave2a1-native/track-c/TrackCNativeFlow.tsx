@@ -21,6 +21,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { ActivityLog, AppData } from '../../../types';
+import { compareUnitTopFloorFirst } from '../../../lib/unitOrder';
 import {
   TRACK_C_COMPATIBILITY_PLUS_ACTIONS,
   type TrackCPlusActionAvailabilityMap,
@@ -169,11 +170,7 @@ export function TrackCNativeFlow({
         .filter((unit) => unit.projectId === data.activeProjectId)
         .slice()
         .sort((left, right) =>
-          left.unitNumber.localeCompare(right.unitNumber, undefined, {
-            numeric: true,
-            sensitivity: 'base',
-          }),
-        ),
+          compareUnitTopFloorFirst(left.unitNumber, right.unitNumber)),
     [data.activeProjectId, data.units],
   );
 

@@ -1,4 +1,5 @@
 import { AlertTriangle, Download, Footprints, RefreshCw } from 'lucide-react';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   useCallback,
   useEffect,
@@ -797,7 +798,7 @@ function LaunchOperationalApp({
       }
     }
     return lines.sort((left, right) =>
-      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true })
+      compareUnitTopFloorFirst(left.unitNumber, right.unitNumber)
       || left.trade.localeCompare(right.trade));
   }, [trackCState]);
   const advanceUnitTrade = useCallback((unitId: string, trade: 'paint' | 'clean') => {
@@ -2679,7 +2680,7 @@ function LaunchOperationalApp({
         unitNumber: unitNumberById.get(unitId) ?? unitId,
       }))
       .sort((left, right) =>
-        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+        compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
     const selectedId = blockDialog.unitId
       ?? (releasedUnits.length === 1 ? releasedUnits[0].id : undefined);
     const selected = releasedUnits.find((unit) => unit.id === selectedId);
@@ -3953,7 +3954,7 @@ function LaunchOperationalApp({
                   .filter((row) => row.trade === trade && row.rank >= 1)
                   .sort((left, right) =>
                     right.rank - left.rank
-                    || left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+                    || compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
                 if (rows.length === 0) return null;
                 return (
                   <div className="lcc-dayhist-group" key={`${historySession.daySessionId}:${trade}`}>
@@ -4035,8 +4036,7 @@ function LaunchOperationalApp({
                               <p key={type}>
                                 <b>{units.size} {type}</b>
                                 {' — '}
-                                {[...units].sort((a, b) =>
-                                  a.localeCompare(b, undefined, { numeric: true })).join(', ')}
+                                {[...units].sort(compareUnitTopFloorFirst).join(', ')}
                               </p>
                             ))}
                         </div>

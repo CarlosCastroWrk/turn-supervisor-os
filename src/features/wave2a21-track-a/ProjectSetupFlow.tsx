@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   imageFileToIntakeSource,
   intakeEnabled,
@@ -735,7 +736,7 @@ export function ProjectSetupFlow({
               <ul className="w2a21a-setup__roster">
                 {[...setupUnits]
                   .sort((left, right) =>
-                    left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
+                    compareUnitTopFloorFirst(left.unitNumber, right.unitNumber))
                   .map((unit) => (
                   <li key={unit.id}>
                     <span>

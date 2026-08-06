@@ -1,4 +1,5 @@
 import { ArrowLeft, Camera, Check, MessageSquareText, Search } from 'lucide-react';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { useMemo, useRef, useState } from 'react';
 import { createId } from '../../lib/constants';
 import {
@@ -443,8 +444,7 @@ export function ManualReleaseReview({
                   const numberOf = (unitId: string) =>
                     roster.units.find((unit) => unit.id === unitId)?.unitNumber ?? unitId;
                   return [...byUnit.entries()]
-                    .sort((left, right) => numberOf(left[0])
-                      .localeCompare(numberOf(right[0]), undefined, { numeric: true }))
+                    .sort((left, right) => compareUnitTopFloorFirst(numberOf(left[0]), numberOf(right[0])))
                     .map(([unitId, list]) => (
                       <div className="w2a2-core-selected__unit" key={unitId}>
                         <strong>{numberOf(unitId)}</strong>
@@ -502,7 +502,7 @@ export function ManualReleaseReview({
                 .filter((unit) => !query.trim()
                   || unit.unitNumber.toLowerCase().includes(query.trim().toLowerCase()))
                 .sort((left, right) =>
-                  left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }))
+                  compareUnitTopFloorFirst(left.unitNumber, right.unitNumber))
                 .map((unit) => {
                   const unitSelections = unit.applicableSections.flatMap((section) =>
                     section.trades

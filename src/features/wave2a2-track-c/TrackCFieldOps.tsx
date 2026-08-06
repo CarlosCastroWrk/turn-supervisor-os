@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react';
 import { createId as createAppId } from '../../lib/constants';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { appendContactLog } from '../../lib/contactLog';
 import type { PhotoNote } from '../../types';
 import { AssignmentView } from './AssignmentView';
@@ -824,7 +825,7 @@ export const TrackCFieldOps = ({
           }));
           const unitNumbers = rows
             .map((row) => row.unitNumber)
-            .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+            .sort(compareUnitTopFloorFirst);
           const bodyFor = (lang: CrewTextLang) => crewUnitsTextBody(crew.name, lang, rows);
           const dismiss = () => setTextPrompts((current) => {
             const next = { ...current };

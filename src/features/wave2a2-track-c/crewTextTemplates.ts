@@ -5,6 +5,7 @@
 // the last language used sticks on this device.
 
 import { paintWorkTypeNote } from './model';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 
 export type CrewTextLang = 'es' | 'en';
 
@@ -61,7 +62,7 @@ export const crewUnitsTextBody = (
     return digits.length >= 3 ? digits.slice(0, -2) : '';
   };
   const sorted = [...rows].sort((left, right) =>
-    left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+    compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
   const floors = new Set(sorted.map((row) => floorOf(row.unitNumber)));
   const unitLines = sorted.map((row) => {
       const ordered = [...row.sections].sort((left, right) =>

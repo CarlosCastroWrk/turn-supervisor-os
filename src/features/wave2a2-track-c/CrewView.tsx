@@ -7,6 +7,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   appendContactLog,
   contactsToday,
@@ -234,7 +235,7 @@ const CrewDetail = ({
           byUnit.set(key, line);
         }
         const rows = [...byUnit.values()].sort((left, right) =>
-          left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+          compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
         return (
           <>
             <div className="track-c-crew-summary">
@@ -310,7 +311,7 @@ export const CrewView = ({
     }
     for (const trade of ['paint', 'clean'] as const) {
       rollup[trade].unassigned.sort((left, right) =>
-        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+        compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
     }
     return rollup;
   }, [state]);

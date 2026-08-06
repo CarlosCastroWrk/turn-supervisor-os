@@ -9,6 +9,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   TRACK_C_TRADES,
   type TrackCCompactUnitProjection,
@@ -1581,7 +1582,7 @@ const WallGrid = ({
     const seen = new Set<string>();
     for (const unit of state.units) seen.add(wallFloorOf(unit.unitNumber));
     return [...seen].sort((left, right) =>
-      left.localeCompare(right, undefined, { numeric: true }));
+      right.localeCompare(left, undefined, { numeric: true }));
   }, [state.units]);
   const [floor, setFloor] = useState<string>(() => {
     try {
@@ -1689,7 +1690,7 @@ const WallGrid = ({
     ? state.units.filter((unit) => unit.unitNumber.toLowerCase().includes(trimmed))
     : state.units.filter((unit) => wallFloorOf(unit.unitNumber) === activeFloor))
     .sort((left, right) =>
-      left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+      compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
   return (
     <div className="track-c-wall">
       <label className="track-c-wall__search">

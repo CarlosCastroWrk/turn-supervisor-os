@@ -11,6 +11,7 @@ import {
   projectTrackCUnitWork,
 } from '../wave2a2-track-c/projections';
 import { trackCWorkKey } from '../wave2a2-track-c/model';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   adaptDurableFieldEventsToActivity,
   adaptLegacyActivityLogsToActivity,
@@ -126,7 +127,7 @@ const canonicalWorkRecords = (
       };
     }))
   .sort((left, right) =>
-    left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true })
+    compareUnitTopFloorFirst(left.unitNumber, right.unitNumber)
     || left.trade.localeCompare(right.trade)
     || left.target.section.localeCompare(right.target.section));
 

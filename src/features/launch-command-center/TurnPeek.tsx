@@ -1,4 +1,5 @@
 import type { TrackCState } from '../wave2a2-track-c/model';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { paintWorkTypeNote, trackCSectionLabel } from '../wave2a2-track-c/model';
 import { projectTrackCUnitWork } from '../wave2a2-track-c/projections';
 
@@ -96,7 +97,7 @@ export const TurnPeek = ({
       .map((unitId) => state.units.find((candidate) => candidate.id === unitId))
       .filter((unit): unit is NonNullable<typeof unit> => Boolean(unit))
       .sort((left, right) =>
-        left.unitNumber.localeCompare(right.unitNumber, undefined, { numeric: true }));
+        compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
     return (
       <>
         <h2>{label} · {rows.length}</h2>

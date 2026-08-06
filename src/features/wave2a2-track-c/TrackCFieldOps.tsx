@@ -65,7 +65,7 @@ export interface TrackCFieldOpsProps {
   readonly initialState: TrackCState;
   readonly initialView?: TrackCView;
   readonly onDialogOpenChange?: (open: boolean) => void;
-  readonly onStateChange?: (state: TrackCState, reason: string) => void;
+  readonly onStateChange?: (state: TrackCState, reason: string) => boolean | void;
   readonly onCrewEditRequested?: (crewId: string) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
@@ -172,8 +172,15 @@ export const TrackCFieldOps = ({
 
   const commitState = useCallback(
     (nextState: TrackCState, reason: string) => {
+      // If the host can't SAVE this change, don't show it — otherwise the unit
+      // page shows an assignment the board never got (Los's "assigned but says
+      // needs crew"). The host raises a loud, sticky warning explaining why.
+      const persisted = onStateChange ? onStateChange(nextState, reason) : true;
+      if (persisted === false) {
+        setNotice('That didn’t save — check the warning at the top. Nothing was recorded.');
+        return;
+      }
       setState(nextState);
-      onStateChange?.(nextState, reason);
       if (reason === 'walk-started' && nextState.activeWalk) {
         onNavigate?.({
           view: 'walk',

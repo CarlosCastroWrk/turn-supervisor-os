@@ -424,6 +424,9 @@ function LaunchOperationalApp({
   // Feedback lands WHERE LOS STANDS — a floating toast on every surface, not
   // a status line only the More tab renders (found dead-button feel in audit).
   const [fieldToast, setFieldToast] = useState('');
+  // A save that FAILED — sticky and loud (never auto-clears) so Los can't miss
+  // that something he did didn't record. Cleared only when he taps it.
+  const [persistWarning, setPersistWarning] = useState('');
   useEffect(() => {
     if (!fieldToast) return undefined;
     const timer = window.setTimeout(() => setFieldToast(''), 3000);
@@ -710,13 +713,17 @@ function LaunchOperationalApp({
           .flatMap((item) => item.activeCrewIds)
           .map((crewId) => trackCCrewName(trackCState, crewId))
           .filter((name): name is string => Boolean(name)))];
+        // A unit with ANY crew assigned is NEVER "needs crew" — even if that
+        // crew's name can't be resolved (added under the wrong trade/project).
+        // Otherwise a real assignment reads as unassigned on the board.
+        const hasAssignedCrew = work.some((item) => item.activeCrewIds.length > 0);
         const hasCallback = work.some((item) => item.callbackOpen);
         const allPassed = work.every((item) => item.inspection === 'los-passed');
         const donePlus = work.filter((item) =>
           item.execution === 'crew-reported-complete'
           || item.inspection === 'los-passed').length;
         const anyActive = work.some((item) =>
-          ['assigned', 'working'].includes(item.execution));
+          ['assigned', 'working'].includes(item.execution)) || hasAssignedCrew;
         const stage = hasCallback
           ? 'callback' as const
           : allPassed
@@ -779,7 +786,11 @@ function LaunchOperationalApp({
         }
         const assignedSince = latestAssign ? dayWord(latestAssign) : undefined;
         lines.push({
-          crewNames,
+          // If a crew is assigned but its name can't be resolved, still say so —
+          // never read "unassigned" over a real assignment.
+          crewNames: crewNames.length > 0
+            ? crewNames
+            : hasAssignedCrew ? ['assigned crew'] : [],
           workLabel: trackCTradeWorkTypeLabel(trackCState, unit.id, trade),
           done: donePlus,
           rooms,
@@ -2783,8 +2794,26 @@ function LaunchOperationalApp({
     );
   })() : null;
 
+  const persistWarningAlert = persistWarning ? (
+    <section className="persistence-alert lcc-host-alert lcc-host-alert--error" role="alert">
+      <AlertTriangle size={22} aria-hidden="true" />
+      <div>
+        <strong>That didn’t save</strong>
+        <p>{persistWarning}</p>
+      </div>
+      <button
+        aria-label="Dismiss"
+        className="lcc-host-alert__dismiss"
+        onClick={() => setPersistWarning('')}
+        type="button"
+      >
+        ✕
+      </button>
+    </section>
+  ) : null;
   const hostAlerts = (
     <>
+      {persistWarningAlert}
       {walkRequestAlert}
       {saveAlert}
       {cacheAlert}
@@ -3277,7 +3306,26 @@ function LaunchOperationalApp({
             // Persist synchronously so a crash in the ~500ms deferred-write window
             // can't lose a tap the UI already confirmed. High-frequency walk-draft
             // edits stay deferred via onDraftChange below.
-            commitDataNow((current) => applyTrackCStateChange(current, nextState));
+            //
+            // NEVER fail silently: if the save can't complete (no Day Session yet,
+            // storage full), the assignment would show on the unit page but never
+            // hit the board — Los's "assigned but says needs crew" bug. Return the
+            // result so the field ops can revert the phantom, and shout why.
+            try {
+              const saved = commitDataNow((current) =>
+                applyTrackCStateChange(current, nextState));
+              if (!saved) {
+                setPersistWarning('That didn’t save — free up phone storage and try again. Nothing was recorded.');
+              }
+              return saved;
+            } catch (error) {
+              setPersistWarning(
+                error instanceof Error && /Day Session/i.test(error.message)
+                  ? 'That didn’t save — tap Start Day first, then try again. Nothing was recorded.'
+                  : 'That didn’t save. Nothing was recorded — try again.',
+              );
+              return false;
+            }
           }}
           routeState={trackCRouteState}
           walkIntegration={{

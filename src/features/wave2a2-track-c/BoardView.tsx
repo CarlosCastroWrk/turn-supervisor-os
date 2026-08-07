@@ -21,7 +21,6 @@ import {
   type TrackCWorkProjection,
   type TrackCWorkTarget,
   paintWorkTypeLabel,
-  paintWorkTypeNote,
   trackCSectionLabel,
   trackCWorkKey,
 } from './model';
@@ -753,12 +752,11 @@ const WorkSection = ({
         >
           <span className="track-c-section-row__section">
             {trackCSectionLabel(work.section)}
-            {work.trade === 'paint' && work.release === 'released'
-              && work.workType && work.workType !== 'full' ? (
-                <em className={`track-c-worktype is-${work.workType}`}>
-                  {paintWorkTypeNote(work.workType)}
-                </em>
-              ) : null}
+            {work.trade === 'paint' && work.release === 'released' ? (
+              <em className={`track-c-worktype is-${work.workType ?? 'full'}`}>
+                {paintWorkTypeLabel(work.workType ?? 'full')}
+              </em>
+            ) : null}
           </span>
           <span
             className={`track-c-section-row__state ${

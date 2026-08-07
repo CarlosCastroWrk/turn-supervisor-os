@@ -306,7 +306,12 @@ select:focus-visible {
 .track-c-worktype {
   display: inline;
   margin-inline-start: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--turn-color-secondary, #66707c);
 }
+.track-c-worktype.is-full { opacity: 0.7; }
 
 /* ---------- Crew profile: clean summary + unit rollup ---------- */
 .track-c-crew-summary {

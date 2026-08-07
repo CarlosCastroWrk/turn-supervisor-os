@@ -31,7 +31,7 @@ export interface TrackCWorkFact extends TrackCWorkTarget {
   readonly sourceConfidence: TrackCSourceConfidence;
   readonly sourceLabel: string;
   readonly restrictionLabel?: string;
-  readonly workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
+  readonly workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean';
   // When this room:trade was confirmed released (the batch's confirmed time).
   // Lets the board show the day/week each unit came onto the wall so Los can
   // rebuild it day by day. Projection-only — not stored.
@@ -332,7 +332,7 @@ export const DEFAULT_TRACK_C_TERMINOLOGY: TrackCTerminology = Object.freeze({
 // One place to name a paint work type — English + Spanish (crew texts). 'full'
 // returns '' as a "note" so full-paint rooms read plain; the *Full* variant is
 // spelled out. Unknown values fall back to full paint.
-export type PaintWorkType = 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
+export type PaintWorkType = 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean';
 export const paintWorkTypeLabel = (
   workType: PaintWorkType | undefined,
   lang: 'en' | 'es' = 'en',
@@ -341,6 +341,7 @@ export const paintWorkTypeLabel = (
   if (workType === 'cut-in') return lang === 'es' ? 'cortes' : 'cut-in';
   if (workType === 'full-cut-in') return lang === 'es' ? 'completo + cortes' : 'full + cut-in';
   if (workType === 'touch-up-cut-in') return lang === 'es' ? 'retoques + cortes' : 'touch-up + cut-in';
+  if (workType === 'heavy-clean') return lang === 'es' ? 'limpieza pesada' : 'heavy clean';
   return lang === 'es' ? 'completa' : 'full paint';
 };
 // The short "note" that rides next to a room — empty for plain full paint.

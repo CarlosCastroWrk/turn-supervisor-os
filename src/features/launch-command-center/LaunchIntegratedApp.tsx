@@ -990,7 +990,7 @@ function LaunchOperationalApp({
   const homeReminders = homeNoteStrips.reminders;
   const homeChangeOrders = homeNoteStrips.changeOrders;
   const releaseWorkTypes = useMemo(() => {
-    const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'> = {};
+    const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'> = {};
     for (const unit of trackCState.units) {
       for (const fact of unit.workFacts) {
         if (fact.release !== 'released' || !fact.workType) continue;
@@ -3374,7 +3374,11 @@ function LaunchOperationalApp({
                 ? 'cut-in'
                 : workType === 'full-cut-in'
                   ? 'full + cut-in'
-                  : workType === 'touch-up-cut-in' ? 'touch-up + cut-in' : 'full paint';
+                  : workType === 'touch-up-cut-in'
+                    ? 'touch-up + cut-in'
+                    : workType === 'heavy-clean'
+                      ? 'heavy clean'
+                      : target.trade === 'clean' ? 'regular clean' : 'full paint';
             setFieldToast(saved
               ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} → ${label}.`
               : 'Could not save — try again.');

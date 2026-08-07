@@ -747,7 +747,7 @@ interface EndDayFlowProps {
   crews?: readonly TrackBCrewOption[];
   events: readonly DaySessionEvent[];
   now: () => string;
-  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
+  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'>>;
   unitNumbers?: ReadonlyMap<string, string>;
   onCancel: () => void;
   onClosed: (
@@ -2488,7 +2488,7 @@ export interface DayTaskWorkspaceProps {
   startHereCrews?: { paint: readonly { id: string; name: string }[]; clean: readonly { id: string; name: string }[] };
   onAssignStartHere?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => boolean;
   startHereTexts?: readonly { crewId: string; crewName: string; unitCount: number; href: string }[];
-  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
+  releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
   propertyRoster: PropertyRoster;

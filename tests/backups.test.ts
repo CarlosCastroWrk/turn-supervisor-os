@@ -857,3 +857,38 @@ test('project-scoped Memory and candidate provenance survive backup validation',
   assert.equal(restored.memoryCandidates[0]?.projectId, data.activeProjectId);
   assert.equal(restored.memoryCandidates[0]?.sourceEntityId, 'activity_scoped_backup');
 });
+
+test('a release item marked heavy-clean survives the load validator (never trips Recovery Mode)', () => {
+  const data = cloneSeed();
+  const projectId = data.activeProjectId;
+  const unitId = data.units[0].id;
+  data.dailyReleaseBatches = [
+    {
+      id: 'release_heavy',
+      projectId,
+      date: '2026-08-07',
+      propertyContact: 'Property contact',
+      sourceType: 'paste',
+      sourceLabel: 'Heavy clean release',
+      localSourceReference: 'local-heavy',
+      status: 'confirmed',
+      items: [
+        {
+          id: 'release_item_heavy',
+          unitId,
+          trade: 'clean',
+          section: 'A',
+          sourceExcerpt: 'A heavy clean',
+          workType: 'heavy-clean',
+        },
+      ],
+      uncertainties: [],
+      confirmedBy: 'Los',
+      confirmedAt: stamp,
+      createdAt: stamp,
+      updatedAt: stamp,
+    },
+  ];
+  const restored = parseJsonBackup(buildJsonBackup(data));
+  assert.equal(restored.dailyReleaseBatches[0]?.items[0]?.workType, 'heavy-clean');
+});

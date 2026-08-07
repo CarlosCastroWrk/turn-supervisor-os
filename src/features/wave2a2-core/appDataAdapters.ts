@@ -544,7 +544,7 @@ export interface ManualReleaseSelection {
   section: FieldSection;
   trade: FieldTrade;
   unitId: string;
-  workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
+  workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean';
 }
 
 // Change the task on an already-released room (Joseph revises, or Los learns
@@ -556,7 +556,7 @@ export const setReleaseWorkType = (
     unitId: string;
     trade: FieldTrade;
     section: FieldSection;
-    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
+    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean';
   },
 ): AppData => ({
   ...data,

@@ -1426,6 +1426,7 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
 }
 
 .track-c-worktype.is-full-cut-in { color: #7c3aed; }
+.track-c-worktype.is-heavy-clean { color: #0e7490; opacity: 1; font-weight: 800; }
 
 /* ---------- Hold-to-peek: iOS-style preview ---------- */
 .lcc-peek {

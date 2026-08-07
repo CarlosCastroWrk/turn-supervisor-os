@@ -43,6 +43,7 @@ const TASK_LABEL: Record<ReleaseWorkType, string> = {
   'cut-in': 'cut-in',
   'full-cut-in': 'full+cut',
   'touch-up-cut-in': 'touch+cut',
+  'heavy-clean': 'heavy clean',
 };
 
 export function DailyReleaseSelector({

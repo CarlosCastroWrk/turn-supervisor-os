@@ -263,7 +263,7 @@ interface BoardViewProps {
   readonly onRequestBlock?: (unitId: string, trade: TrackCTrade) => void;
   readonly onSetSectionWorkType?: (
     target: TrackCWorkTarget,
-    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in',
+    workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean',
   ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
@@ -604,7 +604,7 @@ const WorkSection = ({
   onAction: (action: TrackCSectionAction) => void;
   onRequestMirror: () => void;
   onToggleRelease?: (released: boolean) => void;
-  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in') => void;
+  onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean') => void;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
@@ -752,11 +752,14 @@ const WorkSection = ({
         >
           <span className="track-c-section-row__section">
             {trackCSectionLabel(work.section)}
-            {work.trade === 'paint' && work.release === 'released' ? (
-              <em className={`track-c-worktype is-${work.workType ?? 'full'}`}>
-                {paintWorkTypeLabel(work.workType ?? 'full')}
-              </em>
-            ) : null}
+            {work.release === 'released'
+              && (work.trade === 'paint' || work.workType === 'heavy-clean') ? (
+                <em className={`track-c-worktype is-${work.workType ?? 'full'}`}>
+                  {work.trade === 'paint'
+                    ? paintWorkTypeLabel(work.workType ?? 'full')
+                    : 'heavy clean'}
+                </em>
+              ) : null}
           </span>
           <span
             className={`track-c-section-row__state ${
@@ -795,14 +798,15 @@ const WorkSection = ({
           <p className="track-c-section-row__detail-status">
             {executionLabel(work)}
           </p>
-          {onSetWorkType
-            && work.trade === 'paint'
-            && work.release === 'released'
-            && work.property !== 'property-accepted' ? (
-              <div className="track-c-worktype-pick">
-                <span className="track-c-worktype-pick__label">Task:</span>
-                <div className="track-c-worktype-pick__chips">
-                  {(['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'] as const).map((type) => (
+          {/* Task picker — paint tasks, or Regular/Heavy for clean. Stays
+              available AFTER the property approves so Los can correct it or mark
+              a heavy clean even once it's accepted (pure label — no re-open). */}
+          {onSetWorkType && work.release === 'released' ? (
+            <div className="track-c-worktype-pick">
+              <span className="track-c-worktype-pick__label">Task:</span>
+              <div className="track-c-worktype-pick__chips">
+                {work.trade === 'paint'
+                  ? (['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'] as const).map((type) => (
                     <button
                       className={`track-c-worktype-pick__chip${(work.workType ?? 'full') === type ? ' is-current' : ''}`}
                       key={type}
@@ -817,10 +821,25 @@ const WorkSection = ({
                             ? 'Cut-in'
                             : type === 'full-cut-in' ? 'Full+cut-in' : 'Touch-up+cut-in'}
                     </button>
-                  ))}
-                </div>
+                  ))
+                  : ([['full', 'Regular clean'], ['heavy-clean', 'Heavy clean']] as const).map(([type, label]) => {
+                    const isCurrent = type === 'heavy-clean'
+                      ? work.workType === 'heavy-clean'
+                      : work.workType !== 'heavy-clean';
+                    return (
+                      <button
+                        className={`track-c-worktype-pick__chip${isCurrent ? ' is-current' : ''}`}
+                        key={type}
+                        onClick={() => onSetWorkType(type)}
+                        type="button"
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
               </div>
-            ) : null}
+            </div>
+          ) : null}
           {canRemove && onToggleRelease ? (
               <button
                 className="track-c-release-toggle is-remove"

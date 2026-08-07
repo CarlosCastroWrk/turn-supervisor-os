@@ -1104,6 +1104,16 @@ const UnitDetail = ({
           { at: latestEventAt('los-passed'), label: 'You passed' },
           { at: latestEventAt('property-accepted'), label: 'PM approved' },
         ].filter((entry) => Boolean(entry.at));
+        // A room added to a unit a crew already has (e.g. Los adds C after B was
+        // released) shows "needs crew" with no way to assign it. If the trade
+        // already has a crew, offer to put the new room(s) on that same crew in
+        // one tap — "go with whoever did the job", per Los.
+        const orphanRooms = tradeWork.filter((item) =>
+          item.release === 'released'
+          && item.activeCrewIds.length === 0
+          && item.property !== 'property-accepted'
+          && !item.callbackOpen);
+        const existingCrewId = crewNames.length >= 1 ? progress.crewIds[0] : undefined;
         const canRecordTradeComplete =
           tradeWork.some((item) =>
             item.release === 'released' &&
@@ -1143,6 +1153,16 @@ const UnitDetail = ({
                       </span>
                     ))}
                   </div>
+                ) : null}
+                {orphanRooms.length > 0 && existingCrewId && onQuickAssign ? (
+                  <button
+                    className="track-c-assign-orphan"
+                    data-track-c-critical-target="true"
+                    onClick={() => onQuickAssign(unitId, trade, existingCrewId)}
+                    type="button"
+                  >
+                    ＋ Add {orphanRooms.map((item) => trackCSectionLabel(item.section)).join(', ')} to {trackCCrewName(state, existingCrewId)}
+                  </button>
                 ) : null}
               </div>
               {crewNames.length === 0 && progress.released > 0 ? (

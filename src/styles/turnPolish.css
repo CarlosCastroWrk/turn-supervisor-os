@@ -846,6 +846,18 @@ button.track-c-crew-units__row.is-tappable:active { background: var(--turn-color
   gap: 4px 12px;
   margin-top: 4px;
 }
+.track-c-assign-orphan {
+  margin-top: 8px;
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--turn-color-brand, #2563eb);
+  background: var(--turn-color-brand, #2563eb);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 38px;
+}
 .track-c-trade-times span {
   font-size: 12px;
   color: var(--turn-color-secondary, #66707c);

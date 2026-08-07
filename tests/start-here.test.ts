@@ -177,6 +177,42 @@ test('assigning one trade leaves the other trade’s carryover untouched', () =>
   assert.equal(clean?.stage, 'in-progress', 'clean is now assigned');
 });
 
+test('adding the existing crew to a unit assigns ONLY the orphan room, not the ones it already has', () => {
+  let data = structuredClone(seedData) as AppData;
+  // Paint A and C released yesterday on unit_101.
+  data = release(data, YESTERDAY, '2026-08-05T18:00:00.000Z', [
+    { section: 'A', trade: 'paint', unitId: 'unit_101' },
+    { section: 'C', trade: 'paint', unitId: 'unit_101' },
+  ], 'r-orphan', 'active');
+  let state = projectTrackCState(data);
+  const crew = state.crews.find((candidate) => candidate.trade === 'paint');
+  assert.ok(crew);
+
+  // Assign ONLY A to the crew first (like Sandra having A but not the later C).
+  const first = createTrackCBulkAssignmentProposal(state, {
+    createdAt: '2026-08-06T13:00:00.000Z', createdBy: 'Los', crewId: crew.id,
+    proposalId: 'p-a', sectionMode: 'specific', sections: ['A'], trade: 'paint', unitIds: ['unit_101'],
+  });
+  const firstOk = confirmTrackCBulkAssignmentProposal(state, first, {
+    confirmed: true, eventIdPrefix: 'a-a', recordedAt: '2026-08-06T13:00:01.000Z', recordedBy: 'Los',
+  });
+  assert.ok(firstOk.ok);
+  state = firstOk.value.state;
+
+  // Now "add the existing crew to the whole trade" (the one-tap button) — only C
+  // should get assigned; A is skipped because the crew already has it.
+  const second = createTrackCBulkAssignmentProposal(state, {
+    createdAt: '2026-08-06T14:00:00.000Z', createdBy: 'Los', crewId: crew.id,
+    proposalId: 'p-all', sectionMode: 'all-released', sections: [], trade: 'paint', unitIds: ['unit_101'],
+  });
+  const secondOk = confirmTrackCBulkAssignmentProposal(state, second, {
+    confirmed: true, eventIdPrefix: 'a-all', recordedAt: '2026-08-06T14:00:01.000Z', recordedBy: 'Los',
+  });
+  assert.ok(secondOk.ok);
+  const assigned = secondOk.value.receipt.assignedTargets.map((target) => target.section).sort();
+  assert.deepEqual(assigned, ['C'], 'only the orphan room C is newly assigned');
+});
+
 test('top-floor-first ordering when several carry over', () => {
   let data = structuredClone(seedData) as AppData;
   const units = seedData.units.slice(0, 3).map((unit) => unit.id);

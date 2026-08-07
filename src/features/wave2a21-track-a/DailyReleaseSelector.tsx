@@ -20,6 +20,7 @@ import {
 import { AiSignInPanel } from '../../components/AiSignInPanel';
 import { parseDictatedRelease } from '../wave2a2-core/dictationParse';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
+import type { FieldTrade, ReleaseWorkType } from '../../types';
 import type { ProjectRosterUnitOption } from './contracts';
 import '../wave2a2-core/acceptedCore.css';
 import './trackA.css';
@@ -35,6 +36,14 @@ export interface DailyReleaseSelectorProps {
 const sectionLabel = (
   section: ProjectRosterUnitOption['applicableSections'][number],
 ) => section === 'common' ? 'Common' : `Bedroom ${section}`;
+
+const TASK_LABEL: Record<ReleaseWorkType, string> = {
+  full: 'full',
+  'touch-up': 'touch-up',
+  'cut-in': 'cut-in',
+  'full-cut-in': 'full+cut',
+  'touch-up-cut-in': 'touch+cut',
+};
 
 export function DailyReleaseSelector({
   availableTradeChoices = DAILY_RELEASE_TRADE_CHOICES,
@@ -114,7 +123,25 @@ export function DailyReleaseSelector({
       ...draft.selectedUnitIds,
       ...result.rows.map((row) => row.unitId),
     ]);
-    onChange({ ...draft, explicitConfirmation: false, selectedUnitIds: [...nextIds] });
+    // Record the exact rooms + task per unit so ONLY those release (not the
+    // whole unit) and the task is kept. Re-dictating a unit for this trade
+    // replaces its prior room plan.
+    const dictatedUnitIds = new Set(result.rows.map((row) => row.unitId));
+    const keptPlan = (draft.roomPlan ?? [])
+      .filter((entry) => !(dictatedUnitIds.has(entry.unitId) && entry.trade === trade));
+    const newPlan = result.rows.flatMap((row) =>
+      row.sections.map((part) => ({
+        section: part.section,
+        trade: trade as FieldTrade,
+        unitId: row.unitId,
+        workType: part.workType,
+      })));
+    onChange({
+      ...draft,
+      explicitConfirmation: false,
+      roomPlan: [...keptPlan, ...newPlan],
+      selectedUnitIds: [...nextIds],
+    });
     setIntakeStatus([
       `${result.rows.length} unit${result.rows.length === 1 ? '' : 's'} selected from your list.`,
       result.unmatched.length > 0 ? `Not in your roster: ${result.unmatched.join(', ')}.` : '',
@@ -302,9 +329,17 @@ export function DailyReleaseSelector({
             {[...selectedUnits]
               .sort((left, right) => compareUnitTopFloorFirst(left.unitNumber, right.unitNumber))
               .map((unit) => {
-                const rooms = unit.applicableSections
-                  .map((section) => section === 'common' ? 'Common' : section)
-                  .join(', ');
+                const planned = (draft.roomPlan ?? []).filter((entry) => entry.unitId === unit.id);
+                // Dictated units show exactly the rooms + task Los said; a whole
+                // unit (grid tap) shows all its rooms.
+                const rooms = planned.length > 0
+                  ? [...new Set(planned.map((entry) => {
+                      const label = entry.section === 'common' ? 'Common' : entry.section;
+                      return entry.workType ? `${label} (${TASK_LABEL[entry.workType]})` : label;
+                    }))].join(', ')
+                  : unit.applicableSections
+                      .map((section) => section === 'common' ? 'Common' : section)
+                      .join(', ');
                 return (
                   <li key={unit.id}>
                     <span><b>{unit.unitNumber}</b> — {rooms}</span>

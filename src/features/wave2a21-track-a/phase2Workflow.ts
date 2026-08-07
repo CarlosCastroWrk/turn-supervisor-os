@@ -4,6 +4,7 @@ import type {
   DaySessionKeyStatus,
   FieldSection,
   FieldTrade,
+  ReleaseWorkType,
 } from '../../types';
 import type {
   ProjectConfiguration,
@@ -53,11 +54,23 @@ export interface DailyReleaseException {
   readonly unitId: string;
 }
 
+// A dictated room-level release: exactly which room of which unit, which trade,
+// and the paint task. When a unit has roomPlan entries, ONLY those rooms release
+// (with their work type) instead of the whole-unit expansion — this is how Los
+// dictates "1104 A B touch-cut" and gets just A and B, touch-up+cut-in.
+export interface RoomPlanEntry {
+  readonly unitId: string;
+  readonly section: FieldSection;
+  readonly trade: FieldTrade;
+  readonly workType?: ReleaseWorkType;
+}
+
 export interface DailyReleaseDraft {
   readonly exceptions: readonly DailyReleaseException[];
   readonly explicitConfirmation: boolean;
   readonly selectedUnitIds: readonly string[];
   readonly tradeChoice: DailyReleaseTradeChoice;
+  readonly roomPlan?: readonly RoomPlanEntry[];
 }
 
 export type ExactUnitSelectionResult =
@@ -78,6 +91,7 @@ export interface PreparedDailyReleaseItem {
   readonly trade: FieldTrade;
   readonly unitId: string;
   readonly unitNumber: string;
+  readonly workType?: ReleaseWorkType;
 }
 
 export interface PreparedDailyReleasePlan {
@@ -495,9 +509,42 @@ export function prepareDailyReleasePlan(input: {
     ] as const),
   );
   const trades = tradeChoiceToTrades(input.draft.tradeChoice);
+  // Group dictated room-level entries by unit — these override the whole-unit
+  // expansion so only the rooms Los actually said get released, with their task.
+  const roomPlanByUnit = new Map<string, RoomPlanEntry[]>();
+  for (const entry of input.draft.roomPlan ?? []) {
+    const unit = rosterById.get(entry.unitId);
+    if (!unit || !unit.applicableSections.includes(entry.section)) continue;
+    const list = roomPlanByUnit.get(entry.unitId) ?? [];
+    list.push(entry);
+    roomPlanByUnit.set(entry.unitId, list);
+  }
   const items = selectedUnitIds.flatMap((unitId) => {
     const unit = rosterById.get(unitId);
     if (!unit) return [];
+    const planned = roomPlanByUnit.get(unitId);
+    if (planned && planned.length > 0) {
+      // Room-level: exactly the dictated rooms + trade + task. De-duped by
+      // unit:section:trade so a repeat never double-releases.
+      const seen = new Set<string>();
+      return planned.flatMap((entry): PreparedDailyReleaseItem[] => {
+        const key = `${entry.section}:${entry.trade}`;
+        if (seen.has(key)) return [];
+        seen.add(key);
+        const exception = exceptionByTarget.get(`${unit.id}:${entry.section}`);
+        if (blocksRelease(exception)) return [];
+        return [{
+          exception,
+          restriction: exceptionRestriction(exception),
+          section: entry.section,
+          trade: entry.trade,
+          unitId: unit.id,
+          unitNumber: unit.unitNumber,
+          workType: entry.workType,
+        }];
+      });
+    }
+    // Whole-unit (grid tap): every applicable section, per the trade choice.
     return unit.applicableSections.flatMap((section) => {
       const exception = exceptionByTarget.get(`${unit.id}:${section}`);
       if (blocksRelease(exception)) return [];
@@ -570,6 +617,9 @@ export function createConfirmedDailyReleaseBatch(
     ].filter(Boolean).join(' '),
     trade: item.trade,
     unitId: item.unitId,
+    // The dictated paint task rides through to the confirmed batch so it's
+    // recorded at release — not defaulted to full and re-entered later.
+    ...(item.workType ? { workType: item.workType } : {}),
   }));
   return {
     confirmedAt: context.confirmedAt,

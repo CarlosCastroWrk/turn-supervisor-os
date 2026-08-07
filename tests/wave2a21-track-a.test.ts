@@ -1606,3 +1606,81 @@ test('a unit with one callback room never shows in ready-to-walk — the passed 
     'a fully passed unit stays ready to walk',
   );
 });
+
+const prepareWith = (draft: Parameters<typeof prepareDailyReleasePlan>[0]['draft']) =>
+  prepareDailyReleasePlan({
+    contacts: createContacts(),
+    date: '2026-08-01',
+    draft,
+    enabledTrades: { clean: true, paint: true },
+    projectId: PROJECT_ID,
+    propertyContactId: 'contact-tony',
+    rosterUnits,
+  });
+
+test('a dictated room plan releases ONLY those rooms with their task — not the whole unit', () => {
+  let draft = createDailyReleaseDraft('Paint');
+  draft = setDailyReleaseUnitSelected(draft, 'unit-101', true); // common, A, B, C
+  draft = {
+    ...draft,
+    explicitConfirmation: true,
+    roomPlan: [
+      { section: 'A', trade: 'paint', unitId: 'unit-101', workType: 'touch-up-cut-in' },
+      { section: 'B', trade: 'paint', unitId: 'unit-101', workType: 'full' },
+    ],
+  };
+  const prepared = prepareWith(draft);
+  assert.ok(prepared.ok);
+  if (!prepared.ok) return;
+  const keys = prepared.plan.items.map((item) => `${item.section}:${item.trade}`).sort();
+  assert.deepEqual(keys, ['A:paint', 'B:paint'], 'only the dictated rooms release, not common/C');
+  assert.equal(prepared.plan.items.find((item) => item.section === 'A')?.workType, 'touch-up-cut-in');
+  assert.equal(prepared.plan.items.find((item) => item.section === 'B')?.workType, 'full');
+});
+
+test('a grid-tapped unit with no room plan still releases the whole unit', () => {
+  let draft = createDailyReleaseDraft('Paint');
+  draft = setDailyReleaseUnitSelected(draft, 'unit-202', true); // common, A, B
+  draft = { ...draft, explicitConfirmation: true };
+  const prepared = prepareWith(draft);
+  assert.ok(prepared.ok);
+  if (!prepared.ok) return;
+  assert.deepEqual(prepared.plan.items.map((item) => item.section).sort(), ['A', 'B', 'common']);
+});
+
+test('the dictated task rides all the way into the confirmed batch', () => {
+  let draft = createDailyReleaseDraft('Paint');
+  draft = setDailyReleaseUnitSelected(draft, 'unit-101', true);
+  draft = {
+    ...draft,
+    explicitConfirmation: true,
+    roomPlan: [{ section: 'A', trade: 'paint', unitId: 'unit-101', workType: 'cut-in' }],
+  };
+  const prepared = prepareWith(draft);
+  assert.ok(prepared.ok);
+  if (!prepared.ok) return;
+  const batch = createConfirmedDailyReleaseBatch(prepared.plan, rosterUnits, {
+    batchId: 'batch-room-1',
+    confirmedAt: '2026-08-01T12:00:00.000Z',
+    confirmedBy: 'Los',
+  });
+  const item = batch.items.find((candidate) => candidate.section === 'A');
+  assert.equal(item?.workType, 'cut-in', 'the batch records the dictated task, not defaulted full');
+});
+
+test('a room plan entry for a room the unit does not have is ignored', () => {
+  let draft = createDailyReleaseDraft('Paint');
+  draft = setDailyReleaseUnitSelected(draft, 'unit-202', true); // has A, B (no C)
+  draft = {
+    ...draft,
+    explicitConfirmation: true,
+    roomPlan: [
+      { section: 'A', trade: 'paint', unitId: 'unit-202', workType: 'full' },
+      { section: 'C', trade: 'paint', unitId: 'unit-202', workType: 'full' },
+    ],
+  };
+  const prepared = prepareWith(draft);
+  assert.ok(prepared.ok);
+  if (!prepared.ok) return;
+  assert.deepEqual(prepared.plan.items.map((item) => item.section), ['A'], 'C is dropped — not in the roster');
+});

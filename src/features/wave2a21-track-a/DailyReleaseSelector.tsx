@@ -18,6 +18,7 @@ import {
   setDailyReleaseUnitSelected,
 } from './phase2Workflow';
 import { AiSignInPanel } from '../../components/AiSignInPanel';
+import { parseDictatedRelease } from '../wave2a2-core/dictationParse';
 import type { ProjectRosterUnitOption } from './contracts';
 import '../wave2a2-core/acceptedCore.css';
 import './trackA.css';
@@ -90,6 +91,36 @@ export function DailyReleaseSelector({
     } finally {
       setIntakeBusy(false);
     }
+  };
+
+  // Reliable local parse (no AI, no sign-in, instant): when Paint or Clean is
+  // picked, Los's dictated/typed list selects those units right here. Returns
+  // false so the caller can fall back to the AI reader for 'Both' or messy input.
+  const applyDictation = (text: string): boolean => {
+    const trade = draft.tradeChoice === 'Paint'
+      ? 'paint'
+      : draft.tradeChoice === 'Clean' ? 'clean' : null;
+    if (!trade || !text.trim()) return false;
+    const units = rosterUnits.map((unit) => ({
+      beds: unit.applicableSections.filter((section) => section !== 'common'),
+      hasCommon: unit.applicableSections.includes('common'),
+      id: unit.id,
+      unitNumber: unit.unitNumber,
+    }));
+    const result = parseDictatedRelease(text, trade, units);
+    if (result.rows.length === 0) return false;
+    const nextIds = new Set([
+      ...draft.selectedUnitIds,
+      ...result.rows.map((row) => row.unitId),
+    ]);
+    onChange({ ...draft, explicitConfirmation: false, selectedUnitIds: [...nextIds] });
+    setIntakeStatus([
+      `${result.rows.length} unit${result.rows.length === 1 ? '' : 's'} selected from your list.`,
+      result.unmatched.length > 0 ? `Not in your roster: ${result.unmatched.join(', ')}.` : '',
+      result.warnings.length > 0 ? result.warnings.join(' ') : '',
+      'Review below — nothing releases until you Start Day.',
+    ].filter(Boolean).join(' '));
+    return true;
   };
 
   const importReleasePhotos = async (files: File[]) => {
@@ -205,44 +236,58 @@ export function DailyReleaseSelector({
 
       {intakeEnabled() && rosterUnits.length > 0 ? (
         <section className="w2a2-core-intake">
-          <strong>Import today’s release</strong>
-          <p>Photo of the TurnBoard or Joseph’s message — you review before starting.</p>
-          <AiSignInPanel purpose="release import" />
-          <button
-            disabled={intakeBusy}
-            onClick={() => intakeFileRef.current?.click()}
-            type="button"
-          >
-            {intakeBusy ? 'Reading…' : 'From photos'}
-          </button>
-          <input
-            accept="image/*"
-            aria-label="Choose one or more TurnBoard photos"
-            multiple
-            hidden
-            onChange={(event) => {
-              const files = Array.from(event.target.files ?? []);
-              event.target.value = '';
-              if (files.length > 0) void importReleasePhotos(files);
-            }}
-            ref={intakeFileRef}
-            type="file"
-          />
+          <strong>Dictate today’s release</strong>
+          <p>
+            {draft.tradeChoice === 'Both'
+              ? 'Pick Paint or Clean above, then read your list — one trade at a time.'
+              : `Tap the 🎤 on your keyboard and read your ${draft.tradeChoice} list. You review before starting.`}
+          </p>
           <label>
-            <span className="w2a2-core-intake__label">Or paste the message</span>
+            <span className="w2a2-core-intake__label">Your list</span>
             <textarea
               onChange={(event) => setIntakeMessage(event.target.value)}
-              placeholder="Joseph: start 1503–1508 paint and clean…"
+              placeholder="1806 A B cut in, 1707 A touch cut, 800 full unit"
               value={intakeMessage}
             />
           </label>
           <button
+            className="is-primary"
             disabled={intakeBusy || !intakeMessage.trim()}
-            onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
+            onClick={() => {
+              // Reliable local parse first (Paint/Clean picked); AI reader only
+              // falls back for 'Both' or input the rules can't read.
+              if (!applyDictation(intakeMessage)) {
+                void runIntake({ text: intakeMessage, type: 'text' });
+              }
+            }}
             type="button"
           >
-            Read message
+            {intakeBusy ? 'Reading…' : 'Read my list'}
           </button>
+          <details className="w2a2-core-intake__photo">
+            <summary>Read a photo instead (needs sign-in)</summary>
+            <AiSignInPanel purpose="release import" />
+            <button
+              disabled={intakeBusy}
+              onClick={() => intakeFileRef.current?.click()}
+              type="button"
+            >
+              {intakeBusy ? 'Reading…' : 'From photos'}
+            </button>
+            <input
+              accept="image/*"
+              aria-label="Choose one or more TurnBoard photos"
+              multiple
+              hidden
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                event.target.value = '';
+                if (files.length > 0) void importReleasePhotos(files);
+              }}
+              ref={intakeFileRef}
+              type="file"
+            />
+          </details>
           {intakeStatus ? (
             <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
           ) : null}

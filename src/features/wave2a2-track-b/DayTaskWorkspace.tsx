@@ -2047,6 +2047,35 @@ function DayTaskHome({
                           </div>
                         );
                       })()}
+                      {(() => {
+                        // One-tap assign right on any "needs crew" card — same
+                        // tested recipe as Start here, so releasing then assigning
+                        // is a couple of taps, not a trip to another screen.
+                        if (line.stage !== 'needs-crew' || !onAssignStartHere) return null;
+                        const crews = (line.trade === 'paint'
+                          ? startHereCrews?.paint
+                          : startHereCrews?.clean) ?? [];
+                        if (crews.length === 0) return null;
+                        return (
+                          <div className="w2a2b-live-card__assign">
+                            <span>Assign to</span>
+                            {crews.map((crew) => (
+                              <button
+                                key={crew.id}
+                                onClick={() => {
+                                  const ok = onAssignStartHere(line.unitId, line.trade, crew.id);
+                                  setStartHereNotice(ok
+                                    ? `${line.unitNumber} ${line.trade === 'paint' ? 'Paint' : 'Clean'} → ${crew.name}.`
+                                    : `Couldn’t assign ${line.unitNumber} — open the unit to check access.`);
+                                }}
+                                type="button"
+                              >
+                                {crew.name}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                   };

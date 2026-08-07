@@ -17,6 +17,7 @@ import {
   type TrackCWalkOutcomeRecord,
   type TrackCWalkSession,
   type TrackCWorkTarget,
+  paintWorkTypeLabel,
   trackCSectionLabel,
   trackCWorkKey,
 } from './model';
@@ -431,12 +432,30 @@ const ActiveWalk = ({
                         trackCWorkKey(outcome.target) === trackCWorkKey(target),
                     );
                     const sectionOutcome = record?.outcome;
+                    // Show WHAT was done in this room and by WHOM, right on the
+                    // walk row — Los always needs to know the task + crew per room,
+                    // especially re-walking after a callback.
+                    const roomWork = projectTrackCWork(state, target);
+                    const taskLabel = roomWork?.trade === 'paint' && roomWork.workType
+                      ? paintWorkTypeLabel(roomWork.workType)
+                      : '';
+                    const doneBy = roomWork?.responsibleCrewId
+                      ? trackCCrewName(state, roomWork.responsibleCrewId)
+                      : '';
                     return (
                       <div
                         className="track-c-walk-section-row"
                         key={trackCWorkKey(target)}
                       >
-                        <strong>{trackCSectionLabel(target.section)}</strong>
+                        <strong>
+                          {trackCSectionLabel(target.section)}
+                          {taskLabel || doneBy ? (
+                            <em className="track-c-walk-section-row__detail">
+                              {taskLabel ? ` · ${taskLabel}` : ''}
+                              {doneBy ? ` · ${doneBy}` : ''}
+                            </em>
+                          ) : null}
+                        </strong>
                         <button
                           aria-pressed={sectionOutcome === 'accepted'}
                           className={sectionOutcome === 'accepted' ? 'is-accepted' : undefined}

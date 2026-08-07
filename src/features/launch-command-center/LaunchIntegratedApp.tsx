@@ -220,6 +220,8 @@ import { IssuesView } from '../../views/IssuesView';
 import { ReviewView } from '../../views/ReviewView';
 import { buildJsonBackupWithLocalPhotos } from '../../lib/photoBackup';
 import { downloadTextFile } from '../../lib/exporters';
+import { parseJsonBackup } from '../../lib/backups';
+import { restoreBlockReason } from '../../lib/restoreSafety';
 import { SyncDiagnosticsView } from '../../views/SyncDiagnosticsView';
 import { TrainingQuestionsView } from '../../views/TrainingQuestionsView';
 import { UnitDetailView } from '../../views/UnitDetailView';
@@ -493,6 +495,7 @@ function LaunchOperationalApp({
     }
   }, [readNotificationIds]);
   const [crewEditor, setCrewEditor] = useState<CrewEditorState>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
   const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
   const [moreStatus, setMoreStatus] = useState(
     'Personal workspace · paper remains authoritative',
@@ -4447,6 +4450,76 @@ function LaunchOperationalApp({
               </button>
             </GroupedInsetSection>
           ) : null}
+          <GroupedInsetSection
+            label="Backup & recovery"
+            footer="Your off-phone safety net. Export a JSON to iCloud Drive anytime — do it nightly. Restore it here on a new phone or if anything ever goes wrong. Restore REPLACES everything on this phone with the file."
+          >
+            <button
+              className="lcc-day-history-pdf"
+              onClick={async () => {
+                setMoreStatus('Building backup…');
+                const result = await buildJsonBackupWithLocalPhotos(data);
+                downloadTextFile(
+                  `turn-supervisor-backup-${currentDate}.json`,
+                  result.text,
+                  'application/json',
+                );
+                try {
+                  window.localStorage.setItem('turn-os:last-backup', currentDate);
+                } catch {
+                  // Session-only then.
+                }
+                setMoreStatus(result.missingPhotoFiles > 0
+                  ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device. Move the file to iCloud Drive.`
+                  : 'Backup saved. Move it from Downloads to iCloud Drive — that is your off-phone copy.');
+              }}
+              type="button"
+            >
+              Export a backup now
+            </button>
+            <input
+              accept="application/json,.json"
+              hidden
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (!file) return;
+                const block = restoreBlockReason({
+                  authReady: sync.authReady,
+                  signedIn: sync.signedIn,
+                });
+                if (block) {
+                  setMoreStatus(block);
+                  return;
+                }
+                const sure = window.confirm(
+                  'Restore from this backup?\n\nEverything on this phone will be REPLACED with the file. '
+                  + 'If today’s work matters, export a current backup first.',
+                );
+                if (!sure) return;
+                try {
+                  const restored = parseJsonBackup(await file.text());
+                  const ok = persistence.restoreDataNow(restored);
+                  setMoreStatus(ok
+                    ? 'Backup restored — everything is back.'
+                    : 'That backup could not be applied. Nothing was changed.');
+                } catch (caught) {
+                  setMoreStatus(caught instanceof Error
+                    ? caught.message
+                    : 'That backup file could not be read.');
+                }
+              }}
+              ref={restoreInputRef}
+              type="file"
+            />
+            <button
+              className="lcc-archive-project"
+              onClick={() => restoreInputRef.current?.click()}
+              type="button"
+            >
+              Restore from a backup file
+            </button>
+          </GroupedInsetSection>
           <GroupedInsetSection
             label="Total fresh start"
             footer="Erases every project, draft, and record saved on this phone (test data included). Sign-in and appearance are kept. This cannot be undone — export a backup first if anything matters."

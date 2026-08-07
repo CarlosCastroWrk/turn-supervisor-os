@@ -20,7 +20,14 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { trackCSectionLabel } from './model';
-import { buildAllCrewPayroll, formatPayLine, formatRoomsByType, formatTypeTally } from './crewPayroll';
+import {
+  buildAllCrewPayroll,
+  formatPayLine,
+  formatRoomsByType,
+  formatTypeTally,
+  payWeekSunday,
+  type PaintTypeKey,
+} from './crewPayroll';
 import {
   crewMessageHref,
   crewUnitsTextBody,
@@ -404,6 +411,65 @@ export const CrewView = ({
           <p className="track-c-week-line">
             Pay week {weekNumber}{colors[weekNumber] ? ` · ${colors[weekNumber]} on the board` : ''} · {fmt(sunday)} → {fmt(saturday)} 5 PM
           </p>
+        );
+      })()}
+      {(() => {
+        // This week, across ALL crews: who did how many of each paint task and
+        // how many clean rooms, and in which units — Tony's end-of-week question,
+        // answered from the same deduped payroll the receipts use.
+        const weekStart = payWeekSunday(new Date().toISOString());
+        const TASK_KEYS: readonly PaintTypeKey[] =
+          ['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'];
+        const totalPaint: Record<PaintTypeKey, number> =
+          { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 };
+        let totalClean = 0;
+        const perCrew: { name: string; headline: string; rooms: readonly string[] }[] = [];
+        for (const [crewId, payroll] of payrollByCrew) {
+          const weekRooms = payroll.rooms.filter((room) => room.date >= weekStart);
+          if (weekRooms.length === 0) continue;
+          const crew = state.crews.find((candidate) => candidate.id === crewId);
+          if (!crew) continue;
+          if (crew.trade === 'paint') {
+            const tally: Record<PaintTypeKey, number> =
+              { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 };
+            for (const room of weekRooms) {
+              if (room.workType) tally[room.workType] += 1;
+            }
+            for (const key of TASK_KEYS) totalPaint[key] += tally[key];
+            perCrew.push({
+              headline: formatTypeTally(tally) || `${weekRooms.length} rooms`,
+              name: crew.name,
+              rooms: formatRoomsByType(weekRooms),
+            });
+          } else {
+            totalClean += weekRooms.length;
+            perCrew.push({
+              headline: `${weekRooms.length} room${weekRooms.length === 1 ? '' : 's'} cleaned`,
+              name: crew.name,
+              rooms: formatRoomsByType(weekRooms),
+            });
+          }
+        }
+        if (perCrew.length === 0) return null;
+        return (
+          <details className="track-c-weeksummary">
+            <summary>This week — who did what</summary>
+            <div className="track-c-weeksummary__body">
+              <p className="track-c-weeksummary__totals">
+                <b>Paint:</b> {formatTypeTally(totalPaint) || '—'}
+                {'  ·  '}
+                <b>Clean:</b> {totalClean} room{totalClean === 1 ? '' : 's'}
+              </p>
+              {perCrew.map((entry) => (
+                <div className="track-c-weeksummary__crew" key={entry.name}>
+                  <strong>{entry.name} · {entry.headline}</strong>
+                  {entry.rooms.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </details>
         );
       })()}
       {(() => {

@@ -19,6 +19,7 @@ import {
 } from './phase2Workflow';
 import { AiSignInPanel } from '../../components/AiSignInPanel';
 import { parseDictatedRelease } from '../wave2a2-core/dictationParse';
+import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import type { ProjectRosterUnitOption } from './contracts';
 import '../wave2a2-core/acceptedCore.css';
 import './trackA.css';
@@ -291,6 +292,32 @@ export function DailyReleaseSelector({
           {intakeStatus ? (
             <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
           ) : null}
+        </section>
+      ) : null}
+
+      {selectedUnits.length > 0 ? (
+        <section className="w2a21a-release__selected">
+          <strong>Selected today · {selectedUnits.length} unit{selectedUnits.length === 1 ? '' : 's'}</strong>
+          <ul>
+            {[...selectedUnits]
+              .sort((left, right) => compareUnitTopFloorFirst(left.unitNumber, right.unitNumber))
+              .map((unit) => {
+                const rooms = unit.applicableSections
+                  .map((section) => section === 'common' ? 'Common' : section)
+                  .join(', ');
+                return (
+                  <li key={unit.id}>
+                    <span><b>{unit.unitNumber}</b> — {rooms}</span>
+                    <button
+                      onClick={() => onChange(setDailyReleaseUnitSelected(draft, unit.id, false))}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
+          </ul>
         </section>
       ) : null}
 

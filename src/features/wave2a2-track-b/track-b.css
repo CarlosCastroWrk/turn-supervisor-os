@@ -632,6 +632,25 @@ button.w2a2b-done-toggle {
   font-weight: 800;
   min-height: 38px;
 }
+.w2a2b-starthere__texts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+.w2a2b-starthere__text {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid #166534;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  min-height: 40px;
+}
 .w2a2b-starthere__top {
   display: flex;
   align-items: baseline;

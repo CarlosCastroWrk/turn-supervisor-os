@@ -1319,6 +1319,7 @@ interface DayTaskHomeProps {
   startHere?: readonly StartHereItem[];
   startHereCrews?: { paint: readonly { id: string; name: string }[]; clean: readonly { id: string; name: string }[] };
   onAssignStartHere?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => boolean;
+  startHereTexts?: readonly { crewId: string; crewName: string; unitCount: number; href: string }[];
 }
 
 function DayTaskHome({
@@ -1342,6 +1343,7 @@ function DayTaskHome({
   startHere,
   startHereCrews,
   onAssignStartHere,
+  startHereTexts,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1693,6 +1695,19 @@ function DayTaskHome({
               );
             })}
           </ul>
+          {startHereTexts && startHereTexts.length > 0 ? (
+            <div className="w2a2b-starthere__texts">
+              {startHereTexts.map((entry) => (
+                <a
+                  className="w2a2b-starthere__text"
+                  href={entry.href}
+                  key={entry.crewId}
+                >
+                  Text {entry.crewName} · {entry.unitCount} unit{entry.unitCount === 1 ? '' : 's'}
+                </a>
+              ))}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -2415,6 +2430,7 @@ export interface DayTaskWorkspaceProps {
   startHere?: readonly StartHereItem[];
   startHereCrews?: { paint: readonly { id: string; name: string }[]; clean: readonly { id: string; name: string }[] };
   onAssignStartHere?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => boolean;
+  startHereTexts?: readonly { crewId: string; crewName: string; unitCount: number; href: string }[];
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -2476,6 +2492,7 @@ export function DayTaskWorkspace({
   startHere,
   startHereCrews,
   onAssignStartHere,
+  startHereTexts,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2691,6 +2708,7 @@ export function DayTaskWorkspace({
         startHere={startHere}
         startHereCrews={startHereCrews}
         onAssignStartHere={onAssignStartHere}
+        startHereTexts={startHereTexts}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

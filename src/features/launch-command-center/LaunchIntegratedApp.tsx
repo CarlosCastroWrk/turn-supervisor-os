@@ -116,8 +116,15 @@ import {
 import { TellTurnOS } from './TellTurnOS';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
-import { paintWorkTypeLabel } from '../wave2a2-track-c/model';
+import { paintWorkTypeLabel, trackCSectionLabel } from '../wave2a2-track-c/model';
 import { projectStartHere } from '../wave2a2-track-c/startHere';
+import type { CrewTextSection } from '../wave2a2-track-c/crewTextTemplates';
+import {
+  crewMessageHref,
+  crewUnitsTextBody,
+  readCrewTextLang,
+  readWhatsappCrews,
+} from '../wave2a2-track-c/crewTextTemplates';
 import type { TurnIntent } from '../../lib/intelligenceClient';
 import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
 import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
@@ -1454,6 +1461,46 @@ function LaunchOperationalApp({
     })),
     [crewRecords],
   );
+  // Ready-to-send text for each crew that has carryover in progress — all their
+  // Start here units in one message, común format for cleaners, from the strip.
+  const startHereTexts = useMemo(() => {
+    const lang = readCrewTextLang();
+    const whatsapp = readWhatsappCrews();
+    const byCrew = new Map<string, { unitNumber: string; sections: CrewTextSection[] }[]>();
+    for (const item of startHere) {
+      if (item.stage !== 'in-progress') continue;
+      const work = projectTrackCUnitWork(trackCState, item.unitId).filter((candidate) =>
+        candidate.trade === item.trade
+        && candidate.release === 'released'
+        && candidate.access === 'clear'
+        && candidate.property !== 'property-accepted'
+        && !candidate.callbackOpen
+        && candidate.inspection !== 'los-passed');
+      if (work.length === 0) continue;
+      const sections: CrewTextSection[] = work.map((candidate) =>
+        candidate.section === 'common'
+          ? { kind: 'common', workType: candidate.workType }
+          : { bed: trackCSectionLabel(candidate.section), kind: 'bed', workType: candidate.workType });
+      for (const crewId of [...new Set(work.flatMap((candidate) => candidate.activeCrewIds))]) {
+        const rows = byCrew.get(crewId) ?? [];
+        rows.push({ sections, unitNumber: item.unitNumber });
+        byCrew.set(crewId, rows);
+      }
+    }
+    const texts: { crewId: string; crewName: string; unitCount: number; href: string }[] = [];
+    for (const [crewId, rows] of byCrew) {
+      const crew = trackCState.crews.find((candidate) => candidate.id === crewId);
+      const phone = crewRecords.find((candidate) => candidate.id === crewId)?.phone?.trim();
+      if (!crew || !phone) continue;
+      texts.push({
+        crewId,
+        crewName: crew.name,
+        href: crewMessageHref(phone, whatsapp.has(crewId), crewUnitsTextBody(crew.name, lang, rows)),
+        unitCount: rows.length,
+      });
+    }
+    return texts.sort((left, right) => left.crewName.localeCompare(right.crewName));
+  }, [startHere, trackCState, crewRecords]);
   const fastStartDayRosterUnits = useMemo<ProjectRosterUnitOption[]>(
     () => propertyRoster.units.map((unit) => ({
       applicableSections: unit.applicableSections.map((section) =>
@@ -3728,6 +3775,7 @@ function LaunchOperationalApp({
           startHere={startHere}
           startHereCrews={startHereCrews}
           onAssignStartHere={assignStartHere}
+          startHereTexts={startHereTexts}
           reminders={homeReminders}
           changeOrders={homeChangeOrders}
           onOpenReminderUnit={(unitId) => {

@@ -1317,6 +1317,8 @@ interface DayTaskHomeProps {
   changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
   startHere?: readonly StartHereItem[];
+  startHereCrews?: { paint: readonly { id: string; name: string }[]; clean: readonly { id: string; name: string }[] };
+  onAssignStartHere?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => boolean;
 }
 
 function DayTaskHome({
@@ -1338,6 +1340,8 @@ function DayTaskHome({
   changeOrders,
   onOpenReminderUnit,
   startHere,
+  startHereCrews,
+  onAssignStartHere,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1360,6 +1364,7 @@ function DayTaskHome({
   const progress = calculateTodayTaskProgress(task);
   const active = isOpenDay(session);
   const [ritualStatus, setRitualStatus] = useState('');
+  const [startHereNotice, setStartHereNotice] = useState('');
   // Hold-to-peek: a long press fires the preview; the click that follows is
   // swallowed so a peek never also opens the full page.
   const pressTimer = useRef<number | null>(null);
@@ -1634,13 +1639,20 @@ function DayTaskHome({
           <div className="w2a2b-starthere__head">
             Start here · didn’t finish last night · {startHere.length}
           </div>
+          {startHereNotice ? (
+            <p className="w2a2b-starthere__notice" aria-live="polite">{startHereNotice}</p>
+          ) : null}
           <ul>
             {startHere.map((item) => {
               const when = new Date(item.since)
                 .toLocaleDateString([], { day: 'numeric', month: 'short' });
+              const crews = (item.trade === 'paint'
+                ? startHereCrews?.paint
+                : startHereCrews?.clean) ?? [];
               return (
                 <li key={`${item.unitId}:${item.trade}`}>
                   <button
+                    className="w2a2b-starthere__open"
                     onClick={() => onOpenNeedsEyesUnit?.(item.unitId, item.trade)}
                     type="button"
                   >
@@ -1653,11 +1665,30 @@ function DayTaskHome({
                     </span>
                     <span className="w2a2b-starthere__sub">
                       {item.stage === 'no-crew'
-                        ? 'No crew yet — assign'
+                        ? 'No crew yet — assign below'
                         : `${item.crewNames.join(' + ') || 'Crew'} — didn’t finish, start here`}
                       {` · released ${when}`}
                     </span>
                   </button>
+                  {item.stage === 'no-crew' && onAssignStartHere && crews.length > 0 ? (
+                    <div className="w2a2b-starthere__assign">
+                      <span>Assign to</span>
+                      {crews.map((crew) => (
+                        <button
+                          key={crew.id}
+                          onClick={() => {
+                            const ok = onAssignStartHere(item.unitId, item.trade, crew.id);
+                            setStartHereNotice(ok
+                              ? `${item.unitNumber} ${item.trade === 'paint' ? 'Paint' : 'Clean'} → ${crew.name}. Text them from the unit or Crews.`
+                              : `Couldn’t assign ${item.unitNumber} — open the unit to check access.`);
+                          }}
+                          type="button"
+                        >
+                          {crew.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               );
             })}
@@ -2382,6 +2413,8 @@ export interface DayTaskWorkspaceProps {
   changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
   startHere?: readonly StartHereItem[];
+  startHereCrews?: { paint: readonly { id: string; name: string }[]; clean: readonly { id: string; name: string }[] };
+  onAssignStartHere?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => boolean;
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -2441,6 +2474,8 @@ export function DayTaskWorkspace({
   changeOrders,
   onOpenReminderUnit,
   startHere,
+  startHereCrews,
+  onAssignStartHere,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2654,6 +2689,8 @@ export function DayTaskWorkspace({
         changeOrders={changeOrders}
         onOpenReminderUnit={onOpenReminderUnit}
         startHere={startHere}
+        startHereCrews={startHereCrews}
+        onAssignStartHere={onAssignStartHere}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

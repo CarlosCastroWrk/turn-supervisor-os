@@ -2071,6 +2071,51 @@ function LaunchOperationalApp({
       const result = deletePersonalNoteActivity(current, noteId);
       return result.ok ? result.data : current;
     }), [commitDataNow]);
+  // Active crews per trade, offered as one-tap chips on the Start here rows.
+  const startHereCrews = useMemo(() => ({
+    clean: trackCState.crews
+      .filter((crew) => crew.trade === 'clean' && crew.activeToday)
+      .map((crew) => ({ id: crew.id, name: crew.name })),
+    paint: trackCState.crews
+      .filter((crew) => crew.trade === 'paint' && crew.activeToday)
+      .map((crew) => ({ id: crew.id, name: crew.name })),
+  }), [trackCState.crews]);
+  // Assign a carryover unit+trade to a crew straight from the Start here row —
+  // the exact tested recipe (bulk proposal → confirm → start-work → commit).
+  const assignStartHere = useCallback((unitId: string, trade: 'paint' | 'clean', crewId: string): boolean => {
+    const base = trackCState;
+    const crew = base.crews.find((candidate) => candidate.id === crewId && candidate.trade === trade);
+    if (!crew) return false;
+    const proposal = createTrackCBulkAssignmentProposal(base, {
+      createdAt: nowISO(),
+      createdBy: 'Los',
+      crewId: crew.id,
+      proposalId: createId('starthere-proposal'),
+      sectionMode: 'all-released',
+      sections: [],
+      trade,
+      unitIds: [unitId],
+    });
+    const confirmed = confirmTrackCBulkAssignmentProposal(base, proposal, {
+      confirmed: true,
+      eventIdPrefix: createId('starthere-assign'),
+      recordedAt: nowISO(),
+      recordedBy: 'Los',
+    });
+    if (!confirmed.ok) return false;
+    let track = confirmed.value.state;
+    for (const target of confirmed.value.receipt.assignedTargets) {
+      const started = applyTrackCSectionAction(track, {
+        action: 'start-work',
+        eventId: createId('starthere-start'),
+        recordedAt: nowISO(),
+        recordedBy: 'Los',
+        target,
+      });
+      if (started.ok) track = started.value;
+    }
+    return commitDataNow((current) => applyTrackCStateChange(current, track));
+  }, [trackCState, commitDataNow]);
   const openNativePlus = useCallback(() => {
     setPlusInitialScreen('menu');
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
@@ -3681,6 +3726,8 @@ function LaunchOperationalApp({
             navigate('unitDetail', unitId);
           }}
           startHere={startHere}
+          startHereCrews={startHereCrews}
+          onAssignStartHere={assignStartHere}
           reminders={homeReminders}
           changeOrders={homeChangeOrders}
           onOpenReminderUnit={(unitId) => {

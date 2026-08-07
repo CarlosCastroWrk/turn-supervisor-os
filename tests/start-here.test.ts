@@ -9,6 +9,11 @@ import {
   projectTrackCState,
 } from '../src/features/wave2a2-core/appDataAdapters.ts';
 import { projectStartHere } from '../src/features/wave2a2-track-c/startHere.ts';
+import {
+  applyTrackCSectionAction,
+  confirmTrackCBulkAssignmentProposal,
+  createTrackCBulkAssignmentProposal,
+} from '../src/features/wave2a2-track-c/operations.ts';
 
 // "Start here" surfaces work released on an earlier day that still isn't done —
 // the 4 clean units Los couldn't finish last night must be the first thing he
@@ -79,6 +84,50 @@ test('work released TODAY is NOT carryover (only prior-day work is Start here)',
     [{ section: 'common', trade: 'clean', unitId: 'unit_101' }], 'r-today', 'active');
   const startHere = projectStartHere(projectTrackCState(data), TODAY);
   assert.equal(startHere.some((item) => item.unitId === 'unit_101'), false);
+});
+
+test('assigning a carryover unit flips it to in-progress with the crew named', () => {
+  let data = structuredClone(seedData) as AppData;
+  data = release(data, YESTERDAY, '2026-08-05T18:00:00.000Z',
+    [{ section: 'common', trade: 'clean', unitId: 'unit_101' }], 'r-assign', 'active');
+  const state = projectTrackCState(data);
+  const crew = state.crews.find((candidate) => candidate.trade === 'clean');
+  assert.ok(crew, 'a clean crew exists to assign');
+
+  const proposal = createTrackCBulkAssignmentProposal(state, {
+    createdAt: '2026-08-06T13:00:00.000Z',
+    createdBy: 'Los',
+    crewId: crew.id,
+    proposalId: 'p1',
+    sectionMode: 'all-released',
+    sections: [],
+    trade: 'clean',
+    unitIds: ['unit_101'],
+  });
+  const confirmed = confirmTrackCBulkAssignmentProposal(state, proposal, {
+    confirmed: true,
+    eventIdPrefix: 'a1',
+    recordedAt: '2026-08-06T13:00:01.000Z',
+    recordedBy: 'Los',
+  });
+  assert.ok(confirmed.ok, 'assignment confirms');
+  let track = confirmed.value.state;
+  for (const target of confirmed.value.receipt.assignedTargets) {
+    const started = applyTrackCSectionAction(track, {
+      action: 'start-work',
+      eventId: `s-${target.section}`,
+      recordedAt: '2026-08-06T13:00:02.000Z',
+      recordedBy: 'Los',
+      target,
+    });
+    if (started.ok) track = started.value;
+  }
+
+  const line = projectStartHere(track, TODAY).find((item) => item.unitId === 'unit_101' && item.trade === 'clean');
+  assert.ok(line, 'still on Start here — assigned but not finished');
+  assert.equal(line.stage, 'in-progress');
+  assert.equal(line.crewNames.length, 1);
+  assert.equal(line.crewNames[0], crew.name);
 });
 
 test('top-floor-first ordering when several carry over', () => {

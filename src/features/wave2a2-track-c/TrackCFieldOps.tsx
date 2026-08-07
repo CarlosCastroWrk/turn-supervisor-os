@@ -26,10 +26,12 @@ import type {
 } from './model';
 import { trackCSectionLabel } from './model';
 import {
+  crewCallbackTextBody,
   crewMessageHref,
   crewUnitsTextBody,
   readWhatsappCrews,
   writeCrewTextLang,
+  type CrewCallbackRow,
   type CrewTextLang,
   type CrewTextSection,
 } from './crewTextTemplates';
@@ -159,6 +161,24 @@ export const TrackCFieldOps = ({
         ...targets.filter((target) => !seen.has(`${target.unitId}:${target.trade}:${target.section}`)),
       ];
       return { ...current, [crewId]: merged };
+    });
+  };
+  // Callback texts: when Los opens a callback on a room, the crew that DID that
+  // room gets queued a "come back and fix it" text with the reason per room.
+  const [callbackPrompts, setCallbackPrompts] = useState<
+    Record<string, { unitId: string; unitNumber: string; section: TrackCSection; reason: string }[]>
+  >({});
+  const queueCallbackPrompt = (
+    crewId: string,
+    entry: { unitId: string; unitNumber: string; section: TrackCSection; reason: string },
+  ) => {
+    setCallbackPrompts((current) => {
+      const list = current[crewId] ?? [];
+      if (list.some((existing) => existing.unitId === entry.unitId && existing.section === entry.section)) {
+        return { ...current, [crewId]: list.map((existing) =>
+          existing.unitId === entry.unitId && existing.section === entry.section ? entry : existing) };
+      }
+      return { ...current, [crewId]: [...list, entry] };
     });
   };
   const [mirrorTarget, setMirrorTarget] = useState<TrackCWorkTarget>();
@@ -347,7 +367,12 @@ export const TrackCFieldOps = ({
   // Open a callback on ONE room — the room that failed Los's walk. Only that
   // room goes back into callback (and the unit drops out of ready-to-walk),
   // so Los knows exactly which room to send the crew back to.
-  const openSectionCallback = (unitId: string, trade: TrackCTrade, section: TrackCSection) => {
+  const openSectionCallback = (
+    unitId: string,
+    trade: TrackCTrade,
+    section: TrackCSection,
+    reason?: string,
+  ) => {
     const target = { unitId, trade, section };
     const work = projectTrackCWork(state, target);
     if (!work || work.release !== 'released'
@@ -356,9 +381,13 @@ export const TrackCFieldOps = ({
       setNotice('That room has no completed work to call back yet.');
       return;
     }
+    const trimmedReason = reason?.trim();
     const result = applyTrackCSectionAction(state, {
       action: 'open-callback',
       eventId: createId('track-c-callback'),
+      note: trimmedReason
+        ? `Callback: ${trimmedReason}`
+        : undefined,
       recordedAt: now(),
       recordedBy: 'Los',
       target,
@@ -367,8 +396,19 @@ export const TrackCFieldOps = ({
       setNotice(result.error.message);
       return;
     }
+    // Text the crew that DID this room to come back — with the reason.
+    const crewId = work.responsibleCrewId;
+    const unit = state.units.find((candidate) => candidate.id === unitId);
+    if (crewId && unit) {
+      queueCallbackPrompt(crewId, {
+        reason: trimmedReason ?? '',
+        section,
+        unitId,
+        unitNumber: unit.unitNumber,
+      });
+    }
     setNotice(
-      `Callback on ${section === 'common' ? 'Common' : section} — the crew fixes that room, then it walks again.`,
+      `Callback on ${section === 'common' ? 'Common' : section} — ${crewId ? 'text the crew below to come back.' : 'the crew fixes that room, then it walks again.'}`,
     );
     commitState(result.value, 'section-callback');
   };
@@ -889,6 +929,75 @@ export const TrackCFieldOps = ({
               ) : null}
               <button
                 aria-label={`Dismiss text reminder for ${crew.name}`}
+                onClick={dismiss}
+                type="button"
+              >
+                Not now
+              </button>
+            </div>
+          );
+        })}
+      {Object.entries(callbackPrompts)
+        .filter(([, entries]) => entries.length > 0)
+        .map(([crewId, entries]) => {
+          const crew = state.crews.find((candidate) => candidate.id === crewId);
+          if (!crew) return null;
+          const phone = crewDirectory?.[crewId]?.phone?.trim();
+          const byUnit = new Map<string, { unitNumber: string; sections: { label: string; reason?: string }[] }>();
+          for (const entry of entries) {
+            const row = byUnit.get(entry.unitNumber)
+              ?? { sections: [], unitNumber: entry.unitNumber };
+            row.sections.push({
+              label: entry.section === 'common' ? 'common' : entry.section,
+              reason: entry.reason || undefined,
+            });
+            byUnit.set(entry.unitNumber, row);
+          }
+          const rows: CrewCallbackRow[] = [...byUnit.values()];
+          const unitNumbers = rows.map((row) => row.unitNumber).sort(compareUnitTopFloorFirst);
+          const bodyFor = (lang: CrewTextLang) => crewCallbackTextBody(crew.name, lang, rows);
+          const dismiss = () => setCallbackPrompts((current) => {
+            const next = { ...current };
+            delete next[crewId];
+            return next;
+          });
+          return (
+            <div className="track-c-text-prompt track-c-text-prompt--callback" key={crewId} role="status">
+              <span>
+                <strong>↩ Callback · {unitNumbers.join(', ')}</strong> → {crew.name}
+              </span>
+              {phone ? (
+                (['es', 'en'] as const).map((lang) => {
+                  const whatsapp = readWhatsappCrews().has(crewId);
+                  return (
+                    <a
+                      data-track-c-critical-target="true"
+                      href={crewMessageHref(phone, whatsapp, bodyFor(lang))}
+                      key={lang}
+                      onClick={() => {
+                        writeCrewTextLang(lang);
+                        appendContactLog({ crewId, kind: 'text', name: crew.name });
+                        dismiss();
+                      }}
+                      rel="noreferrer"
+                      target={whatsapp ? '_blank' : undefined}
+                    >
+                      {lang === 'es' ? 'Español' : 'English'}
+                      {whatsapp ? ' · WhatsApp' : ''}
+                    </a>
+                  );
+                })
+              ) : onCrewContactRequested ? (
+                <button
+                  data-track-c-critical-target="true"
+                  onClick={() => onCrewContactRequested(crewId)}
+                  type="button"
+                >
+                  Add number
+                </button>
+              ) : null}
+              <button
+                aria-label={`Dismiss callback text for ${crew.name}`}
                 onClick={dismiss}
                 type="button"
               >

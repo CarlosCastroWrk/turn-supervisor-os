@@ -101,6 +101,39 @@ export const crewUnitsTextBody = (
   return [header, ...lines, footer].join('\n');
 };
 
+// A "come back and fix it" text — the crew that DID the room gets called back,
+// with what's wrong in each room. Same calm, single-language shape as the
+// units text, so Joseph's callback turns into a clear crew message in one tap.
+export interface CrewCallbackRow {
+  readonly unitNumber: string;
+  readonly sections: readonly { readonly label: string; readonly reason?: string }[];
+}
+
+export const crewCallbackTextBody = (
+  crewName: string,
+  lang: CrewTextLang,
+  rows: readonly CrewCallbackRow[],
+): string => {
+  const header = lang === 'es'
+    ? `¡Hola ${crewName}! Hay que regresar a arreglar:`
+    : `Hi ${crewName}! Please come back and fix:`;
+  const sorted = [...rows].sort((left, right) =>
+    compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
+  const lines = sorted.map((row) => {
+    const parts = row.sections.map((section) => {
+      const roomWord = section.label === 'common'
+        ? lang === 'es' ? 'área común' : 'common area'
+        : section.label;
+      return section.reason ? `${roomWord} — ${section.reason}` : roomWord;
+    });
+    return `${lang === 'es' ? 'Unidad' : 'Unit'} ${row.unitNumber}: ${parts.join(', ')}`;
+  });
+  const footer = lang === 'es'
+    ? 'Avíseme cuando esté listo para revisar de nuevo. ¡Gracias!'
+    : 'Text me when it’s ready for me to look again. Thank you!';
+  return [header, ...lines, footer].join('\n');
+};
+
 // Some crews live on WhatsApp, not iMessage/SMS — a device-local set of crew
 // ids flips every Text action for that crew to a wa.me link (same message).
 const WHATSAPP_KEY = 'turn-os:crew-whatsapp';

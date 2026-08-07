@@ -770,6 +770,48 @@ button.track-c-crew-units__row.is-tappable:active { background: var(--turn-color
   flex-wrap: wrap;
   gap: 8px;
 }
+.track-c-callback-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.track-c-callback-reason__room {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--turn-color-destructive, #b4232d);
+}
+.track-c-callback-reason input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--turn-color-destructive, #b4232d);
+  font-size: 15px;
+  font-family: inherit;
+}
+.track-c-callback-reason__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.track-c-callback-reason__send {
+  padding: 9px 15px;
+  border-radius: 10px;
+  border: none;
+  background: var(--turn-color-destructive, #b4232d);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  min-height: 40px;
+}
+.track-c-callback-reason__cancel {
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--turn-color-divider);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  min-height: 40px;
+}
+.track-c-text-prompt--callback { border-left: 4px solid var(--turn-color-destructive, #b4232d); }
+
 .track-c-callback-pick__chip {
   padding: 8px 14px;
   border-radius: 999px;

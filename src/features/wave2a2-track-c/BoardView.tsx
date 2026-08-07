@@ -256,7 +256,7 @@ interface BoardViewProps {
   readonly onCommitUnitPhoto?: UnitPhotoCommitter;
   readonly onPdsApprove?: (unitId: string, trade: TrackCTrade) => void;
   readonly onOpenCallback?: (unitId: string, trade: TrackCTrade) => void;
-  readonly onOpenSectionCallback?: (unitId: string, trade: TrackCTrade, section: TrackCSection) => void;
+  readonly onOpenSectionCallback?: (unitId: string, trade: TrackCTrade, section: TrackCSection, reason?: string) => void;
   readonly onResolveSectionCallback?: (unitId: string, trade: TrackCTrade, section: TrackCSection) => void;
   readonly onTradePass?: (unitId: string, trade: TrackCTrade) => void;
   readonly onResolveCallback?: (unitId: string, trade: TrackCTrade) => void;
@@ -984,6 +984,9 @@ const UnitDetail = ({
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [selectedKey, setSelectedKey] = useState<string>();
+  // Which room a callback is being written for, and the reason Los is typing —
+  // so tapping a room opens a "what's wrong?" box before the crew gets texted.
+  const [callbackDraft, setCallbackDraft] = useState<{ trade: TrackCTrade; section: TrackCSection; reason: string } | null>(null);
   const unit = state.units.find((candidate) => candidate.id === unitId);
   const work = useMemo(
     () => projectTrackCUnitWork(state, unitId),
@@ -1455,6 +1458,7 @@ const UnitDetail = ({
                 && (item.inspection === 'los-passed' || item.property === 'property-accepted'));
               if (callbackable.length === 0) return null;
               if (onOpenSectionCallback) {
+                const drafting = callbackDraft?.trade === trade ? callbackDraft : null;
                 return (
                   <div className="track-c-callback-pick">
                     <span className="track-c-callback-pick__label">
@@ -1462,19 +1466,54 @@ const UnitDetail = ({
                         ? 'Callback another room:'
                         : 'Callback a room that needs fixing:'}
                     </span>
-                    <div className="track-c-callback-pick__chips">
-                      {callbackable.map((item) => (
-                        <button
-                          className="track-c-callback-pick__chip"
-                          data-track-c-critical-target="true"
-                          key={trackCWorkKey(item)}
-                          onClick={() => onOpenSectionCallback(unitId, trade, item.section)}
-                          type="button"
-                        >
-                          {trackCSectionLabel(item.section)}
-                        </button>
-                      ))}
-                    </div>
+                    {drafting ? (
+                      <div className="track-c-callback-reason">
+                        <span className="track-c-callback-reason__room">
+                          Callback {drafting.section === 'common' ? 'Common' : drafting.section} — what needs fixing?
+                        </span>
+                        <input
+                          autoFocus
+                          onChange={(event) =>
+                            setCallbackDraft({ ...drafting, reason: event.target.value })}
+                          placeholder="e.g. touch-up needs a redo · better look at the cut-in"
+                          value={drafting.reason}
+                        />
+                        <div className="track-c-callback-reason__actions">
+                          <button
+                            className="track-c-callback-reason__send"
+                            data-track-c-critical-target="true"
+                            onClick={() => {
+                              onOpenSectionCallback(unitId, trade, drafting.section, drafting.reason);
+                              setCallbackDraft(null);
+                            }}
+                            type="button"
+                          >
+                            Call back &amp; text the crew
+                          </button>
+                          <button
+                            className="track-c-callback-reason__cancel"
+                            onClick={() => setCallbackDraft(null)}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="track-c-callback-pick__chips">
+                        {callbackable.map((item) => (
+                          <button
+                            className="track-c-callback-pick__chip"
+                            data-track-c-critical-target="true"
+                            key={trackCWorkKey(item)}
+                            onClick={() => setCallbackDraft({ reason: '', section: item.section, trade })}
+                            type="button"
+                          >
+                            {trackCSectionLabel(item.section)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               }

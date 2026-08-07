@@ -130,6 +130,53 @@ test('assigning a carryover unit flips it to in-progress with the crew named', (
   assert.equal(line.crewNames[0], crew.name);
 });
 
+test('same unit painted AND cleaned shows as two independent Start here lines', () => {
+  let data = structuredClone(seedData) as AppData;
+  data = release(data, YESTERDAY, '2026-08-05T18:00:00.000Z', [
+    { section: 'common', trade: 'paint', unitId: 'unit_101' },
+    { section: 'common', trade: 'clean', unitId: 'unit_101' },
+  ], 'r-both', 'active');
+  const lines = projectStartHere(projectTrackCState(data), TODAY)
+    .filter((item) => item.unitId === 'unit_101');
+  assert.equal(lines.length, 2, 'paint and clean are separate lines for the same unit');
+  assert.ok(lines.some((line) => line.trade === 'paint'));
+  assert.ok(lines.some((line) => line.trade === 'clean'));
+});
+
+test('assigning one trade leaves the other trade’s carryover untouched', () => {
+  let data = structuredClone(seedData) as AppData;
+  data = release(data, YESTERDAY, '2026-08-05T18:00:00.000Z', [
+    { section: 'common', trade: 'paint', unitId: 'unit_101' },
+    { section: 'common', trade: 'clean', unitId: 'unit_101' },
+  ], 'r-both2', 'active');
+  const state = projectTrackCState(data);
+  const cleanCrew = state.crews.find((candidate) => candidate.trade === 'clean');
+  assert.ok(cleanCrew);
+  const proposal = createTrackCBulkAssignmentProposal(state, {
+    createdAt: '2026-08-06T13:00:00.000Z',
+    createdBy: 'Los',
+    crewId: cleanCrew.id,
+    proposalId: 'p-clean',
+    sectionMode: 'all-released',
+    sections: [],
+    trade: 'clean',
+    unitIds: ['unit_101'],
+  });
+  const confirmed = confirmTrackCBulkAssignmentProposal(state, proposal, {
+    confirmed: true,
+    eventIdPrefix: 'a-clean',
+    recordedAt: '2026-08-06T13:00:01.000Z',
+    recordedBy: 'Los',
+  });
+  assert.ok(confirmed.ok);
+  const after = projectStartHere(confirmed.value.state, TODAY)
+    .filter((item) => item.unitId === 'unit_101');
+  const paint = after.find((line) => line.trade === 'paint');
+  const clean = after.find((line) => line.trade === 'clean');
+  assert.equal(paint?.stage, 'no-crew', 'paint carryover is unchanged');
+  assert.equal(clean?.stage, 'in-progress', 'clean is now assigned');
+});
+
 test('top-floor-first ordering when several carry over', () => {
   let data = structuredClone(seedData) as AppData;
   const units = seedData.units.slice(0, 3).map((unit) => unit.id);

@@ -117,6 +117,7 @@ import { TellTurnOS } from './TellTurnOS';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
 import { paintWorkTypeLabel } from '../wave2a2-track-c/model';
+import { projectStartHere } from '../wave2a2-track-c/startHere';
 import type { TurnIntent } from '../../lib/intelligenceClient';
 import { MyNotesPage } from '../wave2a1-native/track-b/MyNotesPage';
 import { PortalPage, buildPortalUnits } from '../wave2a2-core/PortalPage';
@@ -899,6 +900,13 @@ function LaunchOperationalApp({
   // blocked work (the ladder/occupied situations to escalate) and carryover
   // (work released on a PRIOR day that still has no crew — the stuff that falls
   // through the cracks when the pile is big). Read-only; empty when all clear.
+  // "Start here" — work released on an earlier day still not finished. The one
+  // thing Los needs first at 7:30am; persistent (not buried in the dismissible
+  // morning brief).
+  const startHere = useMemo(
+    () => projectStartHere(trackCState, currentDate),
+    [trackCState, currentDate],
+  );
   const needsEyes = useMemo(() => {
     const releaseDate = new Map<string, string>();
     for (const batch of data.dailyReleaseBatches) {
@@ -3672,6 +3680,7 @@ function LaunchOperationalApp({
             unitDetailTradeRef.current = trade;
             navigate('unitDetail', unitId);
           }}
+          startHere={startHere}
           reminders={homeReminders}
           changeOrders={homeChangeOrders}
           onOpenReminderUnit={(unitId) => {

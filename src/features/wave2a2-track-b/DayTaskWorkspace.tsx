@@ -57,6 +57,7 @@ import type {
 } from './types';
 import './track-b.css';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
+import type { StartHereItem } from '../wave2a2-track-c/startHere';
 
 type WorkspaceView =
   | { id: 'home' }
@@ -1315,6 +1316,7 @@ interface DayTaskHomeProps {
   reminders?: readonly HomeReminder[];
   changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
+  startHere?: readonly StartHereItem[];
 }
 
 function DayTaskHome({
@@ -1335,6 +1337,7 @@ function DayTaskHome({
   reminders,
   changeOrders,
   onOpenReminderUnit,
+  startHere,
   onAction,
   onEndDay,
   onOpenQueue,
@@ -1625,6 +1628,42 @@ function DayTaskHome({
           </a>
         ) : null}
       </header>
+
+      {startHere && startHere.length > 0 ? (
+        <section className="w2a2b-starthere" aria-label="Start here — unfinished from before">
+          <div className="w2a2b-starthere__head">
+            Start here · didn’t finish last night · {startHere.length}
+          </div>
+          <ul>
+            {startHere.map((item) => {
+              const when = new Date(item.since)
+                .toLocaleDateString([], { day: 'numeric', month: 'short' });
+              return (
+                <li key={`${item.unitId}:${item.trade}`}>
+                  <button
+                    onClick={() => onOpenNeedsEyesUnit?.(item.unitId, item.trade)}
+                    type="button"
+                  >
+                    <span className="w2a2b-starthere__top">
+                      <b>{item.unitNumber}</b>
+                      <span className={`w2a2b-starthere__trade is-${item.trade}`}>
+                        {item.trade === 'paint' ? 'Paint' : 'Clean'}
+                      </span>
+                      <span className="w2a2b-starthere__rooms">{item.rooms.join(' · ')}</span>
+                    </span>
+                    <span className="w2a2b-starthere__sub">
+                      {item.stage === 'no-crew'
+                        ? 'No crew yet — assign'
+                        : `${item.crewNames.join(' + ') || 'Crew'} — didn’t finish, start here`}
+                      {` · released ${when}`}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {task?.droppedReleases && task.droppedReleases.length > 0 ? (
         <section className="w2a2b-dropped-warning" role="alert">
@@ -2342,6 +2381,7 @@ export interface DayTaskWorkspaceProps {
   reminders?: readonly HomeReminder[];
   changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
+  startHere?: readonly StartHereItem[];
   releaseWorkTypes?: Readonly<Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>>;
   onViewChange?: (viewId: WorkspaceView['id']) => void;
   queueCounts?: Readonly<Record<TodayTaskQueueId, number>>;
@@ -2400,6 +2440,7 @@ export function DayTaskWorkspace({
   reminders,
   changeOrders,
   onOpenReminderUnit,
+  startHere,
   releaseWorkTypes,
   onRequestStartDay,
   onViewChange,
@@ -2612,6 +2653,7 @@ export function DayTaskWorkspace({
         reminders={reminders}
         changeOrders={changeOrders}
         onOpenReminderUnit={onOpenReminderUnit}
+        startHere={startHere}
         onOpenUnit={onOpenUnitFromHome}
         dayNumber={existingSessions.filter((candidate) =>
           candidate.status === 'closed').length + (session && isOpenDay(session) ? 1 : 0)

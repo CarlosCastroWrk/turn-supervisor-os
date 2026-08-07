@@ -555,7 +555,63 @@ button.w2a2b-done-toggle {
   font-weight: 700;
 }
 
-/* Reminder / change-order markers ON the unit's Home board card */
+/* "Start here" — carryover from an earlier day, the first thing at 7:30am */
+.w2a2b-starthere {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0 14px;
+  padding: 12px;
+  border: 1.5px solid #b45309;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+.w2a2b-starthere__head {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a3412;
+}
+.w2a2b-starthere ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.w2a2b-starthere li button {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 83, 9, 0.28);
+  border-radius: 11px;
+  background: #fff;
+  min-height: 52px;
+}
+.w2a2b-starthere__top {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.w2a2b-starthere__top b { font-size: 18px; font-weight: 850; color: var(--turn-color-primary); }
+.w2a2b-starthere__trade {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.w2a2b-starthere__trade.is-paint { background: #dbeafe; color: #1e40af; }
+.w2a2b-starthere__trade.is-clean { background: #dcfce7; color: #166534; }
+.w2a2b-starthere__rooms { font-size: 13px; font-weight: 700; color: var(--turn-color-secondary); }
+.w2a2b-starthere__sub { font-size: 12.5px; font-weight: 600; color: #9a3412; }
 .w2a2b-live-card__notes {
   display: flex;
   flex-direction: column;

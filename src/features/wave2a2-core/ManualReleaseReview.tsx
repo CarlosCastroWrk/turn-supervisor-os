@@ -20,6 +20,7 @@ import {
   type ManualReleaseSelection,
 } from './appDataAdapters';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
+import { parseDictatedRelease } from './dictationParse';
 import './acceptedCore.css';
 
 interface ManualReleaseReviewProps {
@@ -186,6 +187,53 @@ export function ManualReleaseReview({
     }
   };
 
+  // Reliable path (no AI): when Los has picked Paint or Clean, his dictated /
+  // typed list is parsed locally — instant, offline, no sign-in. Returns false
+  // so the caller can fall back to the AI reader for 'both' or messy input.
+  const applyDictation = (text: string): boolean => {
+    const trade = tradeScope === 'Paint' ? 'paint' : tradeScope === 'Clean' ? 'clean' : null;
+    if (!trade || !text.trim()) return false;
+    const units = roster.units.map((unit) => ({
+      beds: unit.applicableSections
+        .filter((section) => section.id !== 'common')
+        .map((section) => section.id as FieldSection),
+      hasCommon: unit.applicableSections.some((section) => section.id === 'common'),
+      id: unit.id,
+      unitNumber: unit.unitNumber,
+    }));
+    const result = parseDictatedRelease(text, trade, units);
+    if (result.rows.length === 0) return false;
+    let added = 0;
+    setSelected((current) => {
+      const next = new Map(current);
+      for (const row of result.rows) {
+        for (const part of row.sections) {
+          const selection: ManualReleaseSelection = {
+            section: part.section,
+            trade: trade as FieldTrade,
+            unitId: row.unitId,
+            ...(part.workType ? { workType: part.workType } : {}),
+          };
+          const key = selectionKey(selection);
+          if (!next.has(key)) {
+            next.set(key, selection);
+            added += 1;
+          }
+        }
+      }
+      return next;
+    });
+    setIntakeStatus([
+      `${result.rows.length} unit${result.rows.length === 1 ? '' : 's'} read (${added} room${added === 1 ? '' : 's'}).`,
+      result.unmatched.length > 0 ? `Not in your roster: ${result.unmatched.join(', ')}.` : '',
+      result.warnings.length > 0 ? result.warnings.join(' ') : '',
+      'Review below — nothing releases until you confirm.',
+    ].filter(Boolean).join(' '));
+    pendingBatchRef.current = undefined;
+    setError('');
+    return true;
+  };
+
   const matchingUnits = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     const matches = normalized
@@ -338,11 +386,14 @@ export function ManualReleaseReview({
           <section className="w2a2-core-intake w2a2-core-intake--front">
             <label>
               <span className="w2a2-core-intake__label">
-                <MessageSquareText aria-hidden="true" size={15} /> Paste Joseph's text — I'll read it
+                <MessageSquareText aria-hidden="true" size={15} /> Dictate or type your list
+                {tradeScope === 'both'
+                  ? ' — pick Paint or Clean above first'
+                  : ` — tap the 🎤 on your keyboard, read your ${tradeScope} list`}
               </span>
               <textarea
                 onChange={(event) => setIntakeMessage(event.target.value)}
-                placeholder="Joseph: 301 A C full, B D touch ups, cut in the common…"
+                placeholder="1806 A B cut in, 1707 A touch cut, 800 full unit"
                 rows={2}
                 value={intakeMessage}
               />
@@ -351,10 +402,16 @@ export function ManualReleaseReview({
               <button
                 className="is-primary"
                 disabled={intakeBusy || !intakeMessage.trim()}
-                onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
+                onClick={() => {
+                  // Reliable local parse first (Paint/Clean picked); AI reader only
+                  // as the fallback for 'both' or input the rules can't read.
+                  if (!applyDictation(intakeMessage)) {
+                    void runIntake({ text: intakeMessage, type: 'text' });
+                  }
+                }}
                 type="button"
               >
-                {intakeBusy ? 'Reading…' : 'Read message'}
+                {intakeBusy ? 'Reading…' : 'Read my list'}
               </button>
               <button
                 disabled={intakeBusy}

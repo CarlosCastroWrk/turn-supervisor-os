@@ -1368,6 +1368,23 @@ function DayTaskHome({
   const active = isOpenDay(session);
   const [ritualStatus, setRitualStatus] = useState('');
   const [startHereNotice, setStartHereNotice] = useState('');
+  // Los can fold the Start here strip down to keep Home short; the choice sticks.
+  const [startHereHidden, setStartHereHidden] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('turn-os:starthere-hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleStartHere = () => setStartHereHidden((hidden) => {
+    const next = !hidden;
+    try {
+      window.localStorage.setItem('turn-os:starthere-hidden', next ? '1' : '0');
+    } catch {
+      // Session-only then.
+    }
+    return next;
+  });
   // Hold-to-peek: a long press fires the preview; the click that follows is
   // swallowed so a peek never also opens the full page.
   const pressTimer = useRef<number | null>(null);
@@ -1639,9 +1656,17 @@ function DayTaskHome({
 
       {startHere && startHere.length > 0 ? (
         <section className="w2a2b-starthere" aria-label="Start here — unfinished from before">
-          <div className="w2a2b-starthere__head">
-            Start here · didn’t finish last night · {startHere.length}
-          </div>
+          <button
+            className="w2a2b-starthere__head w2a2b-starthere__toggle"
+            aria-expanded={!startHereHidden}
+            onClick={toggleStartHere}
+            type="button"
+          >
+            <span>Start here · didn’t finish last night · {startHere.length}</span>
+            <span className="w2a2b-starthere__chev">{startHereHidden ? 'Show ▾' : 'Hide ▴'}</span>
+          </button>
+          {startHereHidden ? null : (
+          <>
           {startHereNotice ? (
             <p className="w2a2b-starthere__notice" aria-live="polite">{startHereNotice}</p>
           ) : null}
@@ -1709,6 +1734,8 @@ function DayTaskHome({
               ))}
             </div>
           ) : null}
+          </>
+          )}
         </section>
       ) : null}
 

@@ -358,6 +358,16 @@ select:focus-visible {
   gap: 10px;
   padding: 9px 0;
 }
+button.track-c-crew-units__row.is-tappable {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--turn-color-divider, #f0f2f5);
+  cursor: pointer;
+  min-height: 44px;
+}
+button.track-c-crew-units__row.is-tappable:active { background: var(--turn-color-grouped, #f3f4f6); }
 
 .track-c-crew-units__row strong {
   color: var(--turn-color-primary, #111318);

@@ -777,6 +777,10 @@ export const TrackCFieldOps = ({
               setLocalSelectedCrewId(crewId);
             }}
             onQuickAssign={quickAssign}
+            onOpenUnit={(unitId, trade) => {
+              onNavigate?.({ unitId, unitTrade: trade, view: 'board' });
+              setLocalSelectedUnitId(unitId);
+            }}
             onToggleCrewActive={onToggleCrewActive}
             selectedCrewId={selectedCrewId}
             state={state}

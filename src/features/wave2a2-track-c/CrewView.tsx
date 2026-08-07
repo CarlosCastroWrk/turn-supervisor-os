@@ -19,7 +19,7 @@ import type {
   TrackCState,
   TrackCWorkProjection,
 } from './model';
-import { trackCSectionLabel } from './model';
+import { paintWorkTypeLabel, trackCSectionLabel } from './model';
 import {
   buildAllCrewPayroll,
   formatPayLine,
@@ -52,6 +52,7 @@ interface CrewViewProps {
   readonly onContactCrew?: (crewId: string) => void;
   readonly onAssignCrew?: (crewId: string) => void;
   readonly onQuickAssign?: (unitId: string, trade: 'paint' | 'clean', crewId: string) => void;
+  readonly onOpenUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
   readonly onToggleCrewActive?: (crewId: string, active: boolean) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
@@ -70,6 +71,7 @@ const CrewDetail = ({
   onEdit,
   onContact,
   onToggleWhatsapp,
+  onOpenUnit,
   phone,
   whatsapp,
 }: {
@@ -79,6 +81,7 @@ const CrewDetail = ({
   onEdit?: () => void;
   onContact?: () => void;
   onToggleWhatsapp?: () => void;
+  onOpenUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
   phone?: string;
   whatsapp?: boolean;
 }) => {
@@ -211,8 +214,10 @@ const CrewDetail = ({
         ];
         const byUnit = new Map<string, {
           unitNumber: string;
+          unitId: string;
+          unitTrade: 'paint' | 'clean';
           trade: string;
-          sections: Set<string>;
+          rooms: Map<string, string | undefined>;
           rank: number;
           status: string;
         }>();
@@ -222,6 +227,7 @@ const CrewDetail = ({
               : work.inspection === 'los-passed' ? [2, 'Los passed']
                 : work.execution === 'crew-reported-complete' ? [1, 'Done — needs Los']
                   : [0, 'Working'];
+        const roomOrder: readonly string[] = ['common', 'A', 'B', 'C', 'D', 'E'];
         for (const work of allWork) {
           const unit = trackCUnitForTarget(state, work);
           if (!unit) continue;
@@ -229,20 +235,38 @@ const CrewDetail = ({
           const [rank, status] = statusOf(work);
           const line = byUnit.get(key) ?? {
             rank: -1,
-            sections: new Set<string>(),
+            rooms: new Map<string, string | undefined>(),
             status: '',
             trade: work.trade === 'paint' ? 'Paint' : 'Clean',
+            unitId: work.unitId,
+            unitTrade: work.trade,
             unitNumber: unit.unitNumber,
           };
-          line.sections.add(trackCSectionLabel(work.section));
+          // Keep WHAT they did in each room — the paint task (full / cut-in …),
+          // so Los sees "A (cut-in), B (full)" right on the crew's profile.
+          if (work.trade === 'paint' && work.workType) {
+            line.rooms.set(work.section, paintWorkTypeLabel(work.workType));
+          } else if (!line.rooms.has(work.section)) {
+            line.rooms.set(work.section, undefined);
+          }
           if (rank > line.rank) {
             line.rank = rank;
             line.status = status;
           }
           byUnit.set(key, line);
         }
-        const rows = [...byUnit.values()].sort((left, right) =>
-          compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
+        const rows = [...byUnit.values()]
+          .map((line) => ({
+            ...line,
+            roomList: [...line.rooms.entries()]
+              .sort(([a], [b]) => roomOrder.indexOf(a) - roomOrder.indexOf(b))
+              .map(([section, workType]) => {
+                const label = trackCSectionLabel(section as Parameters<typeof trackCSectionLabel>[0]);
+                return workType ? `${label} (${workType})` : label;
+              }),
+          }))
+          .sort((left, right) =>
+            compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
         return (
           <>
             <div className="track-c-crew-summary">
@@ -253,15 +277,31 @@ const CrewDetail = ({
               <h2>Units · {rows.length}</h2>
               {rows.length === 0 ? (
                 <p className="track-c-boundary-copy">Nothing assigned yet.</p>
-              ) : rows.map((row) => (
-                <div className="track-c-crew-units__row" key={`${row.unitNumber}:${row.trade}`}>
-                  <strong>{row.unitNumber}</strong>
-                  <span>
-                    {row.trade} — {[...row.sections].join(', ')}
-                  </span>
-                  <em className={`is-rank-${row.rank}`}>{row.status}</em>
-                </div>
-              ))}
+              ) : rows.map((row) => {
+                const inner = (
+                  <>
+                    <strong>{row.unitNumber}</strong>
+                    <span>
+                      {row.trade} — {row.roomList.join(', ')}
+                    </span>
+                    <em className={`is-rank-${row.rank}`}>{row.status}</em>
+                  </>
+                );
+                return onOpenUnit ? (
+                  <button
+                    className="track-c-crew-units__row is-tappable"
+                    key={`${row.unitNumber}:${row.trade}`}
+                    onClick={() => onOpenUnit(row.unitId, row.unitTrade)}
+                    type="button"
+                  >
+                    {inner}
+                  </button>
+                ) : (
+                  <div className="track-c-crew-units__row" key={`${row.unitNumber}:${row.trade}`}>
+                    {inner}
+                  </div>
+                );
+              })}
             </section>
           </>
         );
@@ -279,6 +319,7 @@ export const CrewView = ({
   onContactCrew,
   onAssignCrew,
   onQuickAssign,
+  onOpenUnit,
   onToggleCrewActive,
   onAddCrewRequested,
   crewDirectory,
@@ -378,6 +419,7 @@ export const CrewView = ({
           onContactCrew ? () => onContactCrew(selectedCrewId) : undefined
         }
         onEdit={onEditCrew ? () => onEditCrew(selectedCrewId) : undefined}
+        onOpenUnit={onOpenUnit}
         state={state}
       />
     );

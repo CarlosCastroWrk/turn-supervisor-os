@@ -573,6 +573,24 @@ button.w2a2b-done-toggle {
   text-transform: uppercase;
   color: #9a3412;
 }
+.w2a2b-starthere__toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  min-height: 32px;
+}
+.w2a2b-starthere__chev {
+  font-size: 11px;
+  font-weight: 800;
+  color: #b45309;
+  white-space: nowrap;
+}
 .w2a2b-starthere ul {
   list-style: none;
   margin: 0;

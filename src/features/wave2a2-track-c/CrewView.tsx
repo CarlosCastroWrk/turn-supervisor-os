@@ -485,7 +485,7 @@ export const CrewView = ({
           <p className="track-c-contacted-today">
             Contacted today:{' '}
             {names.map((entry) =>
-              `${entry.name} ${new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`)
+              `${entry.name} ${new Date(entry.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}`)
               .join(' · ')}
           </p>
         );
@@ -627,7 +627,7 @@ export const CrewView = ({
           const contactedToday = lastContactTodayFor(contactLog, crew.id);
           const contactedLabel = contactedToday
             ? `${contactedToday.kind === 'call' ? 'called' : 'texted'} ${new Date(contactedToday.at)
-              .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+              .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}`
             : '';
           return (
             <div className="track-c-crew-card" key={crew.id}>

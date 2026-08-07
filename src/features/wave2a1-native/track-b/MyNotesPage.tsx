@@ -83,7 +83,7 @@ export const MyNotesPage = ({
                 ) : null}
                 <small>
                   {new Date(note.at).toLocaleString([], {
-                    day: 'numeric', hour: 'numeric', minute: '2-digit', month: 'short',
+                    day: 'numeric', hour: 'numeric', hour12: true, minute: '2-digit', month: 'short',
                   })}
                 </small>
               </span>

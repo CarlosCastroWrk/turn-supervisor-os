@@ -11,7 +11,7 @@ interface CompactUnitCardProps {
 }
 
 const formatUpdatedTime = (dateTime: string) =>
-  new Date(dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  new Date(dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
 export function CompactUnitCard({
   projection,

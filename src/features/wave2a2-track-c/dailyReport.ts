@@ -18,7 +18,7 @@ const localDate = (iso: string) => {
 };
 
 const timeLabel = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
 const tradeLabel = (trade: string) => (trade === 'paint' ? 'Paint' : 'Clean');
 

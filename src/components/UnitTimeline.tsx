@@ -57,6 +57,7 @@ const formatTimestamp = (value: string) => {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
+    hour12: true,
     minute: '2-digit',
   });
 };

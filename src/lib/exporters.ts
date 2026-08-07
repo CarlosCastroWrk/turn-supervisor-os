@@ -302,7 +302,7 @@ const formatActivityTime = (dateTime: string) => {
     return '';
   }
 
-  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(date);
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }).format(date);
 };
 
 export const buildDailyActivitySnapshot = (data: AppData, project: Project, reportDate: string) => {

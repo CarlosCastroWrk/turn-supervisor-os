@@ -173,7 +173,7 @@ export const PortalPage = ({
       {lastPublished ? (
         <p className="w2a2-core-portal__stamp">
           Last published {new Date(lastPublished).toLocaleString([], {
-            day: 'numeric', hour: 'numeric', minute: '2-digit', month: 'short',
+            day: 'numeric', hour: 'numeric', hour12: true, minute: '2-digit', month: 'short',
           })}
         </p>
       ) : (

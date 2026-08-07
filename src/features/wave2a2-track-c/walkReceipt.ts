@@ -30,7 +30,7 @@ export function buildWalkReceiptText(
   const endedAt = walk.endedAt ? new Date(walk.endedAt) : undefined;
   const when = endedAt
     ? `${endedAt.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${
-        endedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+        endedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}`
     : undefined;
 
   const groups = new Map<string, {

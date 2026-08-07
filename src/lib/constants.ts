@@ -116,7 +116,16 @@ export const formatTime = (dateTime: string) => {
     return 'Not set';
   }
 
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(
     new Date(dateTime),
   );
+};
+
+// Clock time only, always 12-hour with AM/PM in the device's local zone —
+// Los's rule: never military time anywhere in the OS. Use this for every
+// timestamp we surface (assigned, checked, passed, PM-approved, …).
+export const formatClock = (dateTime: string): string => {
+  if (!dateTime) return '';
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', hour12: true })
+    .format(new Date(dateTime));
 };

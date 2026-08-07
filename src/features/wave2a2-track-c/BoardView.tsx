@@ -10,9 +10,11 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
+import { formatClock } from '../../lib/constants';
 import {
   TRACK_C_TRADES,
   type TrackCCompactUnitProjection,
+  type TrackCEventType,
   type TrackCSection,
   type TrackCState,
   type TrackCTrade,
@@ -1086,6 +1088,21 @@ const UnitDetail = ({
         const crewNames = progress.crewIds
           .map((crewId) => trackCCrewName(state, crewId))
           .filter((name): name is string => Boolean(name));
+        // The clock on this trade: when it was assigned, when the crew reported
+        // done, when Los passed it, when the property manager approved — Los's
+        // local time, 12-hour (never military). Latest event of each kind.
+        const latestEventAt = (...types: TrackCEventType[]): string => state.events
+          .filter((event) => event.confirmation === 'confirmed'
+            && event.target.unitId === unitId
+            && event.target.trade === trade
+            && types.includes(event.eventType))
+          .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
+        const tradeTimes: { label: string; at: string }[] = [
+          { at: latestEventAt('assignment-confirmed', 'work-started'), label: 'Assigned' },
+          { at: latestEventAt('crew-reported-complete'), label: 'Crew done' },
+          { at: latestEventAt('los-passed'), label: 'You passed' },
+          { at: latestEventAt('property-accepted'), label: 'PM approved' },
+        ].filter((entry) => Boolean(entry.at));
         const canRecordTradeComplete =
           tradeWork.some((item) =>
             item.release === 'released' &&
@@ -1117,6 +1134,15 @@ const UnitDetail = ({
                     ? progress.released > 0 ? 'Needs crew' : 'Unreleased'
                     : crewNames.join(', ')}
                 </span>
+                {tradeTimes.length > 0 ? (
+                  <div className="track-c-trade-times">
+                    {tradeTimes.map((entry) => (
+                      <span key={entry.label}>
+                        <b>{entry.label}</b> {formatClock(entry.at)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               {crewNames.length === 0 && progress.released > 0 ? (
                 onQuickAssign

@@ -30,7 +30,7 @@ const triggerLabel = {
   upload: 'Upload',
 };
 
-const formatTime = (value?: string) => (value ? new Date(value).toLocaleTimeString() : 'Never');
+const formatTime = (value?: string) => (value ? new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Never');
 
 export function SyncPanel({ sync, presentation = 'popover' }: SyncPanelProps) {
   const [email, setEmail] = useState('');
@@ -96,7 +96,7 @@ export function SyncPanel({ sync, presentation = 'popover' }: SyncPanelProps) {
               </button>
             ) : null}
           </div>
-          {sync.lastSyncedAt ? <small>Last sync: {new Date(sync.lastSyncedAt).toLocaleTimeString()}</small> : null}
+          {sync.lastSyncedAt ? <small>Last sync: {new Date(sync.lastSyncedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</small> : null}
 
           {sync.email ? (
             <details className="sync-diagnostics">

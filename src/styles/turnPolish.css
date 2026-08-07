@@ -783,6 +783,21 @@ select:focus-visible {
   font-weight: 800;
   letter-spacing: 0.01em;
 }
+.track-c-trade-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.track-c-trade-times span {
+  font-size: 12px;
+  color: var(--turn-color-secondary, #66707c);
+  font-variant-numeric: tabular-nums;
+}
+.track-c-trade-times b {
+  color: var(--turn-color-primary);
+  font-weight: 700;
+}
 .track-c-trade-status.is-idle { background: var(--turn-color-grouped, #eef0f3); color: var(--turn-color-secondary, #66707c); }
 .track-c-trade-status.is-working { background: #eaf3fb; color: #0877d1; }
 .track-c-trade-status.is-check { background: #fdf3e4; color: #9b5b00; }

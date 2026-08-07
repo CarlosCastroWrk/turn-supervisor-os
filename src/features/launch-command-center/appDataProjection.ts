@@ -46,6 +46,7 @@ const conciseTimeLabel = (value: string, now: Date) => {
   if (localISODate(parsed) === localISODate(now)) {
     return new Intl.DateTimeFormat('en-US', {
       hour: 'numeric',
+      hour12: true,
       minute: '2-digit',
     }).format(parsed);
   }

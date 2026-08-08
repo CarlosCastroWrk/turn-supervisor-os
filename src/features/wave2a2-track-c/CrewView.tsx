@@ -42,6 +42,11 @@ import {
   projectTrackCUnitWork,
   trackCUnitForTarget,
 } from './projections';
+import {
+  payWeekNumberOf,
+  wallWeekColor,
+  WALL_WORKTYPE_ABBR,
+} from './wallWeek';
 
 interface CrewViewProps {
   readonly state: TrackCState;
@@ -328,6 +333,7 @@ export const CrewView = ({
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
+  const [wallCopied, setWallCopied] = useState('');
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   // Per-trade roundup so this page agrees with the boards: "unassigned" is
   // exactly the board's Needs crew (released, clear, nobody's name on it) and
@@ -582,6 +588,148 @@ export const CrewView = ({
                 Copy the pay packet
               </button>
               {payCopied ? <p className="track-c-weeksummary__copied">{payCopied}</p> : null}
+            </div>
+          </details>
+        );
+      })()}
+      {(() => {
+        // Wall-board transfer — every unit with paint work released THIS pay week,
+        // in board order, laid out exactly like Los's physical Painting grid
+        // (Comn · A · B · C · D · E · Crew · approved) so he can copy it cell by
+        // cell to the wall. Each done cell also shows the task tag (F/TU/CI/…) so
+        // he can spot a room mislabeled "full paint" and tap the row to fix it —
+        // which also corrects the payroll count.
+        const SECTIONS = ['common', 'A', 'B', 'C', 'D', 'E'] as const;
+        const weekNo = payWeekNumberOf(new Date().toISOString());
+        const colorName = ['amber', 'green', 'pink'][wallWeekColor(weekNo)] ?? '';
+        const crewNameOf = (id?: string) =>
+          (id ? state.crews.find((crew) => crew.id === id)?.name ?? '' : '');
+        type Cell = { mark: string; task: string; approved: boolean; done: boolean } | null;
+        const rows: {
+          unitId: string; unitNumber: string; cells: Record<string, Cell>;
+          crew: string; allApproved: boolean;
+        }[] = [];
+        const orderedUnits = [...state.units].sort((left, right) =>
+          compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
+        for (const unit of orderedUnits) {
+          const paint = projectTrackCUnitWork(state, unit.id).filter(
+            (work) => work.trade === 'paint'
+              && work.release === 'released'
+              && work.releasedAt
+              && payWeekNumberOf(work.releasedAt) === weekNo);
+          if (paint.length === 0) continue;
+          const cells: Record<string, Cell> = {};
+          let crewId: string | undefined;
+          let anyApproved = false;
+          let allApproved = true;
+          for (const section of SECTIONS) {
+            const work = paint.find((item) => item.section === section);
+            if (!work) { cells[section] = null; continue; }
+            const approved = work.property === 'property-accepted';
+            const done = approved
+              || work.execution === 'crew-reported-complete'
+              || work.inspection === 'los-passed';
+            const mark = work.callbackOpen
+              ? 'CB'
+              : approved ? 'CC' : done ? 'X' : work.responsibleCrewId ? '•' : '/';
+            cells[section] = {
+              approved,
+              done,
+              mark,
+              task: WALL_WORKTYPE_ABBR[work.workType ?? 'full'] ?? 'F',
+            };
+            if (work.responsibleCrewId) crewId = work.responsibleCrewId;
+            if (approved) anyApproved = true; else allApproved = false;
+          }
+          rows.push({
+            allApproved: anyApproved && allApproved,
+            cells,
+            crew: crewNameOf(crewId),
+            unitId: unit.id,
+            unitNumber: unit.unitNumber,
+          });
+        }
+        if (rows.length === 0) return null;
+        const wallText = [
+          `WEEK ${weekNo} — PAINT — copy to the wall board`,
+          `Unit  Comn A B C D E  Crew  Approved`,
+          ...rows.map((row) => {
+            const marks = SECTIONS.map((section) => {
+              const cell = row.cells[section];
+              if (!cell) return '—';
+              return cell.task && cell.task !== 'F' ? `${cell.mark}(${cell.task})` : cell.mark;
+            }).join(' ');
+            return `${row.unitNumber}  ${marks}  ${row.crew}${row.allApproved ? '  CC' : ''}`;
+          }),
+        ].join('\n');
+        return (
+          <details className="track-c-wallxfer">
+            <summary>
+              Week {weekNo} — copy to the wall board · {rows.length} paint unit{rows.length === 1 ? '' : 's'}
+              {colorName ? ` (${colorName})` : ''}
+            </summary>
+            <div className="track-c-wallxfer__body">
+              <p className="track-c-wallxfer__hint">
+                X = done · CC = property approved · CB = callback · / = released · • = assigned.
+                Tag under each mark is the task — tap a unit to fix a wrong one.
+              </p>
+              <div className="track-c-wallxfer__scroll">
+                <table className="track-c-wallxfer__grid">
+                  <thead>
+                    <tr>
+                      <th>Unit</th>
+                      <th>Comn</th>
+                      <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
+                      <th>Crew</th>
+                      <th aria-label="Approved">✓</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.unitId}>
+                        <th scope="row">
+                          {onOpenUnit ? (
+                            <button
+                              className="track-c-wallxfer__unit"
+                              onClick={() => onOpenUnit(row.unitId, 'paint')}
+                              type="button"
+                            >
+                              {row.unitNumber}
+                            </button>
+                          ) : row.unitNumber}
+                        </th>
+                        {SECTIONS.map((section) => {
+                          const cell = row.cells[section];
+                          if (!cell) return <td className="is-na" key={section} />;
+                          return (
+                            <td
+                              className={`track-c-wallxfer__cell${cell.approved ? ' is-approved' : cell.done ? ' is-done' : ''}`}
+                              key={section}
+                            >
+                              <span className="track-c-wallxfer__mark">{cell.mark}</span>
+                              <span className="track-c-wallxfer__task">{cell.task}</span>
+                            </td>
+                          );
+                        })}
+                        <td className="track-c-wallxfer__crew">{row.crew || '—'}</td>
+                        <td className="track-c-wallxfer__ok">{row.allApproved ? 'CC' : ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button
+                className="track-c-weeksummary__copy"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(wallText)
+                    .then(() => setWallCopied('Copied — the wall grid as text.'))
+                    .catch(() => setWallCopied('Copy not available — read it here.'));
+                }}
+                type="button"
+              >
+                Copy the wall grid
+              </button>
+              {wallCopied ? <p className="track-c-weeksummary__copied">{wallCopied}</p> : null}
             </div>
           </details>
         );

@@ -2394,6 +2394,104 @@ select.track-c-trade-change {
   color: #166534;
 }
 
+/* Wall-board transfer grid — mirrors Los's physical Painting board so he can
+   copy it cell by cell. Horizontal scroll on its own container; the page body
+   never scrolls sideways. */
+.track-c-wallxfer {
+  background: var(--track-c-surface);
+  border-radius: 14px;
+  margin: 8px;
+  padding: 10px 12px;
+}
+.track-c-wallxfer > summary {
+  color: var(--track-c-blue);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+  min-block-size: 40px;
+  padding: 6px 0;
+}
+.track-c-wallxfer__hint {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--track-c-muted);
+}
+.track-c-wallxfer__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.track-c-wallxfer__grid {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+}
+.track-c-wallxfer__grid th,
+.track-c-wallxfer__grid td {
+  border: 1px solid var(--track-c-border, #d4d4d8);
+  padding: 4px 6px;
+  text-align: center;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.track-c-wallxfer__grid thead th {
+  background: var(--track-c-surface-2, #f1f5f9);
+  font-weight: 800;
+  position: sticky;
+  top: 0;
+}
+.track-c-wallxfer__grid tbody th[scope='row'] {
+  font-weight: 800;
+  text-align: left;
+}
+.track-c-wallxfer__unit {
+  background: none;
+  border: none;
+  color: var(--track-c-blue);
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 12.5px;
+  padding: 2px 0;
+  min-height: 32px;
+}
+.track-c-wallxfer__cell {
+  min-width: 34px;
+}
+.track-c-wallxfer__cell.is-done {
+  background: rgba(37, 99, 235, 0.08);
+}
+.track-c-wallxfer__cell.is-approved {
+  background: rgba(22, 163, 74, 0.16);
+}
+.track-c-wallxfer__cell.is-na,
+.track-c-wallxfer__grid td.is-na {
+  background: #3f3f46;
+}
+.track-c-wallxfer__mark {
+  display: block;
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1.1;
+}
+.track-c-wallxfer__task {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--track-c-muted);
+}
+.track-c-wallxfer__crew {
+  font-weight: 700;
+  text-align: left;
+}
+.track-c-wallxfer__ok {
+  font-weight: 800;
+  color: #166534;
+}
+.track-c-wallxfer__body > .track-c-weeksummary__copy {
+  margin-top: 10px;
+}
+
 .track-c-crew-totals {
   background: var(--track-c-surface);
   border-radius: 14px;

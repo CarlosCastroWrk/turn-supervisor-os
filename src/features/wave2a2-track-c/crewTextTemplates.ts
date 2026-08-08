@@ -4,7 +4,6 @@
 // "text me as each unit is finished". Single language per send (no mixing);
 // the last language used sticks on this device.
 
-import { paintWorkTypeNote } from './model';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 
 export type CrewTextLang = 'es' | 'en';
@@ -36,69 +35,86 @@ export interface CrewTextSection {
 export interface CrewTextRow {
   readonly unitNumber: string;
   readonly sections: readonly CrewTextSection[];
+  // A studio unit's clean line reads just "1209 — Estudio", not a room list.
+  readonly isStudio?: boolean;
 }
 
-const sectionText = (section: CrewTextSection, lang: CrewTextLang): string => {
-  const base = section.kind === 'common'
-    ? lang === 'es' ? 'área común' : 'common area'
-    : section.bed ?? '';
-  const note = paintWorkTypeNote(section.workType, lang);
-  return note ? `${base} (${note})` : base;
+// The paint task words Los actually uses with his crews (retoque / recorte /
+// completo) — deliberately his vocabulary, NOT the board labels (cortes /
+// retoques) so the crew message reads exactly like the ones he already sends.
+const crewPaintTaskWord = (
+  workType: CrewTextSection['workType'],
+  lang: CrewTextLang,
+): string => {
+  switch (workType) {
+    case 'touch-up': return lang === 'es' ? 'retoque' : 'touch-up';
+    case 'cut-in': return lang === 'es' ? 'recorte' : 'cut-in';
+    case 'full-cut-in': return lang === 'es' ? 'completo + recorte' : 'full + cut-in';
+    case 'touch-up-cut-in': return lang === 'es' ? 'retoque + recorte' : 'touch-up + cut-in';
+    case 'heavy-clean': return lang === 'es' ? 'limpieza pesada' : 'heavy clean';
+    default: return lang === 'es' ? 'completo' : 'full';
+  }
 };
 
+// Los's exact daily crew-list format (from his real WhatsApp sends):
+//   Buenos días, Rocky. Estas son tus unidades para hoy:
+//   1101 — C: recorte
+//   1404 — Común + A, B, C, D      (clean)   /   1209 — Estudio (studio clean)
+//   Por favor, mantenme al tanto cuando termines cada unidad y pases a la
+//   siguiente. Gracias.
+// Paint shows "room: task" per room; clean lists the rooms with no task.
 export const crewUnitsTextBody = (
   crewName: string,
   lang: CrewTextLang,
   rows: readonly CrewTextRow[],
+  trade: 'paint' | 'clean' = 'paint',
 ): string => {
   const header = lang === 'es'
-    ? `¡Hola ${crewName}! Estas son sus unidades:`
-    : `Hi ${crewName}! These are your units:`;
-  // Units come out in walk order — lowest floor up — and when the list spans
-  // floors, each floor gets its own line so the crew clears one at a time
-  // instead of riding up and down.
-  const floorOf = (unitNumber: string): string => {
-    const digits = unitNumber.replace(/\D/g, '');
-    return digits.length >= 3 ? digits.slice(0, -2) : '';
-  };
+    ? `Buenos días, ${crewName}. Estas son tus unidades para hoy:`
+    : `Good morning, ${crewName}. These are your units for today:`;
+  const commonWord = lang === 'es' ? 'Común' : 'Common';
+  const studioWord = lang === 'es' ? 'Estudio' : 'Studio';
+  // Top-floor-first — Los's walk order.
   const sorted = [...rows].sort((left, right) =>
     compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
-  const floors = new Set(sorted.map((row) => floorOf(row.unitNumber)));
+  const orderSections = (sections: readonly CrewTextSection[]) =>
+    [...sections].sort((left, right) =>
+      left.kind === right.kind
+        ? (left.bed ?? '').localeCompare(right.bed ?? '')
+        : left.kind === 'common' ? -1 : 1);
   const unitLines = sorted.map((row) => {
-      const ordered = [...row.sections].sort((left, right) =>
-        left.kind === right.kind
-          ? (left.bed ?? '').localeCompare(right.bed ?? '')
-          : left.kind === 'common' ? -1 : 1);
-      const seen = new Set<string>();
-      const parts: string[] = [];
+    if (trade === 'clean' && row.isStudio) return `${row.unitNumber} — ${studioWord}`;
+    const ordered = orderSections(row.sections);
+    if (trade === 'clean') {
+      const hasCommon = ordered.some((section) => section.kind === 'common');
+      const beds: string[] = [];
+      const seenBeds = new Set<string>();
       for (const section of ordered) {
-        const text = sectionText(section, lang);
-        if (seen.has(text)) continue;
-        seen.add(text);
-        parts.push(text);
+        if (section.kind !== 'bed' || !section.bed || seenBeds.has(section.bed)) continue;
+        seenBeds.add(section.bed);
+        beds.push(section.bed);
       }
-      return `${lang === 'es' ? 'Unidad' : 'Unit'} ${row.unitNumber}: ${parts.join(', ')}`;
-    });
-  const lines: string[] = [];
-  if (floors.size > 1) {
-    let lastFloor: string | undefined;
-    sorted.forEach((row, index) => {
-      const floor = floorOf(row.unitNumber);
-      if (floor !== lastFloor) {
-        lastFloor = floor;
-        lines.push(floor
-          ? `${lang === 'es' ? 'Piso' : 'Floor'} ${floor}:`
-          : lang === 'es' ? 'Otras:' : 'Other:');
-      }
-      lines.push(unitLines[index]);
-    });
-  } else {
-    lines.push(...unitLines);
-  }
+      const bedsStr = beds.join(', ');
+      const roomText = hasCommon && bedsStr
+        ? `${commonWord} + ${bedsStr}`
+        : hasCommon ? commonWord : bedsStr;
+      return `${row.unitNumber} — ${roomText}`;
+    }
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const section of ordered) {
+      const room = section.kind === 'common' ? commonWord : (section.bed ?? '');
+      const label = `${room}: ${crewPaintTaskWord(section.workType, lang)}`;
+      if (seen.has(label)) continue;
+      seen.add(label);
+      parts.push(label);
+    }
+    return `${row.unitNumber} — ${parts.join(', ')}`;
+  });
   const footer = lang === 'es'
-    ? 'Me avisa cuando pasen a la siguiente unidad y cuando estén por terminar. Cualquier pregunta me dice — ¡gracias!'
-    : "Text me when you move to the next unit and when you're about to finish. Any questions, let me know — thank you!";
-  return [header, ...lines, footer].join('\n');
+    ? 'Por favor, mantenme al tanto cuando termines cada unidad y pases a la siguiente. Gracias.'
+    : 'Please keep me posted as you finish each unit and move to the next. Thank you.';
+  return [header, '', ...unitLines, '', footer].join('\n');
 };
 
 // A "come back and fix it" text — the crew that DID the room gets called back,

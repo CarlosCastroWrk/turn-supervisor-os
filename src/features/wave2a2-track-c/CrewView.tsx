@@ -389,29 +389,33 @@ export const CrewView = ({
   // bilingual-lite so it works for Spanish- and English-speaking crews.
   const composeBody = (crewId: string, crewName: string) => {
     const detail = projectTrackCCrewDetail(state, crewId);
-    const byUnit = new Map<string, CrewTextSection[]>();
+    const byUnit = new Map<string, { sections: CrewTextSection[]; isStudio: boolean }>();
+    let trade: 'paint' | 'clean' = 'paint';
     // "Today" = work still in front of them — not sections already reported
     // done or passed, and callbacks get their own conversation.
     for (const work of detail?.currentWork ?? []) {
       if (!['assigned', 'working'].includes(work.execution) || work.callbackOpen) continue;
       const unit = trackCUnitForTarget(state, work);
       if (!unit) continue;
-      const sections = byUnit.get(unit.unitNumber) ?? [];
-      sections.push(
+      trade = work.trade;
+      const entry = byUnit.get(unit.unitNumber)
+        ?? { isStudio: /^s(tudio)?$/i.test(unit.unitType ?? ''), sections: [] };
+      entry.sections.push(
         work.section === 'common'
           ? { kind: 'common', workType: work.workType }
           : { bed: trackCSectionLabel(work.section), kind: 'bed', workType: work.workType },
       );
-      byUnit.set(unit.unitNumber, sections);
+      byUnit.set(unit.unitNumber, entry);
     }
-    const rows = [...byUnit.entries()].map(([unitNumber, sections]) => ({
-      sections,
+    const rows = [...byUnit.entries()].map(([unitNumber, entry]) => ({
+      isStudio: entry.isStudio,
+      sections: entry.sections,
       unitNumber,
     }));
     // Nothing in front of them -> no canned "these are your units" text;
     // the button just opens the thread.
     if (rows.length === 0) return undefined;
-    return crewUnitsTextBody(crewName, readCrewTextLang(), rows);
+    return crewUnitsTextBody(crewName, readCrewTextLang(), rows, trade);
   };
   const logContact = (crewId: string, name: string, kind: 'call' | 'text' | 'ai-text') => {
     setContactLog(appendContactLog({ crewId, kind, name }));
@@ -462,6 +466,69 @@ export const CrewView = ({
           <p className="track-c-week-line">
             Pay week {weekNumber}{colors[weekNumber] ? ` · ${colors[weekNumber]} on the board` : ''} · {fmt(sunday)} → {fmt(saturday)} 5 PM
           </p>
+        );
+      })()}
+      {(() => {
+        // Send today's lists — one Send button per crew that has work in front of
+        // them right now, each with the message in Los's exact format and routed
+        // to that crew's channel (WhatsApp or SMS). The whole list is rebuilt
+        // from saved state every render, so leaving to WhatsApp and coming back
+        // never wipes it; the ✓ (from the persisted contact log) shows which
+        // crews are already sent so Los knows where he left off.
+        const queue = crews
+          .map(({ crew }) => ({
+            body: composeBody(crew.id, crew.name),
+            crew,
+            phone: crewDirectory?.[crew.id]?.phone?.trim(),
+            sent: lastContactTodayFor(contactLog, crew.id),
+            whatsapp: whatsappCrews.has(crew.id),
+          }))
+          .filter((entry) => Boolean(entry.body));
+        if (queue.length === 0) return null;
+        const unsent = queue.filter((entry) => !entry.sent || entry.sent.kind === 'call').length;
+        return (
+          <details className="track-c-sendqueue" open>
+            <summary>
+              Send today’s lists · {unsent > 0 ? `${unsent} to send` : 'all sent'} of {queue.length}
+            </summary>
+            <div className="track-c-sendqueue__body">
+              <p className="track-c-sendqueue__hint">
+                Tap Send → it opens the crew’s chat with their list ready. Come back
+                in and the rest are still here; sent ones show ✓.
+              </p>
+              {queue.map(({ crew, body, phone, sent, whatsapp }) => {
+                const wasTexted = sent && sent.kind !== 'call';
+                const sentTime = wasTexted
+                  ? new Date(sent.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+                  : '';
+                return (
+                  <div className={`track-c-sendqueue__row${wasTexted ? ' is-sent' : ''}`} key={crew.id}>
+                    <div className="track-c-sendqueue__who">
+                      <strong>{crew.name}</strong>
+                      <small>
+                        {crew.trade === 'paint' ? 'Paint' : 'Clean'} · {whatsapp ? 'WhatsApp' : 'SMS'}
+                        {wasTexted ? ` · ✓ sent ${sentTime}` : ''}
+                      </small>
+                    </div>
+                    {phone ? (
+                      <a
+                        aria-label={`Send today's list to ${crew.name} by ${whatsapp ? 'WhatsApp' : 'SMS'}`}
+                        className={`track-c-sendqueue__send${wasTexted ? ' is-resend' : ''}`}
+                        href={crewMessageHref(phone, whatsapp, body)}
+                        onClick={() => logContact(crew.id, crew.name, 'text')}
+                        rel="noreferrer"
+                        target={whatsapp ? '_blank' : undefined}
+                      >
+                        {wasTexted ? 'Resend' : whatsapp ? 'Send · WhatsApp' : 'Send · SMS'}
+                      </a>
+                    ) : (
+                      <span className="track-c-sendqueue__nophone">Add a number</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </details>
         );
       })()}
       {(() => {

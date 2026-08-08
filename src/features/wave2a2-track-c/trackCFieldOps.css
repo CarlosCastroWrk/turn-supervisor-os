@@ -2394,6 +2394,75 @@ select.track-c-trade-change {
   color: #166534;
 }
 
+/* Send today's crew lists — one durable Send button per crew with work. */
+.track-c-sendqueue {
+  background: var(--track-c-surface);
+  border-radius: 14px;
+  margin: 8px;
+  padding: 10px 12px;
+}
+.track-c-sendqueue > summary {
+  color: var(--track-c-blue);
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+  min-block-size: 40px;
+  padding: 6px 0;
+}
+.track-c-sendqueue__hint {
+  margin: 2px 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--track-c-muted);
+}
+.track-c-sendqueue__row {
+  align-items: center;
+  border-top: 1px solid var(--track-c-border, #e5e7eb);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+.track-c-sendqueue__row.is-sent {
+  opacity: 0.72;
+}
+.track-c-sendqueue__who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.track-c-sendqueue__who strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+.track-c-sendqueue__who small {
+  color: var(--track-c-muted);
+  font-size: 12px;
+}
+.track-c-sendqueue__send {
+  background: #25d366;
+  border-radius: 10px;
+  color: #05391a;
+  flex: none;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 16px;
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.track-c-sendqueue__send.is-resend {
+  background: #eaf3fb;
+  color: var(--track-c-blue);
+}
+.track-c-sendqueue__nophone {
+  color: var(--track-c-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
 /* Wall-board transfer grid — mirrors Los's physical Painting board so he can
    copy it cell by cell. Horizontal scroll on its own container; the page body
    never scrolls sideways. */

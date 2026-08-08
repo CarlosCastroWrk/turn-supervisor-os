@@ -1117,11 +1117,15 @@ const UnitDetail = ({
             && event.target.trade === trade
             && types.includes(event.eventType))
           .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
+        // "PM approved" is only shown while the trade is STILL accepted — once a
+        // callback pulls a room back, the old approval time must not linger (that
+        // read as "approved AND callback" at the same time).
+        const hasAcceptedNow = releasedItems.some((item) => item.property === 'property-accepted');
         const tradeTimes: { label: string; at: string }[] = [
           { at: latestEventAt('assignment-confirmed', 'work-started'), label: 'Assigned' },
           { at: latestEventAt('crew-reported-complete'), label: 'Crew done' },
           { at: latestEventAt('los-passed'), label: 'You passed' },
-          { at: latestEventAt('property-accepted'), label: 'PM approved' },
+          { at: hasAcceptedNow ? latestEventAt('property-accepted') : '', label: 'PM approved' },
         ].filter((entry) => Boolean(entry.at));
         // A room added to a unit a crew already has (e.g. Los adds C after B was
         // released) shows "needs crew" with no way to assign it. If the trade

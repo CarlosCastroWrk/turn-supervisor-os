@@ -333,7 +333,7 @@ export const CrewView = ({
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
-  const [wallCopied, setWallCopied] = useState('');
+  const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean'; msg: string } | null>(null);
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   // Per-trade roundup so this page agrees with the boards: "unassigned" is
   // exactly the board's Needs crew (released, clear, nobody's name on it) and
@@ -592,18 +592,20 @@ export const CrewView = ({
           </details>
         );
       })()}
-      {(() => {
-        // Wall-board transfer — every unit with paint work released THIS pay week,
-        // in board order, laid out exactly like Los's physical Painting grid
+      {(['paint', 'clean'] as const).map((wallTrade) => {
+        // Wall-board transfer — every unit with THIS trade released this pay week,
+        // in board order, laid out exactly like Los's physical wall grid
         // (Comn · A · B · C · D · E · Crew · approved) so he can copy it cell by
-        // cell to the wall. Each done cell also shows the task tag (F/TU/CI/…) so
-        // he can spot a room mislabeled "full paint" and tap the row to fix it —
-        // which also corrects the payroll count.
+        // cell. Paint cells also show the task tag (F/TU/CI/…); Clean shows HC for
+        // a heavy clean (regular clean has no tag). One grid per physical board.
         const SECTIONS = ['common', 'A', 'B', 'C', 'D', 'E'] as const;
         const weekNo = payWeekNumberOf(new Date().toISOString());
         const colorName = ['amber', 'green', 'pink'][wallWeekColor(weekNo)] ?? '';
         const crewNameOf = (id?: string) =>
           (id ? state.crews.find((crew) => crew.id === id)?.name ?? '' : '');
+        const taskTagOf = (workType?: string) => (wallTrade === 'clean'
+          ? (workType === 'heavy-clean' ? 'HC' : '')
+          : (WALL_WORKTYPE_ABBR[workType ?? 'full'] ?? 'F'));
         type Cell = { mark: string; task: string; approved: boolean; done: boolean } | null;
         const rows: {
           unitId: string; unitNumber: string; cells: Record<string, Cell>;
@@ -612,18 +614,18 @@ export const CrewView = ({
         const orderedUnits = [...state.units].sort((left, right) =>
           compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
         for (const unit of orderedUnits) {
-          const paint = projectTrackCUnitWork(state, unit.id).filter(
-            (work) => work.trade === 'paint'
+          const tradeWork = projectTrackCUnitWork(state, unit.id).filter(
+            (work) => work.trade === wallTrade
               && work.release === 'released'
               && work.releasedAt
               && payWeekNumberOf(work.releasedAt) === weekNo);
-          if (paint.length === 0) continue;
+          if (tradeWork.length === 0) continue;
           const cells: Record<string, Cell> = {};
           let crewId: string | undefined;
           let anyApproved = false;
           let allApproved = true;
           for (const section of SECTIONS) {
-            const work = paint.find((item) => item.section === section);
+            const work = tradeWork.find((item) => item.section === section);
             if (!work) { cells[section] = null; continue; }
             const approved = work.property === 'property-accepted';
             const done = approved
@@ -636,7 +638,7 @@ export const CrewView = ({
               approved,
               done,
               mark,
-              task: WALL_WORKTYPE_ABBR[work.workType ?? 'full'] ?? 'F',
+              task: taskTagOf(work.workType),
             };
             if (work.responsibleCrewId) crewId = work.responsibleCrewId;
             if (approved) anyApproved = true; else allApproved = false;
@@ -650,8 +652,9 @@ export const CrewView = ({
           });
         }
         if (rows.length === 0) return null;
+        const tradeUpper = wallTrade === 'paint' ? 'PAINT' : 'CLEAN';
         const wallText = [
-          `WEEK ${weekNo} — PAINT — copy to the wall board`,
+          `WEEK ${weekNo} — ${tradeUpper} — copy to the wall board`,
           `Unit  Comn A B C D E  Crew  Approved`,
           ...rows.map((row) => {
             const marks = SECTIONS.map((section) => {
@@ -663,15 +666,17 @@ export const CrewView = ({
           }),
         ].join('\n');
         return (
-          <details className="track-c-wallxfer">
+          <details className="track-c-wallxfer" key={wallTrade}>
             <summary>
-              Week {weekNo} — copy to the wall board · {rows.length} paint unit{rows.length === 1 ? '' : 's'}
+              Week {weekNo} — copy to the wall board · {rows.length} {wallTrade} unit{rows.length === 1 ? '' : 's'}
               {colorName ? ` (${colorName})` : ''}
             </summary>
             <div className="track-c-wallxfer__body">
               <p className="track-c-wallxfer__hint">
                 X = done · CC = property approved · CB = callback · / = released · • = assigned.
-                Tag under each mark is the task — tap a unit to fix a wrong one.
+                {wallTrade === 'paint'
+                  ? ' Tag under each mark is the task — tap a unit to fix a wrong one.'
+                  : ' HC under a mark = heavy clean. Tap a unit to fix a wrong one.'}
               </p>
               <div className="track-c-wallxfer__scroll">
                 <table className="track-c-wallxfer__grid">
@@ -691,7 +696,7 @@ export const CrewView = ({
                           {onOpenUnit ? (
                             <button
                               className="track-c-wallxfer__unit"
-                              onClick={() => onOpenUnit(row.unitId, 'paint')}
+                              onClick={() => onOpenUnit(row.unitId, wallTrade)}
                               type="button"
                             >
                               {row.unitNumber}
@@ -722,18 +727,20 @@ export const CrewView = ({
                 className="track-c-weeksummary__copy"
                 onClick={() => {
                   void navigator.clipboard?.writeText(wallText)
-                    .then(() => setWallCopied('Copied — the wall grid as text.'))
-                    .catch(() => setWallCopied('Copy not available — read it here.'));
+                    .then(() => setWallCopied({ msg: `Copied — the ${wallTrade} wall grid as text.`, trade: wallTrade }))
+                    .catch(() => setWallCopied({ msg: 'Copy not available — read it here.', trade: wallTrade }));
                 }}
                 type="button"
               >
-                Copy the wall grid
+                Copy the {wallTrade} wall grid
               </button>
-              {wallCopied ? <p className="track-c-weeksummary__copied">{wallCopied}</p> : null}
+              {wallCopied?.trade === wallTrade
+                ? <p className="track-c-weeksummary__copied">{wallCopied.msg}</p>
+                : null}
             </div>
           </details>
         );
-      })()}
+      })}
       {(() => {
         const today = contactsToday(contactLog);
         if (today.length === 0) return null;

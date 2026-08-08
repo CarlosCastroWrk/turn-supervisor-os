@@ -325,6 +325,7 @@ export const CrewView = ({
   crewDirectory,
   propertyContacts,
 }: CrewViewProps) => {
+  const [payCopied, setPayCopied] = useState('');
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   // Per-trade roundup so this page agrees with the boards: "unassigned" is
   // exactly the board's Needs crew (released, clear, nobody's name on it) and
@@ -465,12 +466,25 @@ export const CrewView = ({
         const totalPaint: Record<PaintTypeKey, number> =
           { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 };
         let totalClean = 0;
-        const perCrew: { name: string; headline: string; rooms: readonly string[] }[] = [];
+        const perCrew: {
+          name: string; trade: string; headline: string; beds: number; commons: number; rooms: readonly string[];
+        }[] = [];
+        // Cut-ins are tracked SEPARATELY from the wall board — collect every room
+        // with a cut-in component (cut-in, full+cut, touch+cut) so Los has the
+        // "where were the cut-ins" list he'd otherwise have to remember.
+        const cutIns: string[] = [];
         for (const [crewId, payroll] of payrollByCrew) {
           const weekRooms = payroll.rooms.filter((room) => room.date >= weekStart);
           if (weekRooms.length === 0) continue;
           const crew = state.crews.find((candidate) => candidate.id === crewId);
           if (!crew) continue;
+          const beds = payroll.week.beds;
+          const commons = payroll.week.commons;
+          for (const room of weekRooms) {
+            if (room.workType && room.workType.includes('cut-in')) {
+              cutIns.push(`${room.unitNumber} ${room.section === 'common' ? 'Com' : room.section} (${crew.name})`);
+            }
+          }
           if (crew.trade === 'paint') {
             const tally: Record<PaintTypeKey, number> =
               { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 };
@@ -479,23 +493,36 @@ export const CrewView = ({
             }
             for (const key of TASK_KEYS) totalPaint[key] += tally[key];
             perCrew.push({
+              beds, commons,
               headline: formatTypeTally(tally) || `${weekRooms.length} rooms`,
-              name: crew.name,
-              rooms: formatRoomsByType(weekRooms),
+              name: crew.name, rooms: formatRoomsByType(weekRooms), trade: 'Paint',
             });
           } else {
             totalClean += weekRooms.length;
             perCrew.push({
-              headline: `${weekRooms.length} room${weekRooms.length === 1 ? '' : 's'} cleaned`,
-              name: crew.name,
-              rooms: formatRoomsByType(weekRooms),
+              beds, commons,
+              headline: `${beds} bed${beds === 1 ? '' : 's'} · ${commons} common`,
+              name: crew.name, rooms: formatRoomsByType(weekRooms), trade: 'Clean',
             });
           }
         }
         if (perCrew.length === 0) return null;
+        const packetText = [
+          'PAY WEEK — who did what',
+          `Paint: ${formatTypeTally(totalPaint) || '—'}  ·  Clean: ${totalClean} rooms`,
+          '',
+          '— BY CREW —',
+          ...perCrew.flatMap((entry) => [
+            `${entry.name} (${entry.trade}): ${entry.headline} · ${entry.beds} beds · ${entry.commons} common`,
+            ...entry.rooms.map((line) => `   ${line}`),
+          ]),
+          '',
+          `— CUT-INS (track separately) — ${cutIns.length}`,
+          cutIns.length > 0 ? cutIns.join(', ') : 'none',
+        ].join('\n');
         return (
           <details className="track-c-weeksummary">
-            <summary>This week — who did what</summary>
+            <summary>Pay week — for the board / Tony</summary>
             <div className="track-c-weeksummary__body">
               <p className="track-c-weeksummary__totals">
                 <b>Paint:</b> {formatTypeTally(totalPaint) || '—'}
@@ -504,12 +531,28 @@ export const CrewView = ({
               </p>
               {perCrew.map((entry) => (
                 <div className="track-c-weeksummary__crew" key={entry.name}>
-                  <strong>{entry.name} · {entry.headline}</strong>
+                  <strong>{entry.name} ({entry.trade}) · {entry.headline} · {entry.beds} beds · {entry.commons} common</strong>
                   {entry.rooms.map((line) => (
                     <p key={line}>{line}</p>
                   ))}
                 </div>
               ))}
+              <div className="track-c-weeksummary__crew">
+                <strong>Cut-ins (track separately) · {cutIns.length}</strong>
+                <p>{cutIns.length > 0 ? cutIns.join(', ') : 'none this week'}</p>
+              </div>
+              <button
+                className="track-c-weeksummary__copy"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(packetText)
+                    .then(() => setPayCopied('Copied — paste it to Tony or use it to fill the board.'))
+                    .catch(() => setPayCopied('Copy not available — read it here.'));
+                }}
+                type="button"
+              >
+                Copy the pay packet
+              </button>
+              {payCopied ? <p className="track-c-weeksummary__copied">{payCopied}</p> : null}
             </div>
           </details>
         );

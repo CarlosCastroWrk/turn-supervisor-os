@@ -276,6 +276,7 @@ interface BoardViewProps {
     unitId: string,
     trade: TrackCTrade,
     released: boolean,
+    workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean',
   ) => void;
   readonly onSetUnitBeds?: (unitId: string, beds: number) => void;
   readonly onMoveUnitTrade?: (sourceUnitId: string, trade: TrackCTrade, targetUnitNumber: string) => void;
@@ -939,6 +940,74 @@ const WorkSection = ({
   );
 };
 
+// Whole-unit release, task-aware. Joseph releases a unit at the door; before
+// this, "mark the whole unit released" recorded every room with NO task, so the
+// board (and the pay packet) silently showed "full paint" even for touch-ups
+// and cut-ins. Now Los picks the task first, so the release records the truth.
+// Clean has no paint task, so it keeps the plain one-tap button.
+const RELEASE_TASKS: readonly {
+  key: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in';
+  short: string;
+}[] = [
+  { key: 'full', short: 'Full' },
+  { key: 'touch-up', short: 'Touch-up' },
+  { key: 'cut-in', short: 'Cut-in' },
+  { key: 'full-cut-in', short: 'Full + cut' },
+  { key: 'touch-up-cut-in', short: 'Touch + cut' },
+];
+
+const WholeUnitReleaseControl = ({
+  trade,
+  onRelease,
+}: {
+  trade: TrackCTrade;
+  onRelease: (
+    workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean',
+  ) => void;
+}) => {
+  const [task, setTask] =
+    useState<'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in'>('full');
+  if (trade !== 'paint') {
+    return (
+      <button
+        className="track-c-release-toggle"
+        data-track-c-critical-target="true"
+        onClick={() => onRelease()}
+        type="button"
+      >
+        Joseph released {tradeLabel(trade)} — mark the whole unit released
+      </button>
+    );
+  }
+  return (
+    <div className="track-c-release-whole">
+      <p className="track-c-release-whole__label">
+        Joseph released Paint — pick the task, then release the whole unit:
+      </p>
+      <div className="track-c-release-whole__chips">
+        {RELEASE_TASKS.map((option) => (
+          <button
+            className={`track-c-release-whole__chip${task === option.key ? ' is-current' : ''}`}
+            key={option.key}
+            onClick={() => setTask(option.key)}
+            type="button"
+          >
+            {option.short}
+          </button>
+        ))}
+      </div>
+      <button
+        className="track-c-release-toggle"
+        data-track-c-critical-target="true"
+        onClick={() => onRelease(task)}
+        type="button"
+      >
+        Release whole unit — {paintWorkTypeLabel(task)}
+      </button>
+    </div>
+  );
+};
+
 const UnitDetail = ({
   state,
   unitId,
@@ -1317,14 +1386,10 @@ const UnitDetail = ({
             })()}
             {onSetTradeRelease
               && tradeWork.filter((item) => item.release === 'released').length === 0 ? (
-                <button
-                  className="track-c-release-toggle"
-                  data-track-c-critical-target="true"
-                  onClick={() => onSetTradeRelease(unitId, trade, true)}
-                  type="button"
-                >
-                  Joseph released {tradeLabel(trade)} — mark the whole unit released
-                </button>
+                <WholeUnitReleaseControl
+                  onRelease={(workType) => onSetTradeRelease(unitId, trade, true, workType)}
+                  trade={trade}
+                />
               ) : null}
             {(() => {
               const released = tradeWork.filter((item) => item.release === 'released');

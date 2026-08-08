@@ -1406,6 +1406,10 @@ export function setTradeReleaseState(
     released: boolean;
     nowIso: string;
     idFactory: (prefix: string) => string;
+    // The task Los picked when releasing the whole unit. Recorded on every new
+    // room so the release never silently defaults to "full paint" — undefined
+    // keeps the prior behavior (used by callers that don't ask for a task).
+    workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean';
   },
 ): AppData {
   if (!input.released) {
@@ -1455,6 +1459,7 @@ export function setTradeReleaseState(
       trade: input.trade,
       section: section as FieldSection,
       sourceExcerpt: `${tradeName} released for the whole unit — added from the unit page.`,
+      ...(input.workType ? { workType: input.workType } : {}),
     })),
     uncertainties: [],
     confirmedBy: 'Los',

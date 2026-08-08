@@ -2666,6 +2666,45 @@ select.track-c-trade-change {
   color: var(--track-c-muted);
 }
 
+/* Whole-unit release with a task chooser, so the release records the real
+   task instead of silently defaulting to full paint. */
+.track-c-release-whole {
+  margin: 6px 0 2px;
+}
+.track-c-release-whole__label {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--track-c-muted);
+  line-height: 1.35;
+}
+.track-c-release-whole__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.track-c-release-whole__chip {
+  background: #fff;
+  border: 1.5px solid var(--track-c-border, #d4d4d8);
+  border-radius: 999px;
+  color: var(--track-c-muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  min-block-size: 38px;
+  padding: 4px 14px;
+}
+.track-c-release-whole__chip.is-current {
+  background: var(--track-c-blue);
+  border-color: var(--track-c-blue);
+  color: #fff;
+}
+.track-c-release-whole .track-c-release-toggle {
+  margin: 0;
+  text-align: center;
+}
+
 
 .track-c-crew-detail__actions a {
   align-items: center;

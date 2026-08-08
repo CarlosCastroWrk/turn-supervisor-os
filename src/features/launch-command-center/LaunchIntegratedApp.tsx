@@ -3352,7 +3352,7 @@ function LaunchOperationalApp({
             setBlockTrade(trade);
             setBlockDialog({ unitId });
           }}
-          onSetTradeRelease={(unitId, trade, released) => {
+          onSetTradeRelease={(unitId, trade, released, workType) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === unitId)?.unitNumber ?? '';
             const hasActiveSession = data.daySessions.some((session) =>
@@ -3384,6 +3384,7 @@ function LaunchOperationalApp({
                 released,
                 trade,
                 unitId,
+                ...(workType ? { workType } : {}),
               });
             });
             setFieldToast(saved

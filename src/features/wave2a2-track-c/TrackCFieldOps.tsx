@@ -107,6 +107,7 @@ export interface TrackCFieldOpsProps {
     unitId: string,
     trade: TrackCTrade,
     released: boolean,
+    workType?: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean',
   ) => void;
 }
 

@@ -71,6 +71,7 @@ export interface TrackCFieldOpsProps {
   readonly onCrewEditRequested?: (crewId: string) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
+  readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
   readonly propertyContacts?: readonly {
     id: string;
     name: string;
@@ -122,6 +123,7 @@ export const TrackCFieldOps = ({
   propertyContacts,
   onCrewContactRequested,
   onToggleCrewActive,
+  payExtras,
   onSetUnitBeds,
   onMoveUnitTrade,
   onNavigate,
@@ -817,6 +819,7 @@ export const TrackCFieldOps = ({
               setLocalSelectedCrewId(crewId);
             }}
             onQuickAssign={quickAssign}
+            payExtras={payExtras}
             onOpenUnit={(unitId, trade) => {
               onNavigate?.({ unitId, unitTrade: trade, view: 'board' });
               setLocalSelectedUnitId(unitId);

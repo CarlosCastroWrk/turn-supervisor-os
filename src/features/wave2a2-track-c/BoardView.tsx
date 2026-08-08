@@ -39,15 +39,16 @@ import {
   trackCUnitMakeupLabel,
 } from './projections';
 
-export type UnitNoteKind = 'note' | 'change-order' | 'reminder';
+export type UnitNoteKind = 'note' | 'change-order' | 'reminder' | 'texture';
 
 const NOTE_KIND_META: Record<UnitNoteKind, { badge: string; label: string; cls: string }> = {
   reminder: { badge: '★', label: 'Reminder', cls: 'is-reminder' },
   'change-order': { badge: '＄', label: 'Change order', cls: 'is-change' },
+  texture: { badge: '≈', label: 'Texture', cls: 'is-texture' },
   note: { badge: '✎', label: 'Note', cls: 'is-note' },
 };
 
-const NOTE_KIND_ORDER: Record<UnitNoteKind, number> = { reminder: 0, 'change-order': 1, note: 2 };
+const NOTE_KIND_ORDER: Record<UnitNoteKind, number> = { reminder: 0, 'change-order': 1, texture: 2, note: 3 };
 
 interface UnitNote {
   id: string;
@@ -117,7 +118,7 @@ const UnitNotesPanel = ({
       {composerOpen && canAdd ? (
         <div className="track-c-notes__composer">
           <div className="track-c-notes__kinds">
-            {(['note', 'change-order', 'reminder'] as const).map((kind) => (
+            {(['note', 'change-order', 'texture', 'reminder'] as const).map((kind) => (
               <button
                 aria-pressed={draftKind === kind}
                 className={`track-c-notekind ${NOTE_KIND_META[kind].cls} ${draftKind === kind ? 'is-on' : ''}`}
@@ -135,9 +136,11 @@ const UnitNotesPanel = ({
             onChange={(event) => setDraftText(event.target.value)}
             placeholder={draftKind === 'change-order'
               ? 'What changed? e.g. tub resurface, wall hole > quarter'
-              : draftKind === 'reminder'
-                ? 'What must you remember here?'
-                : 'Note for this unit'}
+              : draftKind === 'texture'
+                ? 'What texture? e.g. knockdown on A ceiling'
+                : draftKind === 'reminder'
+                  ? 'What must you remember here?'
+                  : 'Note for this unit'}
             rows={3}
             value={draftText}
           />

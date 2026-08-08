@@ -989,6 +989,36 @@ function LaunchOperationalApp({
   }, [unitNotes, trackCState.units]);
   const homeReminders = homeNoteStrips.reminders;
   const homeChangeOrders = homeNoteStrips.changeOrders;
+  // Change orders + textures for payroll: each one is tagged to the PAINT crew on
+  // its unit (they're almost always paint work) and counted for this pay week, so
+  // the pay packet shows "Rocky: 2 change orders, 1 texture" alongside his rooms.
+  const crewPayExtras = useMemo(() => {
+    const sunday = new Date(now);
+    if (sunday.getDay() === 6 && sunday.getHours() >= 17) sunday.setDate(sunday.getDate() + 1);
+    sunday.setDate(sunday.getDate() - sunday.getDay());
+    sunday.setHours(0, 0, 0, 0);
+    const weekStart = sunday.getTime();
+    const unitNumberById = new Map(trackCState.units.map((unit) => [unit.id, unit.unitNumber]));
+    const paintCrewByUnit = new Map<string, string>();
+    for (const unit of trackCState.units) {
+      const paint = projectTrackCUnitWork(trackCState, unit.id)
+        .find((item) => item.trade === 'paint' && item.responsibleCrewId);
+      if (paint?.responsibleCrewId) paintCrewByUnit.set(unit.id, paint.responsibleCrewId);
+    }
+    const out: Record<string, { changeOrders: string[]; textures: string[] }> = {};
+    for (const note of unitNotes) {
+      if (note.kind !== 'change-order' && note.kind !== 'texture') continue;
+      if (new Date(note.createdAt).getTime() < weekStart) continue;
+      const crewId = paintCrewByUnit.get(note.unitId);
+      if (!crewId) continue;
+      const entry = out[crewId] ?? { changeOrders: [], textures: [] };
+      const label = `${unitNumberById.get(note.unitId) ?? ''}: ${note.text}`;
+      if (note.kind === 'change-order') entry.changeOrders.push(label);
+      else entry.textures.push(label);
+      out[crewId] = entry;
+    }
+    return out;
+  }, [unitNotes, trackCState, now]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'> = {};
     for (const unit of trackCState.units) {
@@ -3212,6 +3242,7 @@ function LaunchOperationalApp({
       ) : (
         <TrackCFieldOps
           embedded
+          payExtras={crewPayExtras}
           crewDirectory={Object.fromEntries(
             crewRecords.map((crew) => [crew.id, { phone: crew.phone }]),
           )}

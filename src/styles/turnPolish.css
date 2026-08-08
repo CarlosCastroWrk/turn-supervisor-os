@@ -1897,6 +1897,7 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
 }
 .track-c-notekind.is-on.is-note { background: var(--turn-color-brand, #2563eb); border-color: var(--turn-color-brand, #2563eb); color: #fff; }
 .track-c-notekind.is-on.is-change { background: #7a4b00; border-color: #7a4b00; color: #fff; }
+.track-c-notekind.is-on.is-texture { background: #0e7490; border-color: #0e7490; color: #fff; }
 .track-c-notekind.is-on.is-reminder { background: #8a1c2b; border-color: #8a1c2b; color: #fff; }
 .track-c-notes__input,
 .track-c-note__edit textarea {
@@ -1941,6 +1942,7 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
 }
 .track-c-note.is-reminder { border-color: #8a1c2b; background: #fdeef0; }
 .track-c-note.is-change { border-color: #7a4b00; background: #fbf3e6; }
+.track-c-note.is-texture { border-color: #0e7490; background: #ecfeff; }
 .track-c-note__body { min-width: 0; flex: 1; }
 .track-c-note__body p { margin: 4px 0 0; font-size: 14.5px; line-height: 1.4; color: var(--turn-color-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
 .track-c-note__badge {
@@ -1954,6 +1956,7 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
   color: var(--turn-color-brand, #2563eb);
 }
 .track-c-note__badge.is-change { color: #7a4b00; }
+.track-c-note__badge.is-texture { color: #0e7490; }
 .track-c-note__badge.is-reminder { color: #8a1c2b; }
 .track-c-note__actions { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
 .track-c-note__actions button {

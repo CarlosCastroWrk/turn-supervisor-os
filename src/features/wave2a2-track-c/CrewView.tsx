@@ -56,6 +56,7 @@ interface CrewViewProps {
   readonly onToggleCrewActive?: (crewId: string, active: boolean) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
+  readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
   readonly propertyContacts?: readonly {
     id: string;
     name: string;
@@ -323,6 +324,7 @@ export const CrewView = ({
   onToggleCrewActive,
   onAddCrewRequested,
   crewDirectory,
+  payExtras,
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
@@ -467,8 +469,11 @@ export const CrewView = ({
           { full: 0, 'touch-up': 0, 'cut-in': 0, 'full-cut-in': 0, 'touch-up-cut-in': 0 };
         let totalClean = 0;
         const perCrew: {
-          name: string; trade: string; headline: string; beds: number; commons: number; rooms: readonly string[];
+          name: string; trade: string; headline: string; beds: number; commons: number;
+          rooms: readonly string[]; changeOrders: readonly string[]; textures: readonly string[];
         }[] = [];
+        let totalChangeOrders = 0;
+        let totalTextures = 0;
         // Cut-ins are tracked SEPARATELY from the wall board — collect every room
         // with a cut-in component (cut-in, full+cut, touch+cut) so Los has the
         // "where were the cut-ins" list he'd otherwise have to remember.
@@ -480,6 +485,9 @@ export const CrewView = ({
           if (!crew) continue;
           const beds = payroll.week.beds;
           const commons = payroll.week.commons;
+          const extras = payExtras?.[crewId] ?? { changeOrders: [], textures: [] };
+          totalChangeOrders += extras.changeOrders.length;
+          totalTextures += extras.textures.length;
           for (const room of weekRooms) {
             if (room.workType && room.workType.includes('cut-in')) {
               cutIns.push(`${room.unitNumber} ${room.section === 'common' ? 'Com' : room.section} (${crew.name})`);
@@ -493,16 +501,16 @@ export const CrewView = ({
             }
             for (const key of TASK_KEYS) totalPaint[key] += tally[key];
             perCrew.push({
-              beds, commons,
+              beds, changeOrders: extras.changeOrders, commons,
               headline: formatTypeTally(tally) || `${weekRooms.length} rooms`,
-              name: crew.name, rooms: formatRoomsByType(weekRooms), trade: 'Paint',
+              name: crew.name, rooms: formatRoomsByType(weekRooms), textures: extras.textures, trade: 'Paint',
             });
           } else {
             totalClean += weekRooms.length;
             perCrew.push({
-              beds, commons,
+              beds, changeOrders: extras.changeOrders, commons,
               headline: `${beds} bed${beds === 1 ? '' : 's'} · ${commons} common`,
-              name: crew.name, rooms: formatRoomsByType(weekRooms), trade: 'Clean',
+              name: crew.name, rooms: formatRoomsByType(weekRooms), textures: extras.textures, trade: 'Clean',
             });
           }
         }
@@ -510,11 +518,17 @@ export const CrewView = ({
         const packetText = [
           'PAY WEEK — who did what',
           `Paint: ${formatTypeTally(totalPaint) || '—'}  ·  Clean: ${totalClean} rooms`,
+          `Change orders: ${totalChangeOrders} · Textures: ${totalTextures}`,
           '',
           '— BY CREW —',
           ...perCrew.flatMap((entry) => [
-            `${entry.name} (${entry.trade}): ${entry.headline} · ${entry.beds} beds · ${entry.commons} common`,
+            `${entry.name} (${entry.trade}): ${entry.headline} · ${entry.beds} beds · ${entry.commons} common`
+              + (entry.changeOrders.length || entry.textures.length
+                ? ` · ${entry.changeOrders.length} change order(s) · ${entry.textures.length} texture(s)`
+                : ''),
             ...entry.rooms.map((line) => `   ${line}`),
+            ...entry.changeOrders.map((line) => `   CHANGE ORDER — ${line}`),
+            ...entry.textures.map((line) => `   TEXTURE — ${line}`),
           ]),
           '',
           `— CUT-INS (track separately) — ${cutIns.length}`,
@@ -528,12 +542,27 @@ export const CrewView = ({
                 <b>Paint:</b> {formatTypeTally(totalPaint) || '—'}
                 {'  ·  '}
                 <b>Clean:</b> {totalClean} room{totalClean === 1 ? '' : 's'}
+                {'  ·  '}
+                <b>Change orders:</b> {totalChangeOrders}
+                {'  ·  '}
+                <b>Textures:</b> {totalTextures}
               </p>
               {perCrew.map((entry) => (
                 <div className="track-c-weeksummary__crew" key={entry.name}>
-                  <strong>{entry.name} ({entry.trade}) · {entry.headline} · {entry.beds} beds · {entry.commons} common</strong>
+                  <strong>
+                    {entry.name} ({entry.trade}) · {entry.headline} · {entry.beds} beds · {entry.commons} common
+                    {entry.changeOrders.length || entry.textures.length
+                      ? ` · ${entry.changeOrders.length} change order${entry.changeOrders.length === 1 ? '' : 's'} · ${entry.textures.length} texture${entry.textures.length === 1 ? '' : 's'}`
+                      : ''}
+                  </strong>
                   {entry.rooms.map((line) => (
                     <p key={line}>{line}</p>
+                  ))}
+                  {entry.changeOrders.map((line) => (
+                    <p className="track-c-weeksummary__extra" key={`co-${line}`}>Change order — {line}</p>
+                  ))}
+                  {entry.textures.map((line) => (
+                    <p className="track-c-weeksummary__extra" key={`tx-${line}`}>Texture — {line}</p>
                   ))}
                 </div>
               ))}

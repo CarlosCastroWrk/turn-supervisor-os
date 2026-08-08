@@ -2372,6 +2372,10 @@ select.track-c-trade-change {
   color: var(--track-c-muted);
   line-height: 1.4;
 }
+.track-c-weeksummary__crew p.track-c-weeksummary__extra {
+  color: #0e7490;
+  font-weight: 700;
+}
 .track-c-weeksummary__copy {
   margin-top: 10px;
   padding: 10px 16px;

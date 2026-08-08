@@ -62,6 +62,13 @@ interface CrewViewProps {
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
+  readonly changesThisWeek?: readonly {
+    readonly at: string;
+    readonly crew: string;
+    readonly kind: 'change-order' | 'texture';
+    readonly text: string;
+    readonly unitNumber: string;
+  }[];
   readonly propertyContacts?: readonly {
     id: string;
     name: string;
@@ -330,6 +337,7 @@ export const CrewView = ({
   onAddCrewRequested,
   crewDirectory,
   payExtras,
+  changesThisWeek,
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
@@ -659,6 +667,33 @@ export const CrewView = ({
           </details>
         );
       })()}
+      {changesThisWeek && changesThisWeek.length > 0 ? (
+        <details className="track-c-changes">
+          <summary>Changes approved this week · {changesThisWeek.length}</summary>
+          <div className="track-c-changes__body">
+            <p className="track-c-changes__hint">
+              Every change order and texture you logged this pay week, newest first
+              — reconcile against Joseph’s texts and show Tony the trail.
+            </p>
+            {changesThisWeek.map((change, index) => (
+              <div className="track-c-changes__row" key={`${change.unitNumber}-${change.at}-${index}`}>
+                <span className={`track-c-changes__tag is-${change.kind}`}>
+                  {change.kind === 'change-order' ? 'Change order' : 'Texture'}
+                </span>
+                <div className="track-c-changes__detail">
+                  <strong>{change.unitNumber}{change.crew ? ` · ${change.crew}` : ''}</strong>
+                  <small>{change.text}</small>
+                </div>
+                <span className="track-c-changes__when">
+                  {new Date(change.at).toLocaleString([], {
+                    day: 'numeric', hour: 'numeric', hour12: true, minute: '2-digit', month: 'short',
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
       {(['paint', 'clean'] as const).map((wallTrade) => {
         // Wall-board transfer — every unit with THIS trade released this pay week,
         // in board order, laid out exactly like Los's physical wall grid

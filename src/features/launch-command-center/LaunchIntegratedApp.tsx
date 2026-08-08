@@ -1019,6 +1019,36 @@ function LaunchOperationalApp({
     }
     return out;
   }, [unitNotes, trackCState, now]);
+  // Chronological "what changed this week" — every change order and texture Los
+  // logged this pay week, newest first, with the unit, the crew on it, and WHEN,
+  // so he can reconcile a cut-in-turned-full against Joseph's texts and show the
+  // approval trail for payroll.
+  const changesThisWeek = useMemo(() => {
+    const sunday = new Date(now);
+    if (sunday.getDay() === 6 && sunday.getHours() >= 17) sunday.setDate(sunday.getDate() + 1);
+    sunday.setDate(sunday.getDate() - sunday.getDay());
+    sunday.setHours(0, 0, 0, 0);
+    const weekStart = sunday.getTime();
+    const unitNumberById = new Map(trackCState.units.map((unit) => [unit.id, unit.unitNumber]));
+    const crewNameById = new Map(trackCState.crews.map((crew) => [crew.id, crew.name]));
+    const paintCrewByUnit = new Map<string, string>();
+    for (const unit of trackCState.units) {
+      const paint = projectTrackCUnitWork(trackCState, unit.id)
+        .find((item) => item.trade === 'paint' && item.responsibleCrewId);
+      if (paint?.responsibleCrewId) paintCrewByUnit.set(unit.id, paint.responsibleCrewId);
+    }
+    return unitNotes
+      .filter((note) => (note.kind === 'change-order' || note.kind === 'texture')
+        && new Date(note.createdAt).getTime() >= weekStart)
+      .map((note) => ({
+        at: note.createdAt,
+        crew: crewNameById.get(paintCrewByUnit.get(note.unitId) ?? '') ?? '',
+        kind: note.kind as 'change-order' | 'texture',
+        text: note.text,
+        unitNumber: unitNumberById.get(note.unitId) ?? '',
+      }))
+      .sort((left, right) => right.at.localeCompare(left.at));
+  }, [unitNotes, trackCState, now]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'> = {};
     for (const unit of trackCState.units) {
@@ -3245,6 +3275,7 @@ function LaunchOperationalApp({
         <TrackCFieldOps
           embedded
           payExtras={crewPayExtras}
+          changesThisWeek={changesThisWeek}
           crewDirectory={Object.fromEntries(
             crewRecords.map((crew) => [crew.id, { phone: crew.phone }]),
           )}

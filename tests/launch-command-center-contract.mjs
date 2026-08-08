@@ -30,7 +30,7 @@ test('primary navigation is locked to Home, TurnBoard, central Add, Activity, an
     ],
   );
   assert.deepEqual(LAUNCH_QUICK_ACTIONS.map(({ label }) => label), [
-    'Import work',
+    'Paste your memo',
     'Assign crews',
     'Start walk',
     'End day',

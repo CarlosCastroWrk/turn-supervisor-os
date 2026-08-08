@@ -12,7 +12,7 @@ export type LaunchNavigationItem = (typeof LAUNCH_PRIMARY_NAVIGATION)[number];
 export type LaunchPrimaryDestination = Exclude<LaunchNavigationItem['id'], 'plus'>;
 
 export const LAUNCH_QUICK_ACTIONS = [
-  { id: 'import-work', label: 'Import work' },
+  { id: 'import-work', label: 'Paste your memo' },
   { id: 'assign-crews', label: 'Assign crews' },
   { id: 'start-walk', label: 'Start walk' },
   { id: 'end-day', label: 'End day' },

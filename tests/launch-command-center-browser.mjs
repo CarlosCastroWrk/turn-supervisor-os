@@ -110,7 +110,7 @@ try {
       await page.getByRole('navigation', { name: 'Primary' }).getByRole('button').allTextContents(),
       ['Home', 'TurnBoard', 'Add', 'Activity', 'More'],
     );
-    for (const action of ['Import work', 'Assign crews', 'Start walk', 'End day']) {
+    for (const action of ['Paste your memo', 'Assign crews', 'Start walk', 'End day']) {
       assert.equal(await page.getByRole('button', { name: action, exact: true }).count(), 1);
     }
     assert.equal(

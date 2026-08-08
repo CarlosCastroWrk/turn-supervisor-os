@@ -1,6 +1,6 @@
 import { ArrowLeft, Camera, Check, MessageSquareText, Search } from 'lucide-react';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createId } from '../../lib/constants';
 import {
   imageFileToIntakeSource,
@@ -89,6 +89,21 @@ export function ManualReleaseReview({
     }
   });
   const intakeFileRef = useRef<HTMLInputElement>(null);
+  const intakeTextRef = useRef<HTMLTextAreaElement>(null);
+  // "Paste your memo" front door: opened straight onto the paste box so Los can
+  // drop his whole raw memo (paint + clean together) and let the reader split it.
+  const memoMode = useRef<boolean>(false);
+  if (memoMode.current === false) {
+    try {
+      if (window.localStorage.getItem('turn-os:intake-memo') === '1') {
+        window.localStorage.removeItem('turn-os:intake-memo');
+        memoMode.current = true;
+      }
+    } catch { /* ignore */ }
+  }
+  useEffect(() => {
+    if (memoMode.current) intakeTextRef.current?.focus();
+  }, []);
 
   const importNotesRef = useRef<Map<string, string>>(new Map());
   const applyIntakeRows = (rows: IntakeRow[], uncertainties: string[]) => {
@@ -386,15 +401,18 @@ export function ManualReleaseReview({
           <section className="w2a2-core-intake w2a2-core-intake--front">
             <label>
               <span className="w2a2-core-intake__label">
-                <MessageSquareText aria-hidden="true" size={15} /> Dictate or type your list
+                <MessageSquareText aria-hidden="true" size={15} /> Paste or dictate your memo
                 {tradeScope === 'both'
-                  ? ' — pick Paint or Clean above first'
+                  ? ' — paint and clean together, I’ll split them and you confirm'
                   : ` — tap the 🎤 on your keyboard, read your ${tradeScope} list`}
               </span>
               <textarea
                 onChange={(event) => setIntakeMessage(event.target.value)}
-                placeholder="1806 A B cut in, 1707 A touch cut, 800 full unit"
-                rows={2}
+                placeholder={tradeScope === 'both'
+                  ? 'Paste your whole memo — e.g. paint 1806 A B cut in, 1707 A touch cut… clean 1404 common A B C D…'
+                  : '1806 A B cut in, 1707 A touch cut, 800 full unit'}
+                ref={intakeTextRef}
+                rows={memoMode.current ? 5 : 2}
                 value={intakeMessage}
               />
             </label>

@@ -1994,6 +1994,7 @@ function LaunchOperationalApp({
 
   const handleQuickAction = useCallback((action: LaunchQuickActionId) => {
     if (action === 'import-work') {
+      try { window.localStorage.setItem('turn-os:intake-memo', '1'); } catch { /* ignore */ }
       navigate('dashboard');
       setHomeMode('manual-release');
       return;
@@ -2229,6 +2230,7 @@ function LaunchOperationalApp({
       return;
     }
     if (action === 'import-work') {
+      try { window.localStorage.setItem('turn-os:intake-memo', '1'); } catch { /* ignore */ }
       navigate('dashboard');
       setHomeMode('manual-release');
       return;

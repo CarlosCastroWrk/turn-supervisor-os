@@ -271,6 +271,10 @@ interface BoardViewProps {
     target: TrackCWorkTarget,
     workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean',
   ) => void;
+  readonly onUpgradeCutInToFull?: (
+    target: TrackCWorkTarget,
+    attribution: 'joseph' | 'catch' | 'redo',
+  ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -602,6 +606,7 @@ const WorkSection = ({
   onRequestMirror,
   onToggleRelease,
   onSetWorkType,
+  onUpgradeCutInToFull,
   unitNumber,
 }: {
   state: TrackCState;
@@ -612,12 +617,14 @@ const WorkSection = ({
   onRequestMirror: () => void;
   onToggleRelease?: (released: boolean) => void;
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean') => void;
+  onUpgradeCutInToFull?: (attribution: 'joseph' | 'catch' | 'redo') => void;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
   // second tap confirms. A HOLD (iOS-style) opens the room menu instead.
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
   const holdTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -847,6 +854,59 @@ const WorkSection = ({
               </div>
             </div>
           ) : null}
+          {onUpgradeCutInToFull
+            && work.trade === 'paint'
+            && work.release === 'released'
+            && (work.workType === 'cut-in' || work.workType === 'touch-up-cut-in') ? (
+              <div className="track-c-upgrade">
+                {!upgradeOpen ? (
+                  <button
+                    className="track-c-upgrade__open"
+                    data-track-c-critical-target="true"
+                    onClick={() => setUpgradeOpen(true)}
+                    type="button"
+                  >
+                    → Full paint (whose call?)
+                  </button>
+                ) : (
+                  <>
+                    <span className="track-c-upgrade__label">
+                      Cut-in → full paint. Crew’s paid for the work — who called it?
+                    </span>
+                    <div className="track-c-upgrade__chips">
+                      <button
+                        className="track-c-upgrade__chip is-charge"
+                        onClick={() => { setUpgradeOpen(false); onUpgradeCutInToFull('joseph'); }}
+                        type="button"
+                      >
+                        Joseph — change order (charge)
+                      </button>
+                      <button
+                        className="track-c-upgrade__chip"
+                        onClick={() => { setUpgradeOpen(false); onUpgradeCutInToFull('catch'); }}
+                        type="button"
+                      >
+                        My catch — no charge
+                      </button>
+                      <button
+                        className="track-c-upgrade__chip"
+                        onClick={() => { setUpgradeOpen(false); onUpgradeCutInToFull('redo'); }}
+                        type="button"
+                      >
+                        Crew redo — no charge
+                      </button>
+                    </div>
+                    <button
+                      className="track-c-upgrade__cancel"
+                      onClick={() => setUpgradeOpen(false)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
           {canRemove && onToggleRelease ? (
               <button
                 className="track-c-release-toggle is-remove"
@@ -1039,6 +1099,7 @@ const UnitDetail = ({
   onRequestBlock,
   onSetSectionRelease,
   onSetSectionWorkType,
+  onUpgradeCutInToFull,
   onSetTradeRelease,
   onSetUnitBeds,
   onMoveUnitTrade,
@@ -1070,6 +1131,7 @@ const UnitDetail = ({
   onRequestBlock?: BoardViewProps['onRequestBlock'];
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
   onSetSectionWorkType?: BoardViewProps['onSetSectionWorkType'];
+  onUpgradeCutInToFull?: BoardViewProps['onUpgradeCutInToFull'];
   onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
   onSetUnitBeds?: BoardViewProps['onSetUnitBeds'];
   onMoveUnitTrade?: BoardViewProps['onMoveUnitTrade'];
@@ -1720,6 +1782,12 @@ const UnitDetail = ({
                               workType,
                             )
                             : undefined}
+                          onUpgradeCutInToFull={onUpgradeCutInToFull
+                            ? (attribution) => onUpgradeCutInToFull(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              attribution,
+                            )
+                            : undefined}
                           onAction={(action) =>
                             onSectionAction(
                               { unitId: item.unitId, trade: item.trade, section: item.section },
@@ -2201,6 +2269,7 @@ export const BoardView = ({
   onRequestBlock,
   onSetSectionRelease,
   onSetSectionWorkType,
+  onUpgradeCutInToFull,
   onSetTradeRelease,
   onSetUnitBeds,
   onMoveUnitTrade,
@@ -2321,6 +2390,7 @@ export const BoardView = ({
         onRequestBlock={onRequestBlock}
         onSetSectionRelease={onSetSectionRelease}
         onSetSectionWorkType={onSetSectionWorkType}
+        onUpgradeCutInToFull={onUpgradeCutInToFull}
         onSetTradeRelease={onSetTradeRelease}
         onSetUnitBeds={onSetUnitBeds}
         onMoveUnitTrade={onMoveUnitTrade}

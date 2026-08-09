@@ -340,6 +340,33 @@ select:focus-visible {
   font-weight: 850;
 }
 
+/* Week filter on the crew profile — flip through w1 / w2 / w3 (or all). */
+.track-c-crew-weekfilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 10px 10px;
+}
+.track-c-crew-weekfilter button {
+  background: var(--turn-color-elevated, #fff);
+  border: 1.5px solid var(--turn-color-border, #d4d4d8);
+  border-radius: 999px;
+  color: var(--turn-color-secondary, #5c6876);
+  font-size: 13px;
+  font-weight: 750;
+  min-block-size: 38px;
+  padding: 4px 14px;
+}
+.track-c-crew-weekfilter button.is-on {
+  background: var(--turn-color-brand, #2563eb);
+  border-color: var(--turn-color-brand, #2563eb);
+  color: #fff;
+}
+.track-c-crew-units__wk {
+  color: var(--turn-color-brand, #2563eb);
+  font-weight: 800;
+}
+
 .track-c-crew-units {
   background: var(--turn-color-elevated, #fff);
   border-radius: 14px;

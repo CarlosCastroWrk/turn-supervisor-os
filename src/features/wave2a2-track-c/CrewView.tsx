@@ -122,6 +122,10 @@ const CrewDetail = ({
   whatsapp?: boolean;
 }) => {
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // Week filter for the units list: 0 = all weeks, or a specific pay week Los
+  // flips to. Defaults to the current pay week so the profile opens on "now".
+  const currentWeek = payWeekNumberOf(new Date().toISOString());
+  const [weekFilter, setWeekFilter] = useState<number>(currentWeek);
   const detail = useMemo(
     () => projectTrackCCrewDetail(state, crewId),
     [crewId, state],
@@ -255,6 +259,7 @@ const CrewDetail = ({
           rooms: Map<string, string | undefined>;
           rank: number;
           status: string;
+          date: string;
         }>();
         const statusOf = (work: (typeof allWork)[number]): [number, string] =>
           work.property === 'property-accepted' ? [4, 'Approved']
@@ -269,6 +274,7 @@ const CrewDetail = ({
           const key = `${work.unitId}:${work.trade}`;
           const [rank, status] = statusOf(work);
           const line = byUnit.get(key) ?? {
+            date: '',
             rank: -1,
             rooms: new Map<string, string | undefined>(),
             status: '',
@@ -277,6 +283,10 @@ const CrewDetail = ({
             unitTrade: work.trade,
             unitNumber: unit.unitNumber,
           };
+          // The week a unit belongs to = when it came onto the board (release),
+          // matching the wall grid and the extras sheet. Keep the latest.
+          const workDate = work.latestConfirmedEvent?.recordedAt ?? work.releasedAt ?? '';
+          if (workDate > line.date) line.date = workDate;
           // Keep WHAT they did in each room — the paint task (full / cut-in …),
           // so Los sees "A (cut-in), B (full)" right on the crew's profile.
           if (work.trade === 'paint' && work.workType) {
@@ -290,9 +300,11 @@ const CrewDetail = ({
           }
           byUnit.set(key, line);
         }
-        const rows = [...byUnit.values()]
+        const unitNum = (unitNumber: string) => Number(unitNumber.replace(/\D/g, '')) || 0;
+        const allRows = [...byUnit.values()]
           .map((line) => ({
             ...line,
+            week: line.date ? payWeekNumberOf(line.date) : 0,
             roomList: [...line.rooms.entries()]
               .sort(([a], [b]) => roomOrder.indexOf(a) - roomOrder.indexOf(b))
               .map(([section, workType]) => {
@@ -300,18 +312,53 @@ const CrewDetail = ({
                 return workType ? `${label} (${workType})` : label;
               }),
           }))
-          .sort((left, right) =>
-            compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
+          // Low → high by unit number — Los's ask (and his walk/board order).
+          .sort((left, right) => unitNum(left.unitNumber) - unitNum(right.unitNumber));
+        // Which weeks this crew has work in, so the filter only shows real weeks.
+        const weeksPresent = [...new Set(allRows.map((row) => row.week).filter((week) => week > 0))]
+          .sort((left, right) => left - right);
+        const activeFilter = weeksPresent.includes(weekFilter) ? weekFilter : 0;
+        const rows = activeFilter === 0
+          ? allRows
+          : allRows.filter((row) => row.week === activeFilter);
         return (
           <>
             <div className="track-c-crew-summary">
               <div><small>Today</small><strong>{label(todayLine)}</strong></div>
               <div><small>This week</small><strong>{label(weekLine)}</strong></div>
             </div>
+            {weeksPresent.length > 0 ? (
+              <div className="track-c-crew-weekfilter" role="group" aria-label="Filter units by week">
+                <button
+                  aria-pressed={activeFilter === 0}
+                  className={activeFilter === 0 ? 'is-on' : ''}
+                  onClick={() => setWeekFilter(0)}
+                  type="button"
+                >
+                  All
+                </button>
+                {weeksPresent.map((week) => (
+                  <button
+                    aria-pressed={activeFilter === week}
+                    className={activeFilter === week ? 'is-on' : ''}
+                    key={week}
+                    onClick={() => setWeekFilter(week)}
+                    type="button"
+                  >
+                    Wk {week}{week === currentWeek ? ' · now' : ''}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <section className="track-c-crew-units" aria-label="Units">
-              <h2>Units · {rows.length}</h2>
+              <h2>
+                Units · {rows.length}
+                {activeFilter !== 0 ? <span className="track-c-crew-units__wk"> · week {activeFilter}</span> : null}
+              </h2>
               {rows.length === 0 ? (
-                <p className="track-c-boundary-copy">Nothing assigned yet.</p>
+                <p className="track-c-boundary-copy">
+                  {activeFilter !== 0 ? `Nothing in week ${activeFilter}.` : 'Nothing assigned yet.'}
+                </p>
               ) : rows.map((row) => {
                 const inner = (
                   <>

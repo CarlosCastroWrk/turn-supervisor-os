@@ -2871,6 +2871,61 @@ select.track-c-trade-change {
   color: var(--track-c-muted);
 }
 
+/* Cut-in → full paint upgrade, one tap + who called it. Crew is always paid for
+   the work; only Joseph's change order is chargeable to the property. */
+.track-c-upgrade {
+  margin: 6px 0 2px;
+}
+.track-c-upgrade__open {
+  background: #fff7ed;
+  border: 1.5px solid #c2410c;
+  border-radius: 10px;
+  color: #9a3412;
+  font-size: 13.5px;
+  font-weight: 800;
+  min-block-size: 42px;
+  padding: 6px 12px;
+  width: 100%;
+}
+.track-c-upgrade__label {
+  color: var(--track-c-muted);
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+.track-c-upgrade__chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.track-c-upgrade__chip {
+  background: #fff;
+  border: 1.5px solid var(--track-c-border, #d4d4d8);
+  border-radius: 10px;
+  color: var(--track-c-text);
+  font-size: 13.5px;
+  font-weight: 750;
+  min-block-size: 44px;
+  padding: 6px 14px;
+  text-align: left;
+}
+.track-c-upgrade__chip.is-charge {
+  background: #fef3c7;
+  border-color: #b45309;
+  color: #92400e;
+}
+.track-c-upgrade__cancel {
+  background: none;
+  border: none;
+  color: var(--track-c-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-top: 6px;
+  min-block-size: 36px;
+}
+
 /* Whole-unit release with a task chooser, so the release records the real
    task instead of silently defaulting to full paint. */
 .track-c-release-whole {

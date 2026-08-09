@@ -3483,6 +3483,39 @@ function LaunchOperationalApp({
               ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} → ${label}.`
               : 'Could not save — try again.');
           }}
+          onUpgradeCutInToFull={(target, attribution) => {
+            // One tap: a cut-in room becomes a full paint. Bump the task to
+            // full+cut-in (the crew did BOTH — always paid for the work), and log
+            // WHO called it. Only Joseph's change order is chargeable to the
+            // property; "our catch" and "crew redo" are logged with no charge.
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
+            const roomLabel = target.section === 'common' ? 'Common' : target.section;
+            const charge = attribution === 'joseph';
+            const whoText = attribution === 'joseph'
+              ? 'Joseph change order — charge'
+              : attribution === 'catch'
+                ? 'our catch — no charge'
+                : 'crew redo — no charge';
+            const saved = commitDataNow((current) => {
+              let next = setReleaseWorkType(current, {
+                section: target.section,
+                trade: target.trade,
+                unitId: target.unitId,
+                workType: 'full-cut-in',
+              });
+              const noteResult = appendPersonalNoteActivity(next, {
+                kind: charge ? 'change-order' : 'note',
+                unitId: target.unitId,
+                wording: `${roomLabel}: cut-in → full paint — ${whoText}`,
+              });
+              if (noteResult.ok) next = noteResult.data;
+              return next;
+            });
+            setFieldToast(saved
+              ? `Unit ${unitNumber} ${roomLabel} → full paint · ${charge ? 'change order logged (charge)' : 'logged, no charge'}. Crew paid for the work.`
+              : 'Could not save — try again.');
+          }}
           onSetSectionRelease={(target, released) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';

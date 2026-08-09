@@ -107,6 +107,10 @@ export interface TrackCFieldOpsProps {
     target: TrackCWorkTarget,
     workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean',
   ) => void;
+  readonly onUpgradeCutInToFull?: (
+    target: TrackCWorkTarget,
+    attribution: 'joseph' | 'catch' | 'redo',
+  ) => void;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -151,6 +155,7 @@ export const TrackCFieldOps = ({
   onRequestBlock,
   onSetSectionRelease,
   onSetSectionWorkType,
+  onUpgradeCutInToFull,
   onSetTradeRelease,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
@@ -802,6 +807,7 @@ export const TrackCFieldOps = ({
             onRequestBlock={onRequestBlock}
             onSetSectionRelease={onSetSectionRelease}
             onSetSectionWorkType={onSetSectionWorkType}
+            onUpgradeCutInToFull={onUpgradeCutInToFull}
             onSetUnitBeds={onSetUnitBeds}
             onMoveUnitTrade={onMoveUnitTrade}
             onSetTradeRelease={onSetTradeRelease}

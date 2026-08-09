@@ -1143,18 +1143,21 @@ test('payroll never pays the same room twice — re-reports and callback re-repo
   assert.equal(payroll.perDay[0].date, '2026-07-30', 'attributed to first completion day');
 });
 
-test('pay week cuts at Saturday 5PM — work after rolls into the next week', () => {
-  // Saturday Aug 1 2026. 4:59 PM local is still week 1; 5:00 PM local is week 2.
-  const beforeCutoff = new Date('2026-08-01T16:59:00');
-  const afterCutoff = new Date('2026-08-01T17:00:00');
-  assert.notEqual(
-    payWeekSunday(beforeCutoff.toISOString()),
-    payWeekSunday(afterCutoff.toISOString()),
-    'Saturday 5PM must split the pay week',
+test('pay week is Sunday->Saturday date-only — no time-of-day cutoff', () => {
+  // All of Saturday Aug 1 belongs to the same week, whatever the hour; the
+  // week flips only when Sunday Aug 2 begins. (Matches Los's wall board.)
+  const satMorning = new Date('2026-08-01T09:00:00');
+  const satEvening = new Date('2026-08-01T20:00:00');
+  assert.equal(
+    payWeekSunday(satMorning.toISOString()),
+    payWeekSunday(satEvening.toISOString()),
+    'Saturday morning and Saturday evening are the same pay week',
   );
-  assert.equal(payWeekSunday(new Date('2026-08-02T09:00:00').toISOString()),
-    payWeekSunday(afterCutoff.toISOString()),
-    'Saturday after 5PM belongs to the same week as the following Sunday');
+  assert.notEqual(
+    payWeekSunday(satEvening.toISOString()),
+    payWeekSunday(new Date('2026-08-02T09:00:00').toISOString()),
+    'Sunday Aug 2 starts a new pay week',
+  );
 });
 
 test('each crew gets its own cumulative total — no cross-crew bleed', () => {

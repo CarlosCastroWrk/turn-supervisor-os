@@ -58,6 +58,7 @@ import type {
 import './track-b.css';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import type { StartHereItem } from '../wave2a2-track-c/startHere';
+import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
 
 type WorkspaceView =
   | { id: 'home' }
@@ -1620,11 +1621,7 @@ function DayTaskHome({
               </p>
             );
           }
-          const WEEK2_START = new Date(2026, 7, 2);
-          const nowDate = new Date();
-          const payWeek = nowDate < WEEK2_START
-            ? 1
-            : Math.floor((nowDate.getTime() - WEEK2_START.getTime()) / (7 * 86_400_000)) + 2;
+          const payWeek = payWeekNumberOf(new Date().toISOString());
           return dayNumber ? (
             <p className="w2a2b-day-brief">
               <span className="w2a2b-run-dot" aria-hidden="true" /> Day {dayNumber} · pay wk {payWeek}

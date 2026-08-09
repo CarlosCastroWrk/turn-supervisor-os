@@ -1,12 +1,13 @@
-// Pay-week numbering for the wall board — kept in one tested place so the
-// wall's w# chip and CC-highlight color always agree with the Home/Crews
-// pay-week logic. Pay week 2 begins Sun Aug 2, 2026 (WEEK2_START), so the week
-// before it is week 1. Work after Saturday 5 PM belongs to the next week.
+// Pay-week numbering for the wall board — the ONE place week numbers come from,
+// so the wall's w# chip, the CC-highlight color, and the Home/Crews pay-week
+// logic always agree. Pay week 2 begins Sun Aug 2, 2026 (WEEK2_START); the week
+// before it is week 1. A week is plain Sunday→Saturday, DATE ONLY — no
+// time-of-day cutoff — so the app week matches the physical board (Sun–Sat) and
+// auto-advances on Sunday.
 export const WALL_WEEK_EPOCH = new Date(2026, 7, 2);
 
 export const payWeekNumberOf = (iso: string): number => {
   const date = new Date(iso);
-  if (date.getDay() === 6 && date.getHours() >= 17) date.setDate(date.getDate() + 1);
   date.setDate(date.getDate() - date.getDay());
   date.setHours(0, 0, 0, 0);
   const weeks = Math.round((date.getTime() - WALL_WEEK_EPOCH.getTime()) / 604_800_000);

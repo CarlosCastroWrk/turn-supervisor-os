@@ -994,7 +994,6 @@ function LaunchOperationalApp({
   // the pay packet shows "Rocky: 2 change orders, 1 texture" alongside his rooms.
   const crewPayExtras = useMemo(() => {
     const sunday = new Date(now);
-    if (sunday.getDay() === 6 && sunday.getHours() >= 17) sunday.setDate(sunday.getDate() + 1);
     sunday.setDate(sunday.getDate() - sunday.getDay());
     sunday.setHours(0, 0, 0, 0);
     const weekStart = sunday.getTime();
@@ -1025,7 +1024,6 @@ function LaunchOperationalApp({
   // approval trail for payroll.
   const changesThisWeek = useMemo(() => {
     const sunday = new Date(now);
-    if (sunday.getDay() === 6 && sunday.getHours() >= 17) sunday.setDate(sunday.getDate() + 1);
     sunday.setDate(sunday.getDate() - sunday.getDay());
     sunday.setHours(0, 0, 0, 0);
     const weekStart = sunday.getTime();

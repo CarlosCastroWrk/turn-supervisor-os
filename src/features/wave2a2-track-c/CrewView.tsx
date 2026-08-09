@@ -206,7 +206,6 @@ const CrewDetail = ({
           return { beds, commons };
         };
         const sunday = new Date();
-        if (sunday.getDay() === 6 && sunday.getHours() >= 17) sunday.setDate(sunday.getDate() + 1);
         sunday.setDate(sunday.getDate() - sunday.getDay());
         const weekStart = localDay(sunday.toISOString());
         const todayLine = count((iso) => localDay(iso) === today);
@@ -456,13 +455,11 @@ export const CrewView = ({
         <span>{crews.filter((item) => item.crew.activeToday).length} active</span>
       </header>
       {(() => {
-        // Pay weeks run Sunday -> Saturday 5 PM. Week 2 = Aug 2-8 (week 1 was
-        // the short Jul 31 - Aug 1 start). Colors follow Los's wall board.
-        const WEEK2_START = new Date(2026, 7, 2);
+        // Pay weeks run Sunday -> Saturday, date only (no time cutoff). Week
+        // number comes from the ONE shared source (payWeekNumberOf) so the header
+        // always agrees with the wall grid and crew tags. Colors follow the board.
         const now = new Date();
-        const weekNumber = now < WEEK2_START
-          ? 1
-          : Math.floor((now.getTime() - WEEK2_START.getTime()) / (7 * 86_400_000)) + 2;
+        const weekNumber = payWeekNumberOf(now.toISOString());
         const colors: Record<number, string> = { 1: 'yellow', 2: 'green', 3: 'pink' };
         const sunday = new Date(now);
         sunday.setDate(now.getDate() - now.getDay());
@@ -472,7 +469,7 @@ export const CrewView = ({
           date.toLocaleDateString([], { month: 'short', day: 'numeric' });
         return (
           <p className="track-c-week-line">
-            Pay week {weekNumber}{colors[weekNumber] ? ` · ${colors[weekNumber]} on the board` : ''} · {fmt(sunday)} → {fmt(saturday)} 5 PM
+            Pay week {weekNumber}{colors[weekNumber] ? ` · ${colors[weekNumber]} on the board` : ''} · {fmt(sunday)} → {fmt(saturday)}
           </p>
         );
       })()}

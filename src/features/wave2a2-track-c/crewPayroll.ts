@@ -71,14 +71,12 @@ export const payLocalDate = (iso: string): string => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-// Pay week = Sunday 00:00 -> Saturday 5:00 PM. Work reported after the Saturday
-// 5 PM cutoff rolls into the NEXT pay week — same rule as the wall board's
-// color rotation. Returns the Sunday (YYYY-MM-DD) that starts the week.
+// Pay week = Sunday 00:00 -> Saturday 23:59, date only (no time-of-day cutoff) —
+// the app week matches Los's physical wall board, which is colored Sun–Sat. Any
+// work whose local calendar day falls in that Sun–Sat range belongs to that
+// week. Returns the Sunday (YYYY-MM-DD) that starts the week.
 export const payWeekSunday = (iso: string): string => {
   const date = new Date(iso);
-  if (date.getDay() === 6 && date.getHours() >= 17) {
-    date.setDate(date.getDate() + 1);
-  }
   date.setDate(date.getDate() - date.getDay());
   date.setHours(0, 0, 0, 0);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;

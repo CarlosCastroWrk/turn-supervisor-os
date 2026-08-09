@@ -48,6 +48,28 @@ import {
   WALL_WORKTYPE_ABBR,
 } from './wallWeek';
 
+// Which "this week's extras" Los has ticked off as verified for payroll —
+// device-local, namespaced by the pay-week Sunday so last week's ticks never
+// bleed into this week's list.
+const ACK_EXTRAS_KEY = 'turn-os:extras-ack';
+const readAckExtras = (): ReadonlySet<string> => {
+  try {
+    const raw = window.localStorage.getItem(ACK_EXTRAS_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
+};
+const toggleAckExtra = (key: string): ReadonlySet<string> => {
+  const next = new Set(readAckExtras());
+  if (next.has(key)) next.delete(key); else next.add(key);
+  try {
+    window.localStorage.setItem(ACK_EXTRAS_KEY, JSON.stringify([...next]));
+  } catch { /* session only */ }
+  return next;
+};
+
 interface CrewViewProps {
   readonly state: TrackCState;
   readonly selectedCrewId?: string;
@@ -62,11 +84,12 @@ interface CrewViewProps {
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
-  readonly changesThisWeek?: readonly {
+  readonly weekExtras?: readonly {
+    readonly id: string;
     readonly at: string;
     readonly crew: string;
-    readonly kind: 'change-order' | 'texture';
-    readonly text: string;
+    readonly kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
+    readonly detail: string;
     readonly unitNumber: string;
   }[];
   readonly propertyContacts?: readonly {
@@ -336,11 +359,12 @@ export const CrewView = ({
   onAddCrewRequested,
   crewDirectory,
   payExtras,
-  changesThisWeek,
+  weekExtras,
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
   const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean'; msg: string } | null>(null);
+  const [ackExtras, setAckExtras] = useState<ReadonlySet<string>>(() => readAckExtras());
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   // Per-trade roundup so this page agrees with the boards: "unassigned" is
   // exactly the board's Needs crew (released, clear, nobody's name on it) and
@@ -664,33 +688,67 @@ export const CrewView = ({
           </details>
         );
       })()}
-      {changesThisWeek && changesThisWeek.length > 0 ? (
-        <details className="track-c-changes">
-          <summary>Changes approved this week · {changesThisWeek.length}</summary>
-          <div className="track-c-changes__body">
-            <p className="track-c-changes__hint">
-              Every change order and texture you logged this pay week, newest first
-              — reconcile against Joseph’s texts and show Tony the trail.
-            </p>
-            {changesThisWeek.map((change, index) => (
-              <div className="track-c-changes__row" key={`${change.unitNumber}-${change.at}-${index}`}>
-                <span className={`track-c-changes__tag is-${change.kind}`}>
-                  {change.kind === 'change-order' ? 'Change order' : 'Texture'}
-                </span>
-                <div className="track-c-changes__detail">
-                  <strong>{change.unitNumber}{change.crew ? ` · ${change.crew}` : ''}</strong>
-                  <small>{change.text}</small>
-                </div>
-                <span className="track-c-changes__when">
-                  {new Date(change.at).toLocaleString([], {
-                    day: 'numeric', hour: 'numeric', hour12: true, minute: '2-digit', month: 'short',
-                  })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
-      ) : null}
+      {weekExtras && weekExtras.length > 0 ? (() => {
+        // This week's extras — the paper list Los used to keep, now in the app:
+        // cut-ins, heavy cleans, change orders, textures, drywall. Tap the check
+        // to acknowledge one as verified for payroll; the ✓ sticks (device-local,
+        // namespaced by this pay week). Grouped by kind so each count is clear.
+        const weekKey = payWeekSunday(new Date().toISOString());
+        const ackKeyOf = (id: string) => `${weekKey}::${id}`;
+        const KIND_META: Record<string, { label: string; cls: string }> = {
+          'cut-in': { cls: 'is-cut-in', label: 'Cut-ins' },
+          'heavy-clean': { cls: 'is-heavy-clean', label: 'Heavy cleans' },
+          'change-order': { cls: 'is-change-order', label: 'Change orders' },
+          texture: { cls: 'is-texture', label: 'Textures' },
+          drywall: { cls: 'is-drywall', label: 'Drywall repairs' },
+        };
+        const KIND_ORDER = ['cut-in', 'heavy-clean', 'change-order', 'texture', 'drywall'] as const;
+        const ackedCount = weekExtras.filter((item) => ackExtras.has(ackKeyOf(item.id))).length;
+        return (
+          <details className="track-c-extras" open>
+            <summary>
+              This week’s extras · {weekExtras.length}
+              {ackedCount > 0 ? ` · ${ackedCount} ✓` : ''}
+            </summary>
+            <div className="track-c-extras__body">
+              <p className="track-c-extras__hint">
+                Everything you’d write on paper for payroll, in one place. Tap the
+                circle to mark one verified — the ✓ sticks so you know what’s left.
+              </p>
+              {KIND_ORDER.filter((kind) => weekExtras.some((item) => item.kind === kind)).map((kind) => {
+                const rows = weekExtras.filter((item) => item.kind === kind);
+                return (
+                  <div className="track-c-extras__group" key={kind}>
+                    <h3 className={`track-c-extras__grouphead ${KIND_META[kind].cls}`}>
+                      {KIND_META[kind].label} · {rows.length}
+                    </h3>
+                    {rows.map((item) => {
+                      const acked = ackExtras.has(ackKeyOf(item.id));
+                      return (
+                        <div className={`track-c-extras__row${acked ? ' is-acked' : ''}`} key={item.id}>
+                          <button
+                            aria-label={acked ? `Un-verify ${item.unitNumber}` : `Verify ${item.unitNumber}`}
+                            aria-pressed={acked}
+                            className="track-c-extras__ack"
+                            onClick={() => setAckExtras(toggleAckExtra(ackKeyOf(item.id)))}
+                            type="button"
+                          >
+                            {acked ? '✓' : ''}
+                          </button>
+                          <div className="track-c-extras__detail">
+                            <strong>{item.unitNumber}{item.crew ? ` · ${item.crew}` : ''}</strong>
+                            <small>{item.detail}</small>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        );
+      })() : null}
       {(['paint', 'clean'] as const).map((wallTrade) => {
         // Wall-board transfer — every unit with THIS trade released this pay week,
         // in board order, laid out exactly like Los's physical wall grid
@@ -1121,8 +1179,10 @@ export const CrewView = ({
                       <strong>{crew.name}</strong>
                       <span>
                         {isPaint ? 'Paint' : 'Clean'} · Turn total {formatPayLine(pay.turn)}
-                        {turnTypeLabel ? ` · ${turnTypeLabel}` : ''}
                       </span>
+                      {turnTypeLabel ? (
+                        <span className="track-c-crew-totals__typeline">{turnTypeLabel}</span>
+                      ) : null}
                     </header>
                     {days.length > 0 ? (
                       <ul>

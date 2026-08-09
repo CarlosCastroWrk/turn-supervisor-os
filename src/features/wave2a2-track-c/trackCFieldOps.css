@@ -2157,7 +2157,7 @@ select.track-c-trade-change {
 .track-c-crews > .track-c-crew-list { order: 1; }
 .track-c-crews > .track-c-sendqueue,
 .track-c-crews > .track-c-weeksummary,
-.track-c-crews > .track-c-changes,
+.track-c-crews > .track-c-extras,
 .track-c-crews > .track-c-wallxfer,
 .track-c-crews > .track-c-contacted-today,
 .track-c-crews > .track-c-add-crew,
@@ -2485,14 +2485,15 @@ select.track-c-trade-change {
   font-weight: 700;
 }
 
-/* Changes approved this week — chronological change-order / texture log. */
-.track-c-changes {
+/* This week's extras — cut-ins, heavy cleans, change orders, textures, drywall,
+   each with a tap-to-acknowledge check. Los's paper payroll list, in the app. */
+.track-c-extras {
   background: var(--track-c-surface);
   border-radius: 14px;
   margin: 8px;
   padding: 10px 12px;
 }
-.track-c-changes > summary {
+.track-c-extras > summary {
   color: var(--track-c-blue);
   cursor: pointer;
   font-size: 15px;
@@ -2500,57 +2501,70 @@ select.track-c-trade-change {
   min-block-size: 40px;
   padding: 6px 0;
 }
-.track-c-changes__hint {
+.track-c-extras__hint {
   margin: 2px 0 8px;
   font-size: 12px;
   line-height: 1.4;
   color: var(--track-c-muted);
 }
-.track-c-changes__row {
-  align-items: flex-start;
+.track-c-extras__group {
+  margin-top: 8px;
+}
+.track-c-extras__grouphead {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin: 0 0 2px;
+  text-transform: uppercase;
+}
+.track-c-extras__grouphead.is-cut-in { color: #b45309; }
+.track-c-extras__grouphead.is-heavy-clean { color: #0369a1; }
+.track-c-extras__grouphead.is-change-order { color: #92400e; }
+.track-c-extras__grouphead.is-texture { color: #0e7490; }
+.track-c-extras__grouphead.is-drywall { color: #4338ca; }
+.track-c-extras__row {
+  align-items: center;
   border-top: 1px solid var(--track-c-border, #e5e7eb);
   display: flex;
-  gap: 8px;
+  gap: 10px;
   padding: 8px 0;
 }
-.track-c-changes__tag {
-  border-radius: 6px;
+.track-c-extras__row.is-acked {
+  opacity: 0.6;
+}
+.track-c-extras__ack {
+  align-items: center;
+  background: #fff;
+  border: 2px solid var(--track-c-border, #cbd5e1);
+  border-radius: 999px;
+  color: #166534;
+  display: inline-flex;
   flex: none;
-  font-size: 10.5px;
-  font-weight: 800;
-  padding: 2px 6px;
-  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 900;
+  justify-content: center;
+  block-size: 30px;
+  inline-size: 30px;
 }
-.track-c-changes__tag.is-change-order {
-  background: #fef3c7;
-  color: #92400e;
+.track-c-extras__row.is-acked .track-c-extras__ack {
+  background: #dcfce7;
+  border-color: #16a34a;
 }
-.track-c-changes__tag.is-texture {
-  background: #cffafe;
-  color: #0e7490;
-}
-.track-c-changes__detail {
+.track-c-extras__detail {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   gap: 1px;
   min-width: 0;
 }
-.track-c-changes__detail strong {
+.track-c-extras__detail strong {
   font-size: 13.5px;
   font-weight: 800;
 }
-.track-c-changes__detail small {
+.track-c-extras__detail small {
   color: var(--track-c-muted);
   font-size: 12.5px;
   line-height: 1.35;
-}
-.track-c-changes__when {
-  color: var(--track-c-muted);
-  flex: none;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 /* Wall-board transfer grid — mirrors Los's physical Painting board so he can
@@ -2680,6 +2694,14 @@ select.track-c-trade-change {
 .track-c-crew-totals__body header span {
   color: var(--track-c-muted);
   font-size: 13px;
+}
+/* Paint's task breakdown on its own line — keeps the header uncluttered and
+   the count scannable, matching how clean reads. */
+.track-c-crew-totals__typeline {
+  color: var(--track-c-blue);
+  font-size: 12.5px;
+  font-weight: 700;
+  margin-top: 1px;
 }
 
 .track-c-crew-totals__body ul {

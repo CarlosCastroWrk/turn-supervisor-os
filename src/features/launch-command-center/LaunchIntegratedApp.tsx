@@ -1018,11 +1018,11 @@ function LaunchOperationalApp({
     }
     return out;
   }, [unitNotes, trackCState, now]);
-  // Chronological "what changed this week" — every change order and texture Los
-  // logged this pay week, newest first, with the unit, the crew on it, and WHEN,
-  // so he can reconcile a cut-in-turned-full against Joseph's texts and show the
-  // approval trail for payroll.
-  const changesThisWeek = useMemo(() => {
+  // "This week's extras" — everything Los used to write on paper for payroll,
+  // in one list: cut-ins and heavy cleans (from the room work types, grouped per
+  // unit) plus every change order, texture, and drywall repair he logged. Each
+  // carries a stable id so the Crews sheet can remember which he's acknowledged.
+  const weekExtras = useMemo(() => {
     const sunday = new Date(now);
     sunday.setDate(sunday.getDate() - sunday.getDay());
     sunday.setHours(0, 0, 0, 0);
@@ -1035,17 +1035,54 @@ function LaunchOperationalApp({
         .find((item) => item.trade === 'paint' && item.responsibleCrewId);
       if (paint?.responsibleCrewId) paintCrewByUnit.set(unit.id, paint.responsibleCrewId);
     }
-    return unitNotes
-      .filter((note) => (note.kind === 'change-order' || note.kind === 'texture')
-        && new Date(note.createdAt).getTime() >= weekStart)
-      .map((note) => ({
+    type Extra = {
+      id: string;
+      kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
+      unitNumber: string; crew: string; detail: string; at: string;
+    };
+    const items: Extra[] = [];
+    // Cut-ins (paint) and heavy cleans (clean), grouped per unit so a unit with
+    // three cut-in rooms is one line ("1706 — A, B, C") not three.
+    for (const unit of trackCState.units) {
+      const rooms = { 'cut-in': [] as string[], 'heavy-clean': [] as string[] };
+      let cutInAt = ''; let heavyAt = ''; let cutCrew = ''; let heavyCrew = '';
+      for (const work of projectTrackCUnitWork(trackCState, unit.id)) {
+        if (work.release !== 'released' || !work.releasedAt) continue;
+        if (new Date(work.releasedAt).getTime() < weekStart) continue;
+        const room = trackCSectionLabel(work.section);
+        if (work.trade === 'paint' && work.workType?.includes('cut-in')) {
+          rooms['cut-in'].push(room);
+          if (work.releasedAt > cutInAt) cutInAt = work.releasedAt;
+          cutCrew = crewNameById.get(work.responsibleCrewId ?? '') ?? cutCrew;
+        }
+        if (work.trade === 'clean' && work.workType === 'heavy-clean') {
+          rooms['heavy-clean'].push(room);
+          if (work.releasedAt > heavyAt) heavyAt = work.releasedAt;
+          heavyCrew = crewNameById.get(work.responsibleCrewId ?? '') ?? heavyCrew;
+        }
+      }
+      const unitNumber = unitNumberById.get(unit.id) ?? '';
+      if (rooms['cut-in'].length > 0) {
+        items.push({ at: cutInAt, crew: cutCrew, detail: rooms['cut-in'].join(', '), id: `${unit.id}:cut-in`, kind: 'cut-in', unitNumber });
+      }
+      if (rooms['heavy-clean'].length > 0) {
+        items.push({ at: heavyAt, crew: heavyCrew, detail: rooms['heavy-clean'].join(', '), id: `${unit.id}:heavy-clean`, kind: 'heavy-clean', unitNumber });
+      }
+    }
+    // Change orders, textures, drywall repairs — one row per note Los logged.
+    for (const note of unitNotes) {
+      if (note.kind !== 'change-order' && note.kind !== 'texture' && note.kind !== 'drywall') continue;
+      if (new Date(note.createdAt).getTime() < weekStart) continue;
+      items.push({
         at: note.createdAt,
         crew: crewNameById.get(paintCrewByUnit.get(note.unitId) ?? '') ?? '',
-        kind: note.kind as 'change-order' | 'texture',
-        text: note.text,
+        detail: note.text,
+        id: note.id,
+        kind: note.kind,
         unitNumber: unitNumberById.get(note.unitId) ?? '',
-      }))
-      .sort((left, right) => right.at.localeCompare(left.at));
+      });
+    }
+    return items.sort((left, right) => right.at.localeCompare(left.at));
   }, [unitNotes, trackCState, now]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'> = {};
@@ -3273,7 +3310,7 @@ function LaunchOperationalApp({
         <TrackCFieldOps
           embedded
           payExtras={crewPayExtras}
-          changesThisWeek={changesThisWeek}
+          weekExtras={weekExtras}
           crewDirectory={Object.fromEntries(
             crewRecords.map((crew) => [crew.id, { phone: crew.phone }]),
           )}

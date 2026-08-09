@@ -39,16 +39,17 @@ import {
   trackCUnitMakeupLabel,
 } from './projections';
 
-export type UnitNoteKind = 'note' | 'change-order' | 'reminder' | 'texture';
+export type UnitNoteKind = 'note' | 'change-order' | 'reminder' | 'texture' | 'drywall';
 
 const NOTE_KIND_META: Record<UnitNoteKind, { badge: string; label: string; cls: string }> = {
   reminder: { badge: '★', label: 'Reminder', cls: 'is-reminder' },
   'change-order': { badge: '＄', label: 'Change order', cls: 'is-change' },
   texture: { badge: '≈', label: 'Texture', cls: 'is-texture' },
+  drywall: { badge: '▭', label: 'Drywall', cls: 'is-drywall' },
   note: { badge: '✎', label: 'Note', cls: 'is-note' },
 };
 
-const NOTE_KIND_ORDER: Record<UnitNoteKind, number> = { reminder: 0, 'change-order': 1, texture: 2, note: 3 };
+const NOTE_KIND_ORDER: Record<UnitNoteKind, number> = { reminder: 0, 'change-order': 1, texture: 2, drywall: 3, note: 4 };
 
 interface UnitNote {
   id: string;
@@ -118,7 +119,7 @@ const UnitNotesPanel = ({
       {composerOpen && canAdd ? (
         <div className="track-c-notes__composer">
           <div className="track-c-notes__kinds">
-            {(['note', 'change-order', 'texture', 'reminder'] as const).map((kind) => (
+            {(['note', 'change-order', 'texture', 'drywall', 'reminder'] as const).map((kind) => (
               <button
                 aria-pressed={draftKind === kind}
                 className={`track-c-notekind ${NOTE_KIND_META[kind].cls} ${draftKind === kind ? 'is-on' : ''}`}
@@ -138,9 +139,11 @@ const UnitNotesPanel = ({
               ? 'What changed? e.g. tub resurface, wall hole > quarter'
               : draftKind === 'texture'
                 ? 'What texture? e.g. knockdown on A ceiling'
-                : draftKind === 'reminder'
-                  ? 'What must you remember here?'
-                  : 'Note for this unit'}
+                : draftKind === 'drywall'
+                  ? 'What drywall repair? e.g. patched hole in B, retextured'
+                  : draftKind === 'reminder'
+                    ? 'What must you remember here?'
+                    : 'Note for this unit'}
             rows={3}
             value={draftText}
           />

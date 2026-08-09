@@ -18,6 +18,8 @@ test('note kind maps to a distinct action string and round-trips', () => {
   assert.equal(PERSONAL_NOTE_ACTIVITY_ACTION, PERSONAL_NOTE_ACTIONS.note);
   assert.equal(noteKindForAction(PERSONAL_NOTE_ACTIONS['change-order']), 'change-order');
   assert.equal(noteKindForAction(PERSONAL_NOTE_ACTIONS.reminder), 'reminder');
+  assert.equal(noteKindForAction(PERSONAL_NOTE_ACTIONS.texture), 'texture');
+  assert.equal(noteKindForAction(PERSONAL_NOTE_ACTIONS.drywall), 'drywall');
   // Unknown / legacy actions read back as a plain note, never crash.
   assert.equal(noteKindForAction('some other activity'), 'note');
   assert.equal(isPersonalNoteAction('some other activity'), false);

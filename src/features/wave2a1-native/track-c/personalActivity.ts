@@ -5,13 +5,14 @@ import type { PersonalActivityViewModel } from './types';
 // A note's KIND is carried in the free-form ActivityLog.action string — no new
 // event type or stored-shape change (schema freeze safe). 'note' keeps the
 // original action so every note ever saved still reads back as a plain note.
-export type PersonalNoteKind = 'note' | 'change-order' | 'reminder' | 'texture';
+export type PersonalNoteKind = 'note' | 'change-order' | 'reminder' | 'texture' | 'drywall';
 
 export const PERSONAL_NOTE_ACTIONS: Record<PersonalNoteKind, string> = {
   note: 'Added personal note',
   'change-order': 'Added change order',
   reminder: 'Added reminder',
   texture: 'Added texture order',
+  drywall: 'Added drywall repair',
 };
 
 // Back-compat alias — existing imports and saved data use this exact string.

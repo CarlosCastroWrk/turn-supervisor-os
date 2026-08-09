@@ -72,11 +72,12 @@ export interface TrackCFieldOpsProps {
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
   readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
-  readonly changesThisWeek?: readonly {
+  readonly weekExtras?: readonly {
+    readonly id: string;
     readonly at: string;
     readonly crew: string;
-    readonly kind: 'change-order' | 'texture';
-    readonly text: string;
+    readonly kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
+    readonly detail: string;
     readonly unitNumber: string;
   }[];
   readonly propertyContacts?: readonly {
@@ -132,7 +133,7 @@ export const TrackCFieldOps = ({
   onCrewContactRequested,
   onToggleCrewActive,
   payExtras,
-  changesThisWeek,
+  weekExtras,
   onSetUnitBeds,
   onMoveUnitTrade,
   onNavigate,
@@ -829,7 +830,7 @@ export const TrackCFieldOps = ({
             }}
             onQuickAssign={quickAssign}
             payExtras={payExtras}
-            changesThisWeek={changesThisWeek}
+            weekExtras={weekExtras}
             onOpenUnit={(unitId, trade) => {
               onNavigate?.({ unitId, unitTrade: trade, view: 'board' });
               setLocalSelectedUnitId(unitId);

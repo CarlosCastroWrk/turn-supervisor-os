@@ -45,8 +45,17 @@ import {
 import {
   payWeekNumberOf,
   wallWeekColor,
+  WALL_WEEK_EPOCH,
   WALL_WORKTYPE_ABBR,
 } from './wallWeek';
+
+// The Sunday (YYYY-MM-DD) that starts a given pay-week number, from the shared
+// epoch (Aug 2 2026 = week 2). Lets Los pull up ANY past week to pay it.
+const payWeekSundayOf = (weekNumber: number): string => {
+  const date = new Date(WALL_WEEK_EPOCH);
+  date.setDate(date.getDate() + (weekNumber - 2) * 7);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 
 // Which "this week's extras" Los has ticked off as verified for payroll —
 // device-local, namespaced by the pay-week Sunday so last week's ticks never
@@ -83,7 +92,10 @@ interface CrewViewProps {
   readonly onToggleCrewActive?: (crewId: string, active: boolean) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
-  readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
+  readonly payExtras?: Readonly<Record<string, {
+    changeOrders: readonly { label: string; week: number }[];
+    textures: readonly { label: string; week: number }[];
+  }>>;
   readonly weekExtras?: readonly {
     readonly id: string;
     readonly at: string;
@@ -91,6 +103,7 @@ interface CrewViewProps {
     readonly kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
     readonly detail: string;
     readonly unitNumber: string;
+    readonly week: number;
   }[];
   readonly propertyContacts?: readonly {
     id: string;
@@ -413,6 +426,23 @@ export const CrewView = ({
   const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean'; msg: string } | null>(null);
   const [ackExtras, setAckExtras] = useState<ReadonlySet<string>>(() => readAckExtras());
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
+  // Which pay weeks have released work — so Los can pull up a PAST week to pay
+  // it and copy it to the board even after a new week has started. Defaults to
+  // the most recent week that has work (on Sunday morning that's last week).
+  const weeksWithWork = useMemo(() => {
+    const weeks = new Set<number>();
+    for (const unit of state.units) {
+      for (const work of projectTrackCUnitWork(state, unit.id)) {
+        if (work.release === 'released' && work.releasedAt) weeks.add(payWeekNumberOf(work.releasedAt));
+      }
+    }
+    return [...weeks].sort((left, right) => left - right);
+  }, [state]);
+  const [payWeekPick, setPayWeekPick] = useState<number | null>(null);
+  const currentPayWeek = payWeekNumberOf(new Date().toISOString());
+  const activePayWeek = (payWeekPick && weeksWithWork.includes(payWeekPick))
+    ? payWeekPick
+    : (weeksWithWork.length > 0 ? weeksWithWork[weeksWithWork.length - 1] : currentPayWeek);
   // Per-trade roundup so this page agrees with the boards: "unassigned" is
   // exactly the board's Needs crew (released, clear, nobody's name on it) and
   // "working" is a unit a crew currently owns.
@@ -607,11 +637,28 @@ export const CrewView = ({
           </details>
         );
       })()}
+      {weeksWithWork.length > 0 ? (
+        <div className="track-c-payweekpick" role="group" aria-label="Which pay week to show">
+          <span className="track-c-payweekpick__label">Paying week:</span>
+          {weeksWithWork.map((week) => (
+            <button
+              aria-pressed={activePayWeek === week}
+              className={activePayWeek === week ? 'is-on' : ''}
+              key={week}
+              onClick={() => setPayWeekPick(week)}
+              type="button"
+            >
+              Wk {week}{week === currentPayWeek ? ' · now' : ''}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {(() => {
-        // This week, across ALL crews: who did how many of each paint task and
-        // how many clean rooms, and in which units — Tony's end-of-week question,
-        // answered from the same deduped payroll the receipts use.
-        const weekStart = payWeekSunday(new Date().toISOString());
+        // The selected pay week, across ALL crews: who did how many of each paint
+        // task and how many clean rooms, and in which units — Tony's end-of-week
+        // question, answered from the same deduped payroll the receipts use.
+        const weekStart = payWeekSundayOf(activePayWeek);
+        const weekEnd = payWeekSundayOf(activePayWeek + 1);
         const TASK_KEYS: readonly PaintTypeKey[] =
           ['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'];
         const totalPaint: Record<PaintTypeKey, number> =
@@ -628,13 +675,18 @@ export const CrewView = ({
         // "where were the cut-ins" list he'd otherwise have to remember.
         const cutIns: string[] = [];
         for (const [crewId, payroll] of payrollByCrew) {
-          const weekRooms = payroll.rooms.filter((room) => room.date >= weekStart);
+          const weekRooms = payroll.rooms.filter((room) => room.date >= weekStart && room.date < weekEnd);
           if (weekRooms.length === 0) continue;
           const crew = state.crews.find((candidate) => candidate.id === crewId);
           if (!crew) continue;
-          const beds = payroll.week.beds;
-          const commons = payroll.week.commons;
-          const extras = payExtras?.[crewId] ?? { changeOrders: [], textures: [] };
+          // Beds/commons for the SELECTED week (payroll.week is current-week only).
+          const beds = weekRooms.filter((room) => room.section !== 'common').length;
+          const commons = weekRooms.filter((room) => room.section === 'common').length;
+          const raw = payExtras?.[crewId] ?? { changeOrders: [], textures: [] };
+          const extras = {
+            changeOrders: raw.changeOrders.filter((entry) => entry.week === activePayWeek).map((entry) => entry.label),
+            textures: raw.textures.filter((entry) => entry.week === activePayWeek).map((entry) => entry.label),
+          };
           totalChangeOrders += extras.changeOrders.length;
           totalTextures += extras.textures.length;
           for (const room of weekRooms) {
@@ -751,13 +803,14 @@ export const CrewView = ({
           </details>
         );
       })()}
-      {weekExtras && weekExtras.length > 0 ? (() => {
-        // This week's extras — the paper list Los used to keep, now in the app.
-        // Organized the way PAYROLL works: each kind collapses to a glanceable
+      {weekExtras && weekExtras.some((item) => item.week === activePayWeek) ? (() => {
+        // The selected week's extras — the paper list Los used to keep, now in the
+        // app. Organized the way PAYROLL works: each kind collapses to a glanceable
         // count (with a per-crew breakdown right in the header), and expands into
         // per-crew groups sorted low→high by unit. Tap the check to verify one for
-        // payroll; the ✓ sticks (device-local, namespaced by this pay week).
-        const weekKey = payWeekSunday(new Date().toISOString());
+        // payroll; the ✓ sticks (device-local, namespaced by the viewed week).
+        const activeExtras = weekExtras.filter((item) => item.week === activePayWeek);
+        const weekKey = payWeekSundayOf(activePayWeek);
         const ackKeyOf = (id: string) => `${weekKey}::${id}`;
         const KIND_META: Record<string, { label: string; cls: string }> = {
           'cut-in': { cls: 'is-cut-in', label: 'Cut-ins' },
@@ -768,11 +821,11 @@ export const CrewView = ({
         };
         const KIND_ORDER = ['cut-in', 'heavy-clean', 'change-order', 'texture', 'drywall'] as const;
         const unitNum = (unitNumber: string) => Number(unitNumber.replace(/\D/g, '')) || 0;
-        const ackedCount = weekExtras.filter((item) => ackExtras.has(ackKeyOf(item.id))).length;
+        const ackedCount = activeExtras.filter((item) => ackExtras.has(ackKeyOf(item.id))).length;
         return (
           <details className="track-c-extras" open>
             <summary>
-              This week’s extras · {weekExtras.length}
+              Week {activePayWeek} extras · {activeExtras.length}
               {ackedCount > 0 ? ` · ${ackedCount} ✓` : ''}
             </summary>
             <div className="track-c-extras__body">
@@ -780,9 +833,9 @@ export const CrewView = ({
                 Everything you’d write on paper for payroll. Tap a kind to open it;
                 each crew’s count is right there. Tap a circle to verify one — the ✓ sticks.
               </p>
-              {KIND_ORDER.filter((kind) => weekExtras.some((item) => item.kind === kind)).map((kind) => {
-                type ExtraItem = (typeof weekExtras)[number];
-                const rows = weekExtras.filter((item) => item.kind === kind);
+              {KIND_ORDER.filter((kind) => activeExtras.some((item) => item.kind === kind)).map((kind) => {
+                type ExtraItem = (typeof activeExtras)[number];
+                const rows = activeExtras.filter((item) => item.kind === kind);
                 // Group by crew, each crew's rows sorted low→high by unit.
                 const byCrew = new Map<string, ExtraItem[]>();
                 for (const item of rows) {
@@ -847,7 +900,7 @@ export const CrewView = ({
         // cell. Paint cells also show the task tag (F/TU/CI/…); Clean shows HC for
         // a heavy clean (regular clean has no tag). One grid per physical board.
         const SECTIONS = ['common', 'A', 'B', 'C', 'D', 'E'] as const;
-        const weekNo = payWeekNumberOf(new Date().toISOString());
+        const weekNo = activePayWeek;
         const colorName = ['amber', 'green', 'pink'][wallWeekColor(weekNo)] ?? '';
         const crewNameOf = (id?: string) =>
           (id ? state.crews.find((crew) => crew.id === id)?.name ?? '' : '');

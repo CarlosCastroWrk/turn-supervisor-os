@@ -117,6 +117,7 @@ import { TellTurnOS } from './TellTurnOS';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
 import { paintWorkTypeLabel, trackCSectionLabel } from '../wave2a2-track-c/model';
+import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
 import { projectStartHere } from '../wave2a2-track-c/startHere';
 import type { CrewTextSection } from '../wave2a2-track-c/crewTextTemplates';
 import {
@@ -993,10 +994,8 @@ function LaunchOperationalApp({
   // its unit (they're almost always paint work) and counted for this pay week, so
   // the pay packet shows "Rocky: 2 change orders, 1 texture" alongside his rooms.
   const crewPayExtras = useMemo(() => {
-    const sunday = new Date(now);
-    sunday.setDate(sunday.getDate() - sunday.getDay());
-    sunday.setHours(0, 0, 0, 0);
-    const weekStart = sunday.getTime();
+    // ALL weeks, each item tagged with the pay week it was logged, so the pay
+    // packet can show a past week (e.g. pull up Week 2 to pay it once it's Week 3).
     const unitNumberById = new Map(trackCState.units.map((unit) => [unit.id, unit.unitNumber]));
     const paintCrewByUnit = new Map<string, string>();
     for (const unit of trackCState.units) {
@@ -1004,29 +1003,27 @@ function LaunchOperationalApp({
         .find((item) => item.trade === 'paint' && item.responsibleCrewId);
       if (paint?.responsibleCrewId) paintCrewByUnit.set(unit.id, paint.responsibleCrewId);
     }
-    const out: Record<string, { changeOrders: string[]; textures: string[] }> = {};
+    type Tagged = { label: string; week: number };
+    const out: Record<string, { changeOrders: Tagged[]; textures: Tagged[] }> = {};
     for (const note of unitNotes) {
       if (note.kind !== 'change-order' && note.kind !== 'texture') continue;
-      if (new Date(note.createdAt).getTime() < weekStart) continue;
       const crewId = paintCrewByUnit.get(note.unitId);
       if (!crewId) continue;
       const entry = out[crewId] ?? { changeOrders: [], textures: [] };
-      const label = `${unitNumberById.get(note.unitId) ?? ''}: ${note.text}`;
-      if (note.kind === 'change-order') entry.changeOrders.push(label);
-      else entry.textures.push(label);
+      const item = { label: `${unitNumberById.get(note.unitId) ?? ''}: ${note.text}`, week: payWeekNumberOf(note.createdAt) };
+      if (note.kind === 'change-order') entry.changeOrders.push(item);
+      else entry.textures.push(item);
       out[crewId] = entry;
     }
     return out;
-  }, [unitNotes, trackCState, now]);
+  }, [unitNotes, trackCState]);
   // "This week's extras" — everything Los used to write on paper for payroll,
   // in one list: cut-ins and heavy cleans (from the room work types, grouped per
   // unit) plus every change order, texture, and drywall repair he logged. Each
   // carries a stable id so the Crews sheet can remember which he's acknowledged.
   const weekExtras = useMemo(() => {
-    const sunday = new Date(now);
-    sunday.setDate(sunday.getDate() - sunday.getDay());
-    sunday.setHours(0, 0, 0, 0);
-    const weekStart = sunday.getTime();
+    // ALL weeks, each item tagged with its pay week so the Crews sheet can show a
+    // past week (pull up Week 2 to reconcile it after Week 3 has started).
     const unitNumberById = new Map(trackCState.units.map((unit) => [unit.id, unit.unitNumber]));
     const crewNameById = new Map(trackCState.crews.map((crew) => [crew.id, crew.name]));
     const paintCrewByUnit = new Map<string, string>();
@@ -1038,7 +1035,7 @@ function LaunchOperationalApp({
     type Extra = {
       id: string;
       kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
-      unitNumber: string; crew: string; detail: string; at: string;
+      unitNumber: string; crew: string; detail: string; at: string; week: number;
     };
     const items: Extra[] = [];
     // Cut-ins (paint) and heavy cleans (clean), grouped per unit so a unit with
@@ -1048,7 +1045,6 @@ function LaunchOperationalApp({
       let cutInAt = ''; let heavyAt = ''; let cutCrew = ''; let heavyCrew = '';
       for (const work of projectTrackCUnitWork(trackCState, unit.id)) {
         if (work.release !== 'released' || !work.releasedAt) continue;
-        if (new Date(work.releasedAt).getTime() < weekStart) continue;
         const room = trackCSectionLabel(work.section);
         if (work.trade === 'paint' && work.workType?.includes('cut-in')) {
           rooms['cut-in'].push(room);
@@ -1063,16 +1059,15 @@ function LaunchOperationalApp({
       }
       const unitNumber = unitNumberById.get(unit.id) ?? '';
       if (rooms['cut-in'].length > 0) {
-        items.push({ at: cutInAt, crew: cutCrew, detail: rooms['cut-in'].join(', '), id: `${unit.id}:cut-in`, kind: 'cut-in', unitNumber });
+        items.push({ at: cutInAt, crew: cutCrew, detail: rooms['cut-in'].join(', '), id: `${unit.id}:cut-in`, kind: 'cut-in', unitNumber, week: payWeekNumberOf(cutInAt) });
       }
       if (rooms['heavy-clean'].length > 0) {
-        items.push({ at: heavyAt, crew: heavyCrew, detail: rooms['heavy-clean'].join(', '), id: `${unit.id}:heavy-clean`, kind: 'heavy-clean', unitNumber });
+        items.push({ at: heavyAt, crew: heavyCrew, detail: rooms['heavy-clean'].join(', '), id: `${unit.id}:heavy-clean`, kind: 'heavy-clean', unitNumber, week: payWeekNumberOf(heavyAt) });
       }
     }
     // Change orders, textures, drywall repairs — one row per note Los logged.
     for (const note of unitNotes) {
       if (note.kind !== 'change-order' && note.kind !== 'texture' && note.kind !== 'drywall') continue;
-      if (new Date(note.createdAt).getTime() < weekStart) continue;
       items.push({
         at: note.createdAt,
         crew: crewNameById.get(paintCrewByUnit.get(note.unitId) ?? '') ?? '',
@@ -1080,10 +1075,11 @@ function LaunchOperationalApp({
         id: note.id,
         kind: note.kind,
         unitNumber: unitNumberById.get(note.unitId) ?? '',
+        week: payWeekNumberOf(note.createdAt),
       });
     }
     return items.sort((left, right) => right.at.localeCompare(left.at));
-  }, [unitNotes, trackCState, now]);
+  }, [unitNotes, trackCState]);
   const releaseWorkTypes = useMemo(() => {
     const map: Record<string, 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean'> = {};
     for (const unit of trackCState.units) {

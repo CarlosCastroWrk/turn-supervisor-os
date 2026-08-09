@@ -71,7 +71,10 @@ export interface TrackCFieldOpsProps {
   readonly onCrewEditRequested?: (crewId: string) => void;
   readonly onAddCrewRequested?: () => void;
   readonly crewDirectory?: Readonly<Record<string, { phone?: string }>>;
-  readonly payExtras?: Readonly<Record<string, { changeOrders: readonly string[]; textures: readonly string[] }>>;
+  readonly payExtras?: Readonly<Record<string, {
+    changeOrders: readonly { label: string; week: number }[];
+    textures: readonly { label: string; week: number }[];
+  }>>;
   readonly weekExtras?: readonly {
     readonly id: string;
     readonly at: string;
@@ -79,6 +82,7 @@ export interface TrackCFieldOpsProps {
     readonly kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
     readonly detail: string;
     readonly unitNumber: string;
+    readonly week: number;
   }[];
   readonly propertyContacts?: readonly {
     id: string;

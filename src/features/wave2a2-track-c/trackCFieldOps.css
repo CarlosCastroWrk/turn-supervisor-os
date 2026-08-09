@@ -2155,6 +2155,7 @@ select.track-c-trade-change {
    property contacts all move below it. (.track-c-crews is already a flex column,
    so this is pure ordering — no layout change.) */
 .track-c-crews > .track-c-crew-list { order: 1; }
+.track-c-crews > .track-c-payweekpick,
 .track-c-crews > .track-c-sendqueue,
 .track-c-crews > .track-c-weeksummary,
 .track-c-crews > .track-c-extras,
@@ -2163,6 +2164,37 @@ select.track-c-trade-change {
 .track-c-crews > .track-c-add-crew,
 .track-c-crews > .track-c-contact-strip,
 .track-c-crews > .track-c-crew-totals { order: 2; }
+
+/* Pay-week picker — pull up any past week to pay it / copy it to the board. */
+.track-c-payweekpick {
+  align-items: center;
+  background: var(--track-c-surface);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px;
+  padding: 8px 12px;
+}
+.track-c-payweekpick__label {
+  font-size: 13px;
+  font-weight: 800;
+}
+.track-c-payweekpick button {
+  background: #fff;
+  border: 1.5px solid var(--track-c-border, #d4d4d8);
+  border-radius: 999px;
+  color: var(--track-c-muted);
+  font-size: 13px;
+  font-weight: 750;
+  min-block-size: 38px;
+  padding: 4px 14px;
+}
+.track-c-payweekpick button.is-on {
+  background: var(--track-c-blue);
+  border-color: var(--track-c-blue);
+  color: #fff;
+}
 .track-c-contact-chip { flex-direction: column; align-items: stretch; padding: 0; }
 .track-c-contact-chip__main {
   display: flex;

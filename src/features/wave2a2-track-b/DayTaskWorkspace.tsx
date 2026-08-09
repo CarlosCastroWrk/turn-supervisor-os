@@ -1586,25 +1586,6 @@ function DayTaskHome({
       <header className="w2a2b-home-header w2a2b-home-header--compact">
         <div className="w2a2b-home-header__top">
         <h1>{supervisorName?.trim().split(/\s+/)[0] || 'Home'}</h1>
-        {task ? (() => {
-          // Per-trade "done today" — paint releases first, cleans follow, so a
-          // unit-grain count would hide a finished clean day behind open paint.
-          const badgeLines = (['Paint', 'Clean'] as const).flatMap((trade) => {
-            const releasedUnitIds = new Set(task.sections
-              .filter((section) => section.tradeStates.some((state) => state.trade === trade))
-              .map((section) => section.unitId));
-            if (releasedUnitIds.size === 0) return [];
-            const done = acceptedToday
-              .filter((unit) => unit.trades.includes(trade)
-                && releasedUnitIds.has(unit.unitId)).length;
-            return [`${trade} ${done}/${releasedUnitIds.size}`];
-          });
-          return badgeLines.length > 0 ? (
-            <span aria-label="Units done today of units released today, by trade" className="w2a2b-day-badge">
-              {badgeLines.join(' · ')}
-            </span>
-          ) : null;
-        })() : null}
         </div>
         {(() => {
           // A new calendar day means a NEW day number — never show yesterday's
@@ -1643,11 +1624,6 @@ function DayTaskHome({
           <p className="w2a2b-glance-line">
             {rosterCount} in roster · {glance.left ?? rosterCount} left · {glance.released} released
           </p>
-        ) : null}
-        {josephContact ? (
-          <a className="w2a2b-joseph-quick" href={`sms:${josephContact.phone}`}>
-            Text {josephContact.name}
-          </a>
         ) : null}
       </header>
 
@@ -1837,66 +1813,6 @@ function DayTaskHome({
           </button>
         </section>
       ) : null}
-      {(() => {
-        // One tap tells the property what's ready: Paige walks Cleans, Joseph
-        // walks Paint. Built from the live board's passed units.
-        if (!walkContacts) return null;
-        const ready = (trade: 'paint' | 'clean') => (liveBoard ?? [])
-          .filter((line) => line.trade === trade && line.stage === 'passed')
-          .map((line) => line.unitNumber);
-        const smsDigits = (phone: string) => phone.replace(/[^+\d]/g, '');
-        const links = (['clean', 'paint'] as const).map((trade) => {
-          const units = ready(trade);
-          const contact = walkContacts[trade];
-          if (units.length === 0 || !contact) return null;
-          const word = trade === 'clean' ? 'Clean' : 'Paint';
-          const body = `Ready to walk — ${word} (${units.length}): ${units.join(', ')}. Whenever you’re ready!`;
-          return (
-            <a
-              className="w2a2b-walkreq__link"
-              href={`sms:${smsDigits(contact.phone)}&body=${encodeURIComponent(body)}`}
-              key={trade}
-            >
-              Text {contact.name} — {units.length} {word.toLowerCase()}{units.length === 1 ? '' : 's'} ready
-            </a>
-          );
-        }).filter(Boolean);
-        if (links.length === 0) return null;
-        return (
-          <div className="w2a2b-walkreq" role="group" aria-label="Request the property walk">
-            <span>Request the walk:</span>
-            {links}
-          </div>
-        );
-      })()}
-
-      <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
-        {([
-          ['working', 'WORKING', 'w'],
-          ['ready-to-walk', 'WALK', 'g'],
-          ['callbacks', 'CALLBACK', 'r'],
-          ['needs-crew', 'UNASSIGNED', 'b'],
-          ['needs-inspection', 'CHECK', 'a'],
-        ] as const).map(([queueId, label, tone]) => (
-          <button
-            className={`w2a2b-needsme__chip is-${tone}`}
-            key={queueId}
-            onClick={() => {
-              if (pressFired.current) { pressFired.current = false; return; }
-              onOpenQueue(selectTodayTaskQueue(task, queueId));
-            }}
-            onPointerDown={() => startPress(
-              onPeekQueue ? () => onPeekQueue(queueId, label) : undefined,
-            )}
-            onPointerLeave={endPress}
-            onPointerUp={endPress}
-            type="button"
-          >
-            <b>{counts[queueId]}</b>
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
       {liveBoard ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
           <div className="w2a2b-groupby" role="group" aria-label="Group the board by">
@@ -1931,11 +1847,11 @@ function DayTaskHome({
                     }}
                     type="button"
                   >
-                    + Joseph
+                    + Add unit
                   </button>
                 </div>
                 {lines.length === 0 ? (
-                  <p className="w2a2b-board__empty">Nothing in play — tap + Joseph when he releases.</p>
+                  <p className="w2a2b-board__empty">Nothing in play — tap + Add unit when Joseph releases.</p>
                 ) : (() => {
                   const renderCard = (line: LiveBoardLine) => {
                   const stageLabel = line.stage === 'callback'
@@ -2138,15 +2054,67 @@ function DayTaskHome({
           })}
         </section>
       ) : null}
-      <div className="w2a2b-actionrow">
-        {josephContact ? (
-          <a
-            className="w2a2b-joseph-text"
-            href={`sms:${josephContact.phone}`}
+      {(() => {
+        // One tap tells the property what's ready: Paige walks Cleans, Joseph
+        // walks Paint. Built from the live board's passed units.
+        if (!walkContacts) return null;
+        const ready = (trade: 'paint' | 'clean') => (liveBoard ?? [])
+          .filter((line) => line.trade === trade && line.stage === 'passed')
+          .map((line) => line.unitNumber);
+        const smsDigits = (phone: string) => phone.replace(/[^+\d]/g, '');
+        const links = (['clean', 'paint'] as const).map((trade) => {
+          const units = ready(trade);
+          const contact = walkContacts[trade];
+          if (units.length === 0 || !contact) return null;
+          const word = trade === 'clean' ? 'Clean' : 'Paint';
+          const body = `Ready to walk — ${word} (${units.length}): ${units.join(', ')}. Whenever you’re ready!`;
+          return (
+            <a
+              className="w2a2b-walkreq__link"
+              href={`sms:${smsDigits(contact.phone)}&body=${encodeURIComponent(body)}`}
+              key={trade}
+            >
+              Text {contact.name} — {units.length} {word.toLowerCase()}{units.length === 1 ? '' : 's'} ready
+            </a>
+          );
+        }).filter(Boolean);
+        if (links.length === 0) return null;
+        return (
+          <div className="w2a2b-walkreq" role="group" aria-label="Request the property walk">
+            <span>Request the walk:</span>
+            {links}
+          </div>
+        );
+      })()}
+
+      <div className="w2a2b-needsme" role="group" aria-label="Needs me now">
+        {([
+          ['working', 'WORKING', 'w'],
+          ['ready-to-walk', 'WALK', 'g'],
+          ['callbacks', 'CALLBACK', 'r'],
+          ['needs-crew', 'UNASSIGNED', 'b'],
+          ['needs-inspection', 'CHECK', 'a'],
+        ] as const).map(([queueId, label, tone]) => (
+          <button
+            className={`w2a2b-needsme__chip is-${tone}`}
+            key={queueId}
+            onClick={() => {
+              if (pressFired.current) { pressFired.current = false; return; }
+              onOpenQueue(selectTodayTaskQueue(task, queueId));
+            }}
+            onPointerDown={() => startPress(
+              onPeekQueue ? () => onPeekQueue(queueId, label) : undefined,
+            )}
+            onPointerLeave={endPress}
+            onPointerUp={endPress}
+            type="button"
           >
-            Text {josephContact.name}
-          </a>
-        ) : null}
+            <b>{counts[queueId]}</b>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+      <div className="w2a2b-actionrow">
         <button
           data-track-b-critical-target="true"
           onClick={() => onAction('start-walk')}

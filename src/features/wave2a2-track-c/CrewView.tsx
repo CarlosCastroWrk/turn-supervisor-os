@@ -860,12 +860,12 @@ export const CrewView = ({
       })()}
       {onAddCrewRequested ? (
         <button
-          className="track-c-add-crew"
+          className="track-c-add-crew track-c-add-crew--compact"
           data-track-c-critical-target="true"
           onClick={onAddCrewRequested}
           type="button"
         >
-          Add crew — name, number, or from phone contacts
+          + Add crew
         </button>
       ) : null}
       {propertyContacts && propertyContacts.length > 0 ? (

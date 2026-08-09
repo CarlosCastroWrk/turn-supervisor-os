@@ -1954,15 +1954,17 @@ const WallGrid = ({
       return {};
     }
   });
-  const cycleWeek = (unitId: string, computed: number | undefined) => {
+  const cycleWeek = (unitId: string, _computed: number | undefined) => {
     const key = `${unitId}:${trade}`;
     setWeekOverrides((current) => {
-      const base = current[key] ?? computed ?? 1;
       const next = { ...current };
-      // Cycle up through the week numbers, then back to auto (removes the override
-      // so it tracks the release date again). Numbers are the real pay weeks now.
-      if (base >= 3) delete next[key];
-      else next[key] = base + 1;
+      // Cycle through EVERY week and back to auto so Los can reach any of them:
+      // auto → w1 → w2 → w3 → auto. (Before, it only stepped up from the
+      // computed week, so from week 3 he could never get back down to week 1.)
+      const cur = current[key];
+      if (cur === undefined) next[key] = 1;
+      else if (cur >= 3) delete next[key];
+      else next[key] = cur + 1;
       try {
         window.localStorage.setItem('turn-os:wall-week-v2', JSON.stringify(next));
       } catch {
@@ -2000,9 +2002,11 @@ const WallGrid = ({
     // work each room got, not just its status. Clean has no task type.
     const sub = trade === 'paint' && work.workType ? WALL_WORKTYPE_ABBR[work.workType] : '';
     if (work.property === 'property-accepted') {
-      // Wall SOP: the CC highlight is the PAY WEEK IT WAS APPROVED — automatic
-      // from the approval date, no tapping. (The w# chip stays the release
-      // week; two different facts, two markers.)
+      // Wall SOP: the CC highlight color follows the unit's week. By default
+      // that's the pay week it was APPROVED (automatic from the approval date),
+      // but if Los corrected the week with the w# chip, the CC color follows his
+      // correction — one week per unit, chip and CC always agree.
+      const override = weekOverrides[`${unitId}:${trade}`];
       const latest = state.events
         .filter((event) =>
           event.eventType === 'property-accepted'
@@ -2010,7 +2014,8 @@ const WallGrid = ({
           && event.target.trade === trade
           && event.target.section === section)
         .reduce((max, event) => (event.recordedAt > max ? event.recordedAt : max), '');
-      return { cls: `is-cc wall-wk${wallWeekColor(payWeekNumberOf(latest || new Date().toISOString()))}`, mark: 'CC', sub };
+      const ccWeek = override ?? payWeekNumberOf(latest || new Date().toISOString());
+      return { cls: `is-cc wall-wk${wallWeekColor(ccWeek)}`, mark: 'CC', sub };
     }
     if (work.callbackOpen) return { cls: 'is-cb', mark: 'CB', sub };
     if (work.access !== 'clear') return { cls: 'is-blocked', mark: 'W', sub };
@@ -2077,10 +2082,10 @@ const WallGrid = ({
       ) : null}
       <p className="track-c-wall__legend">
         Whole Turn · every unit, all days. Marks: / released · X crew done ·
-        ✓ passed · CC approved (highlight = the week it was approved, automatic)
-        · CB callback · W waiting/blocked. The
-        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip = the week it
-        came onto the board (tap to fix).
+        ✓ passed · CC approved (highlight color = the unit's week)
+        · CB callback · W waiting/blocked. Tap the
+        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip to set the week
+        — w1 → w2 → w3 → auto — and the CC color follows it.
       </p>
       <div
         aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}

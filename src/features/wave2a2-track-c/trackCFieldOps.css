@@ -2141,6 +2141,28 @@ select.track-c-trade-change {
   font-weight: 700;
   font-size: 14px;
 }
+/* Compact "+ Add crew" — small pill, not a full-width dashed box. */
+.track-c-add-crew--compact {
+  inline-size: auto;
+  align-self: flex-start;
+  min-height: 40px;
+  padding: 6px 16px;
+  margin: 2px 10px 12px;
+}
+
+/* Crews tab — "crews first": the crew list sits right under the week line;
+   payroll receipts, send-queue, pay packet, wall-board grids, changes, and the
+   property contacts all move below it. (.track-c-crews is already a flex column,
+   so this is pure ordering — no layout change.) */
+.track-c-crews > .track-c-crew-list { order: 1; }
+.track-c-crews > .track-c-sendqueue,
+.track-c-crews > .track-c-weeksummary,
+.track-c-crews > .track-c-changes,
+.track-c-crews > .track-c-wallxfer,
+.track-c-crews > .track-c-contacted-today,
+.track-c-crews > .track-c-add-crew,
+.track-c-crews > .track-c-contact-strip,
+.track-c-crews > .track-c-crew-totals { order: 2; }
 .track-c-contact-chip { flex-direction: column; align-items: stretch; padding: 0; }
 .track-c-contact-chip__main {
   display: flex;

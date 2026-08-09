@@ -689,10 +689,11 @@ export const CrewView = ({
         );
       })()}
       {weekExtras && weekExtras.length > 0 ? (() => {
-        // This week's extras — the paper list Los used to keep, now in the app:
-        // cut-ins, heavy cleans, change orders, textures, drywall. Tap the check
-        // to acknowledge one as verified for payroll; the ✓ sticks (device-local,
-        // namespaced by this pay week). Grouped by kind so each count is clear.
+        // This week's extras — the paper list Los used to keep, now in the app.
+        // Organized the way PAYROLL works: each kind collapses to a glanceable
+        // count (with a per-crew breakdown right in the header), and expands into
+        // per-crew groups sorted low→high by unit. Tap the check to verify one for
+        // payroll; the ✓ sticks (device-local, namespaced by this pay week).
         const weekKey = payWeekSunday(new Date().toISOString());
         const ackKeyOf = (id: string) => `${weekKey}::${id}`;
         const KIND_META: Record<string, { label: string; cls: string }> = {
@@ -703,6 +704,7 @@ export const CrewView = ({
           drywall: { cls: 'is-drywall', label: 'Drywall repairs' },
         };
         const KIND_ORDER = ['cut-in', 'heavy-clean', 'change-order', 'texture', 'drywall'] as const;
+        const unitNum = (unitNumber: string) => Number(unitNumber.replace(/\D/g, '')) || 0;
         const ackedCount = weekExtras.filter((item) => ackExtras.has(ackKeyOf(item.id))).length;
         return (
           <details className="track-c-extras" open>
@@ -712,37 +714,63 @@ export const CrewView = ({
             </summary>
             <div className="track-c-extras__body">
               <p className="track-c-extras__hint">
-                Everything you’d write on paper for payroll, in one place. Tap the
-                circle to mark one verified — the ✓ sticks so you know what’s left.
+                Everything you’d write on paper for payroll. Tap a kind to open it;
+                each crew’s count is right there. Tap a circle to verify one — the ✓ sticks.
               </p>
               {KIND_ORDER.filter((kind) => weekExtras.some((item) => item.kind === kind)).map((kind) => {
+                type ExtraItem = (typeof weekExtras)[number];
                 const rows = weekExtras.filter((item) => item.kind === kind);
+                // Group by crew, each crew's rows sorted low→high by unit.
+                const byCrew = new Map<string, ExtraItem[]>();
+                for (const item of rows) {
+                  const key = item.crew || '—';
+                  const bucket = byCrew.get(key);
+                  if (bucket) bucket.push(item);
+                  else byCrew.set(key, [item]);
+                }
+                const crewNames = [...byCrew.keys()].sort();
+                const crewCounts = crewNames.map((name) => `${name} ${byCrew.get(name)!.length}`).join(' · ');
+                const bigList = rows.length > 6; // cut-ins/heavy cleans collapse by default
                 return (
-                  <div className="track-c-extras__group" key={kind}>
-                    <h3 className={`track-c-extras__grouphead ${KIND_META[kind].cls}`}>
+                  <details className="track-c-extras__kind" key={kind} open={!bigList}>
+                    <summary className={`track-c-extras__kindhead ${KIND_META[kind].cls}`}>
                       {KIND_META[kind].label} · {rows.length}
-                    </h3>
-                    {rows.map((item) => {
-                      const acked = ackExtras.has(ackKeyOf(item.id));
+                      {crewNames.length > 1 ? (
+                        <span className="track-c-extras__crewcounts">{crewCounts}</span>
+                      ) : null}
+                    </summary>
+                    {crewNames.map((name) => {
+                      const crewRows = [...byCrew.get(name)!].sort((left, right) =>
+                        unitNum(left.unitNumber) - unitNum(right.unitNumber));
                       return (
-                        <div className={`track-c-extras__row${acked ? ' is-acked' : ''}`} key={item.id}>
-                          <button
-                            aria-label={acked ? `Un-verify ${item.unitNumber}` : `Verify ${item.unitNumber}`}
-                            aria-pressed={acked}
-                            className="track-c-extras__ack"
-                            onClick={() => setAckExtras(toggleAckExtra(ackKeyOf(item.id)))}
-                            type="button"
-                          >
-                            {acked ? '✓' : ''}
-                          </button>
-                          <div className="track-c-extras__detail">
-                            <strong>{item.unitNumber}{item.crew ? ` · ${item.crew}` : ''}</strong>
-                            <small>{item.detail}</small>
-                          </div>
+                        <div className="track-c-extras__crew" key={name}>
+                          {crewNames.length > 1 ? (
+                            <p className="track-c-extras__crewhead">{name} · {crewRows.length}</p>
+                          ) : null}
+                          {crewRows.map((item) => {
+                            const acked = ackExtras.has(ackKeyOf(item.id));
+                            return (
+                              <div className={`track-c-extras__row${acked ? ' is-acked' : ''}`} key={item.id}>
+                                <button
+                                  aria-label={acked ? `Un-verify ${item.unitNumber}` : `Verify ${item.unitNumber}`}
+                                  aria-pressed={acked}
+                                  className="track-c-extras__ack"
+                                  onClick={() => setAckExtras(toggleAckExtra(ackKeyOf(item.id)))}
+                                  type="button"
+                                >
+                                  {acked ? '✓' : ''}
+                                </button>
+                                <div className="track-c-extras__detail">
+                                  <strong>{item.unitNumber}</strong>
+                                  <small>{item.detail}</small>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}
-                  </div>
+                  </details>
                 );
               })}
             </div>

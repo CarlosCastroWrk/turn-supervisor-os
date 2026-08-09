@@ -19,25 +19,53 @@ import {
 } from './model';
 import { paintWorkTypeLabel, trackCSectionLabel, trackCWorkKey } from './model';
 
+// Group every confirmed event by its work key ONCE per projected state, so
+// projecting a room is an O(1) lookup instead of scanning all events every time
+// (this ran for every room of every unit, inside loops over all 166 units — the
+// main source of tap/tab lag). Keyed on the state object, which is itself
+// memoized on AppData, so a new state rebuilds the index and the old one is GC'd.
+// In-order iteration preserves per-key event order, which the reducer relies on.
+const eventIndexCache = new WeakMap<TrackCState, Map<string, TrackCConfirmedEvent[]>>();
+const eventsByKey = (state: TrackCState): Map<string, TrackCConfirmedEvent[]> => {
+  const cached = eventIndexCache.get(state);
+  if (cached) return cached;
+  const index = new Map<string, TrackCConfirmedEvent[]>();
+  for (const event of state.events) {
+    if (event.confirmation !== 'confirmed') continue;
+    const key = trackCWorkKey(event.target);
+    const bucket = index.get(key);
+    if (bucket) bucket.push(event);
+    else index.set(key, [event]);
+  }
+  eventIndexCache.set(state, index);
+  return index;
+};
+
 const confirmedTargetEvents = (
   state: TrackCState,
   target: TrackCWorkTarget,
-): readonly TrackCConfirmedEvent[] => {
-  const key = trackCWorkKey(target);
-  return state.events.filter(
-    (event) => event.confirmation === 'confirmed' && trackCWorkKey(event.target) === key,
-  );
-};
+): readonly TrackCConfirmedEvent[] =>
+  eventsByKey(state).get(trackCWorkKey(target)) ?? [];
 
+// Index every work fact by its key once per state, so looking one up is O(1)
+// instead of scanning all units then all their facts on every projection.
+const factIndexCache = new WeakMap<TrackCState, Map<string, TrackCWorkFact>>();
 const factForTarget = (
   state: TrackCState,
   target: TrackCWorkTarget,
-): TrackCWorkFact | undefined =>
-  state.units
-    .find((unit) => unit.id === target.unitId)
-    ?.workFacts.find(
-      (fact) => fact.trade === target.trade && fact.section === target.section,
-    );
+): TrackCWorkFact | undefined => {
+  let index = factIndexCache.get(state);
+  if (!index) {
+    index = new Map();
+    for (const unit of state.units) {
+      for (const fact of unit.workFacts) {
+        index.set(trackCWorkKey({ section: fact.section, trade: fact.trade, unitId: unit.id }), fact);
+      }
+    }
+    factIndexCache.set(state, index);
+  }
+  return index.get(trackCWorkKey(target));
+};
 
 export const projectTrackCWork = (
   state: TrackCState,
@@ -205,15 +233,29 @@ export const projectTrackCAssignmentEligibleUnits = (
       unitId: unit.id,
     }).eligible));
 
+// Memoized per state + unit: this is called many times per render for the same
+// unit (crew cards, wall grid, pay packet, extras, callbacks), so caching it on
+// the state object turns repeated full recomputes into a single pass.
+const unitWorkCache = new WeakMap<TrackCState, Map<string, readonly TrackCWorkProjection[]>>();
 export const projectTrackCUnitWork = (
   state: TrackCState,
   unitId: string,
 ): readonly TrackCWorkProjection[] => {
+  let byUnit = unitWorkCache.get(state);
+  if (!byUnit) {
+    byUnit = new Map();
+    unitWorkCache.set(state, byUnit);
+  }
+  const cached = byUnit.get(unitId);
+  if (cached) return cached;
   const unit = state.units.find((candidate) => candidate.id === unitId);
-  if (!unit) return [];
-  return unit.workFacts
-    .map((fact) => projectTrackCWork(state, fact))
-    .filter((projection): projection is TrackCWorkProjection => Boolean(projection));
+  const result = unit
+    ? unit.workFacts
+      .map((fact) => projectTrackCWork(state, fact))
+      .filter((projection): projection is TrackCWorkProjection => Boolean(projection))
+    : [];
+  byUnit.set(unitId, result);
+  return result;
 };
 
 const crewNamesForIds = (

@@ -231,15 +231,31 @@ export const formatRoomsByType = (rooms: readonly PayRoom[]): string[] => {
   return lines;
 };
 
-// Short human label for a paint work-type tally, e.g. "2 cut-in · 1 full".
-export const formatTypeTally = (types: TypeTally): string =>
-  [
-    types.full > 0 ? `${types.full} full` : '',
-    types['touch-up'] > 0 ? `${types['touch-up']} touch-up` : '',
-    types['cut-in'] > 0 ? `${types['cut-in']} cut-in` : '',
-    types['touch-up-cut-in'] > 0 ? `${types['touch-up-cut-in']} touch-up+cut-in` : '',
-    types['full-cut-in'] > 0 ? `${types['full-cut-in']} full+cut-in` : '',
+// Los's pay rule (Aug 8): a room counts in EVERY task it contains, so a
+// full+cut-in is 1 full AND 1 cut-in, and a touch-up+cut-in is 1 touch-up AND 1
+// cut-in. These three totals OVERLAP — they're pay line-items, not a partition
+// of rooms (their sum can exceed the room count). This is the one place the raw
+// 5-key tally collapses to the 3 buckets Los actually talks in.
+export interface ComponentTotals {
+  readonly full: number;
+  readonly touchUp: number;
+  readonly cutIn: number;
+}
+export const componentTotals = (types: TypeTally): ComponentTotals => ({
+  cutIn: types['cut-in'] + types['full-cut-in'] + types['touch-up-cut-in'],
+  full: types.full + types['full-cut-in'],
+  touchUp: types['touch-up'] + types['touch-up-cut-in'],
+});
+
+// Short human label for a paint work-type tally, e.g. "3 full · 1 touch-up · 5 cut-in".
+export const formatTypeTally = (types: TypeTally): string => {
+  const totals = componentTotals(types);
+  return [
+    totals.full > 0 ? `${totals.full} full` : '',
+    totals.touchUp > 0 ? `${totals.touchUp} touch-up` : '',
+    totals.cutIn > 0 ? `${totals.cutIn} cut-in` : '',
   ].filter(Boolean).join(' · ');
+};
 
 // Convenience for one crew (empty payroll if they've reported nothing).
 export const buildCrewPayroll = (

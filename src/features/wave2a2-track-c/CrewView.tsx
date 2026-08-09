@@ -687,6 +687,18 @@ export const CrewView = ({
           <details className="track-c-weeksummary">
             <summary>Pay week — for the board / Tony</summary>
             <div className="track-c-weeksummary__body">
+              {(() => {
+                const start = new Date(`${weekStart}T12:00:00`);
+                const end = new Date(start);
+                end.setDate(start.getDate() + 6);
+                const fmt = (date: Date) => date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                return (
+                  <p className="track-c-weeksummary__caption">
+                    Week {fmt(start)}–{end.getDate()} · counts are <b>rooms crews reported done</b>.
+                    A full+cut-in counts as a full <b>and</b> a cut-in, so the task totals overlap.
+                  </p>
+                );
+              })()}
               <p className="track-c-weeksummary__totals">
                 <b>Paint:</b> {formatTypeTally(totalPaint) || '—'}
                 {'  ·  '}
@@ -716,8 +728,12 @@ export const CrewView = ({
                 </div>
               ))}
               <div className="track-c-weeksummary__crew">
-                <strong>Cut-ins (track separately) · {cutIns.length}</strong>
+                <strong>Cut-in rooms (track separately) · {cutIns.length}</strong>
                 <p>{cutIns.length > 0 ? cutIns.join(', ') : 'none this week'}</p>
+                <p className="track-c-weeksummary__note">
+                  This counts cut-in <b>rooms</b>. The “This week’s extras” sheet counts cut-in
+                  <b> units</b>, so its number is lower — same work, different grain.
+                </p>
               </div>
               <button
                 className="track-c-weeksummary__copy"

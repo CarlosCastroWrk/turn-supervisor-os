@@ -227,15 +227,17 @@ export interface TrackBReportCounts {
   activityCount: number;
 }
 
+// Labels name the GRAIN so a supervisor never reads two correct-but-different
+// numbers as broken math. Units = whole units; the rest are rooms (section-
+// trades). "Callbacks resolved" was removed — it was always a hardcoded 0.
 export const TRACK_B_REPORT_METRICS = [
   { id: 'unitsTouched', label: 'Units touched' },
-  { id: 'sectionsInspected', label: 'Sections inspected' },
-  { id: 'working', label: 'Working' },
-  { id: 'waiting', label: 'Waiting' },
-  { id: 'callbacksFound', label: 'Callbacks found' },
-  { id: 'callbacksResolved', label: 'Callbacks resolved' },
-  { id: 'readyToWalk', label: 'Ready to walk' },
-  { id: 'activityCount', label: 'Activity count' },
+  { id: 'sectionsInspected', label: 'Rooms inspected' },
+  { id: 'working', label: 'Working (rooms)' },
+  { id: 'waiting', label: 'Waiting (rooms)' },
+  { id: 'callbacksFound', label: 'Callback rooms' },
+  { id: 'readyToWalk', label: 'Rooms ready to walk' },
+  { id: 'activityCount', label: 'Updates logged' },
 ] as const satisfies readonly {
   id: keyof TrackBReportCounts;
   label: string;

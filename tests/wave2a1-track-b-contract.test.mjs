@@ -92,13 +92,12 @@ test('Reports include only the approved recorded-count metrics', () => {
     TRACK_B_REPORT_METRICS.map((metric) => metric.label),
     [
       'Units touched',
-      'Sections inspected',
-      'Working',
-      'Waiting',
-      'Callbacks found',
-      'Callbacks resolved',
-      'Ready to walk',
-      'Activity count',
+      'Rooms inspected',
+      'Working (rooms)',
+      'Waiting (rooms)',
+      'Callback rooms',
+      'Rooms ready to walk',
+      'Updates logged',
     ],
   );
 });

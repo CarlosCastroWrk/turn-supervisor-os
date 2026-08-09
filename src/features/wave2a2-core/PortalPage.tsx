@@ -160,6 +160,11 @@ export const PortalPage = ({
         link and can add it to their home screen. It shows work status only:
         no pay, no pricing, no phone numbers, no notes.
       </p>
+      <p className="w2a2-core-portal__warn" role="status">
+        ⚠︎ Portal delivery isn’t verified right now — don’t rely on this link for
+        Joseph or Paige until it’s confirmed working end-to-end. Check the link
+        opens and shows fresh data before you send it.
+      </p>
       <div className="w2a2-core-portal__actions">
         <button disabled={busy} onClick={() => void publish()} type="button">
           <RefreshCw aria-hidden="true" size={16} />
@@ -183,10 +188,11 @@ export const PortalPage = ({
       )}
       {status ? <p aria-live="polite" className="w2a2-core-portal__status">{status}</p> : null}
       <p className="w2a2-core-portal__footnote">
-        After the first Update, the portal stays LIVE on its own — every change
-        you record republishes automatically within about half a minute. Joseph
-        and Paige can also tap units on the portal and request a walk; that
-        shows up at the top of your Home.
+        When it’s working: after the first Update the portal is meant to stay live
+        on its own — every change you record republishes automatically within about
+        half a minute, and Joseph/Paige can tap units to request a walk (that shows
+        at the top of your Home). Confirm the published link actually opens before
+        counting on the auto-republish.
       </p>
     </section>
   );

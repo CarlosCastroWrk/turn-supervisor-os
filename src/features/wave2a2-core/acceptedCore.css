@@ -687,3 +687,6 @@
 }
 .w2a2-core-taskpicker button.is-current { background: #0877d1; border-color: #0877d1; color: #fff; }
 .w2a2-core-taskpicker button.is-remove { color: #b4232d; border-color: #b4232d; }
+
+/* Heavy clean pill — a clean room flagged heavy (deep) clean. */
+.w2a2-core-typepill.is-heavy-clean { background: #14532d; border: 2px solid #14532d; color: #fff; }

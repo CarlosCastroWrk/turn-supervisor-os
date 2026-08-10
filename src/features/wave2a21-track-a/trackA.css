@@ -1040,3 +1040,122 @@
   font-weight: 700;
   min-height: 34px;
 }
+
+/* ——— New one-screen Start Day (StartDayScreen) ——— */
+.w2a21a-sd__body {
+  display: grid;
+  gap: 14px;
+  padding-block: 4px 24px;
+  overflow-y: auto;
+}
+
+.w2a21a-sd .w2a21a-start-day__header h1 { margin: 2px 0 0; }
+.w2a21a-sd .w2a21a-start-day__header p { margin: 2px 0 0; color: var(--turn-color-secondary, var(--muted)); }
+
+.w2a21a-sd__modes { margin-block-end: 6px; }
+
+.w2a21a-sd__summary {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.w2a21a-sd-group h2 {
+  margin: 4px 0 6px;
+  font-size: 15px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.w2a21a-sd__add label,
+.w2a21a-sd__defaults label { display: grid; gap: 4px; font-size: 13px; font-weight: 700; }
+.w2a21a-sd__add input,
+.w2a21a-sd__defaults input[type='text'],
+.w2a21a-sd__defaults input[type='time'] {
+  min-block-size: 44px;
+  border-radius: 10px;
+  border: 1px solid #cbd2da;
+  padding: 8px 12px;
+  font-size: 16px;
+}
+
+.w2a21a-sd__add-matches { display: grid; gap: 6px; margin-block-start: 8px; }
+.w2a21a-sd__add-unit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.w2a21a-sd__add-unit strong { min-inline-size: 52px; font-size: 15px; }
+.w2a21a-sd__add-unit button {
+  min-block-size: 38px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #0877d1;
+  background: #fff;
+  color: #0877d1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.w2a21a-sd__defaults {
+  border: 1px solid #e0e4ea;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.w2a21a-sd__defaults > summary {
+  font-size: 13.5px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.w2a21a-sd__defaults-body { display: grid; gap: 12px; margin-block-start: 10px; }
+
+.w2a21a-sd__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.w2a21a-sd__chips > button {
+  min-block-size: 38px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #cbd2da;
+  background: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+.w2a21a-sd__chips > button.is-selected {
+  background: #0f1c2e;
+  border-color: #0f1c2e;
+  color: #fff;
+}
+
+.w2a21a-sd__crews {
+  border: 1px solid #e0e4ea;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 6px;
+}
+.w2a21a-sd__crews legend { font-size: 12.5px; font-weight: 800; padding-inline: 4px; }
+.w2a21a-sd__crews label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  min-block-size: 32px;
+}
+.w2a21a-sd__add-crew { display: flex; gap: 8px; }
+.w2a21a-sd__add-crew input { flex: 1; }
+.w2a21a-sd__add-crew button {
+  min-block-size: 40px;
+  padding: 6px 16px;
+  border-radius: 10px;
+  border: 1px solid #0877d1;
+  background: #fff;
+  color: #0877d1;
+  font-weight: 800;
+}
+
+.w2a21a-sd__schedule { display: flex; gap: 12px; }
+.w2a21a-sd__schedule label { flex: 1; }
+
+.w2a21a-sd__start { margin-block-start: 4px; }

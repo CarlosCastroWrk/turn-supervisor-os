@@ -155,7 +155,7 @@ import {
   prepareProjectActivation,
   ProfilePrivacyScrollRegion,
   ProjectSetupFlow,
-  FastStartDayFlow,
+  StartDayScreen,
   createConfirmedDailyReleaseBatch,
   createProjectSetupDraftStore,
   formatWalkthroughScheduleWording,
@@ -2055,6 +2055,13 @@ function LaunchOperationalApp({
 
   const handleQuickAction = useCallback((action: LaunchQuickActionId) => {
     if (action === 'import-work') {
+      // Morning (no day yet): the memo IS Start Day — open the one-screen
+      // paste→check→Start Day. Mid-day: the quick-add reader, memo focused.
+      if (!activeDaySession) {
+        navigate('dashboard');
+        setHomeMode('start-day');
+        return;
+      }
       try { window.localStorage.setItem('turn-os:intake-memo', '1'); } catch { /* ignore */ }
       navigate('dashboard');
       setHomeMode('manual-release');
@@ -2069,7 +2076,7 @@ function LaunchOperationalApp({
       return;
     }
     navigate('reports');
-  }, [navigate]);
+  }, [activeDaySession, navigate]);
 
   const startFastDay = useCallback((
     submission: FastStartDaySubmission,
@@ -3826,17 +3833,28 @@ function LaunchOperationalApp({
         />
       ) : homeMode === 'start-day' ? (
         activeProject?.fieldConfiguration ? (
-          <FastStartDayFlow
+          <StartDayScreen
             configuration={activeProject.fieldConfiguration}
             contacts={activeProjectContacts}
             crewOptions={fastStartDayCrewOptions}
-            currentDate={currentDate}
+            currentDate={activeDaySession?.date ?? currentDate}
+            dayActive={Boolean(activeDaySession)}
             onAddCrew={addDayCrew}
+            onAddToDay={(batch) => {
+              const saved = commitDataNow((current) =>
+                appendManualReleaseBatchToActiveDay(current, batch));
+              if (!saved) return false;
+              setFieldToast(
+                `Saved — ${batch.items.length} released section${batch.items.length === 1 ? '' : 's'} added to today.`,
+              );
+              setHomeMode('day');
+              return true;
+            }}
             onCancel={() => setHomeMode('day')}
             onStartDay={startFastDay}
             projectId={activeProject.id}
             propertyName={propertyRoster.propertyName}
-            doneUnitIds={doneUnitIds}
+            roster={propertyRoster}
             rosterUnits={fastStartDayRosterUnits}
           />
         ) : (

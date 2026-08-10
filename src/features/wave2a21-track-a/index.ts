@@ -3,6 +3,7 @@ export * from './activity';
 export * from './appDataAdapter';
 export * from './DailyReleaseSelector';
 export * from './FastStartDayFlow';
+export * from './StartDayScreen';
 export * from './phase2Workflow';
 export * from './projections';
 export * from './projectSetup';

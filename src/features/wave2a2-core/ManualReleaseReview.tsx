@@ -20,7 +20,7 @@ import {
   type ManualReleaseSelection,
 } from './appDataAdapters';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
-import { parseDictatedRelease } from './dictationParse';
+import { parseStartDayMemo } from './startDayParse';
 import './acceptedCore.css';
 
 interface ManualReleaseReviewProps {
@@ -222,12 +222,14 @@ export function ManualReleaseReview({
     }
   };
 
-  // Reliable path (no AI): when Los has picked Paint or Clean, his dictated /
-  // typed list is parsed locally — instant, offline, no sign-in. Returns false
-  // so the caller can fall back to the AI reader for 'both' or messy input.
+  // Reliable path (no AI): the same deterministic Start Day reader parses the
+  // pasted memo locally — instant, offline, no sign-in — for every scope,
+  // 'both' included (headers or per-line task words split paint from clean,
+  // and clean units always get their common). Returns false so the caller can
+  // fall back to the AI reader only for input the rules can't read at all.
   const applyDictation = (text: string): boolean => {
-    const trade = tradeScope === 'Paint' ? 'paint' : tradeScope === 'Clean' ? 'clean' : null;
-    if (!trade || !text.trim()) return false;
+    if (!text.trim()) return false;
+    const mode = tradeScope === 'Paint' ? 'paint' : tradeScope === 'Clean' ? 'clean' : 'both';
     const units = roster.units.map((unit) => ({
       beds: unit.applicableSections
         .filter((section) => section.id !== 'common')
@@ -236,35 +238,50 @@ export function ManualReleaseReview({
       id: unit.id,
       unitNumber: unit.unitNumber,
     }));
-    const result = parseDictatedRelease(text, trade, units);
+    const result = parseStartDayMemo(text, units, mode);
     if (result.rows.length === 0) return false;
+    const unitTradesById = new Map(roster.units.map((unit) => [
+      unit.id,
+      new Map(unit.applicableSections.map((section) =>
+        [section.id, section.trades] as const)),
+    ]));
     let added = 0;
     setSelected((current) => {
       const next = new Map(current);
+      // Re-reading a unit+trade replaces its previous rooms — the box is the
+      // source of truth for whatever it names.
       for (const row of result.rows) {
-        for (const part of row.sections) {
+        for (const key of [...next.keys()]) {
+          const existing = next.get(key);
+          if (existing && existing.unitId === row.unitId && existing.trade === row.trade) {
+            next.delete(key);
+          }
+        }
+      }
+      for (const row of result.rows) {
+        for (const part of row.rooms) {
+          const trades = unitTradesById.get(row.unitId)?.get(part.section);
+          if (!trades?.includes(row.trade === 'paint' ? 'Paint' : 'Clean')) continue;
           const selection: ManualReleaseSelection = {
             section: part.section,
-            trade: trade as FieldTrade,
+            trade: row.trade,
             unitId: row.unitId,
             ...(part.workType ? { workType: part.workType } : {}),
           };
-          const key = selectionKey(selection);
-          if (!next.has(key)) {
-            next.set(key, selection);
-            added += 1;
-          }
+          next.set(selectionKey(selection), selection);
+          added += 1;
         }
       }
       return next;
     });
+    const unitCount = new Set(result.rows.map((row) => row.unitId)).size;
     setIntakeStatus([
-      `${result.rows.length} unit${result.rows.length === 1 ? '' : 's'} read (${added} room${added === 1 ? '' : 's'}).`,
+      `${unitCount} unit${unitCount === 1 ? '' : 's'} read (${added} room${added === 1 ? '' : 's'}).`,
       result.unmatched.length > 0 ? `Not in your roster: ${result.unmatched.join(', ')}.` : '',
       result.warnings.length > 0 ? result.warnings.join(' ') : '',
       'Review below — nothing releases until you confirm.',
     ].filter(Boolean).join(' '));
-    setIntakeMismatches([]);
+    setIntakeMismatches([...result.mismatches]);
     pendingBatchRef.current = undefined;
     setError('');
     return true;

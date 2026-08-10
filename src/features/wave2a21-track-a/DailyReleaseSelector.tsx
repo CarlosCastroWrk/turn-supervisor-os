@@ -1,3 +1,6 @@
+// RETIRED (Aug 10 2026): only used by the retired FastStartDayFlow wizard.
+// The live Start Day is StartDayScreen.tsx + wave2a2-core/startDayParse.ts.
+// Do not fix Start Day bugs here.
 import { useRef, useState } from 'react';
 import {
   imageFileToIntakeSource,

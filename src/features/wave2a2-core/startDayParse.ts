@@ -76,12 +76,20 @@ const COMMON_RE = /\bcommon\b|com[uú]n|\bca\b/i;
 const STUDIO_RE = /estudio|studio/i;
 const WHOLE_UNIT_RE = /full\s*unit|whole\s*unit|unidad\s*completa/i;
 
-// Trade keywords for memo headers and inline prefixes. "heavy/deep clean" is a
-// task inside a clean line, never a header — the header check runs on lines
-// without unit numbers, and inline switches require a unit number right after
-// the keyword, so task words can't flip the trade mid-list.
-const PAINT_WORD_RE = /paint|pintur|pintar/i;
-const CLEAN_WORD_RE = /clean|limpie|limpiar/i;
+// Trade keywords for memo headers and inline prefixes — ONE word list feeds
+// every regex so a new crew word can never half-work. Emoji cover ChatGPT's
+// emoji-only headers ("🧹:"). "heavy/deep clean" is a task inside a clean
+// line, never a header — the header check runs on lines without unit numbers,
+// and inline switches require a unit number right after the keyword, so task
+// words can't flip the trade mid-list.
+const PAINT_WORD_STEMS = ['paint', 'pintur', 'pintar'];
+const CLEAN_WORD_STEMS = ['clean', 'limpie', 'limpiar', 'aseo'];
+const PAINT_WORD_RE = new RegExp([...PAINT_WORD_STEMS, '🎨', '🖌'].join('|'), 'iu');
+const CLEAN_WORD_RE = new RegExp([...CLEAN_WORD_STEMS, '🧹', '🧽', '🧼', '🪣'].join('|'), 'iu');
+const INLINE_TRADE_SPLIT_RE = new RegExp(
+  `(?=\\b(?:${[...PAINT_WORD_STEMS, ...CLEAN_WORD_STEMS].join('|')})\\w*\\s*[:\\-–—]?\\s*\\d{3,4}\\b)`,
+  'i',
+);
 
 const UNIT_NUMBER_RE = /\d{3,4}/;
 
@@ -96,7 +104,7 @@ interface MutableRow {
 const parseSegmentBeds = (segment: string): FieldSection[] => {
   const upper = segment.toUpperCase();
   const found = new Set<FieldSection>();
-  const rangeRe = /\b([A-E])\s*(?:-|–|TO|THROUGH|THRU|HASTA)\s*([A-E])\b/g;
+  const rangeRe = /\b([A-E])\s*(?:-|–|—|TO|THROUGH|THRU|HASTA)\s*([A-E])\b/g;
   let match: RegExpExecArray | null;
   let remaining = upper;
   while ((match = rangeRe.exec(upper)) !== null) {
@@ -170,12 +178,20 @@ const applyEntry = (
     }
   }
 
-  // Studio / "full unit" / a bare paint task with no rooms = the whole unit.
+  // Studio / "full unit" / a bare task or "full/completo" with no rooms = the
+  // whole unit. The FULL_RE check keeps clean lines honest too: "504 full" and
+  // "limpieza completa" mean the whole unit even though clean carries no task.
   const wholeUnit = saidStudio || saidWholeUnit
-    || (allBeds.length === 0 && sections.size === 0 && entryWorkType !== undefined);
+    || (allBeds.length === 0 && sections.size === 0
+      && (entryWorkType !== undefined || FULL_RE.test(descriptor)));
   if (wholeUnit) {
     for (const bed of unit.beds) {
       if (!sections.has(bed)) sections.set(bed, entryWorkType);
+    }
+    // A studio's whole scope IS its common — without this, a studio paint
+    // release ("1209 — completo") would parse to nothing.
+    if (unit.beds.length === 0 && unit.hasCommon && !sections.has('common')) {
+      sections.set('common', entryWorkType);
     }
   }
 
@@ -225,9 +241,14 @@ const applyEntry = (
 };
 
 // When a line carries no header and no mode, tell paint from clean by the line
-// itself: paint lines always name a task; clean lines never do.
-const inferTrade = (descriptor: string): FieldTrade =>
-  detectStartDayWorkType(descriptor, 'paint') !== undefined ? 'paint' : 'clean';
+// itself. A trade word anywhere in the line wins ("limpieza completa" is a
+// clean line even though "completa" is also a paint task word); otherwise
+// paint lines name a task and clean lines never do.
+const inferTrade = (descriptor: string): FieldTrade => {
+  if (CLEAN_WORD_RE.test(descriptor)) return 'clean';
+  if (PAINT_WORD_RE.test(descriptor)) return 'paint';
+  return detectStartDayWorkType(descriptor, 'paint') !== undefined ? 'paint' : 'clean';
+};
 
 export const parseStartDayMemo = (
   text: string,
@@ -242,6 +263,8 @@ export const parseStartDayMemo = (
 
   let currentTrade: FieldTrade | undefined =
     mode === 'paint' ? 'paint' : mode === 'clean' ? 'clean' : undefined;
+  let inferredRows = 0;
+  const unreadLines: string[] = [];
 
   for (const rawLine of text.split(/\n+/)) {
     // Strip list bullets and markdown so ChatGPT output reads clean.
@@ -249,11 +272,14 @@ export const parseStartDayMemo = (
     if (!line) continue;
 
     if (!UNIT_NUMBER_RE.test(line)) {
-      // Header line: "Pintura:", "🧹 Clean list", "Lista de limpieza"…
+      // Header line: "Pintura:", "🧹 Clean list", "Lista de limpieza", "🧹:"…
       const isPaint = PAINT_WORD_RE.test(line);
       const isClean = CLEAN_WORD_RE.test(line);
       if (mode === 'both' && isPaint !== isClean) {
         currentTrade = isPaint ? 'paint' : 'clean';
+      } else if (!isPaint && !isClean && /[A-Za-z0-9]/.test(line)) {
+        // Not a header, no unit number: say so instead of silently eating it.
+        unreadLines.push(line.length > 40 ? `${line.slice(0, 40)}…` : line);
       }
       continue;
     }
@@ -261,9 +287,7 @@ export const parseStartDayMemo = (
     // Inline trade switches: a trade word directly followed by a unit number
     // ("paint 1806 A B cut in … clean 1404 A B C D") splits the line. Task
     // words like "full paint" never precede a number, so they can't switch.
-    const pieces = mode === 'both'
-      ? line.split(/(?=\b(?:paint(?:ing)?|pintura|pintar|clean(?:ing)?|limpieza|limpiar)\b\s*[:\-–—]?\s*\d{3,4}\b)/i)
-      : [line];
+    const pieces = mode === 'both' ? line.split(INLINE_TRADE_SPLIT_RE) : [line];
 
     for (const piece of pieces) {
       const firstDigit = piece.search(/\d/);
@@ -285,10 +309,21 @@ export const parseStartDayMemo = (
           continue;
         }
         const descriptor = match[2] ?? '';
-        const trade = pieceTrade ?? inferTrade(descriptor);
+        let trade = pieceTrade;
+        if (trade === undefined) {
+          trade = inferTrade(descriptor);
+          inferredRows += 1;
+        }
         applyEntry(unit, descriptor, trade, rows, mismatches, warnings);
       }
     }
+  }
+
+  if (unreadLines.length > 0) {
+    warnings.push(`Didn’t read: ${unreadLines.slice(0, 3).map((line) => `“${line}”`).join(', ')}${unreadLines.length > 3 ? ` +${unreadLines.length - 3} more` : ''}.`);
+  }
+  if (inferredRows > 0) {
+    warnings.push('Some lines had no Paint/Clean label — task words read as Paint, plain room lists as Clean. Double-check the two groups.');
   }
 
   const orderedRows: StartDayParsedRow[] = [...rows.values()].map((row) => ({

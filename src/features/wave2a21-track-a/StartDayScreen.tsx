@@ -137,6 +137,7 @@ export function StartDayScreen({
     { clean: '', paint: '' },
   );
   const [errors, setErrors] = useState<readonly string[]>([]);
+  const [defaultsOpen, setDefaultsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
@@ -298,10 +299,23 @@ export function StartDayScreen({
   const contactName = availableContacts.find((contact) =>
     contact.id === contactId)?.name ?? '';
 
+  // Anything fixable inside the collapsed defaults panel opens it with the
+  // error, so Los is never blocked by a control he can't see.
+  const raiseErrors = (nextErrors: readonly string[]) => {
+    setErrors(nextErrors);
+    if (nextErrors.some((error) => /contact|crew|key|time/i.test(error))) {
+      setDefaultsOpen(true);
+    }
+  };
+
   const submit = async () => {
     if (savingRef.current) return;
     if (entries.size === 0) {
       setErrors(['Read your list (or add a unit) before starting the day.']);
+      return;
+    }
+    if (!contactName) {
+      raiseErrors(['Pick the property contact under Today’s defaults before releasing.']);
       return;
     }
     savingRef.current = true;
@@ -322,7 +336,7 @@ export function StartDayScreen({
           actor: 'Los',
           date: currentDate,
           id: createId('manual-release'),
-          propertyContact: contactName || 'Joseph',
+          propertyContact: contactName,
           recordedAt: new Date().toISOString(),
           roster,
           selections,
@@ -365,7 +379,7 @@ export function StartDayScreen({
         schedule,
       });
       if (!prepared.ok) {
-        setErrors(prepared.errors);
+        raiseErrors(prepared.errors);
         return;
       }
       const saved = await onStartDay(prepared.submission);
@@ -584,7 +598,11 @@ export function StartDayScreen({
           ) : null}
         </section>
 
-        <details className="w2a21a-sd__defaults">
+        <details
+          className="w2a21a-sd__defaults"
+          onToggle={(event) => setDefaultsOpen(event.currentTarget.open)}
+          open={defaultsOpen}
+        >
           <summary>
             Today’s defaults — {contactName || 'no contact'}
             {dayActive

@@ -34,7 +34,7 @@ Turn OS is **Los's personal iPhone-first PWA** for supervising the Moon Tower st
 
 ## Code map (where things live)
 - Host/shell: `src/features/launch-command-center/LaunchIntegratedApp.tsx` (routing, tab memory, More pages, block dialog, portal auto-publish, walk-request banner).
-- Home/day flows: `src/features/wave2a2-track-b/DayTaskWorkspace.tsx` (Home, End Day + wall-board transfer), `src/features/wave2a21-track-a/FastStartDayFlow.tsx` + `DailyReleaseSelector.tsx` (Start Day).
+- Home/day flows: `src/features/wave2a2-track-b/DayTaskWorkspace.tsx` (Home, End Day + wall-board transfer), `src/features/wave2a21-track-a/StartDayScreen.tsx` + `src/features/wave2a2-core/startDayParse.ts` (Start Day — one-screen paste/dictate → review → start; also "Add to today" mid-day). RETIRED, not routed: `FastStartDayFlow.tsx` + `DailyReleaseSelector.tsx` (old wizard) and `wave2a2-core/dictationParse.ts` (old parser) — do NOT fix Start Day bugs there.
 - TurnBoard/units/crews: `src/features/wave2a2-track-c/` (BoardView = Paint|Clean boards + UnitDetail, CrewView = crews + payroll receipts, UnitPhotos, operations/projections/model).
 - Quick add: `src/features/wave2a2-core/ManualReleaseReview.tsx`; data adapters + release/block writers: `src/features/wave2a2-core/appDataAdapters.ts`.
 - Server: `api/` + `server/` (intake, compose, portal). Portal page: `public/portal.html`.

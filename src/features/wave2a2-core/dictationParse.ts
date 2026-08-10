@@ -1,3 +1,6 @@
+// RETIRED (Aug 10 2026): superseded by startDayParse.ts (Spanish task words,
+// per-room tasks, headers, mismatch flags). Only the retired
+// DailyReleaseSelector still imports this. Do not add list-format fixes here.
 import type { FieldSection, ReleaseWorkType } from '../../types';
 
 // Deterministic parser for Los's dictated/typed release list — no AI, no

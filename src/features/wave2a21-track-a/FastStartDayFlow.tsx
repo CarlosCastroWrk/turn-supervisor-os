@@ -1,3 +1,6 @@
+// RETIRED (Aug 10 2026): no longer routed — the live Start Day is
+// StartDayScreen.tsx (one screen, deterministic memo parser). Kept only for
+// the dev preview harness. Do not fix Start Day bugs here.
 import {
   useMemo,
   useRef,

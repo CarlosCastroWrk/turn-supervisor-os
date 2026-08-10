@@ -80,6 +80,7 @@ export function ManualReleaseReview({
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeStatus, setIntakeStatus] = useState('');
   const [intakeMismatches, setIntakeMismatches] = useState<string[]>([]);
+  const [offerAiRead, setOfferAiRead] = useState(false);
   const [intakeMessage, setIntakeMessage] = useState(() => {
     try {
       const prefill = window.localStorage.getItem('turn-os:intake-prefill') ?? '';
@@ -205,6 +206,7 @@ export function ManualReleaseReview({
       | { type: 'text'; text: string },
   ) => {
     setIntakeBusy(true);
+    setOfferAiRead(false);
     setIntakeStatus('Reading the release…');
     try {
       const result = await requestIntake({
@@ -247,17 +249,10 @@ export function ManualReleaseReview({
     ]));
     let added = 0;
     setSelected((current) => {
+      // Mid-day quick-add is incremental: rooms the memo names are added or
+      // updated (the box wins on the task), everything already selected —
+      // earlier bursts, hand-tapped fixes — is kept. Remove with the pills.
       const next = new Map(current);
-      // Re-reading a unit+trade replaces its previous rooms — the box is the
-      // source of truth for whatever it names.
-      for (const row of result.rows) {
-        for (const key of [...next.keys()]) {
-          const existing = next.get(key);
-          if (existing && existing.unitId === row.unitId && existing.trade === row.trade) {
-            next.delete(key);
-          }
-        }
-      }
       for (const row of result.rows) {
         for (const part of row.rooms) {
           const trades = unitTradesById.get(row.unitId)?.get(part.section);
@@ -275,13 +270,18 @@ export function ManualReleaseReview({
       return next;
     });
     const unitCount = new Set(result.rows.map((row) => row.unitId)).size;
+    const unreadContent = result.unmatched.length > 0 || result.warnings.length > 0;
     setIntakeStatus([
       `${unitCount} unit${unitCount === 1 ? '' : 's'} read (${added} room${added === 1 ? '' : 's'}).`,
       result.unmatched.length > 0 ? `Not in your roster: ${result.unmatched.join(', ')}.` : '',
       result.warnings.length > 0 ? result.warnings.join(' ') : '',
+      unreadContent ? 'If part of the memo was missed, try the AI reader below.' : '',
       'Review below — nothing releases until you confirm.',
     ].filter(Boolean).join(' '));
     setIntakeMismatches([...result.mismatches]);
+    // Part of the memo didn't parse: keep the AI reader one tap away so a
+    // messy list is never silently half-read (it used to catch these).
+    setOfferAiRead(unreadContent);
     pendingBatchRef.current = undefined;
     setError('');
     return true;
@@ -469,6 +469,15 @@ export function ManualReleaseReview({
               >
                 {intakeBusy ? 'Reading…' : 'Read my list'}
               </button>
+              {offerAiRead ? (
+                <button
+                  disabled={intakeBusy || !intakeMessage.trim()}
+                  onClick={() => void runIntake({ text: intakeMessage, type: 'text' })}
+                  type="button"
+                >
+                  Try the AI reader
+                </button>
+              ) : null}
               <button
                 disabled={intakeBusy}
                 onClick={() => intakeFileRef.current?.click()}
@@ -619,10 +628,10 @@ export function ManualReleaseReview({
                               {rooms.map((selection) => {
                                 const label = selection.section === 'common' ? 'Common' : selection.section;
                                 const kind = selection.trade === 'clean'
-                                  ? 'clean'
+                                  ? selection.workType === 'heavy-clean' ? 'heavy-clean' : 'clean'
                                   : selection.workType ?? 'full';
                                 const kindLabel = selection.trade === 'clean'
-                                  ? 'clean'
+                                  ? selection.workType === 'heavy-clean' ? 'heavy' : 'clean'
                                   : kind === 'full' ? 'full'
                                     : kind === 'full-cut-in' ? 'full+cut'
                                       : kind === 'touch-up-cut-in' ? 'TU+cut'

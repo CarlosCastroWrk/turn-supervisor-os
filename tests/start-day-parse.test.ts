@@ -194,6 +194,66 @@ test('disagreements are flagged, never silently dropped', () => {
   assert.deepEqual(unknown.unmatched, ['9999']);
 });
 
+test("a bare 'full' on a clean line means the whole unit (old shorthand kept)", () => {
+  const result = parseStartDayMemo('504 full', ROSTER, 'clean');
+  assert.deepEqual(roomsOf(result, '504', 'clean').map((room) => room.section),
+    ['common', 'A', 'B', 'C']);
+});
+
+test("'limpieza completa' is a whole-unit CLEAN, never full paint", () => {
+  const result = parseStartDayMemo('1404 — limpieza completa', ROSTER, 'both');
+  assert.equal(roomsOf(result, '1404', 'paint').length, 0);
+  assert.deepEqual(roomsOf(result, '1404', 'clean').map((room) => room.section),
+    ['common', 'A', 'B', 'C', 'D']);
+});
+
+test('inferred trades come with a double-check warning', () => {
+  const inferred = parseStartDayMemo('1806 A B', ROSTER, 'both');
+  assert.deepEqual(roomsOf(inferred, '1806', 'clean').map((room) => room.section),
+    ['common', 'A', 'B']);
+  assert.ok(inferred.warnings.some((line) => line.includes('no Paint/Clean label')));
+  const headed = parseStartDayMemo('Clean:\n1806 A B', ROSTER, 'both');
+  assert.ok(!headed.warnings.some((line) => line.includes('no Paint/Clean label')));
+});
+
+test('a studio paints as its common — whole-unit paint never parses to nothing', () => {
+  const result = parseStartDayMemo('Paint:\n1209 — completo', ROSTER, 'both');
+  assert.deepEqual(roomsOf(result, '1209', 'paint'), [
+    { section: 'common', workType: 'full' },
+  ]);
+  assert.equal(result.warnings.length, 0);
+});
+
+test('an em-dash range keeps the middle rooms', () => {
+  const result = parseStartDayMemo('1404 — A—C', ROSTER, 'clean');
+  assert.deepEqual(roomsOf(result, '1404', 'clean').map((room) => room.section),
+    ['common', 'A', 'B', 'C']);
+});
+
+test('an emoji-only clean header still switches the trade', () => {
+  const memo = [
+    'Pintura:',
+    '1002 — A: recorte',
+    '🧹:',
+    '1404 — Común + A, B, C, D',
+  ].join('\n');
+  const result = parseStartDayMemo(memo, ROSTER, 'both');
+  assert.equal(roomsOf(result, '1002', 'paint').length, 1);
+  assert.deepEqual(roomsOf(result, '1404', 'clean').map((room) => room.section),
+    ['common', 'A', 'B', 'C', 'D']);
+});
+
+test('lines it could not read are named, never silently eaten', () => {
+  const memo = [
+    '1806 A B cut in',
+    'Unit twelve-oh-nine — studio',
+  ].join('\n');
+  const result = parseStartDayMemo(memo, ROSTER, 'paint');
+  assert.equal(result.rows.length, 1);
+  assert.ok(result.warnings.some((line) =>
+    line.includes('Didn’t read') && line.includes('twelve-oh-nine')));
+});
+
 test('a unit with nothing usable warns instead of guessing', () => {
   const result = parseStartDayMemo('1806', ROSTER, 'paint');
   assert.equal(result.rows.length, 0);

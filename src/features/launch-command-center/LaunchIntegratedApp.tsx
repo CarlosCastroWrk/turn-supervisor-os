@@ -1157,22 +1157,6 @@ function LaunchOperationalApp({
     }
     return { approved, awaitingWalk, callbacks, carryover };
   }, [acceptedWalkMeta, trackCState]);
-  const doneUnitIds = useMemo(() => new Set(
-    trackCState.units
-      .filter((unit) => {
-        const released = unit.workFacts.filter((fact) => fact.release === 'released');
-        if (released.length === 0) return false;
-        return released.every((fact) => {
-          const work = projectTrackCWork(trackCState, {
-            section: fact.section,
-            trade: fact.trade,
-            unitId: fact.unitId,
-          });
-          return work?.property === 'property-accepted';
-        });
-      })
-      .map((unit) => unit.id),
-  ), [trackCState]);
   const trackCWalkDraft = useMemo(
     () => projectTrackCWalkDraft(data),
     [data],

@@ -113,7 +113,8 @@ import {
   noteKindForAction,
   type PersonalNoteKind,
 } from '../wave2a1-native/track-c/personalActivity';
-import { TellTurnOS } from './TellTurnOS';
+import { TurnChat } from './TurnChat';
+import type { TurnChatNav } from './turnChatAnswer';
 import { TurnPeek, type PeekTarget } from './TurnPeek';
 import type { TrackCState } from '../wave2a2-track-c/model';
 import { paintWorkTypeLabel, trackCSectionLabel } from '../wave2a2-track-c/model';
@@ -460,7 +461,7 @@ function LaunchOperationalApp({
       || historyRequestsCapture(),
   );
   const [plusOpen, setPlusOpen] = useState(false);
-  const [tellOsOpen, setTellOsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [peekTarget, setPeekTarget] = useState<PeekTarget | null>(null);
   // Tell Turn OS applies several intents in one confirm; TrackC-touching ones
   // must chain off each other's state, not the stale render snapshot.
@@ -2249,7 +2250,15 @@ function LaunchOperationalApp({
     }
     return commitDataNow((current) => applyTrackCStateChange(current, track));
   }, [trackCState, commitDataNow]);
+  // The Plus button now opens Turn Chat — ask the board or tell it what
+  // happened. The old plus menu (photos, files, everything else) is one tap
+  // away behind the chat's "More" chip.
   const openNativePlus = useCallback(() => {
+    launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
+    setChatOpen(true);
+  }, []);
+  const openPlusMenuFromChat = useCallback(() => {
+    setChatOpen(false);
     setPlusInitialScreen('menu');
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
     setPlusOpen(true);
@@ -2294,7 +2303,7 @@ function LaunchOperationalApp({
     }
     if (action === 'tell-os') {
       tellOsTrackRef.current = null;
-      setTellOsOpen(true);
+      setChatOpen(true);
       return;
     }
     launchCaptureReturnFocusIdRef.current = 'lcc-central-plus';
@@ -4922,22 +4931,53 @@ function LaunchOperationalApp({
           state={trackCState}
           target={peekTarget}
         />
-        <TellTurnOS
-          crews={trackCState.crews.map((crew) => ({ name: crew.name, trade: crew.trade }))}
+        <TurnChat
           onApplyIntent={applyTurnIntent}
-          onClose={() => setTellOsOpen(false)}
+          onClose={() => setChatOpen(false)}
+          onNavigate={(nav: TurnChatNav) => {
+            setChatOpen(false);
+            if (nav.kind === 'unit') {
+              unitDetailOriginRef.current = 'home';
+              unitDetailTradeRef.current = nav.trade;
+              navigate('unitDetail', nav.unitId);
+              return;
+            }
+            if (nav.kind === 'crew') {
+              crewOriginHomeRef.current = true;
+              navigate('crews', undefined, { crewId: nav.crewId });
+              return;
+            }
+            navigate('units');
+          }}
+          onQuickBlocker={() => {
+            setChatOpen(false);
+            handleNativePlusAction('blocker');
+          }}
+          onQuickMore={openPlusMenuFromChat}
+          onQuickNote={() => {
+            setChatOpen(false);
+            setPlusInitialScreen('note');
+            setPlusOpen(true);
+          }}
+          onQuickPasteMemo={() => {
+            setChatOpen(false);
+            handleQuickAction('import-work');
+          }}
+          onResetIntentBatch={() => {
+            tellOsTrackRef.current = null;
+          }}
           onRouteRelease={(text) => {
             try {
               window.localStorage.setItem('turn-os:intake-prefill', text);
             } catch {
               // He can paste it himself.
             }
-            setTellOsOpen(false);
+            setChatOpen(false);
             navigate('dashboard');
             setHomeMode('manual-release');
           }}
-          open={tellOsOpen}
-          rosterUnitNumbers={trackCState.units.map((unit) => unit.unitNumber)}
+          open={chatOpen}
+          state={trackCState}
         />
         {fieldToast ? (
           <div aria-live="polite" className="lcc-field-toast" role="status">

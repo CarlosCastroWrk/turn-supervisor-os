@@ -2001,3 +2001,196 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
 }
 .track-c-note__del.is-armed { background: var(--turn-color-destructive, #b3261e); border-color: var(--turn-color-destructive, #b3261e); color: #fff; }
 .track-c-note__edit { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------- Turn Chat (the Plus button's front door) ---------- */
+.lcc-chat {
+  position: fixed;
+  inset: 0;
+  z-index: 62;
+  background: var(--turn-color-page, #f4f5f7);
+  display: flex;
+}
+.lcc-chat__panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: min(720px, 100vw);
+  margin-inline: auto;
+  height: 100%;
+}
+.lcc-chat__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: max(10px, env(safe-area-inset-top)) 16px 8px;
+}
+.lcc-chat__header h2 { margin: 0; font-size: 19px; }
+.lcc-chat__header p { margin: 2px 0 0; font-size: 12.5px; color: var(--turn-color-secondary); }
+.lcc-chat__header > button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  min-width: 40px;
+  min-height: 40px;
+  font-size: 16px;
+}
+.lcc-chat__quick {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 16px 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.lcc-chat__quick > button {
+  flex: 0 0 auto;
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 8px 14px;
+  min-height: 38px;
+  font-size: 13.5px;
+  font-weight: 650;
+}
+.lcc-chat__scroll {
+  overflow-y: auto;
+  padding: 6px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lcc-chat__empty { color: var(--turn-color-secondary); display: grid; gap: 12px; padding-top: 18px; }
+.lcc-chat__empty p { margin: 0; font-size: 14.5px; line-height: 1.45; }
+.lcc-chat__suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+.lcc-chat__suggestions button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 8px 14px;
+  min-height: 38px;
+  font-size: 14px;
+}
+.lcc-chat__msg { display: grid; gap: 8px; }
+.lcc-chat__msg.is-los { justify-items: end; }
+.lcc-chat__msg.is-os { justify-items: start; }
+.lcc-chat__bubble {
+  margin: 0;
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: 18px;
+  font-size: 15.5px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.lcc-chat__msg.is-los .lcc-chat__bubble {
+  background: var(--turn-color-accent, #0877d1);
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+.lcc-chat__msg.is-os .lcc-chat__bubble {
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  color: var(--turn-color-primary);
+  border-bottom-left-radius: 6px;
+}
+.lcc-chat__msg.is-busy .lcc-chat__bubble { opacity: 0.7; font-style: italic; }
+.lcc-chat__cards, .lcc-chat__msg .lcc-chat__card { width: 100%; }
+.lcc-chat__cards { display: grid; gap: 8px; }
+.lcc-chat__card {
+  background: var(--turn-color-elevated);
+  border: 1px solid var(--turn-color-divider);
+  border-radius: 14px;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+.lcc-chat__card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  border: none;
+  background: transparent;
+  color: var(--turn-color-primary);
+  padding: 8px 10px;
+  text-align: left;
+  min-height: 40px;
+}
+.lcc-chat__card-head strong { font-size: 17px; font-weight: 850; }
+.lcc-chat__card-head span { font-size: 12.5px; color: var(--turn-color-secondary); flex: 1; }
+.lcc-chat__card-head em { font-style: normal; font-size: 13px; font-weight: 700; color: var(--turn-color-accent, #0877d1); }
+.lcc-chat__card-head:disabled { opacity: 1; }
+.lcc-chat__card-line {
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: var(--turn-color-primary);
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 7px 10px;
+  border-top: 1px solid var(--turn-color-divider);
+}
+.lcc-chat__card-line.is-nav { min-height: 40px; width: 100%; }
+.lcc-chat__card-line.is-nav:active { background: var(--turn-color-grouped); }
+.lcc-chat__card-line.is-uncertain { color: var(--turn-color-waiting, #9b5b00); font-size: 13px; }
+.lcc-chat__done { margin: 0; padding: 8px 10px; font-weight: 800; color: var(--turn-color-success, #237a45); }
+.lcc-chat__intent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 15px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--turn-color-divider);
+}
+.lcc-chat__intent input { margin-top: 3px; width: 18px; height: 18px; }
+.lcc-chat__intent em { color: var(--turn-color-waiting, #9b5b00); font-style: normal; font-weight: 600; }
+.lcc-chat__chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 10px; }
+.lcc-chat__chips button {
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  border-radius: 999px;
+  padding: 9px 16px;
+  min-height: 42px;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+.lcc-chat__chips button.is-primary {
+  background: var(--turn-color-accent, #0877d1);
+  border-color: var(--turn-color-accent, #0877d1);
+  color: #fff;
+}
+.lcc-chat__chips button:disabled { opacity: 0.5; }
+.lcc-chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 8px 16px max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-page, #f4f5f7);
+}
+.lcc-chat__composer textarea {
+  flex: 1;
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-input-bg, var(--turn-color-elevated));
+  color: var(--turn-color-primary);
+  border-radius: 22px;
+  font-size: 16px;
+  padding: 11px 16px;
+  resize: none;
+  max-height: 120px;
+  min-height: 44px;
+}
+.lcc-chat__send {
+  border: none;
+  border-radius: 999px;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 20px;
+  font-weight: 800;
+  background: var(--turn-color-accent, #0877d1);
+  color: #fff;
+}
+.lcc-chat__send:disabled { opacity: 0.4; }

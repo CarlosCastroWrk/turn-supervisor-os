@@ -1,3 +1,6 @@
+// RETIRED (Aug 10 2026): superseded by TurnChat.tsx — the Plus button now
+// opens the chat, which absorbs this sheet's interpret->confirm->apply flow
+// in-thread. Kept for reference only; not mounted anywhere.
 import { useRef, useState } from 'react';
 import {
   interpretFieldWords,

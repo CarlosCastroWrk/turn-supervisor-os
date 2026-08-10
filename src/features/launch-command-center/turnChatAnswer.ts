@@ -5,6 +5,13 @@ import {
   projectTrackCWalkCandidates,
 } from '../wave2a2-track-c/projections';
 import {
+  buildAllCrewPayroll,
+  componentTotals,
+  formatTypeTally,
+  payWeekSunday,
+} from '../wave2a2-track-c/crewPayroll';
+import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
+import {
   trackCSectionLabel,
   type TrackCState,
   type TrackCTrade,
@@ -215,6 +222,95 @@ const todayCard = (state: TrackCState): TurnChatCard => {
   return { lines, nav: { kind: 'board' }, title: 'Where we are' };
 };
 
+const payLineText = (line: { beds: number; commons: number }) =>
+  `${line.beds} bed${line.beds === 1 ? '' : 's'} + ${line.commons} common${line.commons === 1 ? '' : 's'}`;
+
+// "What did Rocky do this week" — answered from the SAME payroll math the
+// pay packet uses, so chat and packet can never disagree. Free and instant.
+const payrollCard = (
+  state: TrackCState,
+  crewId: string,
+  now: Date,
+): TurnChatCard | undefined => {
+  const crew = state.crews.find((candidate) => candidate.id === crewId);
+  if (!crew) return undefined;
+  const payroll = buildAllCrewPayroll(state, now).get(crewId);
+  const weekNumber = payWeekNumberOf(now.toISOString());
+  if (!payroll) {
+    return {
+      lines: [{ text: 'Nothing reported done yet.' }],
+      nav: { kind: 'crew', crewId },
+      title: `${crew.name} — pay week ${weekNumber}`,
+    };
+  }
+  const weekSunday = payWeekSunday(now.toISOString());
+  const weekDays = payroll.perDay.filter((day) => day.date >= weekSunday);
+  const weekTypes = weekDays.reduce((tally, day) => ({
+    'cut-in': tally['cut-in'] + day.types['cut-in'],
+    full: tally.full + day.types.full,
+    'full-cut-in': tally['full-cut-in'] + day.types['full-cut-in'],
+    'touch-up': tally['touch-up'] + day.types['touch-up'],
+    'touch-up-cut-in': tally['touch-up-cut-in'] + day.types['touch-up-cut-in'],
+  }), { 'cut-in': 0, full: 0, 'full-cut-in': 0, 'touch-up': 0, 'touch-up-cut-in': 0 });
+  const typeLine = formatTypeTally(weekTypes);
+  const lines: TurnChatLine[] = [
+    { text: `This week: ${payLineText(payroll.week)}${typeLine ? ` — ${typeLine}` : ''}` },
+    { text: `Today: ${payLineText(payroll.today)}` },
+    { text: `Whole Turn: ${payLineText(payroll.turn)}` },
+    ...weekDays.map((day) => {
+      const dayTypes = formatTypeTally(day.types);
+      const [, month, dayNum] = day.date.split('-');
+      return { text: `${Number(month)}/${Number(dayNum)}: ${payLineText(day.line)}${dayTypes ? ` (${dayTypes})` : ''}` };
+    }),
+  ];
+  return {
+    lines,
+    nav: { kind: 'crew', crewId },
+    subtitle: 'counts = done rooms · full+cut counts as full AND cut-in',
+    title: `${crew.name} — pay week ${weekNumber}`,
+  };
+};
+
+// Pay-week history for the AI turn — same source of truth as the pay packet.
+export const buildTurnChatHistoryDigest = (
+  state: TrackCState,
+  now: Date,
+): string => {
+  const payrolls = buildAllCrewPayroll(state, now);
+  if (payrolls.size === 0) return '';
+  const weekSunday = payWeekSunday(now.toISOString());
+  const weekNumber = payWeekNumberOf(now.toISOString());
+  const previousSunday = (() => {
+    const day = new Date(`${weekSunday}T12:00:00`);
+    day.setDate(day.getDate() - 7);
+    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  })();
+  const lines: string[] = [
+    `PAY WEEK ${weekNumber} (Sun ${weekSunday} → Sat; counts = DONE rooms; paint full+cut counts as full AND cut-in):`,
+  ];
+  for (const [crewId, payroll] of payrolls) {
+    const crew = state.crews.find((candidate) => candidate.id === crewId);
+    if (!crew) continue;
+    const weekRooms = payroll.rooms.filter((room) => room.date >= weekSunday);
+    const lastWeekRooms = payroll.rooms.filter((room) =>
+      room.date >= previousSunday && room.date < weekSunday);
+    const weekComponents = componentTotals(weekRooms.reduce((tally, room) => (
+      room.workType ? { ...tally, [room.workType]: tally[room.workType] + 1 } : tally
+    ), { 'cut-in': 0, full: 0, 'full-cut-in': 0, 'touch-up': 0, 'touch-up-cut-in': 0 }));
+    const byUnit = new Map<string, string[]>();
+    for (const room of weekRooms) {
+      const list = byUnit.get(room.unitNumber) ?? [];
+      list.push(`${room.section === 'common' ? 'Com' : room.section}${room.workType ? `=${room.workType}` : ''}`);
+      byUnit.set(room.unitNumber, list);
+    }
+    lines.push(`${crew.name} (${crew.trade}): week ${payLineText(payroll.week)}${crew.trade === 'paint' ? ` — ${weekComponents.full} full, ${weekComponents.touchUp} touch-up, ${weekComponents.cutIn} cut-in` : ''}; today ${payLineText(payroll.today)}; whole Turn ${payLineText(payroll.turn)}; last week ${lastWeekRooms.length} rooms`);
+    if (byUnit.size > 0 && byUnit.size <= 60) {
+      lines.push(`  wk units: ${[...byUnit.entries()].map(([unitNumber, rooms]) => `${unitNumber} ${rooms.join(',')}`).join(' · ')}`);
+    }
+  }
+  return lines.join('\n');
+};
+
 // Compact board digest for the AI chat turn — the model's ONLY source of
 // numbers. One terse line per active unit keeps a full turn under ~2K tokens.
 export const buildTurnChatDigest = (state: TrackCState): string => {
@@ -276,6 +372,7 @@ export const buildTurnChatDigest = (state: TrackCState): string => {
 export const answerTurnChat = (
   state: TrackCState,
   rawQuery: string,
+  now: Date = new Date(),
 ): TurnChatAnswer | null => {
   const query = rawQuery.trim().toLowerCase();
   if (!query) return null;
@@ -298,7 +395,12 @@ export const answerTurnChat = (
     return first.length >= 3 && new RegExp(`\\b${first}\\b`, 'i').test(query);
   });
   if (crew) {
-    const card = crewCard(state, crew.id);
+    // History phrasing → the payroll answer (same math as the pay packet);
+    // otherwise their live day. "Rocky today" stays the live view.
+    const wantsHistory = /week|pay|how many|count|did\b|total/.test(query);
+    const card = wantsHistory
+      ? payrollCard(state, crew.id, now)
+      : crewCard(state, crew.id);
     if (card) return { cards: [card] };
   }
 

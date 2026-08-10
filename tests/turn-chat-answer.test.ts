@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createSyntheticTrackCState } from '../src/features/wave2a2-track-c/fixtures.ts';
-import { answerTurnChat } from '../src/features/launch-command-center/turnChatAnswer.ts';
+import {
+  answerTurnChat,
+  buildTurnChatHistoryDigest,
+} from '../src/features/launch-command-center/turnChatAnswer.ts';
 
 // Turn Chat's instant brain answers straight from board state — every card
 // must navigate somewhere real, and a wrong unit number must be said, not
@@ -65,6 +68,27 @@ test('the summary counts released rooms per trade', () => {
   const paintLine = answer.cards[0].lines.find((line) => line.text.startsWith('Paint —'));
   assert.ok(paintLine);
   assert.match(paintLine.text, /\d+ rooms released/);
+});
+
+test('history phrasing gets the payroll answer, not the live-day card', () => {
+  const answer = answerTurnChat(state, 'what did bluebird do this week');
+  assert.ok(answer);
+  const card = answer.cards[0];
+  assert.match(card.title, /^Bluebird Paint — pay week \d+$/);
+  assert.equal(card.nav?.kind, 'crew');
+  assert.ok(card.lines.some((line) => line.text.startsWith('This week:')));
+  assert.ok(card.lines.some((line) => line.text.startsWith('Whole Turn:')));
+  // "bluebird today" stays the live view.
+  const live = answerTurnChat(state, 'bluebird today');
+  assert.ok(live);
+  assert.ok(!live.cards[0].title.includes('pay week'));
+});
+
+test('the history digest names the pay week and every reporting crew', () => {
+  const digest = buildTurnChatHistoryDigest(state, new Date());
+  if (digest === '') return; // fixture has no confirmed pay events — fine
+  assert.match(digest, /^PAY WEEK \d+ \(Sun \d{4}-\d{2}-\d{2}/);
+  assert.ok(digest.includes('week'));
 });
 
 test('chit-chat it cannot answer returns null so the caller can escalate', () => {

@@ -9,6 +9,7 @@ import {
 import {
   answerTurnChat,
   buildTurnChatDigest,
+  buildTurnChatHistoryDigest,
   type TurnChatAnswer,
   type TurnChatNav,
 } from './turnChatAnswer';
@@ -337,8 +338,14 @@ export function TurnChat({
         text: message.text ?? '',
       }));
     try {
+      // Board now + pay-week history ride along so counts questions get his
+      // real numbers. Hard-capped to stay inside the request schema.
+      const digest = [
+        buildTurnChatDigest(stateRef.current),
+        buildTurnChatHistoryDigest(stateRef.current, new Date()),
+      ].filter(Boolean).join('\n\n').slice(0, 15_500);
       const reply = await chatWithTurnOS({
-        digest: buildTurnChatDigest(stateRef.current),
+        digest,
         messages: tail,
       });
       patch(id, { busy: false, text: reply });

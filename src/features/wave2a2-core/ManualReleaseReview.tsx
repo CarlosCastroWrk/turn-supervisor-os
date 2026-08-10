@@ -79,6 +79,7 @@ export function ManualReleaseReview({
   const pendingBatchRef = useRef<DailyReleaseBatch | undefined>(undefined);
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeStatus, setIntakeStatus] = useState('');
+  const [intakeMismatches, setIntakeMismatches] = useState<string[]>([]);
   const [intakeMessage, setIntakeMessage] = useState(() => {
     try {
       const prefill = window.localStorage.getItem('turn-os:intake-prefill') ?? '';
@@ -110,6 +111,7 @@ export function ManualReleaseReview({
     const unitByNumber = new Map(roster.units.map((unit) =>
       [unit.unitNumber.toLocaleLowerCase(), unit]));
     const unmatched: string[] = [];
+    const mismatches: string[] = [];
     let added = 0;
     setSelected((current) => {
       const next = new Map(current);
@@ -118,6 +120,23 @@ export function ManualReleaseReview({
         if (!unit) {
           unmatched.push(row.unitNumber);
           continue;
+        }
+        // Misread catch — the "confirm with me" trust check for Start Day.
+        const bedIds = unit.applicableSections
+          .filter((section) => section.id !== 'common').map((section) => section.id);
+        const rosterBeds = bedIds.length;
+        const has = unit.applicableSections
+          .map((section) => (section.id === 'common' ? 'Común' : section.id)).join(', ');
+        // (a) The reader read a different unit SIZE than the roster — e.g. it saw a
+        // studio but the roster has 3 bedrooms. This is the exact case Los hit.
+        if (typeof row.bedCount === 'number' && row.bedCount !== rosterBeds) {
+          mismatches.push(`${row.unitNumber}: the reader saw ${row.bedCount === 0 ? 'a studio' : `${row.bedCount} bedroom${row.bedCount === 1 ? '' : 's'}`}, but the roster has ${rosterBeds === 0 ? 'a studio' : `${rosterBeds} (${bedIds.join(', ')})`}. Which is right?`);
+        }
+        // (b) Rooms Los listed that this unit doesn't have at all — dropped, so flag.
+        const unitRoomIds = new Set(unit.applicableSections.map((section) => section.id));
+        const missingRooms = row.sections.filter((section) => !unitRoomIds.has(section));
+        if (missingRooms.length > 0) {
+          mismatches.push(`${row.unitNumber}: you listed ${missingRooms.map((room) => room === 'common' ? 'Común' : room).join(', ')} but this unit has ${has || 'no rooms'} — skipped. Is the roster right?`);
         }
         if (row.note?.trim()) {
           // Anything the reader can't turn into a pill (color change, key
@@ -177,6 +196,7 @@ export function ManualReleaseReview({
       'Nothing is released until you review and confirm below.',
     ].filter(Boolean);
     setIntakeStatus(notes.join(' '));
+    setIntakeMismatches(mismatches);
   };
 
   const runIntake = async (
@@ -244,6 +264,7 @@ export function ManualReleaseReview({
       result.warnings.length > 0 ? result.warnings.join(' ') : '',
       'Review below — nothing releases until you confirm.',
     ].filter(Boolean).join(' '));
+    setIntakeMismatches([]);
     pendingBatchRef.current = undefined;
     setError('');
     return true;
@@ -457,6 +478,14 @@ export function ManualReleaseReview({
             </div>
             {intakeStatus ? (
               <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
+            ) : null}
+            {intakeMismatches.length > 0 ? (
+              <div className="w2a2-core-intake__mismatch" role="alert">
+                <strong>⚠︎ Check these — rooms didn’t match the unit:</strong>
+                <ul>
+                  {intakeMismatches.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              </div>
             ) : null}
           </section>
         ) : null}

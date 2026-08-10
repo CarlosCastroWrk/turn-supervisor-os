@@ -386,6 +386,24 @@
   padding: 10px 12px;
 }
 
+.w2a2-core-intake__mismatch {
+  background: #fef2f2;
+  border: 1.5px solid #dc2626;
+  border-radius: 10px;
+  color: #991b1b;
+  font-size: 12.5px;
+  line-height: 1.4;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+}
+.w2a2-core-intake__mismatch ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.w2a2-core-intake__mismatch li {
+  margin-top: 2px;
+}
+
 /* Mid-day quick-add: tap unit numbers, whole unit selected. */
 .w2a2-core-quickgrid__units {
   display: grid;

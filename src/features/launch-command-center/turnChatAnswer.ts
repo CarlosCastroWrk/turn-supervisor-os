@@ -145,9 +145,30 @@ const crewCard = (state: TrackCState, crewId: string): TurnChatCard | undefined 
   };
 };
 
-const callbacksCard = (state: TrackCState): TurnChatCard => {
+// Moon Tower numbering: the digits before the last two are the floor
+// (1108 → 11, 903 → 9). locationLabel wins when the roster has it.
+const floorOfUnit = (state: TrackCState, unitId: string): number | undefined => {
+  const unit = state.units.find((candidate) => candidate.id === unitId);
+  if (!unit) return undefined;
+  const labeled = /floor\s*(\d+)/i.exec(unit.locationLabel ?? '');
+  if (labeled) return Number(labeled[1]);
+  if (!/^\d{3,4}$/.test(unit.unitNumber)) return undefined;
+  return Number(unit.unitNumber.slice(0, -2));
+};
+
+const floorFromQuery = (query: string): number | undefined => {
+  const match = /(?:floor|piso)\s*(\d{1,2})\b/.exec(query)
+    ?? /\b(\d{1,2})(?:st|nd|rd|th)\s*(?:floor|piso)/.exec(query);
+  return match ? Number(match[1]) : undefined;
+};
+
+const floorSuffix = (floor: number | undefined) =>
+  floor === undefined ? '' : ` · floor ${floor}`;
+
+const callbacksCard = (state: TrackCState, floor?: number): TurnChatCard => {
   const lines: TurnChatLine[] = [];
   for (const unit of state.units) {
+    if (floor !== undefined && floorOfUnit(state, unit.id) !== floor) continue;
     for (const trade of ['paint', 'clean'] as const) {
       const open = projectTrackCUnitWork(state, unit.id)
         .filter((item) => item.trade === trade && item.callbackOpen);
@@ -161,25 +182,27 @@ const callbacksCard = (state: TrackCState): TurnChatCard => {
   }
   return {
     lines: lines.length > 0 ? lines : [{ text: 'No open callbacks right now.' }],
-    title: `Open callbacks · ${lines.length}`,
+    title: `Open callbacks · ${lines.length}${floorSuffix(floor)}`,
   };
 };
 
-const readyToWalkCard = (state: TrackCState): TurnChatCard => {
-  const candidates = projectTrackCWalkCandidates(state);
+const readyToWalkCard = (state: TrackCState, floor?: number): TurnChatCard => {
+  const candidates = projectTrackCWalkCandidates(state).filter((candidate) =>
+    floor === undefined || floorOfUnit(state, candidate.target.unitId) === floor);
   const lines: TurnChatLine[] = candidates.map((candidate) => ({
     nav: { kind: 'unit', trade: candidate.trade, unitId: candidate.target.unitId },
     text: `${candidate.unitNumber} ${tradeWord(candidate.trade)} — ${candidate.sectionCount} room${candidate.sectionCount === 1 ? '' : 's'}`,
   }));
   return {
     lines: lines.length > 0 ? lines : [{ text: 'Nothing is ready to walk yet.' }],
-    title: `Ready to walk · ${candidates.length}`,
+    title: `Ready to walk · ${candidates.length}${floorSuffix(floor)}`,
   };
 };
 
-const inspectCard = (state: TrackCState): TurnChatCard => {
+const inspectCard = (state: TrackCState, floor?: number): TurnChatCard => {
   const lines: TurnChatLine[] = [];
   for (const unit of state.units) {
+    if (floor !== undefined && floorOfUnit(state, unit.id) !== floor) continue;
     for (const trade of ['paint', 'clean'] as const) {
       const waiting = projectTrackCUnitWork(state, unit.id).filter((item) =>
         item.trade === trade && item.inspection === 'needs-los-inspection');
@@ -193,7 +216,53 @@ const inspectCard = (state: TrackCState): TurnChatCard => {
   }
   return {
     lines: lines.length > 0 ? lines : [{ text: 'Nothing is waiting on your inspection.' }],
-    title: `Waiting on your inspection · ${lines.length}`,
+    title: `Waiting on your inspection · ${lines.length}${floorSuffix(floor)}`,
+  };
+};
+
+// "Just floor 11" — every unit on the floor with anything still open, one
+// tappable line each; accepted-and-done units summarized so "quiet" floors
+// still read honestly.
+const floorCard = (state: TrackCState, floor: number): TurnChatCard => {
+  const lines: TurnChatLine[] = [];
+  let doneUnits = 0;
+  let offFloorUnits = 0;
+  for (const unit of state.units) {
+    if (floorOfUnit(state, unit.id) !== floor) { offFloorUnits += 1; continue; }
+    const parts: string[] = [];
+    for (const trade of ['paint', 'clean'] as const) {
+      const open = projectTrackCUnitWork(state, unit.id).filter((work) =>
+        work.trade === trade
+        && work.release === 'released'
+        && work.property !== 'property-accepted');
+      if (open.length === 0) continue;
+      parts.push(`${tradeWord(trade)}: ${open.map(roomLabel).join(', ')}`);
+    }
+    if (parts.length === 0) {
+      const released = projectTrackCUnitWork(state, unit.id)
+        .some((work) => work.release === 'released');
+      if (released) doneUnits += 1;
+      continue;
+    }
+    lines.push({
+      nav: { kind: 'unit', unitId: unit.id },
+      text: `${unit.unitNumber} — ${parts.join('  |  ')}`,
+    });
+  }
+  if (offFloorUnits === state.units.length) {
+    return { lines: [{ text: `No units on floor ${floor} in your roster.` }], title: `Floor ${floor}` };
+  }
+  if (doneUnits > 0 || lines.length === 0) {
+    lines.push({
+      text: lines.length === 0 && doneUnits === 0
+        ? 'Nothing released on this floor yet.'
+        : `${doneUnits} unit${doneUnits === 1 ? '' : 's'} fully accepted.`,
+    });
+  }
+  const activeCount = lines.filter((line) => line.nav).length;
+  return {
+    lines,
+    title: `Floor ${floor} · ${activeCount} active unit${activeCount === 1 ? '' : 's'}`,
   };
 };
 
@@ -404,9 +473,13 @@ export const answerTurnChat = (
     if (card) return { cards: [card] };
   }
 
-  if (/callback/.test(query)) return { cards: [callbacksCard(state)] };
-  if (/\bwalk|ready\b/.test(query)) return { cards: [readyToWalkCard(state)] };
-  if (/inspect|check\b/.test(query)) return { cards: [inspectCard(state)] };
+  // "floor 11" scopes every status answer; on its own it's the floor overview.
+  const floor = floorFromQuery(query);
+
+  if (/callback/.test(query)) return { cards: [callbacksCard(state, floor)] };
+  if (/\bwalk|ready\b/.test(query)) return { cards: [readyToWalkCard(state, floor)] };
+  if (/inspect|check\b/.test(query)) return { cards: [inspectCard(state, floor)] };
+  if (floor !== undefined) return { cards: [floorCard(state, floor)] };
   if (/\bleft\b|remaining|pending|today|status|where (are|r) we|how (are|r) we/.test(query)) {
     return { cards: [todayCard(state)] };
   }

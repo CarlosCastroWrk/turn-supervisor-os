@@ -39,7 +39,11 @@ const interpretResultSchema = z.object({
 
 export type InterpretResult = z.infer<typeof interpretResultSchema>;
 
-const JSON_SCHEMA = {
+// Structured-outputs schemas only support anyOf unions — a `type: ['string',
+// 'null']` array or an enum containing null is rejected by the schema
+// compiler, which fails EVERY call (this is what broke Tell-OS in the field
+// on Aug 10). Keep every nullable as anyOf [typed, {type:'null'}].
+export const JSON_SCHEMA = {
   additionalProperties: false,
   properties: {
     intents: {
@@ -47,20 +51,25 @@ const JSON_SCHEMA = {
         additionalProperties: false,
         properties: {
           confidence: { enum: ['high', 'low'], type: 'string' },
-          crewName: { type: ['string', 'null'] },
+          crewName: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           kind: {
             enum: ['release', 'set-task', 'remove-room', 'assign', 'note', 'block', 'unblock'],
             type: 'string',
           },
-          note: { type: ['string', 'null'] },
+          note: { anyOf: [{ type: 'string' }, { type: 'null' }] },
           sections: {
             items: { enum: ['common', 'A', 'B', 'C', 'D', 'E'], type: 'string' },
             type: 'array',
           },
           summary: { type: 'string' },
-          trade: { enum: ['paint', 'clean', null], type: ['string', 'null'] },
+          trade: { anyOf: [{ enum: ['paint', 'clean'], type: 'string' }, { type: 'null' }] },
           unitNumber: { type: 'string' },
-          workType: { enum: ['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in', null], type: ['string', 'null'] },
+          workType: {
+            anyOf: [
+              { enum: ['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'], type: 'string' },
+              { type: 'null' },
+            ],
+          },
         },
         required: ['kind', 'unitNumber', 'trade', 'sections', 'workType', 'crewName', 'note', 'summary', 'confidence'],
         type: 'object',
@@ -159,12 +168,51 @@ const run = async (request: InterpretRequest, model: string): Promise<InterpretR
   return interpretResultSchema.parse(JSON.parse(text.text));
 };
 
+// Plain-JSON fallback: same prompt, no structured-outputs constraint — works
+// even if the schema surface rejects the request. Fences and prose stripped.
+const runPlain = async (request: InterpretRequest, model: string): Promise<InterpretResult> => {
+  const key = anthropicKey();
+  if (!key) throw new Error('anthropic-key-missing');
+  const client = new Anthropic({ apiKey: key });
+  const prompt = `${promptFor(request)}
+
+Respond with ONLY a JSON object, no code fences, no prose, exactly this shape:
+{"intents": [{"kind": "...", "unitNumber": "...", "trade": "paint"|"clean"|null, "sections": [...], "workType": "..."|null, "crewName": "..."|null, "note": "..."|null, "summary": "...", "confidence": "high"|"low"}], "uncertainties": ["..."]}`;
+  const response = await client.messages.create({
+    max_tokens: 4_096,
+    messages: [{ content: [{ text: prompt, type: 'text' }], role: 'user' }],
+    model,
+  });
+  const text = response.content.find((block) => block.type === 'text');
+  if (!text || text.type !== 'text') throw new Error('anthropic-empty');
+  const match = text.text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('anthropic-no-json');
+  return interpretResultSchema.parse(JSON.parse(match[0]));
+};
+
+const describeError = (error: unknown) =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
 export const interpretFieldWords = async (
   request: InterpretRequest,
 ): Promise<InterpretResult> => {
+  // Structured first (cheap → strong), then plain-JSON prompting (cheap →
+  // strong) — a field command must never dead-end on one API surface. Each
+  // hop logs WHY it failed so the next outage is diagnosable from logs.
   try {
     return await run(request, MODEL_CHEAP);
-  } catch {
-    return run(request, MODEL_STRONG);
+  } catch (error) {
+    console.error('interpret-structured-cheap-failed', describeError(error));
   }
+  try {
+    return await run(request, MODEL_STRONG);
+  } catch (error) {
+    console.error('interpret-structured-strong-failed', describeError(error));
+  }
+  try {
+    return await runPlain(request, MODEL_CHEAP);
+  } catch (error) {
+    console.error('interpret-plain-cheap-failed', describeError(error));
+  }
+  return runPlain(request, MODEL_STRONG);
 };

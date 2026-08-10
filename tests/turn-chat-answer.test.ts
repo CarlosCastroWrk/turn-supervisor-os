@@ -91,6 +91,27 @@ test('the history digest names the pay week and every reporting crew', () => {
   assert.ok(digest.includes('week'));
 });
 
+test('a floor question answers with only that floor', () => {
+  // Fixture floors come from locationLabel ("Building 3 · Floor 3").
+  const overview = answerTurnChat(state, 'just floor 3');
+  assert.ok(overview);
+  assert.match(overview.cards[0].title, /^Floor 3/);
+  for (const line of overview.cards[0].lines) {
+    if (line.nav?.kind === 'unit') assert.match(line.text, /^3\d\d /);
+  }
+  // Floor scopes the status keywords too — his exact field question shape.
+  const scoped = answerTurnChat(state, 'anything on floor 4 that I need to check');
+  assert.ok(scoped);
+  assert.match(scoped.cards[0].title, /Waiting on your inspection · \d+ · floor 4$/);
+  for (const line of scoped.cards[0].lines) {
+    if (line.nav?.kind === 'unit') assert.match(line.text, /^4\d\d /);
+  }
+  // An empty floor is honest, not silent.
+  const empty = answerTurnChat(state, 'floor 99');
+  assert.ok(empty);
+  assert.ok(empty.cards[0].lines.some((line) => line.text.includes('No units on floor 99')));
+});
+
 test('chit-chat it cannot answer returns null so the caller can escalate', () => {
   assert.equal(answerTurnChat(state, 'good morning how are you'), null);
   assert.equal(answerTurnChat(state, ''), null);

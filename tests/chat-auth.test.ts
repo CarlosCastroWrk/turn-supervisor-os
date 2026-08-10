@@ -47,3 +47,25 @@ test('an unauthenticated caller never reaches the AI provider', async () => {
   assert.ok(response.status === 401 || response.status === 403 || response.status === 503);
   assert.notEqual(response.status, 200);
 });
+
+// The interpreter's structured-output schema must stay inside what the
+// schema compiler supports: nullable unions as anyOf only. A `type` array or
+// a null inside an enum gets EVERY call rejected — this exact shape broke
+// Tell-OS in the field on Aug 10; pin it so it can't come back.
+test('interpreter json schema uses only supported nullable shapes', async () => {
+  const { JSON_SCHEMA } = await import('../server/intelligence/interpret.ts');
+  const walk = (node: unknown, path: string) => {
+    if (Array.isArray(node)) {
+      node.forEach((item, index) => walk(item, `${path}[${index}]`));
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const record = node as Record<string, unknown>;
+    assert.ok(!Array.isArray(record.type), `type array at ${path} — use anyOf`);
+    if (Array.isArray(record.enum)) {
+      assert.ok(!record.enum.includes(null), `null inside enum at ${path} — use anyOf`);
+    }
+    for (const [key, value] of Object.entries(record)) walk(value, `${path}.${key}`);
+  };
+  walk(JSON_SCHEMA, 'JSON_SCHEMA');
+});

@@ -58,6 +58,7 @@ export function DailyReleaseSelector({
   const [exactUnitErrors, setExactUnitErrors] = useState<readonly string[]>([]);
   const [intakeBusy, setIntakeBusy] = useState(false);
   const [intakeStatus, setIntakeStatus] = useState('');
+  const [intakeMismatches, setIntakeMismatches] = useState<string[]>([]);
   const [intakeMessage, setIntakeMessage] = useState('');
   const intakeFileRef = useRef<HTMLInputElement>(null);
 
@@ -78,10 +79,18 @@ export function DailyReleaseSelector({
         [unit.unitNumber.toLocaleLowerCase(), unit]));
       const matchedIds: string[] = [];
       const unmatched: string[] = [];
+      const mismatches: string[] = [];
       for (const row of result.rows) {
         const unit = unitByNumber.get(row.unitNumber.trim().toLocaleLowerCase());
-        if (unit) matchedIds.push(unit.id);
-        else unmatched.push(row.unitNumber);
+        if (!unit) { unmatched.push(row.unitNumber); continue; }
+        matchedIds.push(unit.id);
+        // Misread catch: reader read a different unit SIZE than the roster (e.g.
+        // it saw a studio but the roster has 3 bedrooms). Flag before Los starts
+        // the day so the release list can be trusted.
+        const bedIds = unit.applicableSections.filter((section) => section !== 'common');
+        if (typeof row.bedCount === 'number' && row.bedCount !== bedIds.length) {
+          mismatches.push(`${row.unitNumber}: the reader saw ${row.bedCount === 0 ? 'a studio' : `${row.bedCount} bedroom${row.bedCount === 1 ? '' : 's'}`}, but the roster has ${bedIds.length === 0 ? 'a studio' : `${bedIds.length} (${bedIds.join(', ')})`}. Which is right?`);
+        }
       }
       onChange({
         ...draft,
@@ -95,6 +104,7 @@ export function DailyReleaseSelector({
         'Review before starting the day — nothing is released until you confirm.',
       ].filter(Boolean);
       setIntakeStatus(notes.join(' '));
+      setIntakeMismatches(mismatches);
     } catch (caught) {
       setIntakeStatus(caught instanceof Error
         ? caught.message
@@ -149,6 +159,7 @@ export function DailyReleaseSelector({
       result.warnings.length > 0 ? result.warnings.join(' ') : '',
       'Review below — nothing releases until you Start Day.',
     ].filter(Boolean).join(' '));
+    setIntakeMismatches([]);
     return true;
   };
 
@@ -319,6 +330,14 @@ export function DailyReleaseSelector({
           </details>
           {intakeStatus ? (
             <p aria-live="polite" className="w2a2-core-intake__status">{intakeStatus}</p>
+          ) : null}
+          {intakeMismatches.length > 0 ? (
+            <div className="w2a2-core-intake__mismatch" role="alert">
+              <strong>⚠︎ Check these — the reader’s size didn’t match the roster:</strong>
+              <ul>
+                {intakeMismatches.map((line) => <li key={line}>{line}</li>)}
+              </ul>
+            </div>
           ) : null}
         </section>
       ) : null}

@@ -215,6 +215,62 @@ const todayCard = (state: TrackCState): TurnChatCard => {
   return { lines, nav: { kind: 'board' }, title: 'Where we are' };
 };
 
+// Compact board digest for the AI chat turn — the model's ONLY source of
+// numbers. One terse line per active unit keeps a full turn under ~2K tokens.
+export const buildTurnChatDigest = (state: TrackCState): string => {
+  const lines: string[] = [];
+  const crewLine = state.crews
+    .filter((crew) => crew.activeToday !== false)
+    .map((crew) => `${crew.name} (${crew.trade})`)
+    .join(', ');
+  for (const trade of ['paint', 'clean'] as const) {
+    let released = 0;
+    let working = 0;
+    let inspect = 0;
+    let accepted = 0;
+    let callbacks = 0;
+    for (const unit of state.units) {
+      for (const work of projectTrackCUnitWork(state, unit.id)) {
+        if (work.trade !== trade || work.release !== 'released') continue;
+        released += 1;
+        if (work.callbackOpen) callbacks += 1;
+        else if (work.property === 'property-accepted') accepted += 1;
+        else if (work.inspection === 'needs-los-inspection') inspect += 1;
+        else if (work.execution === 'working') working += 1;
+      }
+    }
+    lines.push(`${tradeWord(trade).toUpperCase()}: ${released} rooms released, ${working} working, ${inspect} to inspect, ${callbacks} callbacks, ${accepted} accepted`);
+  }
+  lines.push(`CREWS: ${crewLine || 'none'}`);
+  lines.push('ACTIVE UNITS (room task=status; P=Paint C=Clean; rooms not listed are done/accepted):');
+  let activeCount = 0;
+  for (const unit of state.units) {
+    const parts: string[] = [];
+    for (const trade of ['paint', 'clean'] as const) {
+      const open = projectTrackCUnitWork(state, unit.id).filter((work) =>
+        work.trade === trade
+        && work.release === 'released'
+        && work.property !== 'property-accepted');
+      if (open.length === 0) continue;
+      const crewNames = [...new Set(open.flatMap((work) => work.activeCrewIds))]
+        .map((crewId) => state.crews.find((crew) => crew.id === crewId)?.name)
+        .filter(Boolean)
+        .join('+');
+      parts.push(`${trade === 'paint' ? 'P' : 'C'}${crewNames ? `[${crewNames}]` : ''} ${open
+        .map((work) => `${trackCSectionLabel(work.section)}${work.trade === 'paint' ? `=${work.workType ?? 'full'}` : work.workType === 'heavy-clean' ? '=heavy' : ''}:${roomStatus(work)}`)
+        .join(' ')}`);
+    }
+    if (parts.length === 0) continue;
+    activeCount += 1;
+    if (activeCount > 140) continue;
+    lines.push(`${unit.unitNumber} ${parts.join(' | ')}`);
+  }
+  if (activeCount > 140) {
+    lines.push(`(+${activeCount - 140} more active units not listed)`);
+  }
+  return lines.join('\n');
+};
+
 // ——— query routing ———
 
 export const answerTurnChat = (

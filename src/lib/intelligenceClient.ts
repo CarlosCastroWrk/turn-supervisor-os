@@ -24,6 +24,44 @@ const accessToken = async () => {
   return error ? null : data.session?.access_token ?? null;
 };
 
+export interface ChatTurnMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+// One grounded chat turn: conversation tail + a compact board digest in,
+// terse field-language reply out. Talk only — writes go through intents.
+export const chatWithTurnOS = async (payload: {
+  messages: readonly ChatTurnMessage[];
+  digest?: string;
+}): Promise<string> => {
+  const token = await accessToken();
+  if (!token) {
+    throw new Error('Sign in to Sync (More → Storage) to use Turn Chat.');
+  }
+  const response = await fetch('/api/intelligence/chat', {
+    body: JSON.stringify({
+      ...payload,
+      today: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', weekday: 'short' }),
+    }),
+    cache: 'no-store',
+    credentials: 'same-origin',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    method: 'POST',
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(
+      (body as { error?: string } | null)?.error
+        ?? 'Could not answer right now — try again.',
+    );
+  }
+  return (body as { reply: string }).reply;
+};
+
 export const interpretFieldWords = async (payload: {
   text: string;
   rosterUnitNumbers?: readonly string[];

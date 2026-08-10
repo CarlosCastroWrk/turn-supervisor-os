@@ -1,21 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  chatWithTurnOS,
   interpretFieldWords,
+  type ChatTurnMessage,
   type InterpretResult,
   type TurnIntent,
 } from '../../lib/intelligenceClient';
 import {
   answerTurnChat,
+  buildTurnChatDigest,
   type TurnChatAnswer,
   type TurnChatNav,
 } from './turnChatAnswer';
 import type { TrackCState } from '../wave2a2-track-c/model';
 
-// Turn Chat — the Plus button's new front door. One thread, two brains:
-// the instant local brain answers questions from the board (free, offline,
-// tappable cards that navigate), and the AI interpreter reads command
-// sentences into confirmable intents right in the thread (Tell-OS absorbed).
-// Nothing writes without a tap on "Do it".
+// Turn Chat — the Plus button's front door. One thread, three brains:
+// 1) the instant local brain answers board questions as tappable cards
+//    (free, offline); 2) command sentences go to the interpreter and come
+//    back as confirmable intents (nothing writes without a tap); 3) anything
+//    else gets a real model turn grounded in a compact board digest.
+// Chats are multi-thread with archive, stored device-local like the rest of
+// Turn OS (cross-device sync rides the future cloud-sync epic).
 
 interface IntentBlock {
   readonly result: InterpretResult;
@@ -30,7 +35,7 @@ interface ChatMessage {
   readonly text?: string;
   readonly answer?: TurnChatAnswer;
   readonly intents?: IntentBlock;
-  readonly offerAi?: string; // the text to send to the interpreter on tap
+  readonly offerAi?: string; // reruns the interpreter with this text on tap
   readonly busy?: boolean;
 }
 
@@ -48,48 +53,99 @@ export interface TurnChatProps {
   readonly onQuickMore: () => void;
 }
 
-const THREAD_KEY = 'turn-os:chat-thread';
-const THREAD_CAP = 40;
-
-// Only text + answers survive backgrounding — a pending intents block is
-// tied to live state and must be re-read, never replayed stale.
+// Only text + answers survive storage — a pending intents block is tied to
+// live state and must be re-read, never replayed stale.
 type StoredMessage = Pick<ChatMessage, 'id' | 'role' | 'text' | 'answer'> & {
   readonly outcomes?: readonly string[];
 };
 
-const restoreThread = (): ChatMessage[] => {
+interface ChatThread {
+  readonly id: string;
+  readonly title: string;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly archived?: boolean;
+  readonly messages: readonly StoredMessage[];
+}
+
+interface ThreadStore {
+  readonly activeId: string;
+  readonly threads: readonly ChatThread[];
+}
+
+const STORE_KEY = 'turn-os:chat-threads-v1';
+const LEGACY_KEY = 'turn-os:chat-thread';
+const THREAD_CAP = 60; // messages per thread
+const STORE_CAP = 30; // threads kept overall (oldest archived drop first)
+
+const newThread = (): ChatThread => ({
+  createdAt: Date.now(),
+  id: `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+  messages: [],
+  title: 'New chat',
+  updatedAt: Date.now(),
+});
+
+const loadStore = (): ThreadStore => {
   try {
-    const raw = window.localStorage.getItem(THREAD_KEY);
-    if (!raw) return [];
-    const stored = JSON.parse(raw) as StoredMessage[];
-    return stored.map((message) => ({
-      answer: message.outcomes
-        ? { cards: [], note: `✓ Done — ${message.outcomes.join(' · ')}` }
-        : message.answer,
+    const raw = window.localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as ThreadStore;
+      if (parsed.threads?.length > 0) return parsed;
+    }
+    // First run after the single-thread version: carry that chat over.
+    const legacy = window.localStorage.getItem(LEGACY_KEY);
+    if (legacy) {
+      const messages = JSON.parse(legacy) as StoredMessage[];
+      window.localStorage.removeItem(LEGACY_KEY);
+      const thread: ChatThread = {
+        ...newThread(),
+        messages,
+        title: messages.find((message) => message.role === 'los')?.text?.slice(0, 40) ?? 'Earlier chat',
+      };
+      return { activeId: thread.id, threads: [thread] };
+    }
+  } catch { /* fall through to a fresh store */ }
+  const thread = newThread();
+  return { activeId: thread.id, threads: [thread] };
+};
+
+const persistStore = (store: ThreadStore) => {
+  try {
+    const kept = [...store.threads]
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+      .slice(0, STORE_CAP);
+    window.localStorage.setItem(STORE_KEY, JSON.stringify({
+      activeId: store.activeId,
+      threads: kept,
+    }));
+  } catch { /* the thread list is a convenience, never worth an error */ }
+};
+
+const rehydrate = (stored: readonly StoredMessage[]): ChatMessage[] =>
+  stored.map((message) => ({
+    answer: message.outcomes
+      ? { cards: [], note: `✓ Done — ${message.outcomes.join(' · ')}` }
+      : message.answer,
+    id: message.id,
+    role: message.role,
+    text: message.text,
+  }));
+
+const dehydrate = (messages: readonly ChatMessage[]): StoredMessage[] =>
+  messages
+    .filter((message) => !message.busy)
+    .slice(-THREAD_CAP)
+    .map((message) => ({
+      answer: message.answer,
       id: message.id,
+      outcomes: message.intents?.outcomes,
       role: message.role,
       text: message.text,
     }));
-  } catch {
-    return [];
-  }
-};
 
-const persistThread = (messages: readonly ChatMessage[]) => {
-  try {
-    const stored: StoredMessage[] = messages
-      .filter((message) => !message.busy)
-      .slice(-THREAD_CAP)
-      .map((message) => ({
-        answer: message.answer,
-        id: message.id,
-        outcomes: message.intents?.outcomes,
-        role: message.role,
-        text: message.text,
-      }));
-    window.localStorage.setItem(THREAD_KEY, JSON.stringify(stored));
-  } catch { /* thread is a convenience, never worth an error */ }
-};
+const threadDay = (stamp: number) =>
+  new Date(stamp).toLocaleDateString([], { day: 'numeric', month: 'short' });
 
 // Command sentences carry a roster unit + an action/task word, or name a
 // crew — those go straight to the interpreter without an extra tap. A bare
@@ -124,17 +180,43 @@ export function TurnChat({
   onQuickBlocker,
   onQuickMore,
 }: TurnChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(restoreThread);
+  const [store, setStore] = useState<ThreadStore>(loadStore);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const active = loadStore();
+    const thread = active.threads.find((candidate) => candidate.id === active.activeId);
+    return thread ? rehydrate(thread.messages) : [];
+  });
   const [draft, setDraft] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   const nextId = useRef(Date.now());
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { persistThread(messages); }, [messages]);
+  const activeThread = store.threads.find((thread) => thread.id === store.activeId);
+
+  // Write the live messages back into the active thread + persist. The title
+  // is the first thing Los said, like every chat app he knows.
   useEffect(() => {
-    if (!open) return;
-    inputRef.current?.focus();
-  }, [open]);
+    setStore((current) => {
+      const next: ThreadStore = {
+        activeId: current.activeId,
+        threads: current.threads.map((thread) => {
+          if (thread.id !== current.activeId) return thread;
+          const firstLos = messages.find((message) => message.role === 'los')?.text;
+          return {
+            ...thread,
+            messages: dehydrate(messages),
+            title: firstLos ? firstLos.slice(0, 40) : thread.title,
+            updatedAt: messages.length > 0 ? Date.now() : thread.updatedAt,
+          };
+        }),
+      };
+      persistStore(next);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
   useEffect(() => {
     const scroller = scrollRef.current;
     if (scroller) scroller.scrollTop = scroller.scrollHeight;
@@ -151,6 +233,62 @@ export function TurnChat({
   const patch = (id: number, update: Partial<ChatMessage>) => {
     setMessages((current) => current.map((message) =>
       message.id === id ? { ...message, ...update } : message));
+  };
+
+  const switchThread = (threadId: string) => {
+    const thread = store.threads.find((candidate) => candidate.id === threadId);
+    if (!thread) return;
+    const next = { activeId: threadId, threads: store.threads };
+    setStore(next);
+    persistStore(next);
+    setMessages(rehydrate(thread.messages));
+    setMenuOpen(false);
+  };
+
+  const startNewChat = () => {
+    const thread = newThread();
+    const next: ThreadStore = {
+      activeId: thread.id,
+      threads: [thread, ...store.threads],
+    };
+    setStore(next);
+    persistStore(next);
+    setMessages([]);
+    setMenuOpen(false);
+  };
+
+  const setArchived = (threadId: string, archived: boolean) => {
+    setStore((current) => {
+      const threads = current.threads.map((thread) =>
+        thread.id === threadId ? { ...thread, archived } : thread);
+      // Archiving the open chat drops you on the newest live one (or a fresh one).
+      let activeId = current.activeId;
+      if (archived && activeId === threadId) {
+        const fallback = threads.find((thread) => !thread.archived) ?? newThread();
+        if (!threads.includes(fallback)) threads.unshift(fallback);
+        activeId = fallback.id;
+        setMessages(rehydrate(fallback.messages));
+      }
+      const next = { activeId, threads };
+      persistStore(next);
+      return next;
+    });
+  };
+
+  const deleteThread = (threadId: string) => {
+    setStore((current) => {
+      const threads = current.threads.filter((thread) => thread.id !== threadId);
+      let activeId = current.activeId;
+      if (activeId === threadId) {
+        const fallback = threads.find((thread) => !thread.archived) ?? newThread();
+        if (!threads.includes(fallback)) threads.unshift(fallback);
+        activeId = fallback.id;
+        setMessages(rehydrate(fallback.messages));
+      }
+      const next = { activeId, threads };
+      persistStore(next);
+      return next;
+    });
   };
 
   const runInterpreter = async (text: string, placeholderId?: number) => {
@@ -187,10 +325,38 @@ export function TurnChat({
     }
   };
 
+  // The model turn — grounded in the board digest, terse by system prompt.
+  const runModel = async (history: readonly ChatMessage[], text: string) => {
+    const id = push({ busy: true, role: 'os', text: 'Thinking…' });
+    const turns: ChatMessage[] = [...history, { id: 0, role: 'los', text }];
+    const tail: ChatTurnMessage[] = turns
+      .filter((message) => Boolean(message.text) && !message.intents && !message.answer)
+      .slice(-8)
+      .map((message) => ({
+        role: message.role === 'los' ? 'user' as const : 'assistant' as const,
+        text: message.text ?? '',
+      }));
+    try {
+      const reply = await chatWithTurnOS({
+        digest: buildTurnChatDigest(stateRef.current),
+        messages: tail,
+      });
+      patch(id, { busy: false, text: reply });
+    } catch (caught) {
+      patch(id, {
+        busy: false,
+        text: caught instanceof Error
+          ? caught.message
+          : 'Could not answer right now — try again.',
+      });
+    }
+  };
+
   const send = () => {
     const text = draft.trim();
     if (!text) return;
     setDraft('');
+    const history = messages;
     push({ role: 'los', text });
     // Commands beat lookups: "1608 drop C, give A B to Sandra" wants the
     // interpreter, not the 1608 card. Plain "1608" gets the card instantly.
@@ -203,11 +369,8 @@ export function TurnChat({
       push({ answer, role: 'os' });
       return;
     }
-    push({
-      offerAi: text,
-      role: 'os',
-      text: 'I couldn’t answer that from the board. Try a unit number, a crew name, “callbacks”, “ready to walk”, or “where are we” — or let the AI read it.',
-    });
+    // Everything else gets the real model, grounded in the board.
+    void runModel(history, text);
   };
 
   const applyIntents = (messageId: number, block: IntentBlock) => {
@@ -231,23 +394,43 @@ export function TurnChat({
     if (fallbackToQuickAdd) onRouteRelease(block.sourceText);
   };
 
-  const suggestions = useMemo(() => [
-    'Where are we',
-    'Ready to walk',
-    'Callbacks',
-  ], []);
-
   if (!open) return null;
+
+  const liveThreads = store.threads.filter((thread) => !thread.archived);
+  const archivedThreads = store.threads.filter((thread) => thread.archived);
 
   return (
     <div aria-label="Turn Chat" className="lcc-chat" role="dialog">
       <div className="lcc-chat__panel">
         <header className="lcc-chat__header">
-          <div>
+          <button
+            aria-label="Your chats"
+            className="lcc-chat__iconbtn"
+            onClick={() => setMenuOpen(true)}
+            type="button"
+          >
+            ☰
+          </button>
+          <div className="lcc-chat__title">
             <h2>Turn Chat</h2>
-            <p>Ask the board or tell it what happened — it’s all here.</p>
+            <p>{activeThread && activeThread.title !== 'New chat' ? activeThread.title : 'Ask the board or tell it what happened'}</p>
           </div>
-          <button aria-label="Close chat" onClick={onClose} type="button">✕</button>
+          <button
+            aria-label="New chat"
+            className="lcc-chat__iconbtn"
+            onClick={startNewChat}
+            type="button"
+          >
+            ＋
+          </button>
+          <button
+            aria-label="Close chat"
+            className="lcc-chat__iconbtn"
+            onClick={onClose}
+            type="button"
+          >
+            ✕
+          </button>
         </header>
 
         <div className="lcc-chat__quick" role="group" aria-label="Quick actions">
@@ -260,13 +443,14 @@ export function TurnChat({
         <div className="lcc-chat__scroll" data-turn-scroll-region="chat" ref={scrollRef}>
           {messages.length === 0 ? (
             <div className="lcc-chat__empty">
+              <p className="lcc-chat__hello">What’s the move, Los?</p>
               <p>
-                Try a unit number (“608”), a crew (“Rocky today”), or tell me
-                what happened (“1608 drop C, give A and B to Sandra”). Use the
+                A unit number (“608”), a crew (“Rocky today”), a command
+                (“1608 drop C, give A and B to Sandra”) — or just ask.
                 🎤 on your keyboard to talk.
               </p>
               <div className="lcc-chat__suggestions">
-                {suggestions.map((suggestion) => (
+                {['Where are we', 'Ready to walk', 'Callbacks'].map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => {
@@ -293,7 +477,7 @@ export function TurnChat({
                     onClick={() => void runInterpreter(message.offerAi ?? '')}
                     type="button"
                   >
-                    Read it with AI
+                    Try again
                   </button>
                 </div>
               ) : null}
@@ -423,6 +607,81 @@ export function TurnChat({
           </button>
         </div>
       </div>
+
+      {menuOpen ? (
+        <div className="lcc-chat__drawer" role="dialog" aria-label="Your chats">
+          <button
+            aria-label="Close chat list"
+            className="lcc-chat__drawer-backdrop"
+            onClick={() => setMenuOpen(false)}
+            type="button"
+          />
+          <div className="lcc-chat__drawer-panel">
+            <button className="lcc-chat__drawer-new" onClick={startNewChat} type="button">
+              ＋ New chat
+            </button>
+            <div className="lcc-chat__drawer-list">
+              {liveThreads.map((thread) => (
+                <div
+                  className={`lcc-chat__drawer-row${thread.id === store.activeId ? ' is-active' : ''}`}
+                  key={thread.id}
+                >
+                  <button
+                    className="lcc-chat__drawer-open"
+                    onClick={() => switchThread(thread.id)}
+                    type="button"
+                  >
+                    <strong>{thread.title}</strong>
+                    <span>{threadDay(thread.updatedAt)}</span>
+                  </button>
+                  <button
+                    aria-label={`Archive ${thread.title}`}
+                    className="lcc-chat__drawer-action"
+                    onClick={() => setArchived(thread.id, true)}
+                    type="button"
+                  >
+                    Archive
+                  </button>
+                </div>
+              ))}
+            </div>
+            {archivedThreads.length > 0 ? (
+              <details className="lcc-chat__drawer-archived">
+                <summary>Archived · {archivedThreads.length}</summary>
+                {archivedThreads.map((thread) => (
+                  <div className="lcc-chat__drawer-row" key={thread.id}>
+                    <button
+                      className="lcc-chat__drawer-open"
+                      onClick={() => switchThread(thread.id)}
+                      type="button"
+                    >
+                      <strong>{thread.title}</strong>
+                      <span>{threadDay(thread.updatedAt)}</span>
+                    </button>
+                    <button
+                      className="lcc-chat__drawer-action"
+                      onClick={() => setArchived(thread.id, false)}
+                      type="button"
+                    >
+                      Restore
+                    </button>
+                    <button
+                      className="lcc-chat__drawer-action is-delete"
+                      onClick={() => deleteThread(thread.id)}
+                      type="button"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </details>
+            ) : null}
+            <p className="lcc-chat__drawer-note">
+              Chats live on this phone. Cloud sync comes with the sync build.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

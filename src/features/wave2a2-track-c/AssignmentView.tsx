@@ -52,10 +52,13 @@ export const AssignmentView = ({
   onStateChange,
 }: AssignmentViewProps) => {
   const [trade, setTrade] = useState<TrackCTrade>(initialTrade ?? 'paint');
-  const compatibleCrews = useMemo(
-    () => state.crews.filter((crew) => crew.trade === trade),
-    [state.crews, trade],
-  );
+  const compatibleCrews = useMemo(() => {
+    // Only who's HERE today — falling back to every crew of the trade only
+    // when nobody is marked present, so the picker is never dead.
+    const tradeCrews = state.crews.filter((crew) => crew.trade === trade);
+    const present = tradeCrews.filter((crew) => crew.activeToday);
+    return present.length > 0 ? present : tradeCrews;
+  }, [state.crews, trade]);
   const eligibleUnits = useMemo(
     () => projectTrackCAssignmentEligibleUnits(state, trade),
     [state, trade],

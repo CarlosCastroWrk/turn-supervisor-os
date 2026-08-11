@@ -18,7 +18,7 @@ export const interpretRequestSchema = z.object({
 
 export type InterpretRequest = z.infer<typeof interpretRequestSchema>;
 
-const intentSchema = z.object({
+export const intentSchema = z.object({
   kind: z.enum(['release', 'set-task', 'remove-room', 'assign', 'note', 'block', 'unblock']),
   unitNumber: z.string(),
   trade: z.enum(['paint', 'clean']).nullable().optional(),

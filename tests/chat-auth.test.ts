@@ -52,8 +52,9 @@ test('an unauthenticated caller never reaches the AI provider', async () => {
 // schema compiler supports: nullable unions as anyOf only. A `type` array or
 // a null inside an enum gets EVERY call rejected — this exact shape broke
 // Tell-OS in the field on Aug 10; pin it so it can't come back.
-test('interpreter json schema uses only supported nullable shapes', async () => {
+test('interpreter + unified chat schemas use only supported nullable shapes', async () => {
   const { JSON_SCHEMA } = await import('../server/intelligence/interpret.ts');
+  const { UNIFIED_SCHEMA } = await import('../server/intelligence/chat.ts');
   const walk = (node: unknown, path: string) => {
     if (Array.isArray(node)) {
       node.forEach((item, index) => walk(item, `${path}[${index}]`));
@@ -68,4 +69,5 @@ test('interpreter json schema uses only supported nullable shapes', async () => 
     for (const [key, value] of Object.entries(record)) walk(value, `${path}.${key}`);
   };
   walk(JSON_SCHEMA, 'JSON_SCHEMA');
+  walk(UNIFIED_SCHEMA, 'UNIFIED_SCHEMA');
 });

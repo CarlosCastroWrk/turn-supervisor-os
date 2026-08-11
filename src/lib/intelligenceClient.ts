@@ -29,12 +29,21 @@ export interface ChatTurnMessage {
   text: string;
 }
 
-// One grounded chat turn: conversation tail + a compact board digest in,
-// terse field-language reply out. Talk only — writes go through intents.
+export interface ChatTurnResult {
+  reply: string;
+  intents: TurnIntent[];
+  uncertainties: string[];
+}
+
+// One unified chat turn: conversation tail + board digest + roster in;
+// a terse reply AND any proposed actions out. The model only proposes —
+// the app applies intents after Los confirms.
 export const chatWithTurnOS = async (payload: {
   messages: readonly ChatTurnMessage[];
   digest?: string;
-}): Promise<string> => {
+  rosterUnitNumbers?: readonly string[];
+  crews?: readonly { name: string; trade: 'paint' | 'clean' }[];
+}): Promise<ChatTurnResult> => {
   const token = await accessToken();
   if (!token) {
     throw new Error('Sign in to Sync (More → Storage) to use Turn Chat.');
@@ -59,7 +68,12 @@ export const chatWithTurnOS = async (payload: {
         ?? 'Could not answer right now — try again.',
     );
   }
-  return (body as { reply: string }).reply;
+  const result = body as Partial<ChatTurnResult> | null;
+  return {
+    intents: result?.intents ?? [],
+    reply: result?.reply ?? '',
+    uncertainties: result?.uncertainties ?? [],
+  };
 };
 
 export const interpretFieldWords = async (payload: {

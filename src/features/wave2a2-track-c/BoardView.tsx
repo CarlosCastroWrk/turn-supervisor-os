@@ -1340,11 +1340,16 @@ const UnitDetail = ({
                       value=""
                     >
                       <option value="">Assign…</option>
-                      {state.crews
-                        .filter((crew) => crew.trade === trade)
-                        .map((crew) => (
+                      {(() => {
+                        // Only who's HERE today — the full list is noise in the
+                        // field. If nobody's marked present, fall back to all
+                        // so the picker is never dead.
+                        const tradeCrews = state.crews.filter((crew) => crew.trade === trade);
+                        const present = tradeCrews.filter((crew) => crew.activeToday);
+                        return (present.length > 0 ? present : tradeCrews).map((crew) => (
                           <option key={crew.id} value={crew.id}>{crew.name}</option>
-                        ))}
+                        ));
+                      })()}
                     </select>
                   ) : state.crews.length > 0
                     && !state.crews.some((crew) => crew.trade === trade) ? (

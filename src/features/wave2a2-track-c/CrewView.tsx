@@ -25,6 +25,7 @@ import {
   formatPayLine,
   formatRoomsByType,
   formatTypeTally,
+  payLocalDate,
   payWeekSunday,
   type PaintTypeKey,
 } from './crewPayroll';
@@ -423,7 +424,7 @@ export const CrewView = ({
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
-  const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean'; msg: string } | null>(null);
+  const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean' | 'day'; msg: string } | null>(null);
   const [ackExtras, setAckExtras] = useState<ReadonlySet<string>>(() => readAckExtras());
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   // Which pay weeks have released work — so Los can pull up a PAST week to pay
@@ -439,6 +440,9 @@ export const CrewView = ({
     return [...weeks].sort((left, right) => left - right);
   }, [state]);
   const [payWeekPick, setPayWeekPick] = useState<number | null>(null);
+  // Which DAY the "tonight's board" transfer shows — null = the latest day
+  // with done work (usually today). Chips cover the whole history.
+  const [dayPick, setDayPick] = useState<string | null>(null);
   const currentPayWeek = payWeekNumberOf(new Date().toISOString());
   const activePayWeek = (payWeekPick && weeksWithWork.includes(payWeekPick))
     ? payWeekPick
@@ -865,6 +869,11 @@ export const CrewView = ({
                           ) : null}
                           {crewRows.map((item) => {
                             const acked = ackExtras.has(ackKeyOf(item.id));
+                            // Tap-through to the unit so Los can validate the
+                            // cut-in/extra on the spot instead of hunting it.
+                            const unitId = state.units.find((unit) =>
+                              unit.unitNumber === item.unitNumber)?.id;
+                            const extraTrade = item.kind === 'heavy-clean' ? 'clean' as const : 'paint' as const;
                             return (
                               <div className={`track-c-extras__row${acked ? ' is-acked' : ''}`} key={item.id}>
                                 <button
@@ -876,10 +885,21 @@ export const CrewView = ({
                                 >
                                   {acked ? '✓' : ''}
                                 </button>
-                                <div className="track-c-extras__detail">
-                                  <strong>{item.unitNumber}</strong>
-                                  <small>{item.detail}</small>
-                                </div>
+                                {onOpenUnit && unitId ? (
+                                  <button
+                                    className="track-c-extras__detail is-link"
+                                    onClick={() => onOpenUnit(unitId, extraTrade)}
+                                    type="button"
+                                  >
+                                    <strong>{item.unitNumber} ›</strong>
+                                    <small>{item.detail}</small>
+                                  </button>
+                                ) : (
+                                  <div className="track-c-extras__detail">
+                                    <strong>{item.unitNumber}</strong>
+                                    <small>{item.detail}</small>
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -893,6 +913,171 @@ export const CrewView = ({
           </details>
         );
       })() : null}
+      {(() => {
+        // TONIGHT'S BOARD — what Los applies to the physical boards at the end
+        // of the day: every room FIRST reported done on the chosen day (crew-
+        // done basis — the pay basis, not PDS approval), in board format, one
+        // scroll instead of unit-by-unit. Day chips cover the whole history so
+        // yesterday (or any day) is one tap — staying ahead of Tony's Sunday.
+        interface DayRoom {
+          unitNumber: string;
+          trade: 'paint' | 'clean';
+          section: string;
+          workType?: string;
+          crewName: string;
+          date: string;
+        }
+        const allRooms: DayRoom[] = [];
+        for (const [crewId, payroll] of payrollByCrew) {
+          const crewName = state.crews.find((crew) => crew.id === crewId)?.name ?? '';
+          for (const room of payroll.rooms) {
+            allRooms.push({ ...room, crewName });
+          }
+        }
+        if (allRooms.length === 0) return null;
+        const days = [...new Set(allRooms.map((room) => room.date))].sort().reverse();
+        const activeDay = dayPick && days.includes(dayPick) ? dayPick : days[0];
+        const todayLocal = payLocalDate(new Date().toISOString());
+        const dayLabel = (date: string) => {
+          if (date === todayLocal) return 'Today';
+          const [y, m, d] = date.split('-').map(Number);
+          const when = new Date(y, m - 1, d);
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          if (date === payLocalDate(yesterday.toISOString())) return 'Yesterday';
+          return when.toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' });
+        };
+        const SECTIONS = ['common', 'A', 'B', 'C', 'D', 'E'] as const;
+        const dayRooms = allRooms.filter((room) => room.date === activeDay);
+        const tradeBlocks = (['paint', 'clean'] as const).map((trade) => {
+          const rooms = dayRooms.filter((room) => room.trade === trade);
+          const byUnit = new Map<string, DayRoom[]>();
+          for (const room of rooms) {
+            const bucket = byUnit.get(room.unitNumber);
+            if (bucket) bucket.push(room);
+            else byUnit.set(room.unitNumber, [room]);
+          }
+          const rows = [...byUnit.entries()]
+            .sort((left, right) => compareUnitTopFloorFirst(left[0], right[0]))
+            .map(([unitNumber, unitRooms]) => ({
+              crew: [...new Set(unitRooms.map((room) => room.crewName))].filter(Boolean).join(' + '),
+              unitId: state.units.find((unit) => unit.unitNumber === unitNumber)?.id,
+              unitNumber,
+              unitRooms,
+            }));
+          return { rows, trade };
+        }).filter((block) => block.rows.length > 0);
+        const taskTag = (trade: string, workType?: string) => (trade === 'clean'
+          ? (workType === 'heavy-clean' ? 'HC' : '')
+          : (WALL_WORKTYPE_ABBR[workType ?? 'full'] ?? 'F'));
+        const dayText = [
+          `${dayLabel(activeDay).toUpperCase()} ${activeDay} — apply to the board (crew-done)`,
+          ...tradeBlocks.flatMap((block) => [
+            block.trade === 'paint' ? 'PAINT:' : 'CLEAN:',
+            ...block.rows.map((row) => {
+              const marks = row.unitRooms
+                .sort((a, b) => SECTIONS.indexOf(a.section as typeof SECTIONS[number]) - SECTIONS.indexOf(b.section as typeof SECTIONS[number]))
+                .map((room) => {
+                  const tag = taskTag(room.trade, room.workType);
+                  const label = room.section === 'common' ? 'Comn' : room.section;
+                  return tag && tag !== 'F' ? `${label}(${tag})` : label;
+                }).join(' ');
+              return `${row.unitNumber}  X: ${marks}  ${row.crew}`;
+            }),
+          ]),
+        ].join('\n');
+        return (
+          <details className="track-c-wallxfer track-c-dayboard">
+            <summary>
+              Tonight’s board — {dayLabel(activeDay)} · {dayRooms.length} room{dayRooms.length === 1 ? '' : 's'} done
+            </summary>
+            <div className="track-c-wallxfer__body">
+              <p className="track-c-wallxfer__hint">
+                Rooms the crews finished on this day — mark these X on the wall
+                and the mini board. Counts are the pay basis (crew-done), not
+                waiting on PDS approval.
+              </p>
+              <div className="track-c-dayboard__days">
+                {days.slice(0, 14).map((date) => (
+                  <button
+                    aria-pressed={date === activeDay}
+                    className={date === activeDay ? 'is-selected' : undefined}
+                    key={date}
+                    onClick={() => setDayPick(date)}
+                    type="button"
+                  >
+                    {dayLabel(date)}
+                  </button>
+                ))}
+              </div>
+              {tradeBlocks.map((block) => (
+                <div className="track-c-dayboard__trade" key={block.trade}>
+                  <p className="track-c-dayboard__tradehead">
+                    {block.trade === 'paint' ? 'Paint' : 'Clean'} · {block.rows.length} unit{block.rows.length === 1 ? '' : 's'}
+                  </p>
+                  <div className="track-c-wallxfer__scroll">
+                    <table className="track-c-wallxfer__grid">
+                      <thead>
+                        <tr>
+                          <th>Unit</th>
+                          <th>Comn</th>
+                          <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th>
+                          <th>Crew</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {block.rows.map((row) => (
+                          <tr key={row.unitNumber}>
+                            <th scope="row">
+                              {onOpenUnit && row.unitId ? (
+                                <button
+                                  className="track-c-wallxfer__unit"
+                                  onClick={() => onOpenUnit(row.unitId as string, block.trade)}
+                                  type="button"
+                                >
+                                  {row.unitNumber}
+                                </button>
+                              ) : row.unitNumber}
+                            </th>
+                            {SECTIONS.map((section) => {
+                              const room = row.unitRooms.find((candidate) => candidate.section === section);
+                              if (!room) return <td className="is-na" key={section} />;
+                              return (
+                                <td className="track-c-wallxfer__cell is-done" key={section}>
+                                  <span className="track-c-wallxfer__mark">X</span>
+                                  <span className="track-c-wallxfer__task">{taskTag(room.trade, room.workType)}</span>
+                                </td>
+                              );
+                            })}
+                            <td className="track-c-wallxfer__crew">{row.crew || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              {tradeBlocks.length === 0 ? (
+                <p className="track-c-wallxfer__hint">Nothing reported done this day.</p>
+              ) : null}
+              <button
+                className="track-c-weeksummary__copy"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(dayText)
+                    .then(() => setWallCopied({ msg: `Copied — ${dayLabel(activeDay)}'s board as text.`, trade: 'day' }))
+                    .catch(() => setWallCopied({ msg: 'Copy not available — read it here.', trade: 'day' }));
+                }}
+                type="button"
+              >
+                Copy {dayLabel(activeDay)}’s board
+              </button>
+              {wallCopied?.trade === 'day'
+                ? <p className="track-c-weeksummary__copied">{wallCopied.msg}</p>
+                : null}
+            </div>
+          </details>
+        );
+      })()}
       {(['paint', 'clean'] as const).map((wallTrade) => {
         // Wall-board transfer — every unit with THIS trade released this pay week,
         // in board order, laid out exactly like Los's physical wall grid

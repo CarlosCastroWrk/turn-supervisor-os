@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   chatWithTurnOS,
-  interpretFieldWords,
   type ChatTurnMessage,
   type InterpretResult,
   type TurnIntent,
@@ -292,51 +291,32 @@ export function TurnChat({
     });
   };
 
-  const runInterpreter = async (text: string, placeholderId?: number) => {
-    const id = placeholderId
-      ?? push({ busy: true, role: 'os', text: 'Reading what you said…' });
-    try {
-      const result = await interpretFieldWords({
-        crews: stateRef.current.crews.map((crew) => ({ name: crew.name, trade: crew.trade })),
-        rosterUnitNumbers: stateRef.current.units.map((unit) => unit.unitNumber),
-        text,
-      });
-      if (result.intents.length === 0) {
-        patch(id, {
-          busy: false,
-          text: 'Nothing actionable heard — say it another way, or open Quick add.',
-        });
-        return;
-      }
-      patch(id, {
-        busy: false,
-        intents: {
-          checked: new Set(result.intents.map((_, index) => index)),
-          result,
-          sourceText: text,
-        },
-        text: undefined,
-      });
-    } catch (caught) {
-      patch(id, {
-        busy: false,
-        offerAi: text,
-        text: caught instanceof Error ? caught.message : 'Could not read that.',
-      });
+  // One line of context per prior turn so follow-ups ("just the note",
+  // "same for 1204") land — proposals and outcomes ride along as text.
+  const contextText = (message: ChatMessage): string | undefined => {
+    if (message.intents) {
+      const summaries = message.intents.result.intents
+        .map((intent) => intent.summary).join('; ');
+      return message.intents.outcomes
+        ? `Done after his confirm: ${message.intents.outcomes.join('; ')}`
+        : `I proposed (awaiting his confirm): ${summaries}`;
     }
+    if (message.text) return message.text;
+    return message.answer?.note;
   };
 
-  // The model turn — grounded in the board digest, terse by system prompt.
-  const runModel = async (history: readonly ChatMessage[], text: string) => {
+  // The unified turn — the model answers AND proposes actions in one call,
+  // grounded in the board digest. Writes still land only after his confirm.
+  const runUnified = async (history: readonly ChatMessage[], text: string) => {
     const id = push({ busy: true, role: 'os', text: 'Thinking…' });
     const turns: ChatMessage[] = [...history, { id: 0, role: 'los', text }];
     const tail: ChatTurnMessage[] = turns
-      .filter((message) => Boolean(message.text) && !message.intents && !message.answer)
-      .slice(-8)
       .map((message) => ({
         role: message.role === 'los' ? 'user' as const : 'assistant' as const,
-        text: message.text ?? '',
-      }));
+        text: contextText(message) ?? '',
+      }))
+      .filter((message) => Boolean(message.text))
+      .slice(-8);
     try {
       // Board now + pay-week history ride along so counts questions get his
       // real numbers. Hard-capped to stay inside the request schema.
@@ -344,14 +324,27 @@ export function TurnChat({
         buildTurnChatDigest(stateRef.current),
         buildTurnChatHistoryDigest(stateRef.current, new Date()),
       ].filter(Boolean).join('\n\n').slice(0, 15_500);
-      const reply = await chatWithTurnOS({
+      const result = await chatWithTurnOS({
+        crews: stateRef.current.crews.map((crew) => ({ name: crew.name, trade: crew.trade })),
         digest,
         messages: tail,
+        rosterUnitNumbers: stateRef.current.units.map((unit) => unit.unitNumber),
       });
-      patch(id, { busy: false, text: reply });
+      patch(id, {
+        busy: false,
+        intents: result.intents.length > 0
+          ? {
+            checked: new Set(result.intents.map((_, index) => index)),
+            result: { intents: result.intents, uncertainties: result.uncertainties },
+            sourceText: text,
+          }
+          : undefined,
+        text: result.reply || (result.intents.length > 0 ? undefined : '…'),
+      });
     } catch (caught) {
       patch(id, {
         busy: false,
+        offerAi: text,
         text: caught instanceof Error
           ? caught.message
           : 'Could not answer right now — try again.',
@@ -359,25 +352,45 @@ export function TurnChat({
     }
   };
 
+  // Plain words count as the tap: a short yes applies the pending proposal,
+  // a short no dismisses it. Anything longer goes to the model WITH the
+  // proposal in context, so "just the note" can narrow it.
+  const YES_RE = /^(y|yes|yeah|yep|yup|ok|okay|sure|confirm|go|do it|do both|both|do all|dale|s[ií]|hazlo|send it)[.!\s]*$/i;
+  const NO_RE = /^(no|nope|nah|cancel|never ?mind|stop|don'?t)[.!\s]*$/i;
+
+  const pendingProposal = (): ChatMessage | undefined =>
+    [...messages].reverse().find((message) =>
+      message.role === 'os' && message.intents && !message.intents.outcomes);
+
   const send = () => {
     const text = draft.trim();
     if (!text) return;
     setDraft('');
     const history = messages;
     push({ role: 'los', text });
-    // Commands beat lookups: "1608 drop C, give A B to Sandra" wants the
-    // interpreter, not the 1608 card. Plain "1608" gets the card instantly.
-    if (looksLikeCommand(text, stateRef.current)) {
-      void runInterpreter(text);
-      return;
+
+    const pending = pendingProposal();
+    if (pending?.intents) {
+      if (YES_RE.test(text)) {
+        applyIntents(pending.id, pending.intents);
+        return;
+      }
+      if (NO_RE.test(text)) {
+        patch(pending.id, { intents: undefined, text: 'Okay — nothing done.' });
+        return;
+      }
     }
-    const answer = answerTurnChat(stateRef.current, text);
-    if (answer && (answer.cards.length > 0 || answer.note)) {
-      push({ answer, role: 'os' });
-      return;
+
+    // The free instant brain answers pure lookups; anything that smells like
+    // field talk goes to the unified model turn (it can also just answer).
+    if (!looksLikeCommand(text, stateRef.current)) {
+      const answer = answerTurnChat(stateRef.current, text);
+      if (answer && (answer.cards.length > 0 || answer.note)) {
+        push({ answer, role: 'os' });
+        return;
+      }
     }
-    // Everything else gets the real model, grounded in the board.
-    void runModel(history, text);
+    void runUnified(history, text);
   };
 
   const applyIntents = (messageId: number, block: IntentBlock) => {
@@ -481,7 +494,14 @@ export function TurnChat({
               {message.offerAi ? (
                 <div className="lcc-chat__chips">
                   <button
-                    onClick={() => void runInterpreter(message.offerAi ?? '')}
+                    onClick={() => {
+                      const retry = message.offerAi ?? '';
+                      patch(message.id, { offerAi: undefined });
+                      void runUnified(
+                        messages.filter((candidate) => candidate.text !== retry || candidate.role !== 'los'),
+                        retry,
+                      );
+                    }}
                     type="button"
                   >
                     Try again

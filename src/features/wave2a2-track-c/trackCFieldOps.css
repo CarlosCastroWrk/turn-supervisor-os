@@ -3087,3 +3087,11 @@ select.track-c-trade-change {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
+/* Texture tag on a room row — texture work is NOT a touch-up. */
+.track-c-worktype.is-texture-tag {
+  background: #e0f7fa;
+  border: 2px solid #0e7490;
+  color: #0e7490;
+  font-style: normal;
+}

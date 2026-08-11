@@ -44,6 +44,7 @@ import {
   trackCUnitForTarget,
 } from './projections';
 import {
+  parseTextureWording,
   payWeekNumberOf,
   wallWeekColor,
   WALL_WEEK_EPOCH,
@@ -970,6 +971,19 @@ export const CrewView = ({
         const taskTag = (trade: string, workType?: string) => (trade === 'clean'
           ? (workType === 'heavy-clean' ? 'HC' : '')
           : (WALL_WORKTYPE_ABBR[workType ?? 'full'] ?? 'F'));
+        const dayTextures = new Map<string, number>();
+        for (const extra of weekExtras ?? []) {
+          if (extra.kind !== 'texture') continue;
+          const parsed = parseTextureWording(extra.detail);
+          if (!parsed?.room) continue;
+          const key = `${extra.unitNumber}:${parsed.room}`;
+          dayTextures.set(key, (dayTextures.get(key) ?? 0) + parsed.count);
+        }
+        const dayTag = (unitNumber: string, room: DayRoom) => {
+          const base = taskTag(room.trade, room.workType);
+          const texture = room.trade === 'paint' ? dayTextures.get(`${unitNumber}:${room.section}`) : undefined;
+          return `${base}${texture ? `·T${texture}` : ''}`;
+        };
         const dayText = [
           `${dayLabel(activeDay).toUpperCase()} ${activeDay} — apply to the board (crew-done)`,
           ...tradeBlocks.flatMap((block) => [
@@ -978,7 +992,7 @@ export const CrewView = ({
               const marks = row.unitRooms
                 .sort((a, b) => SECTIONS.indexOf(a.section as typeof SECTIONS[number]) - SECTIONS.indexOf(b.section as typeof SECTIONS[number]))
                 .map((room) => {
-                  const tag = taskTag(room.trade, room.workType);
+                  const tag = dayTag(row.unitNumber, room);
                   const label = room.section === 'common' ? 'Comn' : room.section;
                   return tag && tag !== 'F' ? `${label}(${tag})` : label;
                 }).join(' ');
@@ -1045,7 +1059,7 @@ export const CrewView = ({
                               return (
                                 <td className="track-c-wallxfer__cell is-done" key={section}>
                                   <span className="track-c-wallxfer__mark">X</span>
-                                  <span className="track-c-wallxfer__task">{taskTag(room.trade, room.workType)}</span>
+                                  <span className="track-c-wallxfer__task">{dayTag(row.unitNumber, room)}</span>
                                 </td>
                               );
                             })}
@@ -1092,6 +1106,18 @@ export const CrewView = ({
         const taskTagOf = (workType?: string) => (wallTrade === 'clean'
           ? (workType === 'heavy-clean' ? 'HC' : '')
           : (WALL_WORKTYPE_ABBR[workType ?? 'full'] ?? 'F'));
+        // Texture repairs ride the cell tag too (T2 = two spots) — texture is
+        // NOT a touch-up, and the board transfer should carry it.
+        const textureBySection = new Map<string, number>();
+        if (wallTrade === 'paint') {
+          for (const extra of weekExtras ?? []) {
+            if (extra.kind !== 'texture' || extra.week !== weekNo) continue;
+            const parsed = parseTextureWording(extra.detail);
+            if (!parsed?.room) continue;
+            const key = `${extra.unitNumber}:${parsed.room}`;
+            textureBySection.set(key, (textureBySection.get(key) ?? 0) + parsed.count);
+          }
+        }
         type Cell = { mark: string; task: string; approved: boolean; done: boolean } | null;
         const rows: {
           unitId: string; unitNumber: string; cells: Record<string, Cell>;
@@ -1120,11 +1146,12 @@ export const CrewView = ({
             const mark = work.callbackOpen
               ? 'CB'
               : approved ? 'CC' : done ? 'X' : work.responsibleCrewId ? '•' : '/';
+            const textureCount = textureBySection.get(`${unit.unitNumber}:${section}`);
             cells[section] = {
               approved,
               done,
               mark,
-              task: taskTagOf(work.workType),
+              task: `${taskTagOf(work.workType)}${textureCount ? `·T${textureCount}` : ''}`,
             };
             if (work.responsibleCrewId) crewId = work.responsibleCrewId;
             if (approved) anyApproved = true; else allApproved = false;

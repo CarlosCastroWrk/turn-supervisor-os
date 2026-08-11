@@ -28,6 +28,15 @@ export interface StartDayParsedRow {
   readonly unitNumber: string;
   readonly trade: FieldTrade;
   readonly rooms: readonly StartDayParsedRoom[];
+  /** Crew named on the line ("— Rocky", "assign to Sandra"). */
+  readonly crewName?: string;
+  /** Texture repairs with counts — NOT released rooms; they ride as notes. */
+  readonly textures?: readonly { section?: FieldSection; count: number }[];
+}
+
+export interface StartDayCrew {
+  readonly name: string;
+  readonly trade: FieldTrade;
 }
 
 export interface StartDayParseResult {
@@ -98,7 +107,12 @@ interface MutableRow {
   readonly unitNumber: string;
   readonly trade: FieldTrade;
   readonly sections: Map<FieldSection, ReleaseWorkType | undefined>;
+  crewName?: string;
+  textures: { section?: FieldSection; count: number }[];
 }
+
+// "2 textures", "texture repair ×3", "textura" — count first or trailing.
+const TEXTURE_RE = /(?:(\d+)\s*)?(?:textures?|texturas?)(?:\s*(?:repairs?|reps?|reparaci[oó]n(?:es)?))?(?:\s*[x×]\s*(\d+))?/i;
 
 // Rooms named in one comma segment: "A B", "A-C", "a through c".
 const parseSegmentBeds = (segment: string): FieldSection[] => {
@@ -131,25 +145,43 @@ const applyEntry = (
   rows: Map<string, MutableRow>,
   mismatches: string[],
   warnings: string[],
+  crews: readonly StartDayCrew[] = [],
 ): void => {
   // Per-room task grain: comma/semicolon segments, each with its own rooms and
   // task ("A: recorte, D: retoque"). "+" stays inside a segment — it joins
   // rooms on clean lines ("Común + A") and task words on paint combos
   // ("completo + recorte").
   const segments = descriptor.split(/[,;]+/);
-  const parsed = segments.map((segment) => ({
-    beds: parseSegmentBeds(segment),
-    hasCommon: COMMON_RE.test(segment),
-    isStudio: STUDIO_RE.test(segment),
-    isWholeUnit: WHOLE_UNIT_RE.test(segment),
-    workType: detectStartDayWorkType(segment, trade),
-  }));
+  const parsed = segments.map((segment) => {
+    const textureMatch = TEXTURE_RE.exec(segment);
+    return {
+      beds: parseSegmentBeds(segment),
+      hasCommon: COMMON_RE.test(segment),
+      isStudio: STUDIO_RE.test(segment),
+      isWholeUnit: WHOLE_UNIT_RE.test(segment),
+      textureCount: textureMatch
+        ? Number(textureMatch[1] ?? textureMatch[2] ?? 1) || 1
+        : undefined,
+      workType: detectStartDayWorkType(segment, trade),
+    };
+  });
 
   // Backward-fill tasks so "A, B cut in" reads as cut-in on both rooms: a
-  // segment without a task takes the task of the next segment that has one.
+  // segment without a task takes the task of the next segment that has one —
+  // but a texture segment never inherits one (texture is NOT a paint task).
   for (let i = parsed.length - 2; i >= 0; i -= 1) {
-    if (parsed[i].workType === undefined) parsed[i].workType = parsed[i + 1].workType;
+    if (parsed[i].workType === undefined && parsed[i].textureCount === undefined) {
+      parsed[i].workType = parsed[i + 1].workType;
+    }
   }
+
+  // Crew named on the line — first-name match against the roster, same trade.
+  const lowered = descriptor.toLowerCase();
+  const crewName = crews.find((crew) => {
+    if (crew.trade !== trade) return false;
+    const first = crew.name.trim().toLowerCase().split(/\s+/)[0];
+    return first.length >= 3 && new RegExp(`\\b${first}\\b`).test(lowered);
+  })?.name;
 
   const saidStudio = parsed.some((segment) => segment.isStudio);
   const saidWholeUnit = parsed.some((segment) => segment.isWholeUnit);
@@ -158,18 +190,34 @@ const applyEntry = (
 
   const sections = new Map<FieldSection, ReleaseWorkType | undefined>();
   const extraRooms: FieldSection[] = [];
+  const textures: { section?: FieldSection; count: number }[] = [];
   for (const segment of parsed) {
+    // A texture segment with NO task marks the rooms as texture-only — they
+    // are NOT released as paint work (texture ≠ touch-up). A segment with
+    // both ("C touch-up + 2 textures") releases AND logs the textures.
+    const textureOnly = segment.textureCount !== undefined && segment.workType === undefined;
+    if (segment.textureCount !== undefined) {
+      const targets: (FieldSection | undefined)[] = [
+        ...segment.beds.filter((bed) => unit.beds.includes(bed)),
+        ...(segment.hasCommon && unit.hasCommon ? ['common' as const] : []),
+      ];
+      if (targets.length === 0) targets.push(undefined);
+      for (const target of targets) {
+        textures.push({ count: segment.textureCount, section: target });
+      }
+    }
     for (const bed of segment.beds) {
       if (!unit.beds.includes(bed)) {
         if (!extraRooms.includes(bed)) extraRooms.push(bed);
         continue;
       }
+      if (textureOnly) continue;
       // A later, more specific mention wins over an earlier task-less one.
       if (!sections.has(bed) || segment.workType !== undefined) {
         sections.set(bed, segment.workType);
       }
     }
-    if (segment.hasCommon && unit.hasCommon) {
+    if (segment.hasCommon && unit.hasCommon && !textureOnly) {
       if (!sections.has('common') || segment.workType !== undefined) {
         // Común carries its task on paint ("Común: pintura completa") — Los
         // must see the task on every room, common included.
@@ -213,12 +261,14 @@ const applyEntry = (
     );
   }
 
-  // CLEAN: every unit gets its common automatically (Los's rule).
-  if (trade === 'clean' && unit.hasCommon && !sections.has('common')) {
+  // CLEAN: every unit gets its common automatically (Los's rule) — but a
+  // texture-only line releases nothing.
+  if (trade === 'clean' && unit.hasCommon && !sections.has('common')
+    && (sections.size > 0 || textures.length === 0)) {
     sections.set('common', entryWorkType);
   }
 
-  if (sections.size === 0) {
+  if (sections.size === 0 && textures.length === 0 && !crewName) {
     warnings.push(
       `${unit.unitNumber}: no rooms heard — say the rooms (e.g. "${unit.unitNumber} A B").`,
     );
@@ -228,6 +278,7 @@ const applyEntry = (
   const key = `${unit.id}:${trade}`;
   const existing = rows.get(key) ?? {
     sections: new Map<FieldSection, ReleaseWorkType | undefined>(),
+    textures: [],
     trade,
     unitId: unit.id,
     unitNumber: unit.unitNumber,
@@ -237,6 +288,8 @@ const applyEntry = (
       existing.sections.set(section, workType);
     }
   }
+  if (crewName) existing.crewName = crewName;
+  existing.textures.push(...textures);
   rows.set(key, existing);
 };
 
@@ -254,6 +307,7 @@ export const parseStartDayMemo = (
   text: string,
   units: readonly DictationRosterUnit[],
   mode: StartDayMemoMode = 'both',
+  crews: readonly StartDayCrew[] = [],
 ): StartDayParseResult => {
   const byNumber = new Map(units.map((unit) => [unit.unitNumber.toLowerCase(), unit]));
   const rows = new Map<string, MutableRow>();
@@ -300,7 +354,9 @@ export const parseStartDayMemo = (
       const pieceTrade = currentTrade;
 
       // Entries: each 3–4 digit unit number owns the text up to the next one.
-      const entryRe = /(\d{3,4})([^\d]*)/g;
+      // Small numbers inside a descriptor ("×2", "2 textures") are NOT unit
+      // boundaries — only a 3–4 digit run starts a new entry.
+      const entryRe = /(\d{3,4})((?:\D|\d{1,2}(?!\d))*)/g;
       let match: RegExpExecArray | null;
       while ((match = entryRe.exec(piece)) !== null) {
         const unit = byNumber.get(match[1].toLowerCase());
@@ -311,10 +367,23 @@ export const parseStartDayMemo = (
         const descriptor = match[2] ?? '';
         let trade = pieceTrade;
         if (trade === undefined) {
-          trade = inferTrade(descriptor);
-          inferredRows += 1;
+          // A named crew settles the trade ("1806 A B — Rocky" is paint if
+          // Rocky paints) more reliably than task-word inference.
+          const loweredEntry = descriptor.toLowerCase();
+          const namedTrades = new Set(crews
+            .filter((candidate) => {
+              const first = candidate.name.trim().toLowerCase().split(/\s+/)[0];
+              return first.length >= 3 && new RegExp(`\\b${first}\\b`).test(loweredEntry);
+            })
+            .map((candidate) => candidate.trade));
+          if (namedTrades.size === 1) {
+            trade = [...namedTrades][0];
+          } else {
+            trade = inferTrade(descriptor);
+            inferredRows += 1;
+          }
         }
-        applyEntry(unit, descriptor, trade, rows, mismatches, warnings);
+        applyEntry(unit, descriptor, trade, rows, mismatches, warnings, crews);
       }
     }
   }
@@ -327,6 +396,8 @@ export const parseStartDayMemo = (
   }
 
   const orderedRows: StartDayParsedRow[] = [...rows.values()].map((row) => ({
+    ...(row.crewName ? { crewName: row.crewName } : {}),
+    ...(row.textures.length > 0 ? { textures: row.textures } : {}),
     rooms: SECTION_ORDER
       .filter((section) => row.sections.has(section))
       .map((section) => {

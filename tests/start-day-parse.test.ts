@@ -254,6 +254,60 @@ test('lines it could not read are named, never silently eaten', () => {
     line.includes('Didn’t read') && line.includes('twelve-oh-nine')));
 });
 
+test('the full memo: task + crew + textures in one line', () => {
+  const crews = [
+    { name: 'Rocky', trade: 'paint' as const },
+    { name: 'Sandra', trade: 'paint' as const },
+    { name: 'Graciela', trade: 'clean' as const },
+  ];
+  const memo = [
+    'Paint:',
+    '1806 A cut-in, B full — Rocky, 2 textures in B',
+    '1707 A: retoque — assign to Sandra',
+    '504 — texture by the window',
+    'Clean:',
+    '1404 — Común + A, B — Graciela',
+  ].join('\n');
+  const result = parseStartDayMemo(memo, ROSTER, 'both', crews);
+  const row1806 = result.rows.find((row) => row.unitNumber === '1806' && row.trade === 'paint');
+  assert.equal(row1806?.crewName, 'Rocky');
+  assert.deepEqual(row1806?.rooms, [
+    { section: 'A', workType: 'cut-in' },
+    { section: 'B', workType: 'full' },
+  ]);
+  assert.deepEqual(row1806?.textures, [{ count: 2, section: 'B' }]);
+  const row1707 = result.rows.find((row) => row.unitNumber === '1707');
+  assert.equal(row1707?.crewName, 'Sandra');
+  // Texture-only unit: nothing released, the texture rides as a note.
+  const row504 = result.rows.find((row) => row.unitNumber === '504');
+  assert.equal(row504?.rooms.length, 0);
+  assert.deepEqual(row504?.textures, [{ count: 1, section: undefined }]);
+  const row1404 = result.rows.find((row) => row.unitNumber === '1404');
+  assert.equal(row1404?.crewName, 'Graciela');
+  assert.deepEqual(row1404?.rooms.map((room) => room.section), ['common', 'A', 'B']);
+});
+
+test('a named crew settles the trade when no task words are said', () => {
+  const crews = [
+    { name: 'Rocky', trade: 'paint' as const },
+    { name: 'Graciela', trade: 'clean' as const },
+  ];
+  // No headers, no task words — old inference would have called this clean.
+  const result = parseStartDayMemo('1806 A B — Rocky', ROSTER, 'both', crews);
+  const row = result.rows.find((candidate) => candidate.unitNumber === '1806');
+  assert.equal(row?.trade, 'paint');
+  assert.equal(row?.crewName, 'Rocky');
+  assert.ok(!row?.rooms.some((room) => room.section === 'common'));
+});
+
+test('a texture segment never inherits a task from backward-fill', () => {
+  const result = parseStartDayMemo('1806 A texture ×2, B cut-in', ROSTER, 'paint');
+  const row = result.rows.find((candidate) => candidate.unitNumber === '1806');
+  // A is texture-only (not released); B releases as cut-in.
+  assert.deepEqual(row?.rooms, [{ section: 'B', workType: 'cut-in' }]);
+  assert.deepEqual(row?.textures, [{ count: 2, section: 'A' }]);
+});
+
 test('a unit with nothing usable warns instead of guessing', () => {
   const result = parseStartDayMemo('1806', ROSTER, 'paint');
   assert.equal(result.rows.length, 0);

@@ -21,6 +21,7 @@ import {
 } from '../wave2a2-core/appDataAdapters';
 import {
   parseStartDayMemo,
+  type StartDayCrew,
   type StartDayMemoMode,
 } from '../wave2a2-core/startDayParse';
 import {
@@ -56,6 +57,13 @@ export interface StartDayScreenProps {
   readonly propertyName: string;
   readonly roster: PropertyRoster;
   readonly rosterUnits: readonly ProjectRosterUnitOption[];
+  /** Track-C crews for "— Rocky" capture in the memo. */
+  readonly fieldCrews?: readonly { id: string; name: string; trade: FieldTrade }[];
+  /** Applies parsed crew assignments + texture notes AFTER the release saves. */
+  readonly onApplyStartExtras?: (
+    assignments: readonly { unitId: string; unitNumber: string; trade: FieldTrade; crewName: string }[],
+    textures: readonly { unitId: string; unitNumber: string; section?: FieldSection; count: number }[],
+  ) => readonly string[];
 }
 
 interface PlanEntry {
@@ -111,6 +119,8 @@ export function StartDayScreen({
   propertyName,
   roster,
   rosterUnits,
+  fieldCrews,
+  onApplyStartExtras,
 }: StartDayScreenProps) {
   const availableContacts = useMemo(() => contacts.filter((contact) =>
     contact.projectId === projectId && contact.activeForProject !== false),
@@ -119,6 +129,10 @@ export function StartDayScreen({
   const [text, setText] = useState('');
   const [mode, setMode] = useState<StartDayMemoMode>('both');
   const [entries, setEntries] = useState<Map<string, PlanEntry>>(() => new Map());
+  // The memo's crew per unit+trade ("— Rocky") and texture repairs — applied
+  // right after the release saves, then the crew lists are ready to send.
+  const [crewPlan, setCrewPlan] = useState<Map<string, { unitId: string; unitNumber: string; trade: FieldTrade; crewName: string }>>(() => new Map());
+  const [texturePlan, setTexturePlan] = useState<readonly { unitId: string; unitNumber: string; section?: FieldSection; count: number }[]>([]);
   const [status, setStatus] = useState('');
   const [mismatches, setMismatches] = useState<readonly string[]>([]);
   const [taskPickerKey, setTaskPickerKey] = useState<string | null>(null);
@@ -168,7 +182,11 @@ export function StartDayScreen({
   };
 
   const readList = () => {
-    const result = parseStartDayMemo(text, dictationUnits, mode);
+    const parserCrews: StartDayCrew[] = (fieldCrews ?? []).map((crew) => ({
+      name: crew.name,
+      trade: crew.trade,
+    }));
+    const result = parseStartDayMemo(text, dictationUnits, mode, parserCrews);
     if (result.rows.length === 0 && result.unmatched.length === 0) {
       setStatus('Nothing readable yet — one unit per line, e.g. "1404 — Común + A, B, C, D".');
       setMismatches(result.mismatches);
@@ -201,11 +219,43 @@ export function StartDayScreen({
       }
       return next;
     });
+    // Crew + texture plans: re-reading a unit replaces its previous plan.
+    setCrewPlan((current) => {
+      const next = new Map(current);
+      for (const row of result.rows) {
+        const key = `${row.unitId}:${row.trade}`;
+        if (row.crewName) {
+          next.set(key, {
+            crewName: row.crewName,
+            trade: row.trade,
+            unitId: row.unitId,
+            unitNumber: row.unitNumber,
+          });
+        }
+      }
+      return next;
+    });
+    setTexturePlan((current) => {
+      const parsedUnitIds = new Set(result.rows.map((row) => row.unitId));
+      const kept = current.filter((item) => !parsedUnitIds.has(item.unitId));
+      const added = result.rows.flatMap((row) =>
+        (row.textures ?? []).map((texture) => ({
+          count: texture.count,
+          section: texture.section,
+          unitId: row.unitId,
+          unitNumber: row.unitNumber,
+        })));
+      return [...kept, ...added];
+    });
     const paintUnits = new Set(result.rows.filter((row) => row.trade === 'paint').map((row) => row.unitId)).size;
     const cleanUnits = new Set(result.rows.filter((row) => row.trade === 'clean').map((row) => row.unitId)).size;
     const roomCount = result.rows.reduce((sum, row) => sum + row.rooms.length, 0);
+    const crewCount = result.rows.filter((row) => row.crewName).length;
+    const textureCount = result.rows.reduce((sum, row) => sum + (row.textures?.length ?? 0), 0);
     setStatus([
       `Read ${paintUnits} paint + ${cleanUnits} clean unit${paintUnits + cleanUnits === 1 ? '' : 's'} (${roomCount} rooms).`,
+      crewCount > 0 ? `${crewCount} crew assignment${crewCount === 1 ? '' : 's'} heard.` : '',
+      textureCount > 0 ? `${textureCount} texture repair${textureCount === 1 ? '' : 's'} heard.` : '',
       result.unmatched.length > 0 ? `Not in your roster: ${result.unmatched.join(', ')}.` : '',
       result.warnings.length > 0 ? result.warnings.join(' ') : '',
       'Check the list below, then Start Day.',
@@ -308,6 +358,17 @@ export function StartDayScreen({
     }
   };
 
+  // After the release durably saves, the memo's crews get assigned and the
+  // textures get logged — one paste, everything lands.
+  const applyExtras = () => {
+    if (!onApplyStartExtras) return;
+    const assignments = [...crewPlan.values()]
+      .filter((plan) => [...entries.values()].some((entry) =>
+        entry.unitId === plan.unitId && entry.trade === plan.trade));
+    if (assignments.length === 0 && texturePlan.length === 0) return;
+    onApplyStartExtras(assignments, texturePlan);
+  };
+
   const submit = async () => {
     if (savingRef.current) return;
     if (entries.size === 0) {
@@ -344,7 +405,9 @@ export function StartDayScreen({
         const saved = await onAddToDay(batch);
         if (!saved) {
           setErrors(['The list was not saved. Nothing was added — retry.']);
+          return;
         }
+        applyExtras();
         return;
       }
       const tradeChoices = availableDailyReleaseTradeChoices(
@@ -387,7 +450,9 @@ export function StartDayScreen({
         setErrors([
           'Start Day was not saved. Nothing was started or released — retry, edit, or cancel.',
         ]);
+        return;
       }
+      applyExtras();
     } catch (caught) {
       setErrors([caught instanceof Error
         ? caught.message
@@ -423,6 +488,11 @@ export function StartDayScreen({
             <div className="w2a2-core-selected__unit" key={`${trade}:${unit.unitId}`}>
               <div className="w2a2-core-selected__row">
                 <strong>{unit.unitNumber}</strong>
+                {crewPlan.get(`${unit.unitId}:${trade}`) ? (
+                  <span className="w2a21a-sd__crewchip">
+                    → {crewPlan.get(`${unit.unitId}:${trade}`)?.crewName}
+                  </span>
+                ) : null}
                 <button
                   aria-label={`Remove unit ${unit.unitNumber} from ${trade}`}
                   className="w2a2-core-selected__remove"
@@ -569,6 +639,28 @@ export function StartDayScreen({
             {grouped.paint.length > 0 ? renderTradeGroup('paint', grouped.paint) : null}
             {grouped.clean.length > 0 ? renderTradeGroup('clean', grouped.clean) : null}
           </>
+        ) : null}
+
+        {texturePlan.length > 0 ? (
+          <section className="w2a21a-sd-group">
+            <h2>Texture repairs · {texturePlan.length}</h2>
+            <div className="w2a21a-sd__chips">
+              {texturePlan.map((texture, index) => (
+                <button
+                  aria-label={`Remove texture on ${texture.unitNumber}`}
+                  key={`${texture.unitId}:${texture.section ?? 'unit'}:${index}`}
+                  onClick={() => setTexturePlan((current) =>
+                    current.filter((_, candidateIndex) => candidateIndex !== index))}
+                  type="button"
+                >
+                  ≈ {texture.unitNumber}{texture.section ? ` ${texture.section === 'common' ? 'Common' : texture.section}` : ''} ×{texture.count} ✕
+                </button>
+              ))}
+            </div>
+            <p className="w2a21a-setup__supporting">
+              Logged as texture notes when the day starts — not released as paint tasks.
+            </p>
+          </section>
         ) : null}
 
         <section className="w2a21a-sd__add">

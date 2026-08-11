@@ -26,3 +26,21 @@ export const WALL_WORKTYPE_ABBR: Record<string, string> = {
   'full-cut-in': 'F+CI',
   'touch-up-cut-in': 'TU+CI',
 };
+
+// Texture notes carry the room + count in their wording ("Texture repair — C
+// ×2"). One parser everywhere, so the unit page, the wall grids, and the
+// day board all read the same fact the same way.
+export const parseTextureWording = (
+  text: string,
+): { room?: 'common' | 'A' | 'B' | 'C' | 'D' | 'E'; count: number } | null => {
+  if (!/texture|textura/i.test(text)) return null;
+  const roomMatch = /(?:—|-)\s*(Common|Com[uú]n|[A-E])\b\s*(?:[×x]\s*(\d+))?/i.exec(text);
+  const bare = /[×x]\s*(\d+)/.exec(text);
+  const count = Number(roomMatch?.[2] ?? bare?.[1] ?? 1) || 1;
+  if (!roomMatch) return { count };
+  const raw = roomMatch[1].toLowerCase();
+  return {
+    count,
+    room: raw.startsWith('com') ? 'common' : roomMatch[1].toUpperCase() as 'A' | 'B' | 'C' | 'D' | 'E',
+  };
+};

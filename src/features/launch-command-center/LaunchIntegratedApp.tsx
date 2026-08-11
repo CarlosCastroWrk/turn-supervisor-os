@@ -2071,6 +2071,7 @@ function LaunchOperationalApp({
     const daySessionId = createId('day-session');
     let preparationError = '';
     let persisted = false;
+    let committedData: AppData | undefined;
     try {
       persisted = commitDataNow((current) => {
         if (current.activeProjectId !== submission.projectId) {
@@ -2157,12 +2158,14 @@ function LaunchOperationalApp({
             ?? 'Start Day validation failed before anything was saved.',
           );
         }
-        return applyDayTaskStateChange(withRelease, {
+        const nextData = applyDayTaskStateChange(withRelease, {
           event: started.startEvent,
           reason: 'day-started',
           recordedAt,
           session: started.session,
         });
+        committedData = nextData;
+        return nextData;
       });
     } catch (error) {
       preparationError = error instanceof Error
@@ -2174,6 +2177,11 @@ function LaunchOperationalApp({
         console.warn(`Start Day was not saved: ${preparationError}`);
       }
       return false;
+    }
+    // Chain the just-committed release into the Tell/assign machinery so the
+    // memo's "— Rocky" assignments see the rooms released a moment ago.
+    if (committedData) {
+      tellOsTrackRef.current = projectTrackCState(committedData);
     }
     setHomeMode('day');
     return true;
@@ -3856,14 +3864,62 @@ function LaunchOperationalApp({
             dayActive={Boolean(activeDaySession)}
             onAddCrew={addDayCrew}
             onAddToDay={(batch) => {
-              const saved = commitDataNow((current) =>
-                appendManualReleaseBatchToActiveDay(current, batch));
+              let updated: AppData | undefined;
+              const saved = commitDataNow((current) => {
+                const next = appendManualReleaseBatchToActiveDay(current, batch);
+                updated = next;
+                return next;
+              });
               if (!saved) return false;
+              if (updated) tellOsTrackRef.current = projectTrackCState(updated);
               setFieldToast(
                 `Saved — ${batch.items.length} released section${batch.items.length === 1 ? '' : 's'} added to today.`,
               );
               setHomeMode('day');
               return true;
+            }}
+            fieldCrews={trackCState.crews.map((crew) => ({
+              id: crew.id,
+              name: crew.name,
+              trade: crew.trade,
+            }))}
+            onApplyStartExtras={(assignments, textures) => {
+              // The memo's "— Rocky" lines become real assignments (through
+              // the same reviewed machinery Tell/chat uses), textures land as
+              // notes, and the send-ready crew lists are one screen away.
+              const lines: string[] = [];
+              for (const assignment of assignments) {
+                try {
+                  lines.push(applyTurnIntent({
+                    confidence: 'high',
+                    crewName: assignment.crewName,
+                    kind: 'assign',
+                    note: null,
+                    sections: [],
+                    summary: `${assignment.unitNumber} → ${assignment.crewName}`,
+                    trade: assignment.trade,
+                    unitNumber: assignment.unitNumber,
+                    workType: null,
+                  }));
+                } catch (caught) {
+                  lines.push(`${assignment.unitNumber}: ${caught instanceof Error ? caught.message : 'assign failed'}`);
+                }
+              }
+              for (const texture of textures) {
+                const room = texture.section
+                  ? texture.section === 'common' ? 'Common' : texture.section
+                  : 'unit';
+                if (addUnitNote(texture.unitId, 'texture', `Texture repair — ${room} ×${texture.count}`)) {
+                  lines.push(`${texture.unitNumber}: texture ×${texture.count}`);
+                }
+              }
+              if (assignments.length > 0) {
+                setFieldToast(`${assignments.length} crew assignment${assignments.length === 1 ? '' : 's'} applied — lists are ready under Crews → Send today's lists.`);
+                navigate('crews');
+              } else if (textures.length > 0) {
+                setFieldToast(`${textures.length} texture repair${textures.length === 1 ? '' : 's'} logged.`);
+              }
+              return lines;
             }}
             onCancel={() => setHomeMode('day')}
             onStartDay={startFastDay}

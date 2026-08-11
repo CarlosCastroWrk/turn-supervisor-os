@@ -25,7 +25,7 @@ import {
   trackCWorkKey,
 } from './model';
 import { OFFICIAL_PDS_LINKS } from '../../config/officialPdsLinks';
-import { payWeekNumberOf, wallWeekColor, WALL_WORKTYPE_ABBR } from './wallWeek';
+import { parseTextureWording, payWeekNumberOf, wallWeekColor, WALL_WORKTYPE_ABBR } from './wallWeek';
 import type { PhotoNote } from '../../types';
 import type { TrackCSectionAction } from './operations';
 import { UnitPhotoAddButton, UnitPhotoStrip, type UnitPhotoCommitter } from './UnitPhotos';
@@ -612,6 +612,7 @@ const WorkSection = ({
   onSetWorkType,
   onUpgradeCutInToFull,
   onLogTexture,
+  textureCount,
   unitNumber,
 }: {
   state: TrackCState;
@@ -624,6 +625,7 @@ const WorkSection = ({
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean') => void;
   onUpgradeCutInToFull?: (attribution: 'joseph' | 'catch' | 'redo') => void;
   onLogTexture?: (count: number) => boolean;
+  textureCount?: number;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
@@ -795,6 +797,11 @@ const WorkSection = ({
                     : 'heavy clean'}
                 </em>
               ) : null}
+            {textureCount ? (
+              <em className="track-c-worktype is-texture-tag">
+                ≈{textureCount} texture
+              </em>
+            ) : null}
           </span>
           <span
             className={`track-c-section-row__state ${
@@ -1229,6 +1236,18 @@ const UnitDetail = ({
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     [unitNotes, unitId],
   );
+  // Texture repairs per room, read off the texture notes — so a texture-only
+  // room shows "≈2 texture" on its row and never masquerades as a touch-up.
+  const texturesByRoom = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const note of notesForUnit) {
+      if (note.kind !== 'texture') continue;
+      const parsed = parseTextureWording(note.text);
+      if (!parsed?.room) continue;
+      counts.set(parsed.room, (counts.get(parsed.room) ?? 0) + parsed.count);
+    }
+    return counts;
+  }, [notesForUnit]);
   // From a trade board the unit page IS that board's page — the other trade
   // stays one tap away, while notes/photos/change orders remain shared.
   const [showOtherTrade, setShowOtherTrade] = useState(false);
@@ -1820,6 +1839,7 @@ const UnitDetail = ({
                               count,
                             )
                             : undefined}
+                          textureCount={item.trade === 'paint' ? texturesByRoom.get(item.section) : undefined}
                           onAction={(action) =>
                             onSectionAction(
                               { unitId: item.unitId, trade: item.trade, section: item.section },

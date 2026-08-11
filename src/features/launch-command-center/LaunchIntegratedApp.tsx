@@ -3495,7 +3495,7 @@ function LaunchOperationalApp({
             const saved = addUnitNote(
               target.unitId,
               'texture',
-              `Texture repair — ${roomLabel} ×${count}${count >= 5 ? '+' : ''}`,
+              `Texture repair — ${roomLabel} ×${count}`,
             );
             if (saved) {
               const unitNumber = trackCState.units

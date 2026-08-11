@@ -3095,3 +3095,15 @@ select.track-c-trade-change {
   color: #0e7490;
   font-style: normal;
 }
+
+/* Texture count entry — number pad, any count. */
+.track-c-texture-count {
+  width: 64px;
+  min-height: 38px;
+  border: 1px solid var(--track-c-line, #cbd2da);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}

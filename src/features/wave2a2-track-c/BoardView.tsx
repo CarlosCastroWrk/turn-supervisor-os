@@ -635,6 +635,7 @@ const WorkSection = ({
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [textureOpen, setTextureOpen] = useState(false);
   const [textureLogged, setTextureLogged] = useState<number | null>(null);
+  const [textureEntry, setTextureEntry] = useState('');
   const touchStartX = useRef<number | null>(null);
   const holdTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -960,19 +961,44 @@ const WorkSection = ({
                     Texture repairs in {trackCSectionLabel(work.section)} — how many spots?
                   </span>
                   <div className="track-c-upgrade__chips">
-                    {[1, 2, 3, 4, 5].map((count) => (
+                    {[1, 2, 3, 4].map((count) => (
                       <button
                         className="track-c-upgrade__chip"
                         key={count}
                         onClick={() => {
                           setTextureOpen(false);
+                          setTextureEntry('');
                           if (onLogTexture(count)) setTextureLogged(count);
                         }}
                         type="button"
                       >
-                        {count === 5 ? '5+' : count}
+                        {count}
                       </button>
                     ))}
+                    <input
+                      aria-label="Number of texture repairs"
+                      className="track-c-texture-count"
+                      inputMode="numeric"
+                      onChange={(event) =>
+                        setTextureEntry(event.target.value.replace(/\D/g, '').slice(0, 3))}
+                      pattern="[0-9]*"
+                      placeholder="#"
+                      value={textureEntry}
+                    />
+                    <button
+                      className="track-c-upgrade__chip is-charge"
+                      disabled={!textureEntry || Number(textureEntry) < 1}
+                      onClick={() => {
+                        const count = Number(textureEntry);
+                        if (!count) return;
+                        setTextureOpen(false);
+                        setTextureEntry('');
+                        if (onLogTexture(count)) setTextureLogged(count);
+                      }}
+                      type="button"
+                    >
+                      Log{textureEntry ? ` ×${textureEntry}` : ''}
+                    </button>
                   </div>
                   <button
                     className="track-c-upgrade__cancel"

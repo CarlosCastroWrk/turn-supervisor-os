@@ -498,6 +498,103 @@ export const CrewView = ({
     () => buildAllCrewPayroll(state, new Date()),
     [state.events],
   );
+  // PAYROLL PRE-FLIGHT — the app audits itself BEFORE Saturday with Tony.
+  // Every check compares two surfaces that must agree: done events vs crew
+  // names (who gets paid?), the pay packet vs the live board, extras vs the
+  // verified checks. Discrepancies get found Friday night, not in front of Tony.
+  const preflight = useMemo(() => {
+    interface PreflightItem {
+      key: string;
+      text: string;
+      unitId?: string;
+      trade?: 'paint' | 'clean';
+      kind: 'fix' | 'check';
+    }
+    const items: PreflightItem[] = [];
+    const unitById = new Map(state.units.map((unit) => [unit.id, unit]));
+    // 1+2: every done room this week must have exactly ONE crew to pay.
+    const doneByTarget = new Map<string, typeof state.events[number][]>();
+    for (const event of state.events) {
+      if (event.eventType !== 'crew-reported-complete' || event.confirmation !== 'confirmed') continue;
+      if (payWeekNumberOf(event.recordedAt) !== activePayWeek) continue;
+      const key = `${event.target.unitId}:${event.target.trade}:${event.target.section}`;
+      const bucket = doneByTarget.get(key) ?? [];
+      bucket.push(event);
+      doneByTarget.set(key, bucket);
+    }
+    for (const [key, events] of doneByTarget) {
+      const target = events[0].target;
+      const unit = unitById.get(target.unitId);
+      if (!unit) continue;
+      const room = trackCSectionLabel(target.section);
+      const tradeName = target.trade === 'paint' ? 'Paint' : 'Clean';
+      const crewIds = [...new Set(events.filter((event) => event.crewId).map((event) => event.crewId as string))];
+      if (crewIds.length === 0) {
+        items.push({
+          key: `nocrew:${key}`,
+          kind: 'fix',
+          text: `${unit.unitNumber} ${tradeName} ${room} — done, but NO crew on it. Who gets paid?`,
+          trade: target.trade,
+          unitId: unit.id,
+        });
+      } else if (crewIds.length > 1) {
+        const names = crewIds.map((crewId) => state.crews.find((crew) => crew.id === crewId)?.name ?? '?');
+        const first = [...events].filter((event) => event.crewId)
+          .sort((left, right) => left.recordedAt.localeCompare(right.recordedAt))[0];
+        const firstName = state.crews.find((crew) => crew.id === first.crewId)?.name ?? '?';
+        items.push({
+          key: `double:${key}`,
+          kind: 'fix',
+          text: `${unit.unitNumber} ${room} — ${names.join(' AND ')} both reported it. Paying ${firstName} (first). Right?`,
+          trade: target.trade,
+          unitId: unit.id,
+        });
+      }
+    }
+    // 3+4: every PAID room must still be on the release, and an open
+    // callback on a paid room deserves a look (pay stands — crew did work).
+    for (const [crewId, payroll] of payrollByCrew) {
+      const crewName = state.crews.find((crew) => crew.id === crewId)?.name ?? '';
+      for (const room of payroll.rooms) {
+        if (payWeekNumberOf(`${room.date}T12:00:00`) !== activePayWeek) continue;
+        const unit = state.units.find((candidate) => candidate.unitNumber === room.unitNumber);
+        if (!unit) continue;
+        const work = projectTrackCUnitWork(state, unit.id).find((candidate) =>
+          candidate.trade === room.trade && candidate.section === room.section);
+        if (!work) continue;
+        const label = trackCSectionLabel(work.section);
+        if (work.release !== 'released') {
+          items.push({
+            key: `off:${room.unitNumber}:${room.trade}:${room.section}`,
+            kind: 'fix',
+            text: `${room.unitNumber} ${label} — counted for ${crewName} but the room is OFF the ${room.trade} release.`,
+            trade: room.trade,
+            unitId: unit.id,
+          });
+        } else if (work.callbackOpen) {
+          items.push({
+            key: `cb:${room.unitNumber}:${room.trade}:${room.section}`,
+            kind: 'check',
+            text: `${room.unitNumber} ${label} — counted for ${crewName} with a callback still open. Pay stands (they did the work) — just confirm.`,
+            trade: room.trade,
+            unitId: unit.id,
+          });
+        }
+      }
+    }
+    // 5: extras Tony pays on that nobody has verified yet.
+    const weekKey = payWeekSundayOf(activePayWeek);
+    const pendingExtras = (weekExtras ?? []).filter((extra) =>
+      extra.week === activePayWeek && !ackExtras.has(`${weekKey}::${extra.id}`));
+    if (pendingExtras.length > 0) {
+      items.push({
+        key: 'extras',
+        kind: 'check',
+        text: `${pendingExtras.length} extra${pendingExtras.length === 1 ? '' : 's'} (cut-ins / textures / changes) not verified yet — run the extras list below.`,
+      });
+    }
+    return items;
+  }, [state, payrollByCrew, weekExtras, ackExtras, activePayWeek]);
   // Prefilled, organized text from the crew's REAL current assignments —
   // bilingual-lite so it works for Spanish- and English-speaking crews.
   const composeBody = (crewId: string, crewName: string) => {
@@ -804,6 +901,46 @@ export const CrewView = ({
                 Copy the pay packet
               </button>
               {payCopied ? <p className="track-c-weeksummary__copied">{payCopied}</p> : null}
+            </div>
+          </details>
+        );
+      })()}
+      {(() => {
+        const fixes = preflight.filter((item) => item.kind === 'fix');
+        const checks = preflight.filter((item) => item.kind === 'check');
+        return (
+          <details className="track-c-preflight" open={fixes.length > 0}>
+            <summary className={fixes.length > 0 ? 'is-warn' : 'is-clean'}>
+              {fixes.length > 0
+                ? `⚠ Payroll pre-flight · ${fixes.length} to fix${checks.length > 0 ? ` · ${checks.length} to confirm` : ''}`
+                : checks.length > 0
+                  ? `Payroll pre-flight · ✓ numbers agree · ${checks.length} to confirm`
+                  : 'Payroll pre-flight · ✓ all clear — packet, board, and crews agree'}
+            </summary>
+            <div className="track-c-preflight__body">
+              <p className="track-c-preflight__hint">
+                Week {activePayWeek} audit: every done room has one crew to pay,
+                every paid room is on the board, every extra is verified. Run it
+                Friday night — walk in Saturday with zero surprises.
+              </p>
+              {preflight.length === 0 ? (
+                <p className="track-c-preflight__clean">Nothing to fix. This packet survives an audit.</p>
+              ) : preflight.map((item) => (
+                item.unitId && onOpenUnit ? (
+                  <button
+                    className={`track-c-preflight__item is-${item.kind}`}
+                    key={item.key}
+                    onClick={() => onOpenUnit(item.unitId as string, item.trade ?? 'paint')}
+                    type="button"
+                  >
+                    {item.kind === 'fix' ? '⚠' : '•'} {item.text}
+                  </button>
+                ) : (
+                  <p className={`track-c-preflight__item is-${item.kind}`} key={item.key}>
+                    {item.kind === 'fix' ? '⚠' : '•'} {item.text}
+                  </p>
+                )
+              ))}
             </div>
           </details>
         );

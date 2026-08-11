@@ -3107,3 +3107,39 @@ select.track-c-trade-change {
   font-weight: 700;
   text-align: center;
 }
+
+/* Payroll pre-flight — the Friday-night audit. */
+.track-c-preflight {
+  border: 1px solid var(--track-c-line, #d7dce3);
+  border-radius: 14px;
+  background: var(--track-c-card, #fff);
+  padding: 10px 12px;
+  margin: 10px 0;
+}
+.track-c-preflight > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
+}
+.track-c-preflight > summary.is-warn { color: #b45309; }
+.track-c-preflight > summary.is-clean { color: #237a45; }
+.track-c-preflight__body { display: grid; gap: 6px; margin-top: 8px; }
+.track-c-preflight__hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--track-c-muted, #5b6673);
+  line-height: 1.4;
+}
+.track-c-preflight__clean { margin: 0; font-size: 14px; font-weight: 700; color: #237a45; }
+.track-c-preflight__item {
+  border: 1px solid var(--track-c-line, #e0e4ea);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.4;
+  padding: 9px 11px;
+}
+.track-c-preflight__item.is-fix { border-color: #f3c07f; background: #fff8ee; }
+button.track-c-preflight__item:active { opacity: 0.75; }

@@ -2190,6 +2190,39 @@ function LaunchOperationalApp({
     operationalScope.accountId,
   ]);
 
+  // One-tap Turn protection: build the full backup and hand it to the iOS
+  // share sheet so "Save to Files → iCloud" is one more tap — no Downloads
+  // digging. Falls back to a plain download where share isn't available.
+  const protectTurnNow = useCallback(async (): Promise<string> => {
+    const result = await buildJsonBackupWithLocalPhotos(data);
+    const filename = `turn-supervisor-backup-${currentDate}.json`;
+    let delivered = 'download';
+    try {
+      const file = new File([result.text], filename, { type: 'application/json' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        delivered = 'share';
+      } else {
+        downloadTextFile(filename, result.text, 'application/json');
+      }
+    } catch (caught) {
+      // Share sheet dismissed or unavailable — a plain download still counts.
+      if ((caught as Error)?.name === 'AbortError') {
+        return 'Backup not saved — the share sheet was closed. Tap again and pick “Save to Files”.';
+      }
+      downloadTextFile(filename, result.text, 'application/json');
+    }
+    try {
+      window.localStorage.setItem('turn-os:last-backup', currentDate);
+    } catch { /* session-only then */ }
+    const photoNote = result.missingPhotoFiles > 0
+      ? ` (${result.includedPhotoFiles} photo files included; ${result.missingPhotoFiles} photo records have no file on this device.)`
+      : '';
+    return delivered === 'share'
+      ? `Backup shared — pick “Save to Files” → iCloud and the Turn is protected.${photoNote}`
+      : `Backup saved to Downloads — move it to iCloud Files for the off-phone copy.${photoNote}`;
+  }, [currentDate, data]);
+
   const openUnitNote = useCallback(() => {
     setPlusInitialScreen('note');
     setPlusOpen(true);
@@ -4112,24 +4145,7 @@ function LaunchOperationalApp({
             homeScrollRef.current = window.scrollY;
             navigate('unitDetail', unitId);
           }}
-          onExportBackup={async () => {
-            const result = await buildJsonBackupWithLocalPhotos(data);
-            downloadTextFile(
-              `turn-supervisor-backup-${currentDate}.json`,
-              result.text,
-              'application/json',
-            );
-            // Remember the last backup day so the nightly nag knows when
-            // tonight's payroll record is already protected.
-            try {
-              window.localStorage.setItem('turn-os:last-backup', currentDate);
-            } catch {
-              // Session-only then.
-            }
-            return result.missingPhotoFiles > 0
-              ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device. Move it to iCloud Drive.`
-              : 'Backup saved. Move the file from Downloads to iCloud Drive and tonight is safe.';
-          }}
+          onExportBackup={protectTurnNow}
           onExportReport={async (dayNumber) => {
             const report = buildDailyReportData({
               date: activeDaySession?.date ?? currentDate,
@@ -4682,20 +4698,7 @@ function LaunchOperationalApp({
               className="lcc-day-history-pdf"
               onClick={async () => {
                 setMoreStatus('Building backup…');
-                const result = await buildJsonBackupWithLocalPhotos(data);
-                downloadTextFile(
-                  `turn-supervisor-backup-${currentDate}.json`,
-                  result.text,
-                  'application/json',
-                );
-                try {
-                  window.localStorage.setItem('turn-os:last-backup', currentDate);
-                } catch {
-                  // Session-only then.
-                }
-                setMoreStatus(result.missingPhotoFiles > 0
-                  ? `Backup saved with ${result.includedPhotoFiles} photo file(s); ${result.missingPhotoFiles} photo record(s) have no file on this device. Move the file to iCloud Drive.`
-                  : 'Backup saved. Move it from Downloads to iCloud Drive — that is your off-phone copy.');
+                setMoreStatus(await protectTurnNow());
               }}
               type="button"
             >

@@ -2313,3 +2313,65 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
 }
 .lcc-chat__bubble .lcc-chat__rich-p { display: block; }
 .lcc-chat__bubble .lcc-chat__rich-gap { display: block; height: 8px; }
+
+/* Aging strip — what's been sitting too long, oldest first. */
+.w2a2b-aging {
+  border: 1px solid #f3c07f;
+  background: #fff8ee;
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+.w2a2b-aging__head {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 850;
+  color: #9a5b00;
+}
+.w2a2b-aging > button {
+  border: none;
+  background: transparent;
+  color: var(--turn-color-primary, #111);
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.35;
+  padding: 6px 2px;
+  border-top: 1px solid #f3dcb8;
+  min-height: 36px;
+}
+.w2a2b-aging > button:active { opacity: 0.7; }
+
+/* Plain/texture notes on the Home crew rows. */
+.w2a2b-cardnote.is-plain b { color: #52606e; }
+.w2a2b-cardnote.is-texture b { color: #0e7490; }
+
+/* While-you're-on-this-floor hints on the unit page. */
+.track-c-floorhint {
+  border: 1px solid var(--turn-color-divider, #d7dce3);
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin: 10px 0;
+  display: grid;
+  gap: 4px;
+  background: var(--turn-color-elevated, #fff);
+}
+.track-c-floorhint__label {
+  font-size: 12.5px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--turn-color-secondary, #5b6673);
+}
+.track-c-floorhint > button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-size: 13.5px;
+  padding: 6px 2px;
+  min-height: 36px;
+  border-top: 1px solid var(--turn-color-divider, #eceff3);
+}
+.track-c-floorhint > button:active { opacity: 0.7; }

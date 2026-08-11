@@ -1315,6 +1315,9 @@ interface DayTaskHomeProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
+  // Oldest-first "sitting too long" strip + per-unit notes on the crew rows.
+  aging?: readonly { unitId: string; trade: 'paint' | 'clean'; text: string }[];
+  unitNotes?: readonly { id: string; unitId: string; kind?: string; text: string; createdAt: string }[];
   reminders?: readonly HomeReminder[];
   changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
@@ -1339,6 +1342,8 @@ function DayTaskHome({
   onPeekQueue,
   needsEyes,
   onOpenNeedsEyesUnit,
+  aging,
+  unitNotes,
   reminders,
   changeOrders,
   onOpenReminderUnit,
@@ -1830,6 +1835,20 @@ function DayTaskHome({
           </section>
         );
       })()}
+      {aging && aging.length > 0 ? (
+        <section className="w2a2b-aging" aria-label="Sitting too long">
+          <p className="w2a2b-aging__head">⏱ Sitting too long — oldest first</p>
+          {aging.map((item) => (
+            <button
+              key={`${item.unitId}:${item.trade}:${item.text}`}
+              onClick={() => onOpenNeedsEyesUnit?.(item.unitId, item.trade)}
+              type="button"
+            >
+              {item.text}
+            </button>
+          ))}
+        </section>
+      ) : null}
       {liveBoard ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
           <div className="w2a2b-groupby" role="group" aria-label="Group the board by">
@@ -1959,19 +1978,37 @@ function DayTaskHome({
                       </div>
                       {(() => {
                         const markers = noteMarkersByUnit.get(line.unitId);
-                        if (!markers || (markers.reminders.length === 0 && markers.changeOrders.length === 0)) {
-                          return null;
-                        }
+                        // Every note the unit carries shows up RIGHT HERE on the
+                        // crew row — plain notes, textures, drywall included —
+                        // so nothing hides behind an extra tap.
+                        const extraNotes = (unitNotes ?? [])
+                          .filter((note) => note.unitId === line.unitId
+                            && !['change-order', 'reminder'].includes(note.kind ?? 'note'))
+                          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+                          .slice(0, 2);
+                        const hasMarkers = Boolean(markers
+                          && (markers.reminders.length > 0 || markers.changeOrders.length > 0));
+                        if (!hasMarkers && extraNotes.length === 0) return null;
                         return (
                           <div className="w2a2b-live-card__notes">
-                            {markers.reminders.map((text, index) => (
+                            {markers?.reminders.map((text, index) => (
                               <span className="w2a2b-cardnote is-reminder" key={`r${index}`}>
                                 <b aria-hidden="true">★</b> {text}
                               </span>
                             ))}
-                            {markers.changeOrders.map((text, index) => (
+                            {markers?.changeOrders.map((text, index) => (
                               <span className="w2a2b-cardnote is-change" key={`c${index}`}>
                                 <b aria-hidden="true">＄</b> {text}
+                              </span>
+                            ))}
+                            {extraNotes.map((note) => (
+                              <span
+                                className={`w2a2b-cardnote is-plain${note.kind === 'texture' ? ' is-texture' : ''}`}
+                                key={note.id}
+                              >
+                                <b aria-hidden="true">
+                                  {note.kind === 'texture' ? '≈' : note.kind === 'drywall' ? '▦' : '✎'}
+                                </b> {note.text}
                               </span>
                             ))}
                           </div>
@@ -2463,6 +2500,8 @@ export interface DayTaskWorkspaceProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
+  aging?: readonly { unitId: string; trade: 'paint' | 'clean'; text: string }[];
+  unitNotes?: readonly { id: string; unitId: string; kind?: string; text: string; createdAt: string }[];
   reminders?: readonly HomeReminder[];
   changeOrders?: readonly HomeReminder[];
   onOpenReminderUnit?: (unitId: string) => void;
@@ -2525,6 +2564,8 @@ export function DayTaskWorkspace({
   onPeekQueue,
   needsEyes,
   onOpenNeedsEyesUnit,
+  aging,
+  unitNotes,
   reminders,
   changeOrders,
   onOpenReminderUnit,
@@ -2741,6 +2782,8 @@ export function DayTaskWorkspace({
         onPeekQueue={onPeekQueue}
         needsEyes={needsEyes}
         onOpenNeedsEyesUnit={onOpenNeedsEyesUnit}
+        aging={aging}
+        unitNotes={unitNotes}
         reminders={reminders}
         changeOrders={changeOrders}
         onOpenReminderUnit={onOpenReminderUnit}

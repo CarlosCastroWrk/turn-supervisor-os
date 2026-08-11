@@ -11,6 +11,19 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { formatClock } from '../../lib/constants';
+
+// Times inside the unit card carry their DAY once they're not from today —
+// "Crew done 10:06 PM" alone hides that it was two days ago.
+const formatClockWithDay = (iso: string): string => {
+  const when = new Date(iso);
+  const now = new Date();
+  const dayOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  if (dayOf(when) === dayOf(now)) return formatClock(iso);
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (dayOf(when) === dayOf(yesterday)) return `Yesterday ${formatClock(iso)}`;
+  return `${when.toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' })} ${formatClock(iso)}`;
+};
 import {
   TRACK_C_TRADES,
   type TrackCCompactUnitProjection,
@@ -1240,6 +1253,7 @@ const UnitDetail = ({
   onDeleteNote,
   onRequestMirror,
   unitNotes,
+  onOpenUnit: onOpenSiblingUnit,
   unitPhotos,
   onCommitUnitPhoto,
   focusTrade,
@@ -1273,6 +1287,7 @@ const UnitDetail = ({
   onDeleteNote?: BoardViewProps['onDeleteNote'];
   onRequestMirror: BoardViewProps['onRequestMirror'];
   unitNotes?: BoardViewProps['unitNotes'];
+  onOpenUnit?: BoardViewProps['onOpenUnit'];
   unitPhotos?: BoardViewProps['unitPhotos'];
   onCommitUnitPhoto?: BoardViewProps['onCommitUnitPhoto'];
   focusTrade?: TrackCTrade;
@@ -1481,7 +1496,7 @@ const UnitDetail = ({
                   <div className="track-c-trade-times">
                     {tradeTimes.map((entry) => (
                       <span key={entry.label}>
-                        <b>{entry.label}</b> {formatClock(entry.at)}
+                        <b>{entry.label}</b> {formatClockWithDay(entry.at)}
                       </span>
                     ))}
                   </div>
@@ -1969,6 +1984,49 @@ const UnitDetail = ({
           </section>
         );
       })}
+      {(() => {
+        // While you're up here: everything else on THIS floor that needs Los,
+        // so one elevator trip clears the whole floor.
+        if (!/^\d{3,4}$/.test(unit.unitNumber)) return null;
+        const floor = unit.unitNumber.slice(0, -2);
+        const siblings = state.units
+          .filter((candidate) => candidate.id !== unit.id
+            && /^\d{3,4}$/.test(candidate.unitNumber)
+            && candidate.unitNumber.slice(0, -2) === floor)
+          .map((candidate) => {
+            const work = projectTrackCUnitWork(state, candidate.id);
+            const inspect = work.filter((item) => item.inspection === 'needs-los-inspection').length;
+            const callbacks = work.filter((item) => item.callbackOpen).length;
+            const walk = work.filter((item) =>
+              item.release === 'released'
+              && item.inspection === 'los-passed'
+              && item.property === 'pending-property-walk').length;
+            const parts = [
+              inspect > 0 ? `${inspect} to inspect` : '',
+              callbacks > 0 ? `${callbacks} callback${callbacks === 1 ? '' : 's'}` : '',
+              walk > 0 ? 'ready to walk' : '',
+            ].filter(Boolean);
+            return parts.length > 0
+              ? { label: parts.join(' · '), unitId: candidate.id, unitNumber: candidate.unitNumber }
+              : null;
+          })
+          .filter((entry): entry is { label: string; unitId: string; unitNumber: string } => Boolean(entry));
+        if (siblings.length === 0 || !onOpenSiblingUnit) return null;
+        return (
+          <section className="track-c-floorhint">
+            <span className="track-c-floorhint__label">While you’re on {floor}:</span>
+            {siblings.map((sibling) => (
+              <button
+                key={sibling.unitId}
+                onClick={() => onOpenSiblingUnit(sibling.unitId, focusTrade)}
+                type="button"
+              >
+                {sibling.unitNumber} — {sibling.label}
+              </button>
+            ))}
+          </section>
+        );
+      })()}
       {focusTrade && !showOtherTrade ? (
         <button
           className="track-c-show-other-trade"
@@ -2544,6 +2602,7 @@ export const BoardView = ({
         state={state}
         unitId={selectedUnitId}
         unitNotes={unitNotes}
+        onOpenUnit={onOpenUnit}
         unitPhotos={unitPhotos}
         onCommitUnitPhoto={onCommitUnitPhoto}
       />

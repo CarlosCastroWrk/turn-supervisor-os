@@ -14,6 +14,7 @@ import {
 import { createId as createAppId } from '../../lib/constants';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { appendContactLog } from '../../lib/contactLog';
+import { chatWithTurnOS } from '../../lib/intelligenceClient';
 import type { PhotoNote } from '../../types';
 import { AssignmentView } from './AssignmentView';
 import { BoardView, type UnitNoteKind } from './BoardView';
@@ -188,6 +189,10 @@ export const TrackCFieldOps = ({
   };
   // Callback texts: when Los opens a callback on a room, the crew that DID that
   // room gets queued a "come back and fix it" text with the reason per room.
+  // AI-polished natural-Spanish callback texts per crew (deterministic body
+  // is the instant fallback; polish is one tap, online + signed in).
+  const [polishedCallback, setPolishedCallback] = useState<Record<string, string>>({});
+  const [polishBusy, setPolishBusy] = useState<string | null>(null);
   const [callbackPrompts, setCallbackPrompts] = useState<
     Record<string, { unitId: string; unitNumber: string; section: TrackCSection; reason: string }[]>
   >({});
@@ -419,9 +424,18 @@ export const TrackCFieldOps = ({
       setNotice(result.error.message);
       return;
     }
+    // The reason ALSO lands as a unit note — the crew gets told, and Los can
+    // still read WHY he called it back days later.
+    const unit = state.units.find((candidate) => candidate.id === unitId);
+    if (trimmedReason && unit && onAddUnitNote) {
+      onAddUnitNote(
+        unitId,
+        'note',
+        `Callback — ${section === 'common' ? 'Common' : section}: ${trimmedReason}`,
+      );
+    }
     // Text the crew that DID this room to come back — with the reason.
     const crewId = work.responsibleCrewId;
-    const unit = state.units.find((candidate) => candidate.id === unitId);
     if (crewId && unit) {
       queueCallbackPrompt(crewId, {
         reason: trimmedReason ?? '',
@@ -982,7 +996,30 @@ export const TrackCFieldOps = ({
           }
           const rows: CrewCallbackRow[] = [...byUnit.values()];
           const unitNumbers = rows.map((row) => row.unitNumber).sort(compareUnitTopFloorFirst);
-          const bodyFor = (lang: CrewTextLang) => crewCallbackTextBody(crew.name, lang, rows);
+          const bodyFor = (lang: CrewTextLang) => (lang === 'es' && polishedCallback[crewId])
+            ? polishedCallback[crewId]
+            : crewCallbackTextBody(crew.name, lang, rows);
+          const polish = async () => {
+            setPolishBusy(crewId);
+            try {
+              const detail = rows.map((row) =>
+                `unidad ${row.unitNumber}: ${row.sections.map((section) =>
+                  `${section.label === 'common' ? 'área común' : `cuarto ${section.label}`}${section.reason ? ` — ${section.reason}` : ''}`).join('; ')}`).join(' · ');
+              const result = await chatWithTurnOS({
+                messages: [{
+                  role: 'user',
+                  text: `Write ONLY a short WhatsApp message in natural, conversational Spanish to ${crew.name.split(' ')[0]} (a ${crew.trade === 'paint' ? 'paint' : 'cleaning'} crew member). We need them to come back to: ${detail}. Paraphrase the reasons naturally — do NOT translate them word for word. Friendly and brief, and close by asking them to let me know when they're back. No greeting explanation, no quotes — just the message text.`,
+                }],
+              });
+              if (result.reply.trim()) {
+                setPolishedCallback((current) => ({ ...current, [crewId]: result.reply.trim() }));
+              }
+            } catch {
+              setNotice('Could not polish the text — the standard Spanish message still works below.');
+            } finally {
+              setPolishBusy(null);
+            }
+          };
           const dismiss = () => setCallbackPrompts((current) => {
             const next = { ...current };
             delete next[crewId];
@@ -993,8 +1030,22 @@ export const TrackCFieldOps = ({
               <span>
                 <strong>↩ Callback · {unitNumbers.join(', ')}</strong> → {crew.name}
               </span>
+              {polishedCallback[crewId] ? (
+                <small className="track-c-text-prompt__preview">{polishedCallback[crewId]}</small>
+              ) : null}
               {phone ? (
-                (['es', 'en'] as const).map((lang) => {
+                <>
+                  <button
+                    data-track-c-critical-target="true"
+                    disabled={polishBusy === crewId}
+                    onClick={() => void polish()}
+                    type="button"
+                  >
+                    {polishBusy === crewId
+                      ? 'Writing…'
+                      : polishedCallback[crewId] ? '✨ Rewrite' : '✨ Natural español'}
+                  </button>
+                  {(['es', 'en'] as const).map((lang) => {
                   const whatsapp = readWhatsappCrews().has(crewId);
                   return (
                     <a
@@ -1009,11 +1060,12 @@ export const TrackCFieldOps = ({
                       rel="noreferrer"
                       target={whatsapp ? '_blank' : undefined}
                     >
-                      {lang === 'es' ? 'Español' : 'English'}
+                      {lang === 'es' ? (polishedCallback[crewId] ? 'Español ✨' : 'Español') : 'English'}
                       {whatsapp ? ' · WhatsApp' : ''}
                     </a>
                   );
-                })
+                  })}
+                </>
               ) : onCrewContactRequested ? (
                 <button
                   data-track-c-critical-target="true"

@@ -3143,3 +3143,16 @@ select.track-c-trade-change {
 }
 .track-c-preflight__item.is-fix { border-color: #f3c07f; background: #fff8ee; }
 button.track-c-preflight__item:active { opacity: 0.75; }
+
+/* Polished natural-Spanish preview inside the callback text prompt. */
+.track-c-text-prompt__preview {
+  display: block;
+  width: 100%;
+  background: var(--track-c-card, #fff);
+  border: 1px solid var(--track-c-line, #d7dce3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}

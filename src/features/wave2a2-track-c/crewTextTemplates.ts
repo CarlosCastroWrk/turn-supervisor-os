@@ -130,9 +130,10 @@ export const crewCallbackTextBody = (
   lang: CrewTextLang,
   rows: readonly CrewCallbackRow[],
 ): string => {
+  const first = crewName.trim().split(/\s+/)[0];
   const header = lang === 'es'
-    ? `¡Hola ${crewName}! Hay que regresar a arreglar:`
-    : `Hi ${crewName}! Please come back and fix:`;
+    ? `Hola ${first}, necesitamos regresar a arreglar unas cosas:`
+    : `Hi ${first}, we need to go back and fix a few things:`;
   const sorted = [...rows].sort((left, right) =>
     compareUnitTopFloorFirst(left.unitNumber, right.unitNumber));
   const lines = sorted.map((row) => {
@@ -145,8 +146,8 @@ export const crewCallbackTextBody = (
     return `${lang === 'es' ? 'Unidad' : 'Unit'} ${row.unitNumber}: ${parts.join(', ')}`;
   });
   const footer = lang === 'es'
-    ? 'Avíseme cuando esté listo para revisar de nuevo. ¡Gracias!'
-    : 'Text me when it’s ready for me to look again. Thank you!';
+    ? 'Avísame cuando estés de regreso, porfa. ¡Gracias!'
+    : 'Let me know when you’re back, please. Thank you!';
   return [header, ...lines, footer].join('\n');
 };
 

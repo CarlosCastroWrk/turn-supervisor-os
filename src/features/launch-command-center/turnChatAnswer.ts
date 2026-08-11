@@ -340,6 +340,63 @@ const payrollCard = (
   };
 };
 
+// "What were the cut-ins for week 2" — the whole list from the pay-packet
+// math: lowest unit first, which rooms, by which crew, every line tappable.
+const WEEK_TASK_KINDS = [
+  { key: 'cut-in', label: 'Cut-ins', match: /cut.?in|cuttin/, types: ['cut-in', 'full-cut-in', 'touch-up-cut-in'] },
+  { key: 'heavy', label: 'Heavy cleans', match: /heavy|deep clean/, types: ['heavy-clean'] },
+  { key: 'touch-up', label: 'Touch-ups', match: /touch.?up/, types: ['touch-up', 'touch-up-cut-in'] },
+  { key: 'full', label: 'Full paints', match: /full paint|\bfulls?\b/, types: ['full', 'full-cut-in'] },
+] as const;
+
+const weekTaskCard = (
+  state: TrackCState,
+  now: Date,
+  kind: (typeof WEEK_TASK_KINDS)[number],
+  week: number,
+): TurnChatCard => {
+  interface TaskRoom { section: string; workType?: string; crewName: string }
+  const byUnit = new Map<string, TaskRoom[]>();
+  for (const [crewId, payroll] of buildAllCrewPayroll(state, now)) {
+    const crewName = state.crews.find((crew) => crew.id === crewId)?.name ?? '';
+    for (const room of payroll.rooms) {
+      if (payWeekNumberOf(`${room.date}T12:00:00`) !== week) continue;
+      if (!room.workType || !(kind.types as readonly string[]).includes(room.workType)) continue;
+      const bucket = byUnit.get(room.unitNumber) ?? [];
+      bucket.push({ crewName, section: room.section, workType: room.workType });
+      byUnit.set(room.unitNumber, bucket);
+    }
+  }
+  const order = ['common', 'A', 'B', 'C', 'D', 'E'];
+  const lines: TurnChatLine[] = [...byUnit.entries()]
+    .sort((left, right) => (Number(left[0]) || 0) - (Number(right[0]) || 0))
+    .map(([unitNumber, rooms]) => {
+      const unitId = state.units.find((unit) => unit.unitNumber === unitNumber)?.id;
+      const crews = [...new Set(rooms.map((room) => room.crewName))].filter(Boolean).join(' + ');
+      const roomText = [...rooms]
+        .sort((a, b) => order.indexOf(a.section) - order.indexOf(b.section))
+        .map((room) => {
+          const label = room.section === 'common' ? 'Común' : room.section;
+          const combo = room.workType && !['cut-in', 'touch-up', 'full', 'heavy-clean'].includes(room.workType)
+            ? ` (${TASK_SHORT[room.workType] ?? room.workType})`
+            : '';
+          return `${label}${combo}`;
+        }).join(', ');
+      return {
+        ...(unitId ? { nav: { kind: 'unit' as const, unitId } } : {}),
+        text: `${unitNumber} — ${roomText}${crews ? ` · ${crews}` : ''}`,
+      };
+    });
+  const total = [...byUnit.values()].reduce((sum, rooms) => sum + rooms.length, 0);
+  return {
+    lines: lines.length > 0
+      ? lines
+      : [{ text: `No ${kind.label.toLowerCase()} reported done in week ${week}.` }],
+    subtitle: 'lowest unit first · counts = done rooms · tap to open',
+    title: `${kind.label} · week ${week} · ${total} room${total === 1 ? '' : 's'}`,
+  };
+};
+
 // Pay-week history for the AI turn — same source of truth as the pay packet.
 export const buildTurnChatHistoryDigest = (
   state: TrackCState,
@@ -471,6 +528,18 @@ export const answerTurnChat = (
       ? payrollCard(state, crew.id, now)
       : crewCard(state, crew.id);
     if (card) return { cards: [card] };
+  }
+
+  // "What were the cut-ins for week 2" — the pay-packet list, no crew named.
+  const taskKind = WEEK_TASK_KINDS.find((kind) => kind.match.test(query));
+  if (taskKind) {
+    const weekMatch = /w(?:ee)?k\s*(\d{1,2})/.exec(query);
+    const week = weekMatch
+      ? Number(weekMatch[1])
+      : /last week/.test(query)
+        ? payWeekNumberOf(now.toISOString()) - 1
+        : payWeekNumberOf(now.toISOString());
+    return { cards: [weekTaskCard(state, now, taskKind, week)] };
   }
 
   // "floor 11" scopes every status answer; on its own it's the floor overview.

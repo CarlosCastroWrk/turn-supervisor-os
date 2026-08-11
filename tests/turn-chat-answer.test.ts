@@ -91,6 +91,21 @@ test('the history digest names the pay week and every reporting crew', () => {
   assert.ok(digest.includes('week'));
 });
 
+test('a week task question answers the pay-packet list, lowest unit first', () => {
+  const answer = answerTurnChat(state, 'what were the cut ins for week 2');
+  assert.ok(answer);
+  const card = answer.cards[0];
+  assert.match(card.title, /^Cut-ins · week 2 · \d+ rooms?$/);
+  assert.ok(card.subtitle?.includes('lowest unit first'));
+  const unitLines = card.lines.filter((line) => line.nav?.kind === 'unit');
+  const numbers = unitLines.map((line) => Number(line.text.split(' ')[0]));
+  assert.deepEqual(numbers, [...numbers].sort((a, b) => a - b));
+  // Heavy cleans and touch-ups route the same way, defaulting to this week.
+  const heavy = answerTurnChat(state, 'heavy cleans this week');
+  assert.ok(heavy);
+  assert.match(heavy.cards[0].title, /^Heavy cleans · week \d+/);
+});
+
 test('a floor question answers with only that floor', () => {
   // Fixture floors come from locationLabel ("Building 3 · Floor 3").
   const overview = answerTurnChat(state, 'just floor 3');

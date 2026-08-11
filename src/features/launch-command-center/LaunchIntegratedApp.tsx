@@ -427,7 +427,7 @@ function LaunchOperationalApp({
   routeRef.current = route;
   // When a unit is opened from a Home queue (Needs Crew, Working, …), Back
   // must return to that queue — not dump Los on the TurnBoard.
-  const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | 'home' | undefined>(undefined);
+  const unitDetailOriginRef = useRef<NonNullable<typeof route.homeSummary> | 'home' | 'chat' | undefined>(undefined);
   // Which trade the user was LOOKING AT when they tapped into a unit — from
   // Home's twin boards or the wall grid. Route-level so remounts can't lose it.
   const unitDetailTradeRef = useRef<'paint' | 'clean' | undefined>(undefined);
@@ -3576,7 +3576,12 @@ function LaunchOperationalApp({
             if (unitDetailOriginRef.current) {
               const origin = unitDetailOriginRef.current;
               unitDetailOriginRef.current = undefined;
-              if (origin === 'home') {
+              if (origin === 'chat') {
+                // He came from a Turn Chat card — back drops him into the
+                // thread where he left off, so he can work down the list.
+                navigate('dashboard');
+                setChatOpen(true);
+              } else if (origin === 'home') {
                 restoreHomeScrollRef.current = true;
                 navigate('dashboard');
               } else navigate('dashboard', undefined, { homeSummary: origin });
@@ -4937,7 +4942,7 @@ function LaunchOperationalApp({
           onNavigate={(nav: TurnChatNav) => {
             setChatOpen(false);
             if (nav.kind === 'unit') {
-              unitDetailOriginRef.current = 'home';
+              unitDetailOriginRef.current = 'chat';
               unitDetailTradeRef.current = nav.trade;
               navigate('unitDetail', nav.unitId);
               return;

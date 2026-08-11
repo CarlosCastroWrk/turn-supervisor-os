@@ -115,7 +115,7 @@ export interface TrackCFieldOpsProps {
     target: TrackCWorkTarget,
     attribution: 'joseph' | 'catch' | 'redo',
   ) => void;
-  readonly onLogTexture?: (target: TrackCWorkTarget, count: number) => boolean;
+  readonly onLogTexture?: (target: TrackCWorkTarget, count: number, textureOnly: boolean) => boolean;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,

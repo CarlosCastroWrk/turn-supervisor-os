@@ -3487,20 +3487,22 @@ function LaunchOperationalApp({
               ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} → ${label}.`
               : 'Could not save — try again.');
           }}
-          onLogTexture={(target, count) => {
-            // A texture-only room, with the count Tony asks about. Rides as a
-            // texture note so it shows on the unit, in week extras, and in
-            // the changes-approved list — no schema change.
+          onLogTexture={(target, count, textureOnly) => {
+            // Texture with the count Tony asks about. "(texture only)" marks
+            // a room whose ONLY work was texture — no paint task pill, and
+            // the room comes off the release so tallies stay honest.
             const roomLabel = target.section === 'common' ? 'Common' : target.section;
             const saved = addUnitNote(
               target.unitId,
               'texture',
-              `Texture repair — ${roomLabel} ×${count}`,
+              `Texture repair — ${roomLabel} ×${count}${textureOnly ? ' (texture only)' : ''}`,
             );
             if (saved) {
               const unitNumber = trackCState.units
                 .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
-              setFieldToast(`Texture ×${count} logged on ${unitNumber} ${roomLabel} — it’s in the week extras.`);
+              setFieldToast(textureOnly
+                ? `${unitNumber} ${roomLabel} is texture-only ×${count} — paint task cleared, texture in the week extras.`
+                : `Texture ×${count} logged on ${unitNumber} ${roomLabel} — it’s in the week extras.`);
             }
             return saved;
           }}

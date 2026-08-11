@@ -278,7 +278,7 @@ interface BoardViewProps {
   // Log texture repairs on a room WITH a count — a room can need only
   // texture (no touch-up/cut-in). Lands as a texture note → unit notes,
   // week extras, and the changes-approved list. Returns saved.
-  readonly onLogTexture?: (target: TrackCWorkTarget, count: number) => boolean;
+  readonly onLogTexture?: (target: TrackCWorkTarget, count: number, textureOnly: boolean) => boolean;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -613,6 +613,7 @@ const WorkSection = ({
   onUpgradeCutInToFull,
   onLogTexture,
   textureCount,
+  textureOnly,
   unitNumber,
 }: {
   state: TrackCState;
@@ -624,8 +625,9 @@ const WorkSection = ({
   onToggleRelease?: (released: boolean) => void;
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean') => void;
   onUpgradeCutInToFull?: (attribution: 'joseph' | 'catch' | 'redo') => void;
-  onLogTexture?: (count: number) => boolean;
+  onLogTexture?: (count: number, textureOnly: boolean) => boolean;
   textureCount?: number;
+  textureOnly?: boolean;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
@@ -636,6 +638,8 @@ const WorkSection = ({
   const [textureOpen, setTextureOpen] = useState(false);
   const [textureLogged, setTextureLogged] = useState<number | null>(null);
   const [textureEntry, setTextureEntry] = useState('');
+  // Count picked, waiting on the "texture only, or plus the task?" answer.
+  const [texturePick, setTexturePick] = useState<number | null>(null);
   const touchStartX = useRef<number | null>(null);
   const holdTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -790,7 +794,7 @@ const WorkSection = ({
         >
           <span className="track-c-section-row__section">
             {trackCSectionLabel(work.section)}
-            {work.release === 'released'
+            {work.release === 'released' && !textureOnly
               && (work.trade === 'paint' || work.workType === 'heavy-clean') ? (
                 <em className={`track-c-worktype is-${work.workType ?? 'full'}`}>
                   {work.trade === 'paint'
@@ -800,7 +804,7 @@ const WorkSection = ({
               ) : null}
             {textureCount ? (
               <em className="track-c-worktype is-texture-tag">
-                ≈{textureCount} texture
+                ≈{textureCount} texture{textureOnly ? ' only' : ''}
               </em>
             ) : null}
           </span>
@@ -946,6 +950,52 @@ const WorkSection = ({
                   ✓ Texture repair ×{textureLogged} logged — it’s in the unit
                   notes and week extras.
                 </span>
+              ) : texturePick !== null ? (
+                // The question that keeps the room honest: was there a paint
+                // task too, or was this room ONLY texture (no touch-up)?
+                <>
+                  <span className="track-c-upgrade__label">
+                    {trackCSectionLabel(work.section)} ×{texturePick} texture — was there a paint task too?
+                  </span>
+                  <div className="track-c-upgrade__chips">
+                    <button
+                      className="track-c-upgrade__chip is-charge"
+                      data-track-c-critical-target="true"
+                      onClick={() => {
+                        const count = texturePick;
+                        setTexturePick(null);
+                        if (onLogTexture(count, true)) {
+                          setTextureLogged(count);
+                          // Texture-only means this room was never really a
+                          // paint task — pull it from the release so the
+                          // tallies stay honest (locked once PDS-approved).
+                          if (canRemove && onToggleRelease) onToggleRelease(false);
+                        }
+                      }}
+                      type="button"
+                    >
+                      Texture ONLY — no {work.trade === 'paint' ? paintWorkTypeLabel(work.workType ?? 'full') : 'task'}
+                    </button>
+                    <button
+                      className="track-c-upgrade__chip"
+                      onClick={() => {
+                        const count = texturePick;
+                        setTexturePick(null);
+                        if (onLogTexture(count, false)) setTextureLogged(count);
+                      }}
+                      type="button"
+                    >
+                      Texture + keep {work.trade === 'paint' ? paintWorkTypeLabel(work.workType ?? 'full') : 'the task'}
+                    </button>
+                  </div>
+                  <button
+                    className="track-c-upgrade__cancel"
+                    onClick={() => setTexturePick(null)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </>
               ) : !textureOpen ? (
                 <button
                   className="track-c-upgrade__open"
@@ -968,7 +1018,7 @@ const WorkSection = ({
                         onClick={() => {
                           setTextureOpen(false);
                           setTextureEntry('');
-                          if (onLogTexture(count)) setTextureLogged(count);
+                          setTexturePick(count);
                         }}
                         type="button"
                       >
@@ -993,11 +1043,11 @@ const WorkSection = ({
                         if (!count) return;
                         setTextureOpen(false);
                         setTextureEntry('');
-                        if (onLogTexture(count)) setTextureLogged(count);
+                        setTexturePick(count);
                       }}
                       type="button"
                     >
-                      Log{textureEntry ? ` ×${textureEntry}` : ''}
+                      Next{textureEntry ? ` ×${textureEntry}` : ''}
                     </button>
                   </div>
                   <button
@@ -1265,12 +1315,16 @@ const UnitDetail = ({
   // Texture repairs per room, read off the texture notes — so a texture-only
   // room shows "≈2 texture" on its row and never masquerades as a touch-up.
   const texturesByRoom = useMemo(() => {
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { count: number; textureOnly: boolean }>();
     for (const note of notesForUnit) {
       if (note.kind !== 'texture') continue;
       const parsed = parseTextureWording(note.text);
       if (!parsed?.room) continue;
-      counts.set(parsed.room, (counts.get(parsed.room) ?? 0) + parsed.count);
+      const existing = counts.get(parsed.room);
+      counts.set(parsed.room, {
+        count: (existing?.count ?? 0) + parsed.count,
+        textureOnly: (existing?.textureOnly ?? false) || parsed.textureOnly,
+      });
     }
     return counts;
   }, [notesForUnit]);
@@ -1860,12 +1914,14 @@ const UnitDetail = ({
                             )
                             : undefined}
                           onLogTexture={onLogTexture
-                            ? (count) => onLogTexture(
+                            ? (count, textureOnly) => onLogTexture(
                               { unitId: item.unitId, trade: item.trade, section: item.section },
                               count,
+                              textureOnly,
                             )
                             : undefined}
-                          textureCount={item.trade === 'paint' ? texturesByRoom.get(item.section) : undefined}
+                          textureCount={item.trade === 'paint' ? texturesByRoom.get(item.section)?.count : undefined}
+                          textureOnly={item.trade === 'paint' ? texturesByRoom.get(item.section)?.textureOnly : undefined}
                           onAction={(action) =>
                             onSectionAction(
                               { unitId: item.unitId, trade: item.trade, section: item.section },

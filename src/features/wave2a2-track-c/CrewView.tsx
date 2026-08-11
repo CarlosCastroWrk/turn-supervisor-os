@@ -971,18 +971,23 @@ export const CrewView = ({
         const taskTag = (trade: string, workType?: string) => (trade === 'clean'
           ? (workType === 'heavy-clean' ? 'HC' : '')
           : (WALL_WORKTYPE_ABBR[workType ?? 'full'] ?? 'F'));
-        const dayTextures = new Map<string, number>();
+        const dayTextures = new Map<string, { count: number; textureOnly: boolean }>();
         for (const extra of weekExtras ?? []) {
           if (extra.kind !== 'texture') continue;
           const parsed = parseTextureWording(extra.detail);
           if (!parsed?.room) continue;
           const key = `${extra.unitNumber}:${parsed.room}`;
-          dayTextures.set(key, (dayTextures.get(key) ?? 0) + parsed.count);
+          const existing = dayTextures.get(key);
+          dayTextures.set(key, {
+            count: (existing?.count ?? 0) + parsed.count,
+            textureOnly: (existing?.textureOnly ?? false) || parsed.textureOnly,
+          });
         }
         const dayTag = (unitNumber: string, room: DayRoom) => {
           const base = taskTag(room.trade, room.workType);
           const texture = room.trade === 'paint' ? dayTextures.get(`${unitNumber}:${room.section}`) : undefined;
-          return `${base}${texture ? `·T${texture}` : ''}`;
+          if (texture?.textureOnly) return `T${texture.count}`;
+          return `${base}${texture ? `·T${texture.count}` : ''}`;
         };
         const dayText = [
           `${dayLabel(activeDay).toUpperCase()} ${activeDay} — apply to the board (crew-done)`,
@@ -1108,14 +1113,18 @@ export const CrewView = ({
           : (WALL_WORKTYPE_ABBR[workType ?? 'full'] ?? 'F'));
         // Texture repairs ride the cell tag too (T2 = two spots) — texture is
         // NOT a touch-up, and the board transfer should carry it.
-        const textureBySection = new Map<string, number>();
+        const textureBySection = new Map<string, { count: number; textureOnly: boolean }>();
         if (wallTrade === 'paint') {
           for (const extra of weekExtras ?? []) {
             if (extra.kind !== 'texture' || extra.week !== weekNo) continue;
             const parsed = parseTextureWording(extra.detail);
             if (!parsed?.room) continue;
             const key = `${extra.unitNumber}:${parsed.room}`;
-            textureBySection.set(key, (textureBySection.get(key) ?? 0) + parsed.count);
+            const existing = textureBySection.get(key);
+            textureBySection.set(key, {
+              count: (existing?.count ?? 0) + parsed.count,
+              textureOnly: (existing?.textureOnly ?? false) || parsed.textureOnly,
+            });
           }
         }
         type Cell = { mark: string; task: string; approved: boolean; done: boolean } | null;
@@ -1146,12 +1155,15 @@ export const CrewView = ({
             const mark = work.callbackOpen
               ? 'CB'
               : approved ? 'CC' : done ? 'X' : work.responsibleCrewId ? '•' : '/';
-            const textureCount = textureBySection.get(`${unit.unitNumber}:${section}`);
+            const texture = textureBySection.get(`${unit.unitNumber}:${section}`);
             cells[section] = {
               approved,
               done,
               mark,
-              task: `${taskTagOf(work.workType)}${textureCount ? `·T${textureCount}` : ''}`,
+              // Texture-only rooms show JUST the texture tag — never a task.
+              task: texture?.textureOnly
+                ? `T${texture.count}`
+                : `${taskTagOf(work.workType)}${texture ? `·T${texture.count}` : ''}`,
             };
             if (work.responsibleCrewId) crewId = work.responsibleCrewId;
             if (approved) anyApproved = true; else allApproved = false;

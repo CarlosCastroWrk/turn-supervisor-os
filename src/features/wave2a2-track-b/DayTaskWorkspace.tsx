@@ -1315,8 +1315,7 @@ interface DayTaskHomeProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
-  // Oldest-first "sitting too long" strip + per-unit notes on the crew rows.
-  aging?: readonly { unitId: string; trade: 'paint' | 'clean'; text: string }[];
+  // Per-unit notes surfaced on the Home crew rows.
   unitNotes?: readonly { id: string; unitId: string; kind?: string; text: string; createdAt: string }[];
   reminders?: readonly HomeReminder[];
   changeOrders?: readonly HomeReminder[];
@@ -1342,7 +1341,6 @@ function DayTaskHome({
   onPeekQueue,
   needsEyes,
   onOpenNeedsEyesUnit,
-  aging,
   unitNotes,
   reminders,
   changeOrders,
@@ -1835,20 +1833,6 @@ function DayTaskHome({
           </section>
         );
       })()}
-      {aging && aging.length > 0 ? (
-        <section className="w2a2b-aging" aria-label="Sitting too long">
-          <p className="w2a2b-aging__head">⏱ Sitting too long — oldest first</p>
-          {aging.map((item) => (
-            <button
-              key={`${item.unitId}:${item.trade}:${item.text}`}
-              onClick={() => onOpenNeedsEyesUnit?.(item.unitId, item.trade)}
-              type="button"
-            >
-              {item.text}
-            </button>
-          ))}
-        </section>
-      ) : null}
       {liveBoard ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
           <div className="w2a2b-groupby" role="group" aria-label="Group the board by">
@@ -2500,7 +2484,6 @@ export interface DayTaskWorkspaceProps {
   onPeekQueue?: (queueId: TodayTaskQueueId, label: string) => void;
   needsEyes?: NeedsEyes;
   onOpenNeedsEyesUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
-  aging?: readonly { unitId: string; trade: 'paint' | 'clean'; text: string }[];
   unitNotes?: readonly { id: string; unitId: string; kind?: string; text: string; createdAt: string }[];
   reminders?: readonly HomeReminder[];
   changeOrders?: readonly HomeReminder[];
@@ -2564,7 +2547,6 @@ export function DayTaskWorkspace({
   onPeekQueue,
   needsEyes,
   onOpenNeedsEyesUnit,
-  aging,
   unitNotes,
   reminders,
   changeOrders,
@@ -2782,7 +2764,6 @@ export function DayTaskWorkspace({
         onPeekQueue={onPeekQueue}
         needsEyes={needsEyes}
         onOpenNeedsEyesUnit={onOpenNeedsEyesUnit}
-        aging={aging}
         unitNotes={unitNotes}
         reminders={reminders}
         changeOrders={changeOrders}

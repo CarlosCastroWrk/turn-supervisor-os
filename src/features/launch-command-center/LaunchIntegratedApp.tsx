@@ -1158,88 +1158,6 @@ function LaunchOperationalApp({
     }
     return { approved, awaitingWalk, callbacks, carryover };
   }, [acceptedWalkMeta, trackCState]);
-  // AGING — what's been sitting too long, oldest first. Crew-done rooms
-  // nobody inspected (2h+), callbacks open 3h+/overnight, released rooms
-  // with no crew since before today. The in-app nudge layer: nothing rots
-  // quietly on a board Los would have to re-scan to notice.
-  const agingItems = useMemo(() => {
-    const now = Date.now();
-    const targetKey = (target: { unitId: string; trade: string; section: string }) =>
-      `${target.unitId}:${target.trade}:${target.section}`;
-    const doneAt = new Map<string, string>();
-    const callbackAt = new Map<string, string>();
-    for (const event of trackCState.events) {
-      if (event.confirmation !== 'confirmed') continue;
-      const key = targetKey(event.target);
-      if (event.eventType === 'crew-reported-complete') {
-        if ((doneAt.get(key) ?? '') < event.recordedAt) doneAt.set(key, event.recordedAt);
-      } else if (event.eventType === 'callback-opened') {
-        if ((callbackAt.get(key) ?? '') < event.recordedAt) callbackAt.set(key, event.recordedAt);
-      }
-    }
-    const agoText = (ms: number) => {
-      const hours = Math.floor(ms / 3_600_000);
-      if (hours < 24) return `${Math.max(1, hours)}h`;
-      const days = Math.floor(hours / 24);
-      return `${days}d`;
-    };
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    interface AgingBucket { ageMs: number; rooms: string[]; kind: 'inspect' | 'callback' | 'unassigned' }
-    const buckets = new Map<string, AgingBucket>();
-    const bump = (
-      unitId: string,
-      trade: 'paint' | 'clean',
-      kind: AgingBucket['kind'],
-      section: string,
-      ageMs: number,
-    ) => {
-      const key = `${unitId}:${trade}:${kind}`;
-      const bucket = buckets.get(key) ?? { ageMs: 0, kind, rooms: [] };
-      bucket.rooms.push(section);
-      bucket.ageMs = Math.max(bucket.ageMs, ageMs);
-      buckets.set(key, bucket);
-    };
-    for (const unit of trackCState.units) {
-      for (const work of projectTrackCUnitWork(trackCState, unit.id)) {
-        if (work.release !== 'released' || work.property === 'property-accepted') continue;
-        const key = targetKey(work);
-        if (work.callbackOpen) {
-          const openedAt = callbackAt.get(key);
-          const age = openedAt ? now - Date.parse(openedAt) : 0;
-          if (age > 3 * 3_600_000) bump(work.unitId, work.trade, 'callback', work.section, age);
-          continue;
-        }
-        if (work.inspection === 'needs-los-inspection') {
-          const at = doneAt.get(key);
-          const age = at ? now - Date.parse(at) : 0;
-          if (age > 2 * 3_600_000) bump(work.unitId, work.trade, 'inspect', work.section, age);
-          continue;
-        }
-        if (work.activeCrewIds.length === 0
-          && work.releasedAt
-          && Date.parse(work.releasedAt) < startOfToday.getTime()) {
-          bump(work.unitId, work.trade, 'unassigned', work.section, now - Date.parse(work.releasedAt));
-        }
-      }
-    }
-    return [...buckets.entries()]
-      .map(([key, bucket]) => {
-        const [unitId, trade] = key.split(':') as [string, 'paint' | 'clean'];
-        const unitNumber = trackCState.units.find((unit) => unit.id === unitId)?.unitNumber ?? '';
-        const tradeName = trade === 'paint' ? 'Paint' : 'Clean';
-        const roomText = bucket.rooms
-          .map((section) => (section === 'common' ? 'Common' : section)).join(', ');
-        const text = bucket.kind === 'inspect'
-          ? `${unitNumber} ${tradeName} — crew-done ${agoText(bucket.ageMs)} ago, not inspected (${roomText})`
-          : bucket.kind === 'callback'
-            ? `${unitNumber} ${tradeName} — callback open ${agoText(bucket.ageMs)} (${roomText})`
-            : `${unitNumber} ${tradeName} — released ${agoText(bucket.ageMs)}, nobody on it`;
-        return { ageMs: bucket.ageMs, text, trade, unitId };
-      })
-      .sort((left, right) => right.ageMs - left.ageMs)
-      .slice(0, 6);
-  }, [trackCState]);
   const trackCWalkDraft = useMemo(
     () => projectTrackCWalkDraft(data),
     [data],
@@ -4114,7 +4032,6 @@ function LaunchOperationalApp({
             unitDetailTradeRef.current = trade;
             navigate('unitDetail', unitId);
           }}
-          aging={agingItems}
           unitNotes={unitNotes}
           startHere={startHere}
           startHereCrews={startHereCrews}

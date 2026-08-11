@@ -3479,6 +3479,23 @@ function LaunchOperationalApp({
               ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} → ${label}.`
               : 'Could not save — try again.');
           }}
+          onLogTexture={(target, count) => {
+            // A texture-only room, with the count Tony asks about. Rides as a
+            // texture note so it shows on the unit, in week extras, and in
+            // the changes-approved list — no schema change.
+            const roomLabel = target.section === 'common' ? 'Common' : target.section;
+            const saved = addUnitNote(
+              target.unitId,
+              'texture',
+              `Texture repair — ${roomLabel} ×${count}${count >= 5 ? '+' : ''}`,
+            );
+            if (saved) {
+              const unitNumber = trackCState.units
+                .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
+              setFieldToast(`Texture ×${count} logged on ${unitNumber} ${roomLabel} — it’s in the week extras.`);
+            }
+            return saved;
+          }}
           onUpgradeCutInToFull={(target, attribution) => {
             // One tap: a cut-in room becomes a full paint. Bump the task to
             // full+cut-in (the crew did BOTH — always paid for the work), and log

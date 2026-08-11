@@ -275,6 +275,10 @@ interface BoardViewProps {
     target: TrackCWorkTarget,
     attribution: 'joseph' | 'catch' | 'redo',
   ) => void;
+  // Log texture repairs on a room WITH a count — a room can need only
+  // texture (no touch-up/cut-in). Lands as a texture note → unit notes,
+  // week extras, and the changes-approved list. Returns saved.
+  readonly onLogTexture?: (target: TrackCWorkTarget, count: number) => boolean;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -607,6 +611,7 @@ const WorkSection = ({
   onToggleRelease,
   onSetWorkType,
   onUpgradeCutInToFull,
+  onLogTexture,
   unitNumber,
 }: {
   state: TrackCState;
@@ -618,6 +623,7 @@ const WorkSection = ({
   onToggleRelease?: (released: boolean) => void;
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean') => void;
   onUpgradeCutInToFull?: (attribution: 'joseph' | 'catch' | 'redo') => void;
+  onLogTexture?: (count: number) => boolean;
   unitNumber?: string;
 }) => {
   // Removing a room is destructive — first tap (or a left swipe) arms,
@@ -625,6 +631,8 @@ const WorkSection = ({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [textureOpen, setTextureOpen] = useState(false);
+  const [textureLogged, setTextureLogged] = useState<number | null>(null);
   const touchStartX = useRef<number | null>(null);
   const holdTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
@@ -724,6 +732,19 @@ const WorkSection = ({
               </button>
             ))
             : null}
+          {onLogTexture && work.release === 'released' ? (
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                if (!isSelected) onSelect();
+                setTextureOpen(true);
+              }}
+              role="menuitem"
+              type="button"
+            >
+              Texture repair…
+            </button>
+          ) : null}
           {canRemove && onToggleRelease ? (
             <button
               className="is-remove"
@@ -907,6 +928,56 @@ const WorkSection = ({
                 )}
               </div>
             ) : null}
+          {onLogTexture && work.release === 'released' ? (
+            // A room can need ONLY texture — no touch-up, no cut-in. Log it
+            // with a count so payroll and the extras list carry how many
+            // spots. Rides as a texture note: unit notes + week extras.
+            <div className="track-c-upgrade">
+              {textureLogged !== null ? (
+                <span className="track-c-upgrade__label">
+                  ✓ Texture repair ×{textureLogged} logged — it’s in the unit
+                  notes and week extras.
+                </span>
+              ) : !textureOpen ? (
+                <button
+                  className="track-c-upgrade__open"
+                  data-track-c-critical-target="true"
+                  onClick={() => setTextureOpen(true)}
+                  type="button"
+                >
+                  ＋ Texture repair (how many?)
+                </button>
+              ) : (
+                <>
+                  <span className="track-c-upgrade__label">
+                    Texture repairs in {trackCSectionLabel(work.section)} — how many spots?
+                  </span>
+                  <div className="track-c-upgrade__chips">
+                    {[1, 2, 3, 4, 5].map((count) => (
+                      <button
+                        className="track-c-upgrade__chip"
+                        key={count}
+                        onClick={() => {
+                          setTextureOpen(false);
+                          if (onLogTexture(count)) setTextureLogged(count);
+                        }}
+                        type="button"
+                      >
+                        {count === 5 ? '5+' : count}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className="track-c-upgrade__cancel"
+                    onClick={() => setTextureOpen(false)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          ) : null}
           {canRemove && onToggleRelease ? (
               <button
                 className="track-c-release-toggle is-remove"
@@ -1100,6 +1171,7 @@ const UnitDetail = ({
   onSetSectionRelease,
   onSetSectionWorkType,
   onUpgradeCutInToFull,
+  onLogTexture,
   onSetTradeRelease,
   onSetUnitBeds,
   onMoveUnitTrade,
@@ -1132,6 +1204,7 @@ const UnitDetail = ({
   onSetSectionRelease?: BoardViewProps['onSetSectionRelease'];
   onSetSectionWorkType?: BoardViewProps['onSetSectionWorkType'];
   onUpgradeCutInToFull?: BoardViewProps['onUpgradeCutInToFull'];
+  onLogTexture?: BoardViewProps['onLogTexture'];
   onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
   onSetUnitBeds?: BoardViewProps['onSetUnitBeds'];
   onMoveUnitTrade?: BoardViewProps['onMoveUnitTrade'];
@@ -1741,6 +1814,12 @@ const UnitDetail = ({
                               attribution,
                             )
                             : undefined}
+                          onLogTexture={onLogTexture
+                            ? (count) => onLogTexture(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              count,
+                            )
+                            : undefined}
                           onAction={(action) =>
                             onSectionAction(
                               { unitId: item.unitId, trade: item.trade, section: item.section },
@@ -2223,6 +2302,7 @@ export const BoardView = ({
   onSetSectionRelease,
   onSetSectionWorkType,
   onUpgradeCutInToFull,
+  onLogTexture,
   onSetTradeRelease,
   onSetUnitBeds,
   onMoveUnitTrade,
@@ -2344,6 +2424,7 @@ export const BoardView = ({
         onSetSectionRelease={onSetSectionRelease}
         onSetSectionWorkType={onSetSectionWorkType}
         onUpgradeCutInToFull={onUpgradeCutInToFull}
+        onLogTexture={onLogTexture}
         onSetTradeRelease={onSetTradeRelease}
         onSetUnitBeds={onSetUnitBeds}
         onMoveUnitTrade={onMoveUnitTrade}

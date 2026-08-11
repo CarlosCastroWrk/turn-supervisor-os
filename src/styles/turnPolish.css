@@ -2282,3 +2282,34 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
   color: #fff;
 }
 .lcc-chat__send:disabled { opacity: 0.4; }
+
+/* Smooth entrance — ChatGPT-feel instead of popping in. */
+@keyframes lccChatIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.lcc-chat__msg { animation: lccChatIn 260ms ease-out both; }
+.lcc-chat__card { animation: lccChatIn 320ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .lcc-chat__msg, .lcc-chat__card { animation: none; }
+}
+
+/* Markdown-lite in model replies — headings, bullets, bold. */
+.lcc-chat__bubble .lcc-chat__rich-h {
+  display: block;
+  font-size: 16px;
+  font-weight: 850;
+  margin: 6px 0 2px;
+}
+.lcc-chat__bubble .lcc-chat__rich-li {
+  display: block;
+  padding-left: 14px;
+  position: relative;
+}
+.lcc-chat__bubble .lcc-chat__rich-li::before {
+  content: '•';
+  position: absolute;
+  left: 2px;
+}
+.lcc-chat__bubble .lcc-chat__rich-p { display: block; }
+.lcc-chat__bubble .lcc-chat__rich-gap { display: block; height: 8px; }

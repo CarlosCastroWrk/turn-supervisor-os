@@ -91,6 +91,18 @@ test('the history digest names the pay week and every reporting crew', () => {
   assert.ok(digest.includes('week'));
 });
 
+test("a crew's list answers callbacks-first with the Spanish copy text", () => {
+  const answer = answerTurnChat(state, "give me bluebird's list");
+  assert.ok(answer);
+  const card = answer.cards[0];
+  assert.match(card.title, /^Bluebird Paint — Paint list$/);
+  assert.ok(card.lines.some((line) => /list:/.test(line.text)));
+  if (card.copy) {
+    assert.ok(card.copy.text.includes('Buenos días, Bluebird.'));
+    assert.ok(!card.copy.label.includes('Común') || card.copy.label.includes('Español'));
+  }
+});
+
 test('a week task question answers the pay-packet list, lowest unit first', () => {
   const answer = answerTurnChat(state, 'what were the cut ins for week 2');
   assert.ok(answer);

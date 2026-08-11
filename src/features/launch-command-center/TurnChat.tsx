@@ -217,10 +217,53 @@ export function TurnChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
+  // Scroll behavior: new messages scroll to the bottom, but coming BACK from
+  // a unit he opened off a card restores the exact spot in the list — so he
+  // can work a long card top to bottom without re-scrolling every time.
+  const savedScrollRef = useRef<number | null>(null);
+  const messageCountRef = useRef(messages.length);
   useEffect(() => {
     const scroller = scrollRef.current;
-    if (scroller) scroller.scrollTop = scroller.scrollHeight;
-  }, [messages, open]);
+    if (!scroller || !open) return;
+    if (savedScrollRef.current !== null) {
+      scroller.scrollTop = savedScrollRef.current;
+      savedScrollRef.current = null;
+      return;
+    }
+    scroller.scrollTop = scroller.scrollHeight;
+  }, [open]);
+  useEffect(() => {
+    if (messages.length > messageCountRef.current) {
+      const scroller = scrollRef.current;
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    }
+    messageCountRef.current = messages.length;
+  }, [messages]);
+
+  const navigateFromCard = (nav: TurnChatNav) => {
+    savedScrollRef.current = scrollRef.current?.scrollTop ?? null;
+    onNavigate(nav);
+  };
+
+  const [copiedCard, setCopiedCard] = useState<string | null>(null);
+
+  // Markdown-lite for model replies: ## headings, - bullets, **bold** — the
+  // clean-report look without any HTML risk (we only build React nodes).
+  const renderInline = (line: string) =>
+    line.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
+      part.startsWith('**') && part.endsWith('**')
+        ? <strong key={index}>{part.slice(2, -2)}</strong>
+        : part);
+  const renderRich = (text: string) => text.split('\n').map((line, index) => {
+    if (/^#{1,3}\s+/.test(line)) {
+      return <span className="lcc-chat__rich-h" key={index}>{renderInline(line.replace(/^#{1,3}\s+/, ''))}</span>;
+    }
+    if (/^[-•]\s+/.test(line)) {
+      return <span className="lcc-chat__rich-li" key={index}>{renderInline(line.replace(/^[-•]\s+/, ''))}</span>;
+    }
+    if (!line.trim()) return <span className="lcc-chat__rich-gap" key={index} />;
+    return <span className="lcc-chat__rich-p" key={index}>{renderInline(line)}</span>;
+  });
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -490,7 +533,11 @@ export function TurnChat({
               className={`lcc-chat__msg is-${message.role}${message.busy ? ' is-busy' : ''}`}
               key={message.id}
             >
-              {message.text ? <p className="lcc-chat__bubble">{message.text}</p> : null}
+              {message.text ? (
+                <p className="lcc-chat__bubble">
+                  {message.role === 'os' && !message.busy ? renderRich(message.text) : message.text}
+                </p>
+              ) : null}
               {message.offerAi ? (
                 <div className="lcc-chat__chips">
                   <button
@@ -518,7 +565,7 @@ export function TurnChat({
                       <button
                         className="lcc-chat__card-head"
                         disabled={!card.nav}
-                        onClick={() => card.nav && onNavigate(card.nav)}
+                        onClick={() => card.nav && navigateFromCard(card.nav)}
                         type="button"
                       >
                         <strong>{card.title}</strong>
@@ -530,7 +577,7 @@ export function TurnChat({
                           <button
                             className="lcc-chat__card-line is-nav"
                             key={lineIndex}
-                            onClick={() => onNavigate(line.nav as TurnChatNav)}
+                            onClick={() => navigateFromCard(line.nav as TurnChatNav)}
                             type="button"
                           >
                             {line.text}
@@ -539,6 +586,22 @@ export function TurnChat({
                           <p className="lcc-chat__card-line" key={lineIndex}>{line.text}</p>
                         )
                       ))}
+                      {card.copy ? (
+                        <div className="lcc-chat__chips">
+                          <button
+                            className="is-primary"
+                            onClick={() => {
+                              const key = `${message.id}:${cardIndex}`;
+                              void navigator.clipboard?.writeText(card.copy?.text ?? '')
+                                .then(() => setCopiedCard(key))
+                                .catch(() => setCopiedCard(null));
+                            }}
+                            type="button"
+                          >
+                            {copiedCard === `${message.id}:${cardIndex}` ? '✓ Copied' : card.copy.label}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>

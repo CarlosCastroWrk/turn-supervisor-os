@@ -433,7 +433,8 @@ export function StartDayScreen({
                 </button>
                 <span className="w2a2-core-selected__pills">
                   {unit.rooms.map((entry) => {
-                    const label = entry.section === 'common' ? 'Común' : entry.section;
+                    // UI is English — Común lives in the crew texts only.
+                    const label = entry.section === 'common' ? 'Common' : entry.section;
                     const kind = entry.trade === 'clean'
                       ? entry.workType === 'heavy-clean' ? 'heavy-clean' : 'clean'
                       : entry.workType ?? 'full';
@@ -465,7 +466,7 @@ export function StartDayScreen({
               {openRoom ? (
                 <div className="w2a2-core-taskpicker">
                   <span className="w2a2-core-taskpicker__for">
-                    {openRoom.section === 'common' ? 'Común' : openRoom.section}:
+                    {openRoom.section === 'common' ? 'Common' : openRoom.section}:
                   </span>
                   {PAINT_TASKS.map((task) => (
                     <button

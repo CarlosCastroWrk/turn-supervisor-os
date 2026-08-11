@@ -12,6 +12,12 @@ import {
 } from '../wave2a2-track-c/crewPayroll';
 import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
 import {
+  crewCallbackTextBody,
+  crewUnitsTextBody,
+  type CrewTextRow,
+  type CrewTextSection,
+} from '../wave2a2-track-c/crewTextTemplates';
+import {
   trackCSectionLabel,
   type TrackCState,
   type TrackCTrade,
@@ -39,6 +45,8 @@ export interface TurnChatCard {
   readonly subtitle?: string;
   readonly lines: readonly TurnChatLine[];
   readonly nav?: TurnChatNav;
+  /** One-tap copy payload (e.g. the crew's WhatsApp message, in Spanish). */
+  readonly copy?: { readonly label: string; readonly text: string };
 }
 
 export interface TurnChatAnswer {
@@ -340,6 +348,86 @@ const payrollCard = (
   };
 };
 
+// "Give me Rocky's list" — the crew's day from BOARD TRUTH: callbacks first
+// (the board knows which rooms are callbacks — no more guessing in ChatGPT),
+// then what's in front of them, plus the exact-format Spanish WhatsApp
+// message ready to copy. Display is English; only the copy text is Spanish.
+const crewListCard = (state: TrackCState, crewId: string): TurnChatCard | undefined => {
+  const detail = projectTrackCCrewDetail(state, crewId);
+  if (!detail) return undefined;
+  const { crew } = detail;
+  const firstName = crew.name.trim().split(/\s+/)[0];
+  const groupByUnit = (work: readonly TrackCWorkProjection[]) => {
+    const byUnit = new Map<string, TrackCWorkProjection[]>();
+    for (const item of work) {
+      const bucket = byUnit.get(item.unitId) ?? [];
+      bucket.push(item);
+      byUnit.set(item.unitId, bucket);
+    }
+    return [...byUnit.entries()].map(([unitId, rooms]) => ({
+      rooms,
+      unitId,
+      unitNumber: state.units.find((unit) => unit.id === unitId)?.unitNumber ?? unitId,
+    }));
+  };
+  const callbacks = groupByUnit(detail.openCallbackWork);
+  const todays = groupByUnit(detail.currentWork.filter((item) =>
+    ['assigned', 'working'].includes(item.execution) && !item.callbackOpen));
+
+  const lines: TurnChatLine[] = [];
+  if (callbacks.length > 0) {
+    lines.push({ text: '⚠ Callbacks first:' });
+    for (const unit of callbacks) {
+      lines.push({
+        nav: { kind: 'unit', trade: crew.trade, unitId: unit.unitId },
+        text: `${unit.unitNumber} — ${unit.rooms.map(roomLabel).join('  ·  ')}`,
+      });
+    }
+  }
+  lines.push({ text: callbacks.length > 0 ? 'Then today’s list:' : 'Today’s list:' });
+  if (todays.length === 0) lines.push({ text: 'Nothing assigned right now.' });
+  for (const unit of todays) {
+    lines.push({
+      nav: { kind: 'unit', trade: crew.trade, unitId: unit.unitId },
+      text: `${unit.unitNumber} — ${unit.rooms.map(roomLabel).join('  ·  ')}`,
+    });
+  }
+
+  // The copy text uses the EXACT format Los already sends (Spanish default).
+  const toTextRow = (unit: { unitNumber: string; rooms: TrackCWorkProjection[] }): CrewTextRow => {
+    const beds = unit.rooms.filter((room) => room.section !== 'common');
+    return {
+      isStudio: crew.trade === 'clean' && beds.length === 0
+        && unit.rooms.some((room) => room.section === 'common'),
+      sections: unit.rooms.map((room): CrewTextSection => ({
+        bed: room.section === 'common' ? undefined : room.section,
+        kind: room.section === 'common' ? 'common' : 'bed',
+        workType: room.workType as CrewTextSection['workType'],
+      })),
+      unitNumber: unit.unitNumber,
+    };
+  };
+  const parts: string[] = [];
+  if (todays.length > 0) {
+    parts.push(crewUnitsTextBody(firstName, 'es', todays.map(toTextRow), crew.trade));
+  }
+  if (callbacks.length > 0) {
+    parts.push(crewCallbackTextBody(firstName, 'es', callbacks.map((unit) => ({
+      sections: unit.rooms.map((room) => ({ label: room.section })),
+      unitNumber: unit.unitNumber,
+    }))));
+  }
+  return {
+    ...(parts.length > 0
+      ? { copy: { label: 'Copy the WhatsApp message (Español)', text: parts.join('\n\n') } }
+      : {}),
+    lines,
+    nav: { kind: 'crew', crewId: crew.id },
+    subtitle: 'from the board — callbacks are the board’s callbacks',
+    title: `${crew.name} — ${tradeWord(crew.trade)} list`,
+  };
+};
+
 // "What were the cut-ins for week 2" — the whole list from the pay-packet
 // math: lowest unit first, which rooms, by which crew, every line tappable.
 const WEEK_TASK_KINDS = [
@@ -376,7 +464,8 @@ const weekTaskCard = (
       const roomText = [...rooms]
         .sort((a, b) => order.indexOf(a.section) - order.indexOf(b.section))
         .map((room) => {
-          const label = room.section === 'common' ? 'Común' : room.section;
+          // UI stays English — Spanish lives only in the crew messages.
+          const label = room.section === 'common' ? 'Common' : room.section;
           const combo = room.workType && !['cut-in', 'touch-up', 'full', 'heavy-clean'].includes(room.workType)
             ? ` (${TASK_SHORT[room.workType] ?? room.workType})`
             : '';
@@ -521,12 +610,15 @@ export const answerTurnChat = (
     return first.length >= 3 && new RegExp(`\\b${first}\\b`, 'i').test(query);
   });
   if (crew) {
-    // History phrasing → the payroll answer (same math as the pay packet);
-    // otherwise their live day. "Rocky today" stays the live view.
+    // "Rocky's list/text/message" → the sendable day list (Spanish copy);
+    // history phrasing → the payroll answer; otherwise their live day.
+    const wantsList = /\blist\b|lista|\btext\b|message|mensaje|whatsapp|send/.test(query);
     const wantsHistory = /week|pay|how many|count|did\b|total/.test(query);
-    const card = wantsHistory
-      ? payrollCard(state, crew.id, now)
-      : crewCard(state, crew.id);
+    const card = wantsList
+      ? crewListCard(state, crew.id)
+      : wantsHistory
+        ? payrollCard(state, crew.id, now)
+        : crewCard(state, crew.id);
     if (card) return { cards: [card] };
   }
 

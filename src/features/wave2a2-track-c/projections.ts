@@ -85,6 +85,15 @@ export const projectTrackCWork = (
   let paperReviewed = false;
 
   for (const event of events) {
+    // A re-release starts a FRESH round. Re-adding a room mints a new batch
+    // stamped confirmedAt = now, so anything recorded in the room's previous
+    // life (it was passed/approved, then removed, then released again) must
+    // not replay into the new round — that resurrection made a re-released
+    // room come back instantly "Passed", looking like the release did
+    // nothing. Strictly `<` so a same-millisecond assign-after-release
+    // stands. Pay is untouched: crewPayroll reads the raw events, so the
+    // crew's round-one pay survives.
+    if (fact.releasedAt && event.recordedAt < fact.releasedAt) continue;
     switch (event.eventType) {
       case 'assignment-confirmed':
         if (event.crewId && !activeCrewIds.includes(event.crewId)) {

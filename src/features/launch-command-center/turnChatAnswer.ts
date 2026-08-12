@@ -483,6 +483,152 @@ const payrollCard = (
   };
 };
 
+// One extras row as the host computes them for the Crews sheet — cut-ins,
+// heavy cleans, change orders, textures, drywall. Passed in so the chat can
+// answer "how many textures happened" from the same list Los verifies ✓.
+export interface TurnChatExtra {
+  readonly id: string;
+  readonly kind: 'cut-in' | 'heavy-clean' | 'change-order' | 'texture' | 'drywall';
+  readonly unitNumber: string;
+  readonly crew: string;
+  readonly detail: string;
+  readonly at: string;
+  readonly week: number;
+}
+
+// "Pass me the assigned units that were released on Monday" — TurnBoard
+// format: lowest unit first, rooms grouped by task, → who's on it. Straight
+// from the release facts (releasedAt) so it matches the wall grid.
+const releasedOnDayCard = (
+  state: TrackCState,
+  days: readonly SheetDay[],
+  query: string,
+  extras: readonly TurnChatExtra[],
+): TurnChatCard => {
+  const tradeFilter: TrackCTrade | undefined =
+    /paint|pintur/.test(query) ? 'paint' : /clean|limpi/.test(query) ? 'clean' : undefined;
+  const onlyAssigned = /assign|asigna/.test(query) && !/unassigned|sin asignar/.test(query);
+  const onlyUnassigned = /unassigned|sin asignar/.test(query);
+  const crewNameById = new Map(state.crews.map((crew) => [crew.id, crew.name]));
+  const lines: TurnChatLine[] = [];
+  let totalRooms = 0;
+  for (const day of days) {
+    interface Row { rooms: { section: string; task: string }[]; crews: Set<string>; trade: TrackCTrade }
+    const byUnit = new Map<string, Row>();
+    for (const unit of state.units) {
+      for (const work of projectTrackCUnitWork(state, unit.id)) {
+        if (work.release !== 'released' || !work.releasedAt) continue;
+        if (tradeFilter && work.trade !== tradeFilter) continue;
+        if (localDateOf(new Date(work.releasedAt)) !== day.date) continue;
+        const row = byUnit.get(unit.unitNumber)
+          ?? { crews: new Set<string>(), rooms: [], trade: work.trade };
+        row.rooms.push({
+          section: work.section === 'common' ? 'Common' : work.section,
+          task: work.trade === 'paint'
+            ? PAY_TYPE_WORD[work.workType ?? 'full'] ?? 'full'
+            : work.workType === 'heavy-clean' ? 'heavy clean' : 'clean',
+        });
+        for (const crewId of work.activeCrewIds) {
+          const name = crewNameById.get(crewId);
+          if (name) row.crews.add(name.split(/\s+/)[0]);
+        }
+        byUnit.set(unit.unitNumber, row);
+      }
+    }
+    const units = [...byUnit.entries()]
+      .filter(([, row]) => onlyAssigned ? row.crews.size > 0 : onlyUnassigned ? row.crews.size === 0 : true)
+      .sort(([left], [right]) => (Number(left) || 0) - (Number(right) || 0));
+    const dayRooms = units.reduce((sum, [, row]) => sum + row.rooms.length, 0);
+    totalRooms += dayRooms;
+    lines.push({ text: `— ${day.label} · ${units.length} unit${units.length === 1 ? '' : 's'} (${dayRooms} rooms)` });
+    if (units.length === 0) {
+      lines.push({ text: '   nothing released' });
+    }
+    for (const [unitNumber, row] of units) {
+      const byTask = new Map<string, string[]>();
+      for (const room of row.rooms) {
+        const sections = byTask.get(room.task) ?? [];
+        sections.push(room.section);
+        byTask.set(room.task, sections);
+      }
+      const detail = [...byTask.entries()]
+        .map(([task, sections]) => `${sections.join(', ')} ${task}`)
+        .join(' · ');
+      const who = row.crews.size > 0 ? ` → ${[...row.crews].join(' + ')}` : ' · unassigned';
+      const unit = state.units.find((candidate) => candidate.unitNumber === unitNumber);
+      lines.push({
+        ...(unit ? { nav: { kind: 'unit' as const, trade: row.trade, unitId: unit.id } } : {}),
+        text: `${unitNumber} — ${detail}${who}`,
+      });
+    }
+    // The option he asked for: how many cut-ins / textures / change orders
+    // rode along with that day.
+    const cutRooms = units.reduce((sum, [, row]) =>
+      sum + row.rooms.filter((room) => room.task.includes('cut-in')).length, 0);
+    const dayExtras = extras.filter((extra) =>
+      localDateOf(new Date(extra.at)) === day.date);
+    const textures = dayExtras.filter((extra) => extra.kind === 'texture').length;
+    const changeOrders = dayExtras.filter((extra) => extra.kind === 'change-order').length;
+    if (cutRooms > 0 || textures > 0 || changeOrders > 0) {
+      lines.push({
+        text: `   extras that day: ${[
+          cutRooms > 0 ? `${cutRooms} cut-in room${cutRooms === 1 ? '' : 's'}` : '',
+          textures > 0 ? `${textures} texture${textures === 1 ? '' : 's'}` : '',
+          changeOrders > 0 ? `${changeOrders} change order${changeOrders === 1 ? '' : 's'}` : '',
+        ].filter(Boolean).join(' · ')} — ask "textures ${day.label.toLowerCase().includes('today') ? 'today' : day.label.split(' ')[0].toLowerCase()}" for the list`,
+      });
+    }
+  }
+  return {
+    lines,
+    nav: { kind: 'board' },
+    subtitle: `${onlyAssigned ? 'assigned only · ' : onlyUnassigned ? 'unassigned only · ' : ''}released rooms with their task · lowest unit first`,
+    title: `Released — ${totalRooms} rooms`,
+  };
+};
+
+// "How many textures / change orders happened (monday | this week | week 2)"
+// — count + the list, from the same extras the Crews sheet verifies.
+const extrasCard = (
+  state: TrackCState,
+  extras: readonly TurnChatExtra[],
+  kinds: readonly TurnChatExtra['kind'][],
+  days: readonly SheetDay[],
+  week: number,
+): TurnChatCard => {
+  const scoped = extras.filter((extra) => kinds.includes(extra.kind)
+    && (days.length > 0
+      ? days.some((day) => localDateOf(new Date(extra.at)) === day.date)
+      : extra.week === week));
+  const kindWord = (kind: TurnChatExtra['kind']) =>
+    kind === 'change-order' ? 'change order' : kind === 'heavy-clean' ? 'heavy clean' : kind;
+  const scopeWord = days.length > 0 ? days.map((day) => day.label).join(' + ') : `week ${week}`;
+  const counts = kinds
+    .map((kind) => ({ count: scoped.filter((extra) => extra.kind === kind).length, kind }))
+    .filter((entry) => entry.count > 0);
+  const lines: TurnChatLine[] = [{
+    text: counts.length > 0
+      ? counts.map((entry) => `${entry.count} ${kindWord(entry.kind)}${entry.count === 1 ? '' : 's'}`).join(' · ')
+      : `None logged ${scopeWord}.`,
+  }];
+  const ordered = [...scoped].sort((left, right) =>
+    (Number(left.unitNumber) || 0) - (Number(right.unitNumber) || 0));
+  for (const extra of ordered.slice(0, 30)) {
+    const unit = state.units.find((candidate) => candidate.unitNumber === extra.unitNumber);
+    lines.push({
+      ...(unit ? { nav: { kind: 'unit' as const, unitId: unit.id } } : {}),
+      text: `${extra.unitNumber} — ${extra.detail}${extra.crew ? ` (${extra.crew.split(/\s+/)[0]})` : ''}`,
+    });
+  }
+  if (ordered.length > 30) lines.push({ text: `…and ${ordered.length - 30} more` });
+  return {
+    lines,
+    nav: { kind: 'board' },
+    subtitle: 'same list the Crews sheet verifies ✓ · lowest unit first',
+    title: `${kinds.map(kindWord).join(' + ')} — ${scopeWord}`,
+  };
+};
+
 // "Give me Rocky's list" — the crew's day from BOARD TRUTH: callbacks first
 // (the board knows which rooms are callbacks — no more guessing in ChatGPT),
 // then what's in front of them, plus the exact-format Spanish WhatsApp
@@ -723,9 +869,11 @@ export const answerTurnChat = (
   state: TrackCState,
   rawQuery: string,
   now: Date = new Date(),
+  extras: readonly TurnChatExtra[] = [],
 ): TurnChatAnswer | null => {
   const query = rawQuery.trim().toLowerCase();
   if (!query) return null;
+
 
   // Unit numbers first — the question Los asks most, answered fastest.
   const numbers = [...new Set(rawQuery.match(/\d{3,4}/g) ?? [])];
@@ -737,6 +885,38 @@ export const answerTurnChat = (
       .map((unit) => unitCard(state, unit.id))
       .filter((card): card is TurnChatCard => Boolean(card));
     if (cards.length > 0) return { cards };
+  }
+
+  // "Released monday" / "assigned units released today" — day-scoped release
+  // list in TurnBoard format. Runs after the unit-number branch
+  // so "did 1806 get released" still answers THAT unit's card.
+  if (/releas|relas|reklas/.test(query)) {
+    const releaseDays = daysFromQuery(query, now);
+    const today = localDateOf(now);
+    return {
+      cards: [releasedOnDayCard(
+        state,
+        releaseDays.length > 0 ? releaseDays : [{ date: today, label: `Today ${shortDayLabel(today)}` }],
+        query,
+        extras,
+      )],
+    };
+  }
+
+  // "How many textures / change orders (monday | week 2)" — from the extras.
+  if (/texture|textura|change order|cambio de orden|drywall/.test(query)) {
+    const kinds: TurnChatExtra['kind'][] = [];
+    if (/texture|textura/.test(query)) kinds.push('texture');
+    if (/change order|cambio/.test(query)) kinds.push('change-order');
+    if (/drywall/.test(query)) kinds.push('drywall');
+    const extraDays = daysFromQuery(query, now);
+    const weekMatch = /w(?:ee)?k\s*(\d{1,2})/.exec(query);
+    const week = weekMatch
+      ? Number(weekMatch[1])
+      : /last week/.test(query)
+        ? payWeekNumberOf(now.toISOString()) - 1
+        : payWeekNumberOf(now.toISOString());
+    return { cards: [extrasCard(state, extras, kinds, extraDays, week)] };
   }
 
   // A crew's day: "rocky", "rocky today", "what's sandra on".

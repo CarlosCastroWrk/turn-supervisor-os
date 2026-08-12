@@ -170,3 +170,43 @@ test('two day words make two day sections, empty days say so', () => {
   assert.ok(card.lines.some((line) => line.text.includes('nothing reported done')), 'empty Monday is honest');
   assert.ok(headings[1].text.startsWith('— Today'), 'today labeled Today');
 });
+
+// "Released monday" — TurnBoard-format day list with tasks and who's on it,
+// plus texture/change-order counts from the extras rows.
+test('released + a day answers the release list, lowest unit first, with tasks and crew', () => {
+  const withReleasedAt = {
+    ...state,
+    units: state.units.map((unit) => ['301', '410'].includes(unit.unitNumber)
+      ? {
+        ...unit,
+        workFacts: unit.workFacts.map((fact) =>
+          fact.trade === 'paint' && fact.release === 'released'
+            ? { ...fact, releasedAt: '2026-07-27T15:00:00.000Z' }
+            : fact),
+      }
+      : unit),
+  };
+  // Tue 7/28 asking about Monday 7/27.
+  const answer = answerTurnChat(withReleasedAt, 'pass me the units released monday', new Date(2026, 6, 28, 18));
+  assert.ok(answer);
+  const card = answer.cards[0];
+  assert.ok(card.title.startsWith('Released'), card.title);
+  const unitLines = card.lines.filter((line) => line.nav?.kind === 'unit');
+  const units = unitLines.map((line) => Number(line.text.split(' ')[0]));
+  assert.deepEqual(units, [301, 410], 'lowest unit first, only Monday releases');
+  assert.ok(unitLines.every((line) => /full|touch-up|cut-in/.test(line.text)), 'each row carries the task');
+});
+
+test('texture and change-order questions count from the extras rows', () => {
+  const extras = [
+    { at: '2026-07-28T15:00:00.000Z', crew: 'Bluebird Paint', detail: 'Texture repair — C ×2', id: 'x1', kind: 'texture' as const, unitNumber: '410', week: 2 },
+    { at: '2026-07-28T16:00:00.000Z', crew: '', detail: '2x2 ceiling drywall approved', id: 'x2', kind: 'change-order' as const, unitNumber: '301', week: 2 },
+    { at: '2026-07-20T16:00:00.000Z', crew: '', detail: 'old one last week', id: 'x3', kind: 'texture' as const, unitNumber: '606', week: 1 },
+  ];
+  const answer = answerTurnChat(state, 'how many textures and change orders today', new Date(2026, 6, 28, 18), extras);
+  assert.ok(answer);
+  const card = answer.cards[0];
+  assert.ok(/1 texture · 1 change order/.test(card.lines[0].text), card.lines[0].text);
+  assert.ok(card.lines.some((line) => line.text.startsWith('301')), 'change order listed');
+  assert.ok(!card.lines.some((line) => line.text.includes('old one')), 'other days excluded');
+});

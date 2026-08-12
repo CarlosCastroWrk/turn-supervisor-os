@@ -5060,6 +5060,7 @@ function LaunchOperationalApp({
         />
         <PanelErrorBoundary name="chat" onReset={() => setChatOpen(false)}>
         <TurnChat
+          extras={weekExtras}
           onApplyIntent={applyTurnIntent}
           onClose={() => setChatOpen(false)}
           onNavigate={(nav: TurnChatNav) => {

@@ -7,6 +7,7 @@ import {
 } from '../../lib/intelligenceClient';
 import {
   answerTurnChat,
+  type TurnChatExtra,
   buildTurnChatDigest,
   buildTurnChatHistoryDigest,
   type TurnChatAnswer,
@@ -52,6 +53,8 @@ export interface TurnChatProps {
   readonly onQuickNote: () => void;
   readonly onQuickBlocker: () => void;
   readonly onQuickMore: () => void;
+  /** Extras rows (cut-ins/textures/change orders) for count questions. */
+  readonly extras?: readonly TurnChatExtra[];
 }
 
 // Only TEXT survives storage. Cards are rebuilt from live data on demand and
@@ -183,6 +186,7 @@ export function TurnChat({
   onQuickNote,
   onQuickBlocker,
   onQuickMore,
+  extras,
 }: TurnChatProps) {
   const [store, setStore] = useState<ThreadStore>(loadStore);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -271,6 +275,8 @@ export function TurnChat({
 
   const stateRef = useRef(state);
   stateRef.current = state;
+  const extrasRef = useRef(extras ?? []);
+  extrasRef.current = extras ?? [];
 
   const push = (message: Omit<ChatMessage, 'id'>): number => {
     const id = (nextId.current += 1);
@@ -431,7 +437,7 @@ export function TurnChat({
     // The free instant brain answers pure lookups; anything that smells like
     // field talk goes to the unified model turn (it can also just answer).
     if (!looksLikeCommand(text, stateRef.current)) {
-      const answer = answerTurnChat(stateRef.current, text);
+      const answer = answerTurnChat(stateRef.current, text, new Date(), extrasRef.current);
       if (answer && (answer.cards.length > 0 || answer.note)) {
         push({ answer, role: 'os' });
         return;

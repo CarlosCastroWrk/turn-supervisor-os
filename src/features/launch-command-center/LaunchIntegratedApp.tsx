@@ -840,6 +840,16 @@ function LaunchOperationalApp({
   const advanceUnitTrade = useCallback((unitId: string, trade: 'paint' | 'clean') => {
     // One tap moves the whole trade forward: crew reports done, then Los
     // passes — always through the existing section operations (undo intact).
+    // EVERY dead end says WHY out loud — a swallowed tap here was the
+    // "nothing happens" bug: a two-crew room blocks the operation and the
+    // card just sat there looking tappable.
+    const unitNumber = trackCState.units
+      .find((unit) => unit.id === unitId)?.unitNumber ?? '';
+    const crewNames = (item: { activeCrewIds: readonly string[] }) =>
+      item.activeCrewIds
+        .map((crewId) => trackCState.crews.find((crew) => crew.id === crewId)?.name.split(/\s+/)[0])
+        .filter(Boolean)
+        .join(' AND ');
     let nextState = trackCState;
     const work = projectTrackCUnitWork(trackCState, unitId).filter((item) =>
       item.trade === trade
@@ -855,7 +865,15 @@ function LaunchOperationalApp({
         action: 'record-los-pass' as const,
         items: work.filter((item) => item.inspection === 'needs-los-inspection'),
       };
-    if (targets.items.length === 0) return;
+    if (targets.items.length === 0) {
+      const conflicted = work.filter((item) => item.assignmentConflict);
+      setPersistWarning(conflicted.length > 0
+        ? `${unitNumber}: nothing moved — ${conflicted
+          .map((item) => `${item.section === 'common' ? 'Common' : item.section} has ${crewNames(item) || 'two crews'} on it`)
+          .join('; ')}. Open the unit, tap Change…, pick ONE crew, then tap again.`
+        : `${unitNumber}: nothing to move — the rooms are already passed, on callback, or awaiting the walk. Open the unit to see each room.`);
+      return;
+    }
     for (const item of targets.items) {
       const result = applyTrackCSectionAction(nextState, {
         action: targets.action,
@@ -864,10 +882,24 @@ function LaunchOperationalApp({
         recordedBy: 'Los',
         target: { section: item.section, trade: item.trade, unitId: item.unitId },
       });
-      if (!result.ok) return;
+      if (!result.ok) {
+        const room = item.section === 'common' ? 'Common' : item.section;
+        setPersistWarning(item.activeCrewIds.length > 1
+          ? `${unitNumber} ${room}: ${crewNames(item)} are BOTH on this room, so it can’t move. Open the unit, tap Change…, pick one crew, then tap again. Nothing was recorded.`
+          : `${unitNumber} ${room} didn’t move: ${result.error.message} Nothing was recorded.`);
+        return;
+      }
       nextState = result.value;
     }
-    commitDataNow((current) => applyTrackCStateChange(current, nextState));
+    const saved = commitDataNow((current) => applyTrackCStateChange(current, nextState));
+    if (!saved) {
+      if (didLastSaveHitQuota()) {
+        setStorageFull(true);
+        setPersistWarning(`${unitNumber}: the tap did NOT save — the app’s browser storage is full. Back up now, then free space.`);
+      } else {
+        setPersistWarning(`${unitNumber}: that didn’t save — try the tap again.`);
+      }
+    }
   }, [commitDataNow, trackCState]);
   const homeGlance = useMemo(() => {
     // These numbers must MATCH the queues below them: blocked units live in

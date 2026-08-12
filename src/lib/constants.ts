@@ -88,6 +88,26 @@ const toISODate = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 export const todayISO = () => toISODate(new Date());
+
+// Escape user-supplied text before it goes into a RegExp. Crew names are
+// free-text ("Tony & Sons", "José (paint)", "A+ Crew"); an unescaped name
+// with a regex metachar throws SyntaxError and takes down the chat / Start
+// Day reader. Always run a name through this before `new RegExp`.
+export const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// A crew's first name matched as a whole word, safely. Returns false for
+// names too short to match reliably. Used everywhere the app decides
+// "does this line/query mention this crew".
+export const crewFirstNameMatches = (crewName: string, text: string): boolean => {
+  const first = crewName.trim().split(/\s+/)[0] ?? '';
+  if (first.length < 3) return false;
+  try {
+    return new RegExp(`\\b${escapeRegExp(first)}\\b`, 'i').test(text);
+  } catch {
+    return false;
+  }
+};
 export const localISODateFromDateTime = (dateTime: string) => {
   const parsed = new Date(dateTime);
   return Number.isNaN(parsed.getTime()) ? dateTime.slice(0, 10) : toISODate(parsed);

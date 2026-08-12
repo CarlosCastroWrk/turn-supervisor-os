@@ -77,7 +77,7 @@ const handler = async (request: Request): Promise<Response> => {
     const result = await chatFieldWords(parsed);
     return json(200, result);
   } catch (error) {
-    console.error('intelligence-chat-failed', error);
+    console.error('intelligence-chat-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'Could not answer right now — try again.' });
   }
 };

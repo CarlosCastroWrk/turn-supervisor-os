@@ -80,7 +80,7 @@ const handler = async (request: Request): Promise<Response> => {
     const result = await composeCrewText(parsed);
     return json(200, result);
   } catch (error) {
-    console.error('compose-failed', error);
+    console.error('compose-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'The composer is unavailable. The standard prefilled text still works.' });
   }
 };

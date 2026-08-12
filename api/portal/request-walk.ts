@@ -47,7 +47,7 @@ const handler = async (request: Request): Promise<Response> => {
     await appendWalkRequest(parsed);
     return json(200, { ok: true });
   } catch (error) {
-    console.error('portal-request-walk-failed', error);
+    console.error('portal-request-walk-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'The request could not be saved. Text Los instead.' });
   }
 };

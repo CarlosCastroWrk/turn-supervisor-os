@@ -308,6 +308,31 @@ test('a texture segment never inherits a task from backward-fill', () => {
   assert.deepEqual(row?.textures, [{ count: 2, section: 'A' }]);
 });
 
+test('a crew name with a regex metachar does not crash the read', () => {
+  const crews = [{ name: 'A+ Team', trade: 'paint' as const }, { name: '(Rocky', trade: 'paint' as const }];
+  // Before the escape fix this threw "Invalid regular expression" and killed
+  // the whole read; now it parses cleanly.
+  const result = parseStartDayMemo('Paint:\n1806 A B — A+ Team', ROSTER, 'both', crews);
+  assert.equal(result.rows.find((r) => r.unitNumber === '1806')?.rooms.length, 2);
+});
+
+test('a 5-digit typo is flagged, not silently read as a shorter unit', () => {
+  const result = parseStartDayMemo('Paint:\n10025 A B', ROSTER, 'both');
+  assert.ok(result.warnings.some((w) => w.includes('10025') && /digits/.test(w)));
+});
+
+test('"incomplete" is not read as full paint', () => {
+  // 1806 A is NOT done — must not release A as full.
+  const result = parseStartDayMemo('Paint:\n1806 A incomplete', ROSTER, 'both');
+  const a = result.rows.find((r) => r.unitNumber === '1806')?.rooms.find((room) => room.section === 'A');
+  assert.notEqual(a?.workType, 'full');
+});
+
+test('a "Paseo…" header does not flip a paint block to clean', () => {
+  const result = parseStartDayMemo('Paseo del Sol\n1806 A: recorte', ROSTER, 'both');
+  assert.ok(result.rows.some((r) => r.unitNumber === '1806' && r.trade === 'paint'));
+});
+
 test('a unit with nothing usable warns instead of guessing', () => {
   const result = parseStartDayMemo('1806', ROSTER, 'paint');
   assert.equal(result.rows.length, 0);

@@ -11,6 +11,7 @@ import {
   payWeekSunday,
 } from '../wave2a2-track-c/crewPayroll';
 import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
+import { crewFirstNameMatches } from '../../lib/constants';
 import {
   crewCallbackTextBody,
   crewUnitsTextBody,
@@ -605,10 +606,7 @@ export const answerTurnChat = (
   }
 
   // A crew's day: "rocky", "rocky today", "what's sandra on".
-  const crew = state.crews.find((candidate) => {
-    const first = candidate.name.trim().toLowerCase().split(/\s+/)[0];
-    return first.length >= 3 && new RegExp(`\\b${first}\\b`, 'i').test(query);
-  });
+  const crew = state.crews.find((candidate) => crewFirstNameMatches(candidate.name, query));
   if (crew) {
     // "Rocky's list/text/message" → the sendable day list (Spanish copy);
     // history phrasing → the payroll answer; otherwise their live day.

@@ -42,7 +42,7 @@ const handler = async (request: Request): Promise<Response> => {
     }
     return json(200, { items: await listWalkRequests() });
   } catch (error) {
-    console.error('portal-requests-failed', error);
+    console.error('portal-requests-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'Walk requests are briefly unavailable.' });
   }
 };

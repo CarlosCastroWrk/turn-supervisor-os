@@ -78,7 +78,7 @@ const handler = async (request: Request): Promise<Response> => {
     const result = await interpretFieldWords(parsed);
     return json(200, result);
   } catch (error) {
-    console.error('intelligence-interpret-failed', error);
+    console.error('intelligence-interpret-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'Could not read that — try again or use the buttons.' });
   }
 };

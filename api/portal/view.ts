@@ -32,7 +32,7 @@ const handler = async (request: Request): Promise<Response> => {
       'public, max-age=15',
     );
   } catch (error) {
-    console.error('portal-view-failed', error);
+    console.error('portal-view-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'The portal is briefly unavailable.' });
   }
 };

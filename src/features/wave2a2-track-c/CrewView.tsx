@@ -544,8 +544,8 @@ export const CrewView = ({
         const firstName = state.crews.find((crew) => crew.id === first.crewId)?.name ?? '?';
         items.push({
           key: `double:${key}`,
-          kind: 'fix',
-          text: `${unit.unitNumber} ${room} — ${names.join(' AND ')} both reported it. Paying ${firstName} (first). Right?`,
+          kind: 'check',
+          text: `${unit.unitNumber} ${room} — ${names.join(' AND ')} both reported it, so BOTH are counted. If only ${firstName} did it, clear the other's report so pay is right.`,
           trade: target.trade,
           unitId: unit.id,
         });

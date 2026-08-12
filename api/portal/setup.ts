@@ -56,7 +56,7 @@ const handler = async (request: Request): Promise<Response> => {
     await withPortalDb((client) => client.query(PORTAL_DDL));
     return json(200, { ok: true });
   } catch (error) {
-    console.error('portal-setup-failed', error);
+    console.error('portal-setup-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, { error: 'Portal setup failed.' });
   }
 };

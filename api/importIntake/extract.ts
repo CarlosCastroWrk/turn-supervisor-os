@@ -85,7 +85,7 @@ const handler = async (request: Request): Promise<Response> => {
     const result = await extractIntake(parsed);
     return json(200, result);
   } catch (error) {
-    console.error('intake-extract-failed', error);
+    console.error('intake-extract-failed', error instanceof Error ? error.name : 'unknown');
     return json(502, {
       error: 'The import reader could not process this source. Use paste or manual selection.',
     });

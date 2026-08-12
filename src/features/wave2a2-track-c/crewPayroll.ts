@@ -101,9 +101,16 @@ export const buildAllCrewPayroll = (
   // read off the release so a completed paint room can be tallied by its kind.
   const workTypeOf = new Map<string, PaintTypeKey>();
   const unitNumberOf = new Map<string, string>();
+  // A room only pays while it is STILL RELEASED right now. Delete a room (or
+  // convert it texture-only, which un-releases the section) and its old
+  // crew-done event must stop paying — Los's rule: a deleted room pays no one.
+  const releasedNow = new Set<string>();
   for (const unit of state.units) {
     unitNumberOf.set(unit.id, unit.unitNumber);
     for (const fact of unit.workFacts) {
+      if (fact.release === 'released') {
+        releasedNow.add(`${fact.unitId}:${fact.trade}:${fact.section}`);
+      }
       if (fact.trade !== 'paint') continue;
       workTypeOf.set(
         `${fact.unitId}:${fact.trade}:${fact.section}`,
@@ -134,8 +141,17 @@ export const buildAllCrewPayroll = (
 
   for (const event of ordered) {
     const crewId = event.crewId as string;
-    const roomKey = `${crewId}:${event.target.unitId}:${event.target.trade}:${event.target.section}`;
-    if (seenRooms.has(roomKey)) continue; // already paid — never twice
+    const scope = `${event.target.unitId}:${event.target.trade}:${event.target.section}`;
+    // Deleted / un-released room → pays NOBODY (Los's rule). Skip before dedup
+    // so a stale done-event on a deleted room never pays. Un-releasing a room
+    // (delete, or texture-only) drops it from releasedNow, so it stops paying.
+    if (!releasedNow.has(scope)) continue;
+    // A crew is paid ONCE per room: a redo — the same crew called back to fix
+    // their own room — never adds a second pay. (Two DIFFERENT crews on one
+    // room is rare/a mistake; both are counted and the payroll pre-flight
+    // flags it for Los to resolve, rather than auto-guessing which one did it.)
+    const roomKey = `${crewId}:${scope}`;
+    if (seenRooms.has(roomKey)) continue;
     seenRooms.add(roomKey);
 
     const date = payLocalDate(event.recordedAt);

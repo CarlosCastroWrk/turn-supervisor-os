@@ -13,6 +13,7 @@ import {
   type TurnChatNav,
 } from './turnChatAnswer';
 import type { TrackCState } from '../wave2a2-track-c/model';
+import { crewFirstNameMatches } from '../../lib/constants';
 
 // Turn Chat — the Plus button's front door. One thread, three brains:
 // 1) the instant local brain answers board questions as tappable cards
@@ -166,10 +167,7 @@ const looksLikeCommand = (
   const hasUnit = numbers.some((candidate) =>
     state.units.some((unit) => unit.unitNumber === candidate));
   if (!hasUnit) return false;
-  const crewNamed = state.crews.some((crew) => {
-    const first = crew.name.trim().toLowerCase().split(/\s+/)[0];
-    return first.length >= 3 && new RegExp(`\\b${first}\\b`, 'i').test(text);
-  });
+  const crewNamed = state.crews.some((crew) => crewFirstNameMatches(crew.name, text));
   return COMMAND_WORD_RE.test(text) || crewNamed;
 };
 

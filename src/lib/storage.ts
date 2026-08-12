@@ -197,9 +197,14 @@ const CONVENIENCE_KEYS = [
   'turn-os:intake-memo',
 ];
 
-const freeConvenienceStorage = (): boolean => {
+// Emergency space to reclaim, in order of least regret, when a real save hits
+// the quota. Chat/prefill caches first; then the ':corrupt' snapshot — a FULL
+// duplicate of the ledger left by a past bad-load, which permanently eats
+// ~half the remaining budget and is redundant (the loader hands the raw
+// payload to Recovery Mode directly). The field ledger itself is NEVER here.
+const freeEmergencyStorage = (): boolean => {
   let freed = false;
-  for (const key of CONVENIENCE_KEYS) {
+  for (const key of [...CONVENIENCE_KEYS, CORRUPT_STORAGE_KEY]) {
     try {
       if (window.localStorage.getItem(key) !== null) {
         window.localStorage.removeItem(key);
@@ -210,6 +215,12 @@ const freeConvenienceStorage = (): boolean => {
   return freed;
 };
 
+// True after a save was refused for lack of space AND the emergency free-up
+// couldn't rescue it — the host raises an unmissable, non-dismissable prompt
+// off this, because a silently dropped tap is a silently wrong pay count.
+let lastSaveHitQuota = false;
+export const didLastSaveHitQuota = () => lastSaveHitQuota;
+
 export const saveAppData = (data: AppData) => {
   if (appDataLoadBlocked) {
     console.warn('Turn Supervisor OS data was not saved because the existing local payload failed validation.');
@@ -218,18 +229,22 @@ export const saveAppData = (data: AppData) => {
   const serialized = JSON.stringify(applyActivityLogRetention(data));
   try {
     window.localStorage.setItem(STORAGE_KEY, serialized);
+    lastSaveHitQuota = false;
     return true;
   } catch (error) {
-    console.warn('Failed to save Turn Supervisor OS data — freeing cache space and retrying.', error);
-    if (!freeConvenienceStorage()) return false;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, serialized);
-      console.warn('Save succeeded after clearing convenience caches (chat history reset).');
-      return true;
-    } catch (retryError) {
-      console.warn('Save still failing after freeing caches.', retryError);
-      return false;
+    console.warn('Failed to save Turn Supervisor OS data — freeing space and retrying.', error);
+    if (freeEmergencyStorage()) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, serialized);
+        console.warn('Save succeeded after freeing caches/corrupt snapshot.');
+        lastSaveHitQuota = false;
+        return true;
+      } catch (retryError) {
+        console.warn('Save still failing after freeing space.', retryError);
+      }
     }
+    lastSaveHitQuota = true;
+    return false;
   }
 };
 

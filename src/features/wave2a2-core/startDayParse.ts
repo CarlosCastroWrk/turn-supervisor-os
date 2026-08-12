@@ -1,4 +1,5 @@
 import type { FieldSection, FieldTrade, ReleaseWorkType } from '../../types';
+import { crewFirstNameMatches } from '../../lib/constants';
 import type { DictationRosterUnit } from './dictationParse';
 
 // Start Day memo parser — deterministic, offline, no AI, no sign-in.
@@ -59,7 +60,10 @@ const SECTION_ORDER: readonly FieldSection[] = ['common', 'A', 'B', 'C', 'D', 'E
 // full. Combos are combinations of the base words.
 const TOUCH_RE = /touch|retoque/i;
 const CUT_RE = /\bcut|recorte/i;
-const FULL_RE = /\bfull\b|complet|\bcompleta\b/i;
+// \bcomplet stops "full" from being read into "incomplete" (a note that a room
+// is NOT done): "incomplete" has no word boundary before "complet", so it won't
+// match, while "completo/completa/complete" still do.
+const FULL_RE = /\bfull\b|\bcomplet/i;
 const HEAVY_RE = /heavy|deep|pesad|profund/i;
 
 export const detectStartDayWorkType = (
@@ -92,7 +96,7 @@ const WHOLE_UNIT_RE = /full\s*unit|whole\s*unit|unidad\s*completa/i;
 // and inline switches require a unit number right after the keyword, so task
 // words can't flip the trade mid-list.
 const PAINT_WORD_STEMS = ['paint', 'pintur', 'pintar'];
-const CLEAN_WORD_STEMS = ['clean', 'limpie', 'limpiar', 'aseo'];
+const CLEAN_WORD_STEMS = ['clean', 'limpie', 'limpiar', '\\baseo\\b'];
 const PAINT_WORD_RE = new RegExp([...PAINT_WORD_STEMS, '🎨', '🖌'].join('|'), 'iu');
 const CLEAN_WORD_RE = new RegExp([...CLEAN_WORD_STEMS, '🧹', '🧽', '🧼', '🪣'].join('|'), 'iu');
 const INLINE_TRADE_SPLIT_RE = new RegExp(
@@ -112,7 +116,7 @@ interface MutableRow {
 }
 
 // "2 textures", "texture repair ×3", "textura" — count first or trailing.
-const TEXTURE_RE = /(?:(\d+)\s*)?(?:textures?|texturas?)(?:\s*(?:repairs?|reps?|reparaci[oó]n(?:es)?))?(?:\s*[x×]\s*(\d+))?/i;
+const TEXTURE_RE = /(?:(\d+)\s*)?(?:textures?|texturas?)\b(?:\s*(?:repairs?|reps?|reparaci[oó]n(?:es)?))?(?:\s*[x×]\s*(\d+))?/i;
 
 // Rooms named in one comma segment: "A B", "A-C", "a through c".
 const parseSegmentBeds = (segment: string): FieldSection[] => {
@@ -176,12 +180,8 @@ const applyEntry = (
   }
 
   // Crew named on the line — first-name match against the roster, same trade.
-  const lowered = descriptor.toLowerCase();
-  const crewName = crews.find((crew) => {
-    if (crew.trade !== trade) return false;
-    const first = crew.name.trim().toLowerCase().split(/\s+/)[0];
-    return first.length >= 3 && new RegExp(`\\b${first}\\b`).test(lowered);
-  })?.name;
+  const crewName = crews.find((crew) =>
+    crew.trade === trade && crewFirstNameMatches(crew.name, descriptor))?.name;
 
   const saidStudio = parsed.some((segment) => segment.isStudio);
   const saidWholeUnit = parsed.some((segment) => segment.isWholeUnit);
@@ -353,6 +353,13 @@ export const parseStartDayMemo = (
       }
       const pieceTrade = currentTrade;
 
+      // A 5+ digit run is a typo, not a unit ("10025" = fat-fingered "1002").
+      // The entry regex would silently read "1002" and drop the stray digit —
+      // so flag it instead of quietly releasing the wrong unit.
+      for (const oversized of piece.match(/\d{5,}/g) ?? []) {
+        const flag = `${oversized}: that’s ${oversized.length} digits — a real unit is 3–4. Which unit did you mean?`;
+        if (!warnings.includes(flag)) warnings.push(flag);
+      }
       // Entries: each 3–4 digit unit number owns the text up to the next one.
       // Small numbers inside a descriptor ("×2", "2 textures") are NOT unit
       // boundaries — only a 3–4 digit run starts a new entry.
@@ -369,12 +376,8 @@ export const parseStartDayMemo = (
         if (trade === undefined) {
           // A named crew settles the trade ("1806 A B — Rocky" is paint if
           // Rocky paints) more reliably than task-word inference.
-          const loweredEntry = descriptor.toLowerCase();
           const namedTrades = new Set(crews
-            .filter((candidate) => {
-              const first = candidate.name.trim().toLowerCase().split(/\s+/)[0];
-              return first.length >= 3 && new RegExp(`\\b${first}\\b`).test(loweredEntry);
-            })
+            .filter((candidate) => crewFirstNameMatches(candidate.name, descriptor))
             .map((candidate) => candidate.trade));
           if (namedTrades.size === 1) {
             trade = [...namedTrades][0];

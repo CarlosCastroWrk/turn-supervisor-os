@@ -380,3 +380,43 @@
   font-weight: 700;
   margin: 0;
 }
+
+/* Blocking "storage full — back up now" action inside the persist alert. */
+.lcc-host-alert__action {
+  margin-top: 8px;
+  border: none;
+  border-radius: 10px;
+  background: #b4232d;
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 800;
+  padding: 10px 16px;
+  min-height: 44px;
+}
+.lcc-host-alert__action:active { opacity: 0.85; }
+
+/* Contained per-panel crash fallback — keeps the app alive, one dead panel. */
+.lcc-panel-crash {
+  margin: 16px;
+  padding: 18px;
+  border: 1px solid var(--turn-color-divider, #d7dce3);
+  border-radius: 14px;
+  background: var(--turn-color-elevated, #fff);
+  display: grid;
+  gap: 8px;
+  text-align: center;
+}
+.lcc-panel-crash strong { font-size: 16px; }
+.lcc-panel-crash p { margin: 0; color: var(--turn-color-secondary, #5b6673); font-size: 14px; }
+.lcc-panel-crash button {
+  justify-self: center;
+  margin-top: 4px;
+  border: none;
+  border-radius: 999px;
+  background: var(--turn-color-accent, #0877d1);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  padding: 10px 22px;
+  min-height: 44px;
+}

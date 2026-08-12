@@ -202,7 +202,7 @@ import {
   type AppNavigate,
 } from '../../lib/routing';
 import { clearPhotoBlobs } from '../../lib/photoStorage';
-import { estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
+import { didLastSaveHitQuota, estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
 import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useSupabaseSync } from '../../lib/supabase/sync';
@@ -214,6 +214,7 @@ import type {
   FieldSection,
 } from '../../types';
 import { SyncPanel } from '../../components/SyncPanel';
+import { PanelErrorBoundary } from '../../components/PanelErrorBoundary';
 import { AssignmentsView } from '../../views/AssignmentsView';
 import { CopilotView, type CopilotViewHandle } from '../../views/CopilotView';
 import { DailyLogView } from '../../views/DailyLogView';
@@ -446,6 +447,10 @@ function LaunchOperationalApp({
   // A save that FAILED — sticky and loud (never auto-clears) so Los can't miss
   // that something he did didn't record. Cleared only when he taps it.
   const [persistWarning, setPersistWarning] = useState('');
+  // Storage genuinely full (emergency free-up couldn't rescue the save). This
+  // banner is non-dismissable and offers a one-tap backup — a dropped tap here
+  // is a silently wrong pay count, so it must not be swipe-away-able.
+  const [storageFull, setStorageFull] = useState(false);
   useEffect(() => {
     if (!fieldToast) return undefined;
     const timer = window.setTimeout(() => setFieldToast(''), 3000);
@@ -2196,7 +2201,10 @@ function LaunchOperationalApp({
   const protectTurnNow = useCallback(async (): Promise<string> => {
     const result = await buildJsonBackupWithLocalPhotos(data);
     const filename = `turn-supervisor-backup-${currentDate}.json`;
-    let delivered = 'download';
+    // Only a genuinely completed delivery marks the Turn "protected today" —
+    // never a best-guess fallback. A false "backed up" is worse than none:
+    // it lets Los skip the real backup on the day he needs it.
+    let delivered: 'share' | 'download' | 'failed' = 'failed';
     try {
       const file = new File([result.text], filename, { type: 'application/json' });
       if (navigator.canShare?.({ files: [file] })) {
@@ -2204,13 +2212,24 @@ function LaunchOperationalApp({
         delivered = 'share';
       } else {
         downloadTextFile(filename, result.text, 'application/json');
+        delivered = 'download';
       }
     } catch (caught) {
-      // Share sheet dismissed or unavailable — a plain download still counts.
       if ((caught as Error)?.name === 'AbortError') {
+        // He closed the sheet on purpose — not protected, and honest about it.
         return 'Backup not saved — the share sheet was closed. Tap again and pick “Save to Files”.';
       }
-      downloadTextFile(filename, result.text, 'application/json');
+      // Share failed for another reason (payload too big, iOS quirk). Try a
+      // plain download, but do NOT claim protected unless it clearly worked.
+      try {
+        downloadTextFile(filename, result.text, 'application/json');
+        delivered = 'download';
+      } catch {
+        delivered = 'failed';
+      }
+    }
+    if (delivered === 'failed') {
+      return 'Backup did NOT save — try again, or use More → Data & backup. The Turn is not protected yet.';
     }
     try {
       window.localStorage.setItem('turn-os:last-backup', currentDate);
@@ -3080,9 +3099,21 @@ function LaunchOperationalApp({
     <section className="persistence-alert lcc-host-alert lcc-host-alert--error" role="alert">
       <AlertTriangle size={22} aria-hidden="true" />
       <div>
-        <strong>That didn’t save</strong>
+        <strong>{storageFull ? 'Storage full — this tap did not save' : 'That didn’t save'}</strong>
         <p>{persistWarning}</p>
+        {storageFull ? (
+          <button
+            className="lcc-host-alert__action"
+            onClick={() => {
+              void protectTurnNow().then((message) => setPersistWarning(message));
+            }}
+            type="button"
+          >
+            Back up now
+          </button>
+        ) : null}
       </div>
+      {storageFull ? null : (
       <button
         aria-label="Dismiss"
         className="lcc-host-alert__dismiss"
@@ -3091,6 +3122,7 @@ function LaunchOperationalApp({
       >
         ✕
       </button>
+      )}
     </section>
   ) : null;
   const hostAlerts = (
@@ -3344,6 +3376,7 @@ function LaunchOperationalApp({
           </div>
         </NativeDetailShell>
       ) : (
+        <PanelErrorBoundary name="field-ops" onReset={() => navigate('units')}>
         <TrackCFieldOps
           embedded
           payExtras={crewPayExtras}
@@ -3664,7 +3697,14 @@ function LaunchOperationalApp({
               const saved = commitDataNow((current) =>
                 applyTrackCStateChange(current, nextState));
               if (!saved) {
-                setPersistWarning('That didn’t save — the app’s browser storage is full (not your phone storage). Space was freed automatically; tap it again. Still failing? Save a backup under Data & backup first.');
+                if (didLastSaveHitQuota()) {
+                  setStorageFull(true);
+                  setPersistWarning('This tap did NOT save — the app’s browser storage is full (not your phone). Back up now, then free space. Until then, new taps won’t stick.');
+                } else {
+                  setPersistWarning('That didn’t save — try again. Nothing was recorded.');
+                }
+              } else {
+                setStorageFull(false);
               }
               return saved;
             } catch (error) {
@@ -3700,6 +3740,7 @@ function LaunchOperationalApp({
             },
           }}
         />
+        </PanelErrorBoundary>
       )}
     </div>
   ) : boardRouteActive ? (
@@ -3891,6 +3932,7 @@ function LaunchOperationalApp({
         />
       ) : homeMode === 'start-day' ? (
         activeProject?.fieldConfiguration ? (
+          <PanelErrorBoundary name="start-day" onReset={() => setHomeMode('day')}>
           <StartDayScreen
             configuration={activeProject.fieldConfiguration}
             contacts={activeProjectContacts}
@@ -3963,6 +4005,7 @@ function LaunchOperationalApp({
             roster={propertyRoster}
             rosterUnits={fastStartDayRosterUnits}
           />
+          </PanelErrorBoundary>
         ) : (
           <NativeDetailShell
             description="Activate Project Setup before recording a Day Session."
@@ -5015,6 +5058,7 @@ function LaunchOperationalApp({
           state={trackCState}
           target={peekTarget}
         />
+        <PanelErrorBoundary name="chat" onReset={() => setChatOpen(false)}>
         <TurnChat
           onApplyIntent={applyTurnIntent}
           onClose={() => setChatOpen(false)}
@@ -5063,6 +5107,7 @@ function LaunchOperationalApp({
           open={chatOpen}
           state={trackCState}
         />
+        </PanelErrorBoundary>
         {fieldToast ? (
           <div aria-live="polite" className="lcc-field-toast" role="status">
             {fieldToast}

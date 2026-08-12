@@ -292,6 +292,9 @@ interface BoardViewProps {
   // texture (no touch-up/cut-in). Lands as a texture note → unit notes,
   // week extras, and the changes-approved list. Returns saved.
   readonly onLogTexture?: (target: TrackCWorkTarget, count: number, textureOnly: boolean) => boolean;
+  // Joseph re-released an APPROVED room for new work ("come back to C for a
+  // full + cut-in") — start a fresh round with the task he named.
+  readonly onReopenRound?: (target: TrackCWorkTarget, workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean' | undefined) => boolean;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -625,6 +628,7 @@ const WorkSection = ({
   onSetWorkType,
   onUpgradeCutInToFull,
   onLogTexture,
+  onReopenRound,
   textureCount,
   textureOnly,
   unitNumber,
@@ -639,6 +643,7 @@ const WorkSection = ({
   onSetWorkType?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean') => void;
   onUpgradeCutInToFull?: (attribution: 'joseph' | 'catch' | 'redo') => void;
   onLogTexture?: (count: number, textureOnly: boolean) => boolean;
+  onReopenRound?: (workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean' | undefined) => boolean;
   textureCount?: number;
   textureOnly?: boolean;
   unitNumber?: string;
@@ -779,10 +784,41 @@ const WorkSection = ({
             </button>
           ) : null}
           {!canRemove && work.property === 'property-accepted' ? (
-            <p className="track-c-room-menu__locked">
-              Property approved this room — it can't be deleted. Block the unit if
-              it needs a callback.
-            </p>
+            <>
+              <p className="track-c-room-menu__locked">
+                Property approved this room. Joseph re-released it for MORE work?
+                Pick the task — it comes back as a fresh round:
+              </p>
+              {onReopenRound
+                ? (work.trade === 'paint'
+                  ? (['full', 'touch-up', 'cut-in', 'full-cut-in', 'touch-up-cut-in'] as const)
+                  : (['heavy-clean', undefined] as const)
+                ).map((type) => (
+                  <button
+                    className="is-reopen"
+                    key={type ?? 'clean'}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onReopenRound(type);
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    New round — {type === 'full'
+                      ? 'Full paint'
+                      : type === 'touch-up'
+                        ? 'Touch-up'
+                        : type === 'cut-in'
+                          ? 'Cut-in'
+                          : type === 'full-cut-in'
+                            ? 'Full + cut-in'
+                            : type === 'touch-up-cut-in'
+                              ? 'Touch-up + cut-in'
+                              : type === 'heavy-clean' ? 'Heavy clean' : 'Clean'}
+                  </button>
+                ))
+                : null}
+            </>
           ) : null}
           <button onClick={() => setMenuOpen(false)} role="menuitem" type="button">
             Cancel
@@ -1269,6 +1305,7 @@ const UnitDetail = ({
   onSetSectionWorkType,
   onUpgradeCutInToFull,
   onLogTexture,
+  onReopenRound,
   onSetTradeRelease,
   onSetUnitBeds,
   onMoveUnitTrade,
@@ -1303,6 +1340,7 @@ const UnitDetail = ({
   onSetSectionWorkType?: BoardViewProps['onSetSectionWorkType'];
   onUpgradeCutInToFull?: BoardViewProps['onUpgradeCutInToFull'];
   onLogTexture?: BoardViewProps['onLogTexture'];
+  onReopenRound?: BoardViewProps['onReopenRound'];
   onSetTradeRelease?: BoardViewProps['onSetTradeRelease'];
   onSetUnitBeds?: BoardViewProps['onSetUnitBeds'];
   onMoveUnitTrade?: BoardViewProps['onMoveUnitTrade'];
@@ -1935,6 +1973,12 @@ const UnitDetail = ({
                               textureOnly,
                             )
                             : undefined}
+                          onReopenRound={onReopenRound
+                            ? (workType) => onReopenRound(
+                              { unitId: item.unitId, trade: item.trade, section: item.section },
+                              workType,
+                            )
+                            : undefined}
                           textureCount={item.trade === 'paint' ? texturesByRoom.get(item.section)?.count : undefined}
                           textureOnly={item.trade === 'paint' ? texturesByRoom.get(item.section)?.textureOnly : undefined}
                           onAction={(action) =>
@@ -2463,6 +2507,7 @@ export const BoardView = ({
   onSetSectionWorkType,
   onUpgradeCutInToFull,
   onLogTexture,
+  onReopenRound,
   onSetTradeRelease,
   onSetUnitBeds,
   onMoveUnitTrade,
@@ -2585,6 +2630,7 @@ export const BoardView = ({
         onSetSectionWorkType={onSetSectionWorkType}
         onUpgradeCutInToFull={onUpgradeCutInToFull}
         onLogTexture={onLogTexture}
+        onReopenRound={onReopenRound}
         onSetTradeRelease={onSetTradeRelease}
         onSetUnitBeds={onSetUnitBeds}
         onMoveUnitTrade={onMoveUnitTrade}

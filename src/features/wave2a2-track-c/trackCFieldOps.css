@@ -3156,3 +3156,6 @@ button.track-c-preflight__item:active { opacity: 0.75; }
   line-height: 1.4;
   white-space: pre-wrap;
 }
+
+/* "New round" chips for an approved room Joseph re-released. */
+.track-c-room-menu button.is-reopen { color: #0a6a9e; font-weight: 700; }

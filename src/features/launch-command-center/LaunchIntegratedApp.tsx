@@ -3637,6 +3637,64 @@ function LaunchOperationalApp({
               ? `Unit ${unitNumber} ${roomLabel} → full paint · ${charge ? 'change order logged (charge)' : 'logged, no charge'}. Crew paid for the work.`
               : 'Could not save — try again.');
           }}
+          onReopenRound={(target, workType) => {
+            // Joseph approved the room, then re-released it for MORE work
+            // ("come back to C for a full + cut-in"). One tap starts a fresh
+            // round: off the old release, onto a new batch stamped now (the
+            // fresh-round gate resets its state), with the task he named.
+            // Round-one pay survives; the new work pays like new work.
+            const unitNumber = trackCState.units
+              .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
+            const roomLabel = target.section === 'common' ? 'Common' : target.section;
+            const hasActiveSession = data.daySessions.some((session) =>
+              session.projectId === data.activeProjectId
+              && ['active', 'ending', 'reopened'].includes(session.status));
+            if (!hasActiveSession) {
+              setFieldToast('Start the day first — then start the new round from the unit page.');
+              return false;
+            }
+            const taskWord = workType === 'full-cut-in'
+              ? 'full + cut-in'
+              : workType === 'touch-up-cut-in'
+                ? 'touch-up + cut-in'
+                : workType ?? 'clean';
+            const saved = commitDataNow((current) => {
+              let next = setSectionReleaseState(current, {
+                idFactory: createId,
+                nowIso: nowISO(),
+                released: false,
+                section: target.section,
+                trade: target.trade,
+                unitId: target.unitId,
+              });
+              next = setSectionReleaseState(next, {
+                idFactory: createId,
+                nowIso: nowISO(),
+                released: true,
+                section: target.section,
+                trade: target.trade,
+                unitId: target.unitId,
+              });
+              if (workType) {
+                next = setReleaseWorkType(next, {
+                  section: target.section,
+                  trade: target.trade,
+                  unitId: target.unitId,
+                  workType,
+                });
+              }
+              const noteResult = appendPersonalNoteActivity(next, {
+                kind: 'note',
+                unitId: target.unitId,
+                wording: `${roomLabel}: Joseph re-released after approval — ${taskWord} (new round)`,
+              });
+              return noteResult.ok ? noteResult.data : next;
+            });
+            setFieldToast(saved
+              ? `Unit ${unitNumber} ${roomLabel} — new round released as ${taskWord}. Assign the crew now.`
+              : 'Could not save — try again.');
+            return saved;
+          }}
           onSetSectionRelease={(target, released) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';

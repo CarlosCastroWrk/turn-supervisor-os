@@ -117,6 +117,7 @@ export interface TrackCFieldOpsProps {
     attribution: 'joseph' | 'catch' | 'redo',
   ) => void;
   readonly onLogTexture?: (target: TrackCWorkTarget, count: number, textureOnly: boolean) => boolean;
+  readonly onReopenRound?: (target: TrackCWorkTarget, workType: 'full' | 'touch-up' | 'cut-in' | 'full-cut-in' | 'touch-up-cut-in' | 'heavy-clean' | undefined) => boolean;
   readonly onSetSectionRelease?: (
     target: TrackCWorkTarget,
     released: boolean,
@@ -163,6 +164,7 @@ export const TrackCFieldOps = ({
   onSetSectionWorkType,
   onUpgradeCutInToFull,
   onLogTexture,
+  onReopenRound,
   onSetTradeRelease,
 }: TrackCFieldOpsProps) => {
   const [state, setState] = useState(initialState);
@@ -829,6 +831,7 @@ export const TrackCFieldOps = ({
             onSetSectionWorkType={onSetSectionWorkType}
             onUpgradeCutInToFull={onUpgradeCutInToFull}
             onLogTexture={onLogTexture}
+            onReopenRound={onReopenRound}
             onSetUnitBeds={onSetUnitBeds}
             onMoveUnitTrade={onMoveUnitTrade}
             onSetTradeRelease={onSetTradeRelease}

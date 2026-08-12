@@ -303,6 +303,140 @@ const todayCard = (state: TrackCState): TurnChatCard => {
 const payLineText = (line: { beds: number; commons: number }) =>
   `${line.beds} bed${line.beds === 1 ? '' : 's'} + ${line.commons} common${line.commons === 1 ? '' : 's'}`;
 
+// ---------------------------------------------------------------------------
+// Payroll-sheet mode: "give me Rocky, Monday and today, least to greatest".
+// Los fills his paper pay sheet crew by crew — he needs what each crew DID
+// (crew-done, the pay basis) on specific DAYS, sorted lowest unit first.
+// ---------------------------------------------------------------------------
+
+const localDateOf = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const WEEKDAY_WORDS: readonly (readonly string[])[] = [
+  ['sunday', 'domingo'],
+  ['monday', 'lunes'],
+  ['tuesday', 'martes'],
+  ['wednesday', 'miercoles', 'miércoles'],
+  ['thursday', 'jueves'],
+  ['friday', 'viernes'],
+  ['saturday', 'sabado', 'sábado'],
+];
+
+interface SheetDay { readonly date: string; readonly label: string }
+
+const shortDayLabel = (date: string): string => {
+  const [y, m, d] = date.split('-').map(Number);
+  const weekday = new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short' });
+  return `${weekday} ${m}/${d}`;
+};
+
+// "monday and today" → the actual dates, oldest first. A weekday name means
+// the most recent one (today included) — payroll always looks backward.
+const daysFromQuery = (query: string, now: Date): SheetDay[] => {
+  const days = new Map<string, string>();
+  const today = localDateOf(now);
+  if (/\btoday\b|\bhoy\b/.test(query)) days.set(today, `Today ${shortDayLabel(today)}`);
+  if (/yesterday|ayer/.test(query)) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - 1);
+    const key = localDateOf(date);
+    days.set(key, `Yesterday ${shortDayLabel(key)}`);
+  }
+  for (let index = 0; index < WEEKDAY_WORDS.length; index += 1) {
+    if (!WEEKDAY_WORDS[index].some((word) => query.includes(word))) continue;
+    const delta = (now.getDay() - index + 7) % 7;
+    const date = new Date(now);
+    date.setDate(date.getDate() - delta);
+    const key = localDateOf(date);
+    if (!days.has(key)) {
+      days.set(key, delta === 0 ? `Today ${shortDayLabel(key)}` : shortDayLabel(key));
+    }
+  }
+  return [...days.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, label]) => ({ date, label }));
+};
+
+const PAY_TYPE_WORD: Readonly<Record<string, string>> = {
+  'cut-in': 'cut-in',
+  full: 'full',
+  'full-cut-in': 'full + cut-in',
+  'touch-up': 'touch-up',
+  'touch-up-cut-in': 'touch-up + cut-in',
+};
+
+// One crew, day by day, lowest unit first, task per room — the exact order
+// Los writes rows onto his payboard. Same deduped, release-gated payroll the
+// packet uses, so the sheet and the packet can never disagree.
+const payrollSheetCard = (
+  state: TrackCState,
+  crewId: string,
+  now: Date,
+  requestedDays?: readonly SheetDay[],
+): TurnChatCard | undefined => {
+  const crew = state.crews.find((candidate) => candidate.id === crewId);
+  if (!crew) return undefined;
+  const payroll = buildAllCrewPayroll(state, now).get(crewId);
+  const rooms = payroll?.rooms ?? [];
+  const days: SheetDay[] = requestedDays?.length
+    ? [...requestedDays]
+    : [...new Set(rooms.map((room) => room.date))]
+      .filter((date) => date >= payWeekSunday(now.toISOString()))
+      .sort()
+      .map((date) => ({
+        date,
+        label: date === localDateOf(now) ? `Today ${shortDayLabel(date)}` : shortDayLabel(date),
+      }));
+  const lines: TurnChatLine[] = [];
+  for (const day of days) {
+    const dayRooms = rooms.filter((room) => room.date === day.date);
+    const beds = dayRooms.filter((room) => room.section !== 'common').length;
+    const commons = dayRooms.length - beds;
+    lines.push({
+      text: `— ${day.label} · ${payLineText({ beds, commons })}`,
+    });
+    if (dayRooms.length === 0) {
+      lines.push({ text: '   nothing reported done' });
+      continue;
+    }
+    // Lowest unit → greatest, each unit one row, rooms grouped by task.
+    const byUnit = new Map<string, typeof dayRooms>();
+    for (const room of dayRooms) {
+      const bucket = byUnit.get(room.unitNumber) ?? [];
+      bucket.push(room);
+      byUnit.set(room.unitNumber, bucket);
+    }
+    const orderedUnits = [...byUnit.entries()]
+      .sort(([left], [right]) => (Number(left) || 0) - (Number(right) || 0));
+    for (const [unitNumber, unitRooms] of orderedUnits) {
+      const byTask = new Map<string, string[]>();
+      for (const room of unitRooms) {
+        const task = room.trade === 'paint'
+          ? PAY_TYPE_WORD[room.workType ?? 'full'] ?? 'full'
+          : 'clean';
+        const sections = byTask.get(task) ?? [];
+        sections.push(room.section === 'common' ? 'Common' : room.section);
+        byTask.set(task, sections);
+      }
+      const detail = [...byTask.entries()]
+        .map(([task, sections]) => `${sections.join(', ')} ${task}`)
+        .join(' · ');
+      const unit = state.units.find((candidate) => candidate.unitNumber === unitNumber);
+      lines.push({
+        ...(unit ? { nav: { kind: 'unit' as const, trade: crew.trade, unitId: unit.id } } : {}),
+        text: `${unitNumber} — ${detail}`,
+      });
+    }
+  }
+  if (lines.length === 0) lines.push({ text: 'Nothing reported done yet.' });
+  return {
+    lines,
+    nav: { kind: 'crew', crewId },
+    subtitle: 'what they DID (crew-done) · lowest unit first · same math as the pay packet',
+    title: `${crew.name} — pay sheet`,
+  };
+};
+
 // "What did Rocky do this week" — answered from the SAME payroll math the
 // pay packet uses, so chat and packet can never disagree. Free and instant.
 const payrollCard = (
@@ -609,14 +743,24 @@ export const answerTurnChat = (
   const crew = state.crews.find((candidate) => crewFirstNameMatches(candidate.name, query));
   if (crew) {
     // "Rocky's list/text/message" → the sendable day list (Spanish copy);
-    // history phrasing → the payroll answer; otherwise their live day.
+    // day names or sheet words → the payroll SHEET (what they DID, day by
+    // day, lowest unit first — for filling the payboard); week/total
+    // phrasing → the week summary; otherwise their live day.
     const wantsList = /\blist\b|lista|\btext\b|message|mensaje|whatsapp|send/.test(query);
-    const wantsHistory = /week|pay|how many|count|did\b|total/.test(query);
+    const sheetDays = daysFromQuery(query, now);
+    // "rocky today" alone still means his LIVE day; the sheet needs a past
+    // day ("monday", "yesterday"), several days, or a payroll word.
+    const wantsSheet = sheetDays.some((day) => day.date !== localDateOf(now))
+      || sheetDays.length > 1
+      || /sheet|payboard|pay board|payroll|\bdid\b|hizo/.test(query);
+    const wantsHistory = /week|how many|count|total/.test(query);
     const card = wantsList
       ? crewListCard(state, crew.id)
-      : wantsHistory
+      : wantsHistory && sheetDays.length === 0
         ? payrollCard(state, crew.id, now)
-        : crewCard(state, crew.id);
+        : wantsSheet
+          ? payrollSheetCard(state, crew.id, now, sheetDays.length > 0 ? sheetDays : undefined)
+          : crewCard(state, crew.id);
     if (card) return { cards: [card] };
   }
 

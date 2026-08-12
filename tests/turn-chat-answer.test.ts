@@ -143,3 +143,30 @@ test('chit-chat it cannot answer returns null so the caller can escalate', () =>
   assert.equal(answerTurnChat(state, 'good morning how are you'), null);
   assert.equal(answerTurnChat(state, ''), null);
 });
+
+// Payroll-sheet mode: "what did bluebird do yesterday / monday and today" —
+// day sections, lowest unit first, task per room, from the SAME pay math as
+// the packet. This is how Los fills his paper payboard crew by crew.
+test('crew + past day answers the pay sheet: day sections, lowest unit first', () => {
+  // Seed events are Tue 2026-07-28; asking Wednesday about "yesterday".
+  const answer = answerTurnChat(state, 'what did bluebird do yesterday', new Date(2026, 6, 29, 18));
+  assert.ok(answer);
+  const card = answer.cards[0];
+  assert.ok(card.title.endsWith('pay sheet'), card.title);
+  const unitLines = card.lines.filter((line) => line.nav?.kind === 'unit');
+  const units = unitLines.map((line) => Number(line.text.split(' ')[0]));
+  assert.deepEqual(units, [...units].sort((a, b) => a - b), 'lowest unit first');
+  assert.ok(units.includes(301) && units.includes(410), 'yesterday rooms listed');
+  assert.ok(unitLines.every((line) => /full|touch-up|cut-in|clean/.test(line.text)), 'every row carries its task');
+});
+
+test('two day words make two day sections, empty days say so', () => {
+  // Tue 7/28: "monday and today" → Mon 7/27 (nothing) + Tue 7/28 (the work).
+  const answer = answerTurnChat(state, 'bluebird monday and today', new Date(2026, 6, 28, 18));
+  assert.ok(answer);
+  const card = answer.cards[0];
+  const headings = card.lines.filter((line) => line.text.startsWith('— '));
+  assert.equal(headings.length, 2, 'one section per asked day');
+  assert.ok(card.lines.some((line) => line.text.includes('nothing reported done')), 'empty Monday is honest');
+  assert.ok(headings[1].text.startsWith('— Today'), 'today labeled Today');
+});

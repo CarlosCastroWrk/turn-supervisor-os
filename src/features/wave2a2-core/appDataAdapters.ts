@@ -927,9 +927,17 @@ export function projectTrackCWalkDraft(
 const releaseItemMaps = (batches: readonly AppDailyReleaseBatch[]) => {
   const byId = new Map<string, DailyReleaseItem>();
   const byTarget = new Map<string, DailyReleaseItem>();
+  // Keep the FIRST live item per room (batches arrive oldest-first): a room
+  // re-listed in a later batch while its original release is still live is the
+  // same round, not a fresh one. Letting the newer duplicate win re-stamped
+  // releasedAt, and the fresh-round projection then skipped everything recorded
+  // before it — crews vanished off approved rooms and they piled into Needs
+  // Crew. A genuine new round still works: its old item was REMOVED from its
+  // batch first, so the re-release is the only live item for that room.
   batches.forEach((batch) => batch.items.forEach((item) => {
     byId.set(item.id, item);
-    byTarget.set(`${item.unitId}:${item.trade}:${item.section}`, item);
+    const target = `${item.unitId}:${item.trade}:${item.section}`;
+    if (!byTarget.has(target)) byTarget.set(target, item);
   }));
   return { byId, byTarget };
 };

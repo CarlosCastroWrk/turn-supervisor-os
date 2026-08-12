@@ -31,6 +31,12 @@ const canonicalQueueForWork = (
 ): CanonicalWorkQueueId | undefined => {
   const { projection } = record;
   if (projection.callbackOpen) return 'callbacks';
+  // Property-accepted work is DONE — it belongs to no to-do queue. Without this
+  // an approved room whose crew attribution was lost (e.g. a duplicated
+  // release) fell through to Needs Crew, telling Los finished units needed a
+  // crew. A re-released room never reads accepted: the fresh round drops the
+  // old acceptance, so it still queues normally.
+  if (projection.property === 'property-accepted') return undefined;
   if (
     projection.release === 'released'
     && projection.access === 'clear'
@@ -49,6 +55,9 @@ const canonicalQueueForWork = (
     && projection.sourceConfidence === 'confirmed'
     && !projection.assignmentConflict
     && !projection.responsibleCrewId
+    // A room Los already passed is awaiting the walk, not a crew — even when
+    // crew attribution is missing it must never read as unassigned work.
+    && projection.inspection !== 'los-passed'
   ) {
     return 'needs-crew';
   }

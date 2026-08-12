@@ -424,6 +424,9 @@ export function NativeHomeSummaryPage({
                     <span className="w2a1-a-row-content">
                       <strong>{record.unitLabel}</strong>
                       {record.meta ? <small>{record.meta}</small> : null}
+                      {record.noteLine ? (
+                        <small className="w2a1-a-row-note">{record.noteLine}</small>
+                      ) : null}
                     </span>
                     <ChevronRight aria-hidden="true" className="w2a1-a-chevron" size={19} />
                   </button>

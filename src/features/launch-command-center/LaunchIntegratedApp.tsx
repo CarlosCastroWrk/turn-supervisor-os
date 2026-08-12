@@ -1268,9 +1268,10 @@ function LaunchOperationalApp({
       ? projectCanonicalFieldConsumers(
         canonicalProjectionResult.projection,
         readNotificationIds,
+        unitNotes,
       )
       : undefined,
-    [canonicalProjectionResult.projection, readNotificationIds],
+    [canonicalProjectionResult.projection, readNotificationIds, unitNotes],
   );
   // Current Work must show what is STILL OWED across the whole Turn — released
   // but unfinished work carries over from previous days (a unit whose paint was

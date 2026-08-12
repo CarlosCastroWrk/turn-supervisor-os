@@ -247,6 +247,14 @@ body:has(.w2a1-a-page-transition) {
   font-weight: 620;
 }
 
+.w2a1-a-row-content .w2a1-a-row-note {
+  color: var(--w2a1-a-blue);
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .w2a1-a-row-value {
   color: var(--w2a1-a-secondary);
   flex: 0 0 auto;

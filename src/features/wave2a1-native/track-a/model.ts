@@ -13,6 +13,7 @@ export interface NativeHomeRecord {
   destinationId: string;
   id: string;
   meta?: string;
+  noteLine?: string;
   summaryStates: readonly NativeHomeSummaryId[];
   unitLabel: string;
 }

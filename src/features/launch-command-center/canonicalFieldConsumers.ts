@@ -87,6 +87,12 @@ const readyToWalkNotifications = (
   }];
 };
 
+export interface CanonicalUnitNote {
+  readonly createdAt: string;
+  readonly text: string;
+  readonly unitId: string;
+}
+
 export interface CanonicalFieldConsumers {
   readonly homeRecords: readonly NativeHomeRecord[];
   readonly notifications: readonly NativeNotificationItem[];
@@ -96,10 +102,22 @@ export interface CanonicalFieldConsumers {
 export const projectCanonicalFieldConsumers = (
   projection: CanonicalFieldProjection,
   readNotificationIds: ReadonlySet<string>,
+  unitNotes: readonly CanonicalUnitNote[] = [],
 ): CanonicalFieldConsumers => {
   // Los reads queues at Unit + Trade grain: one record per unit and trade
-  // per queue, with the affected sections listed in the meta line.
+  // per queue, with the crew on it, the affected sections, and the unit's
+  // latest note — so a queue page answers "who's on it / what's flagged"
+  // without opening every unit.
+  const latestNoteByUnit = new Map<string, { count: number; text: string }>();
+  for (const note of [...unitNotes].sort((left, right) =>
+    right.createdAt.localeCompare(left.createdAt))) {
+    if (!note.text.trim()) continue;
+    const existing = latestNoteByUnit.get(note.unitId);
+    if (existing) existing.count += 1;
+    else latestNoteByUnit.set(note.unitId, { count: 1, text: note.text.trim() });
+  }
   const homeGroups = new Map<string, {
+    crewNames: Set<string>;
     queue: NonNullable<CanonicalWorkRecord['queue']>;
     sections: string[];
     trade: CanonicalWorkRecord['trade'];
@@ -111,6 +129,7 @@ export const projectCanonicalFieldConsumers = (
     if (!record.queue) continue;
     const key = `${record.target.unitId}:${record.trade}:${record.queue}`;
     const group = homeGroups.get(key) ?? {
+      crewNames: new Set<string>(),
       queue: record.queue,
       sections: [],
       trade: record.trade,
@@ -118,22 +137,34 @@ export const projectCanonicalFieldConsumers = (
       unitNumber: record.unitNumber,
       waitingReasons: new Set<string>(),
     };
+    if (record.crewName) group.crewNames.add(record.crewName);
     group.sections.push(sectionLabel(record.target.section));
     for (const reason of record.waitingReasons) group.waitingReasons.add(reason);
     homeGroups.set(key, group);
   }
   const homeRecords: NativeHomeRecord[] = [...homeGroups.entries()]
-    .map(([key, group]) => ({
-      destinationId: `unit:${group.unitId}:${group.trade}`,
-      id: `canonical-home:${key}`,
-      meta: [
-        group.trade === 'paint' ? 'Paint' : 'Clean',
-        group.sections.join(', '),
-        ...(group.waitingReasons.size > 0 ? [[...group.waitingReasons].join(' · ')] : []),
-      ].join(' · '),
-      summaryStates: [group.queue],
-      unitLabel: `Unit ${group.unitNumber} · ${group.trade === 'paint' ? 'Paint' : 'Clean'}`,
-    }));
+    .map(([key, group]) => {
+      const note = latestNoteByUnit.get(group.unitId);
+      return {
+        destinationId: `unit:${group.unitId}:${group.trade}`,
+        id: `canonical-home:${key}`,
+        // The queue pages split Paint | Clean columns off the leading word of
+        // this meta line — the trade must stay first.
+        meta: [
+          group.trade === 'paint' ? 'Paint' : 'Clean',
+          ...(group.crewNames.size > 0 ? [[...group.crewNames].join(' + ')] : []),
+          group.sections.join(', '),
+          ...(group.waitingReasons.size > 0 ? [[...group.waitingReasons].join(' · ')] : []),
+        ].join(' · '),
+        ...(note
+          ? {
+            noteLine: `📝 ${note.text}${note.count > 1 ? ` (+${note.count - 1} more)` : ''}`,
+          }
+          : {}),
+        summaryStates: [group.queue],
+        unitLabel: `Unit ${group.unitNumber} · ${group.trade === 'paint' ? 'Paint' : 'Clean'}`,
+      };
+    });
 
   const unitSearchResults = [...new Map(
     projection.workRecords.map((record) => [

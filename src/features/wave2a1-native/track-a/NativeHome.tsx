@@ -351,6 +351,7 @@ export interface NativeHomeSummaryPageProps {
   onBack: () => void;
   onOpenRecord: (record: NativeHomeRecord) => void;
   onStartWalk?: () => void;
+  walkRequests?: readonly { href: string; label: string }[];
 }
 
 export function NativeHomeSummaryPage({
@@ -358,6 +359,7 @@ export function NativeHomeSummaryPage({
   onBack,
   onOpenRecord,
   onStartWalk,
+  walkRequests,
 }: NativeHomeSummaryPageProps) {
   return (
     <NativePageTransition>
@@ -375,6 +377,18 @@ export function NativeHomeSummaryPage({
               >
                 Start Walk with the property
               </button>
+            ) : null}
+          {destination.id === 'ready-to-walk'
+            && walkRequests
+            && walkRequests.length > 0 ? (
+              <div className="w2a1-a-walkreq" role="group" aria-label="Request the property walk">
+                <span>Request the walk:</span>
+                {walkRequests.map((request) => (
+                  <a className="w2a1-a-walkreq__link" href={request.href} key={request.href}>
+                    {request.label}
+                  </a>
+                ))}
+              </div>
             ) : null}
           {destination.records.length === 0 ? (
             <section className="w2a1-a-empty-state" aria-live="polite">

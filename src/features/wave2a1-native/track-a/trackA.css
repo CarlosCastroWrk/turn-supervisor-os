@@ -255,6 +255,27 @@ body:has(.w2a1-a-page-transition) {
   -webkit-line-clamp: 2;
 }
 
+/* "Request the walk" texts on the Ready to walk page (moved off Home). */
+.w2a1-a-walkreq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--w2a1-a-secondary);
+}
+
+.w2a1-a-walkreq__link {
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--turn-color-ready, #237a45);
+  color: var(--turn-color-ready, #237a45);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 13px;
+}
+
 .w2a1-a-row-value {
   color: var(--w2a1-a-secondary);
   flex: 0 0 auto;

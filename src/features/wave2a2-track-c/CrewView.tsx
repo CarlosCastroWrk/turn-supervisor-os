@@ -676,6 +676,173 @@ export const CrewView = ({
           </p>
         );
       })()}
+      {/* Crews FIRST — Los works crew -> unit; reports live below. */}
+      <div className="track-c-crew-list">
+        {(['paint', 'clean'] as const).map((tradeGroup) => {
+          const group = crews
+            .filter(({ crew }) => crew.trade === tradeGroup)
+            .sort((left, right) =>
+              Number(right.crew.activeToday) - Number(left.crew.activeToday)
+              || left.crew.name.localeCompare(right.crew.name));
+          if (group.length === 0 && tradeRollup[tradeGroup].unassigned.length === 0) return null;
+          const rollup = tradeRollup[tradeGroup];
+          // Show EVERY crew of this trade — present ones first — so a crew Los
+          // just added is never hidden behind the present filter.
+          const allTradeCrews = group.map(({ crew }) => crew);
+          const tradeCrews = [...allTradeCrews].sort((left, right) =>
+            Number(right.activeToday) - Number(left.activeToday)
+            || left.name.localeCompare(right.name));
+          return (
+            <div key={tradeGroup}>
+              <h2 className={`track-c-crew-group is-${tradeGroup}`}>
+                {tradeGroup === 'paint' ? 'PAINT CREWS' : 'CLEAN CREWS'}
+                <span className="track-c-crew-group__counts">
+                  {rollup.working} working
+                  {rollup.unassigned.length > 0
+                    ? ` · ${rollup.unassigned.length} unassigned`
+                    : ''}
+                </span>
+              </h2>
+              {rollup.unassigned.length > 0 ? (
+                <section
+                  aria-label={`Unassigned ${tradeGroup} units`}
+                  className={`track-c-unassigned is-${tradeGroup}`}
+                >
+                  <h3>Unassigned — tap a crew to put them on it</h3>
+                  {rollup.unassigned.map((entry) => (
+                    <div className="track-c-unassigned__row" key={entry.unitId}>
+                      <span className="track-c-unassigned__unit">
+                        <strong>{entry.unitNumber}</strong>
+                        <small>{entry.rooms} room{entry.rooms === 1 ? '' : 's'}</small>
+                      </span>
+                      {onQuickAssign && tradeCrews.length > 0 ? (
+                        <span className="track-c-unassigned__crews">
+                          {tradeCrews.map((crew) => (
+                            <button
+                              aria-label={`Assign ${crew.name} to unit ${entry.unitNumber}`}
+                              data-track-c-critical-target="true"
+                              key={crew.id}
+                              onClick={() => onQuickAssign(entry.unitId, tradeGroup, crew.id)}
+                              type="button"
+                            >
+                              {crew.name}
+                            </button>
+                          ))}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                  {tradeCrews.length === 0 ? (
+                    <small>No {tradeGroup} crew on the roster yet — add one below to assign these.</small>
+                  ) : null}
+                </section>
+              ) : null}
+              {group.map(({ crew, stats }) => {
+          const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;
+          const pay = payrollByCrew.get(crew.id);
+          const todayLabel = pay && (pay.today.beds > 0 || pay.today.commons > 0)
+            ? formatPayLine(pay.today)
+            : '';
+          const weekLabel = pay && (pay.week.beds > 0 || pay.week.commons > 0)
+            ? `this week: ${formatPayLine(pay.week)}`
+            : '';
+          // Whole-Turn running total — the cumulative count Tony pays off.
+          const turnLabel = pay && (pay.turn.beds > 0 || pay.turn.commons > 0)
+            ? `Turn: ${formatPayLine(pay.turn)}`
+            : '';
+          const phone = crewDirectory?.[crew.id]?.phone?.trim();
+          const contactedToday = lastContactTodayFor(contactLog, crew.id);
+          const contactedLabel = contactedToday
+            ? `${contactedToday.kind === 'call' ? 'called' : 'texted'} ${new Date(contactedToday.at)
+              .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}`
+            : '';
+          return (
+            <div className="track-c-crew-card" key={crew.id}>
+              <button
+                aria-label={`Open ${crew.name} detail`}
+                className="track-c-crew-row"
+                data-track-c-critical-target="true"
+                onClick={() => onOpenCrew(crew.id)}
+                type="button"
+              >
+                <span className={`track-c-crew-row__icon is-${crew.trade}`}>
+                  <Icon aria-hidden="true" size={20} />
+                </span>
+                <span className="track-c-crew-row__identity">
+                  <strong>{crew.name}</strong>
+                  <small>
+                    {crew.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
+                    {crew.activeToday ? 'Active today' : 'Not active today'}
+                    {todayLabel ? ` · today: ${todayLabel}` : ''}
+                    {weekLabel ? ` · ${weekLabel}` : ''}
+                    {turnLabel ? ` · ${turnLabel}` : ''}
+                    {contactedLabel ? ` · ✓ ${contactedLabel}` : ''}
+                  </small>
+                </span>
+                <span className="track-c-crew-row__stats">
+                  {(() => {
+                    // "Current" = sections still in front of the crew, not
+                    // everything short of property acceptance.
+                    const activeNow = projectTrackCCrewDetail(state, crew.id)
+                      ?.currentWork.filter((work) =>
+                        ['assigned', 'working'].includes(work.execution)
+                        && !work.callbackOpen).length ?? 0;
+                    return <><strong>{activeNow}</strong> now</>;
+                  })()}
+                  <small>{stats.crewReportedComplete} complete · {stats.needsLosInspection} need Los</small>
+                </span>
+                <ChevronRight aria-hidden="true" size={18} />
+              </button>
+              <div className="track-c-crew-card__actions">
+                {onAssignCrew ? (
+                  <button
+                    data-track-c-critical-target="true"
+                    onClick={() => onAssignCrew(crew.id)}
+                    type="button"
+                  >
+                    Assign units
+                  </button>
+                ) : null}
+                {phone ? (
+                  <>
+                    <a
+                      aria-label={`Call ${crew.name}`}
+                      href={`tel:${phone}`}
+                      onClick={() => logContact(crew.id, crew.name, 'call')}
+                    >
+                      Call
+                    </a>
+                    <a
+                      aria-label={`Text ${crew.name}`}
+                      href={crewMessageHref(phone, whatsappCrews.has(crew.id), composeBody(crew.id, crew.name))}
+                      onClick={() => logContact(crew.id, crew.name, 'text')}
+                      rel="noreferrer"
+                      target={whatsappCrews.has(crew.id) ? '_blank' : undefined}
+                    >
+                      {whatsappCrews.has(crew.id) ? 'WhatsApp' : 'Text'}
+                    </a>
+                    {onToggleCrewActive ? (
+                      <button
+                        aria-pressed={crew.activeToday}
+                        className="track-c-present-toggle"
+                        data-track-c-critical-target="true"
+                        onClick={() => onToggleCrewActive(crew.id, !crew.activeToday)}
+                        type="button"
+                      >
+                        {crew.activeToday ? 'Present today' : 'Out today'}
+                      </button>
+                    ) : null}
+
+                  </>
+                ) : null}
+              </div>
+            </div>
+              );
+              })}
+            </div>
+          );
+        })}
+      </div>
       {(() => {
         // Send today's lists — one Send button per crew that has work in front of
         // them right now, each with the message in Los's exact format and routed
@@ -1481,172 +1648,6 @@ export const CrewView = ({
           })}
         </div>
       ) : null}
-      <div className="track-c-crew-list">
-        {(['paint', 'clean'] as const).map((tradeGroup) => {
-          const group = crews
-            .filter(({ crew }) => crew.trade === tradeGroup)
-            .sort((left, right) =>
-              Number(right.crew.activeToday) - Number(left.crew.activeToday)
-              || left.crew.name.localeCompare(right.crew.name));
-          if (group.length === 0 && tradeRollup[tradeGroup].unassigned.length === 0) return null;
-          const rollup = tradeRollup[tradeGroup];
-          // Show EVERY crew of this trade — present ones first — so a crew Los
-          // just added is never hidden behind the present filter.
-          const allTradeCrews = group.map(({ crew }) => crew);
-          const tradeCrews = [...allTradeCrews].sort((left, right) =>
-            Number(right.activeToday) - Number(left.activeToday)
-            || left.name.localeCompare(right.name));
-          return (
-            <div key={tradeGroup}>
-              <h2 className={`track-c-crew-group is-${tradeGroup}`}>
-                {tradeGroup === 'paint' ? 'PAINT CREWS' : 'CLEAN CREWS'}
-                <span className="track-c-crew-group__counts">
-                  {rollup.working} working
-                  {rollup.unassigned.length > 0
-                    ? ` · ${rollup.unassigned.length} unassigned`
-                    : ''}
-                </span>
-              </h2>
-              {rollup.unassigned.length > 0 ? (
-                <section
-                  aria-label={`Unassigned ${tradeGroup} units`}
-                  className={`track-c-unassigned is-${tradeGroup}`}
-                >
-                  <h3>Unassigned — tap a crew to put them on it</h3>
-                  {rollup.unassigned.map((entry) => (
-                    <div className="track-c-unassigned__row" key={entry.unitId}>
-                      <span className="track-c-unassigned__unit">
-                        <strong>{entry.unitNumber}</strong>
-                        <small>{entry.rooms} room{entry.rooms === 1 ? '' : 's'}</small>
-                      </span>
-                      {onQuickAssign && tradeCrews.length > 0 ? (
-                        <span className="track-c-unassigned__crews">
-                          {tradeCrews.map((crew) => (
-                            <button
-                              aria-label={`Assign ${crew.name} to unit ${entry.unitNumber}`}
-                              data-track-c-critical-target="true"
-                              key={crew.id}
-                              onClick={() => onQuickAssign(entry.unitId, tradeGroup, crew.id)}
-                              type="button"
-                            >
-                              {crew.name}
-                            </button>
-                          ))}
-                        </span>
-                      ) : null}
-                    </div>
-                  ))}
-                  {tradeCrews.length === 0 ? (
-                    <small>No {tradeGroup} crew on the roster yet — add one below to assign these.</small>
-                  ) : null}
-                </section>
-              ) : null}
-              {group.map(({ crew, stats }) => {
-          const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;
-          const pay = payrollByCrew.get(crew.id);
-          const todayLabel = pay && (pay.today.beds > 0 || pay.today.commons > 0)
-            ? formatPayLine(pay.today)
-            : '';
-          const weekLabel = pay && (pay.week.beds > 0 || pay.week.commons > 0)
-            ? `this week: ${formatPayLine(pay.week)}`
-            : '';
-          // Whole-Turn running total — the cumulative count Tony pays off.
-          const turnLabel = pay && (pay.turn.beds > 0 || pay.turn.commons > 0)
-            ? `Turn: ${formatPayLine(pay.turn)}`
-            : '';
-          const phone = crewDirectory?.[crew.id]?.phone?.trim();
-          const contactedToday = lastContactTodayFor(contactLog, crew.id);
-          const contactedLabel = contactedToday
-            ? `${contactedToday.kind === 'call' ? 'called' : 'texted'} ${new Date(contactedToday.at)
-              .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}`
-            : '';
-          return (
-            <div className="track-c-crew-card" key={crew.id}>
-              <button
-                aria-label={`Open ${crew.name} detail`}
-                className="track-c-crew-row"
-                data-track-c-critical-target="true"
-                onClick={() => onOpenCrew(crew.id)}
-                type="button"
-              >
-                <span className={`track-c-crew-row__icon is-${crew.trade}`}>
-                  <Icon aria-hidden="true" size={20} />
-                </span>
-                <span className="track-c-crew-row__identity">
-                  <strong>{crew.name}</strong>
-                  <small>
-                    {crew.trade === 'paint' ? 'Paint' : 'Clean'} ·{' '}
-                    {crew.activeToday ? 'Active today' : 'Not active today'}
-                    {todayLabel ? ` · today: ${todayLabel}` : ''}
-                    {weekLabel ? ` · ${weekLabel}` : ''}
-                    {turnLabel ? ` · ${turnLabel}` : ''}
-                    {contactedLabel ? ` · ✓ ${contactedLabel}` : ''}
-                  </small>
-                </span>
-                <span className="track-c-crew-row__stats">
-                  {(() => {
-                    // "Current" = sections still in front of the crew, not
-                    // everything short of property acceptance.
-                    const activeNow = projectTrackCCrewDetail(state, crew.id)
-                      ?.currentWork.filter((work) =>
-                        ['assigned', 'working'].includes(work.execution)
-                        && !work.callbackOpen).length ?? 0;
-                    return <><strong>{activeNow}</strong> now</>;
-                  })()}
-                  <small>{stats.crewReportedComplete} complete · {stats.needsLosInspection} need Los</small>
-                </span>
-                <ChevronRight aria-hidden="true" size={18} />
-              </button>
-              <div className="track-c-crew-card__actions">
-                {onAssignCrew ? (
-                  <button
-                    data-track-c-critical-target="true"
-                    onClick={() => onAssignCrew(crew.id)}
-                    type="button"
-                  >
-                    Assign units
-                  </button>
-                ) : null}
-                {phone ? (
-                  <>
-                    <a
-                      aria-label={`Call ${crew.name}`}
-                      href={`tel:${phone}`}
-                      onClick={() => logContact(crew.id, crew.name, 'call')}
-                    >
-                      Call
-                    </a>
-                    <a
-                      aria-label={`Text ${crew.name}`}
-                      href={crewMessageHref(phone, whatsappCrews.has(crew.id), composeBody(crew.id, crew.name))}
-                      onClick={() => logContact(crew.id, crew.name, 'text')}
-                      rel="noreferrer"
-                      target={whatsappCrews.has(crew.id) ? '_blank' : undefined}
-                    >
-                      {whatsappCrews.has(crew.id) ? 'WhatsApp' : 'Text'}
-                    </a>
-                    {onToggleCrewActive ? (
-                      <button
-                        aria-pressed={crew.activeToday}
-                        className="track-c-present-toggle"
-                        data-track-c-critical-target="true"
-                        onClick={() => onToggleCrewActive(crew.id, !crew.activeToday)}
-                        type="button"
-                      >
-                        {crew.activeToday ? 'Present today' : 'Out today'}
-                      </button>
-                    ) : null}
-
-                  </>
-                ) : null}
-              </div>
-            </div>
-              );
-              })}
-            </div>
-          );
-        })}
-      </div>
       <details className="track-c-crew-totals">
         <summary>Crew totals — payroll receipts</summary>
         {(() => {

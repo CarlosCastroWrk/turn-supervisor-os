@@ -4020,6 +4020,35 @@ function LaunchOperationalApp({
           onBack={() => navigate('dashboard')}
           onOpenRecord={(record: NativeHomeRecord) => openDestination(record.destinationId)}
           onStartWalk={() => navigate('units', undefined, { fieldWorkflow: 'walk' })}
+          walkRequests={(() => {
+            // "Request the walk" texts live HERE, with the ready list — not on
+            // Home (Los asked for them out of his Home flow). Joseph walks
+            // Paint, Paige walks Clean; fall back to the primary contact.
+            const pick = (pattern: RegExp) => {
+              const contact = activeProjectContacts.find((candidate) =>
+                pattern.test(candidate.name))
+                ?? activeProjectContacts.find((candidate) => candidate.isPrimary)
+                ?? activeProjectContacts[0];
+              return contact?.phone
+                ? { name: contact.name.split(' ')[0], phone: contact.phone }
+                : undefined;
+            };
+            const contacts = { clean: pick(/paige/i), paint: pick(/jose/i) };
+            const smsDigits = (phone: string) => phone.replace(/[^+\d]/g, '');
+            return (['clean', 'paint'] as const).flatMap((trade) => {
+              const units = (liveBoard ?? [])
+                .filter((line) => line.trade === trade && line.stage === 'passed')
+                .map((line) => line.unitNumber);
+              const contact = contacts[trade];
+              if (units.length === 0 || !contact) return [];
+              const word = trade === 'clean' ? 'Clean' : 'Paint';
+              const body = `Ready to walk — ${word} (${units.length}): ${units.join(', ')}. Whenever you’re ready!`;
+              return [{
+                href: `sms:${smsDigits(contact.phone)}&body=${encodeURIComponent(body)}`,
+                label: `Text ${contact.name} — ${units.length} ${word.toLowerCase()}${units.length === 1 ? '' : 's'} ready`,
+              }];
+            });
+          })()}
         />
       ) : homeMode === 'start-day' ? (
         activeProject?.fieldConfiguration ? (
@@ -4259,20 +4288,6 @@ function LaunchOperationalApp({
             return contact?.phone
               ? { name: contact.name.split(' ')[0], phone: contact.phone }
               : undefined;
-          })()}
-          walkContacts={(() => {
-            // Who walks each trade: Joseph walks Paint, Paige walks Clean.
-            // Fall back to the primary contact so the button still works.
-            const pick = (pattern: RegExp) => {
-              const contact = activeProjectContacts.find((candidate) =>
-                pattern.test(candidate.name))
-                ?? activeProjectContacts.find((candidate) => candidate.isPrimary)
-                ?? activeProjectContacts[0];
-              return contact?.phone
-                ? { name: contact.name.split(' ')[0], phone: contact.phone }
-                : undefined;
-            };
-            return { clean: pick(/paige/i), paint: pick(/jose/i) };
           })()}
           onOpenUnitFromHome={(unitId, trade) => {
             unitDetailOriginRef.current = 'home';

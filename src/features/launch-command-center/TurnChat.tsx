@@ -53,9 +53,11 @@ export interface TurnChatProps {
   readonly onQuickMore: () => void;
 }
 
-// Only text + answers survive storage — a pending intents block is tied to
-// live state and must be re-read, never replayed stale.
-type StoredMessage = Pick<ChatMessage, 'id' | 'role' | 'text' | 'answer'> & {
+// Only TEXT survives storage. Cards are rebuilt from live data on demand and
+// pending intents must be re-read — and fat persisted cards once ate the
+// browser-storage quota the operational ledger lives in. Never again.
+type StoredMessage = Pick<ChatMessage, 'id' | 'role' | 'text'> & {
+  readonly answer?: TurnChatAnswer;
   readonly outcomes?: readonly string[];
 };
 
@@ -75,8 +77,8 @@ interface ThreadStore {
 
 const STORE_KEY = 'turn-os:chat-threads-v1';
 const LEGACY_KEY = 'turn-os:chat-thread';
-const THREAD_CAP = 60; // messages per thread
-const STORE_CAP = 30; // threads kept overall (oldest archived drop first)
+const THREAD_CAP = 40; // messages per thread
+const STORE_CAP = 12; // threads kept overall — storage is shared with the ledger
 
 const newThread = (): ChatThread => ({
   createdAt: Date.now(),
@@ -137,11 +139,15 @@ const dehydrate = (messages: readonly ChatMessage[]): StoredMessage[] =>
     .filter((message) => !message.busy)
     .slice(-THREAD_CAP)
     .map((message) => ({
-      answer: message.answer,
       id: message.id,
       outcomes: message.intents?.outcomes,
       role: message.role,
-      text: message.text,
+      // Cards collapse to their title line — live data answers fresh anyway.
+      text: message.text
+        ?? message.answer?.note
+        ?? (message.answer?.cards.length
+          ? message.answer.cards.map((card) => `▸ ${card.title}`).join('\n')
+          : undefined),
     }));
 
 const threadDay = (stamp: number) =>

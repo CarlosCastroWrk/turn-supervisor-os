@@ -3664,7 +3664,7 @@ function LaunchOperationalApp({
               const saved = commitDataNow((current) =>
                 applyTrackCStateChange(current, nextState));
               if (!saved) {
-                setPersistWarning('That didn’t save — free up phone storage and try again. Nothing was recorded.');
+                setPersistWarning('That didn’t save — the app’s browser storage is full (not your phone storage). Space was freed automatically; tap it again. Still failing? Save a backup under Data & backup first.');
               }
               return saved;
             } catch (error) {

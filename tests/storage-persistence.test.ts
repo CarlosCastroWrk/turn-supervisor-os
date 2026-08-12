@@ -196,6 +196,43 @@ test('immediate persistence reports quota failure so a large import can fail clo
   }
 });
 
+test('a full-storage save frees convenience caches and retries — the ledger wins', () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')?.value;
+  const originalWarn = console.warn;
+  try {
+    console.warn = () => undefined;
+    // Chat history is hogging the shared quota; the main save must evict it
+    // and land on retry instead of failing the field record.
+    const store = new Map<string, string>([['turn-os:chat-threads-v1', 'x'.repeat(64)]]);
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => store.get(key) ?? null,
+          removeItem: (key: string) => { store.delete(key); },
+          setItem: (key: string, value: string) => {
+            if (store.has('turn-os:chat-threads-v1')) {
+              throw new DOMException('Storage full', 'QuotaExceededError');
+            }
+            store.set(key, value);
+          },
+        },
+      },
+    });
+    assert.equal(persistAppDataNow(structuredClone(seedData)), true);
+    assert.equal(store.has('turn-os:chat-threads-v1'), false, 'chat cache evicted');
+    assert.equal([...store.keys()].length >= 1, true, 'ledger saved after eviction');
+    assert.deepEqual(getAppDataSaveStatus(), { state: 'saved', canRetry: false });
+  } finally {
+    console.warn = originalWarn;
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    }
+  }
+});
+
 test('Start Day state and success remain atomic across failure, retry, and rapid duplicate confirmation', () => {
   const initial = structuredClone(seedData);
   const started = createSyntheticActiveSession();

@@ -187,17 +187,49 @@ export const loadAppDataResult = (): AppDataLoadResult => {
 
 export const loadAppData = (): AppData => loadAppDataResult().data;
 
+// Browser storage (~5MB in Safari) is shared by the operational ledger AND
+// every convenience cache. When a save hits the quota, the caches are the
+// sacrifice — chat history and prefills go, the field record NEVER does.
+const CONVENIENCE_KEYS = [
+  'turn-os:chat-threads-v1',
+  'turn-os:chat-thread',
+  'turn-os:intake-prefill',
+  'turn-os:intake-memo',
+];
+
+const freeConvenienceStorage = (): boolean => {
+  let freed = false;
+  for (const key of CONVENIENCE_KEYS) {
+    try {
+      if (window.localStorage.getItem(key) !== null) {
+        window.localStorage.removeItem(key);
+        freed = true;
+      }
+    } catch { /* keep trying the rest */ }
+  }
+  return freed;
+};
+
 export const saveAppData = (data: AppData) => {
   if (appDataLoadBlocked) {
     console.warn('Turn Supervisor OS data was not saved because the existing local payload failed validation.');
     return false;
   }
+  const serialized = JSON.stringify(applyActivityLogRetention(data));
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(applyActivityLogRetention(data)));
+    window.localStorage.setItem(STORAGE_KEY, serialized);
     return true;
   } catch (error) {
-    console.warn('Failed to save Turn Supervisor OS data.', error);
-    return false;
+    console.warn('Failed to save Turn Supervisor OS data — freeing cache space and retrying.', error);
+    if (!freeConvenienceStorage()) return false;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, serialized);
+      console.warn('Save succeeded after clearing convenience caches (chat history reset).');
+      return true;
+    } catch (retryError) {
+      console.warn('Save still failing after freeing caches.', retryError);
+      return false;
+    }
   }
 };
 

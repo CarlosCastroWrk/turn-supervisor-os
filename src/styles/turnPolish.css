@@ -2141,12 +2141,21 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
   font-size: 13.5px;
   font-weight: 650;
 }
-.lcc-chat__scroll {
-  overflow-y: auto;
-  padding: 6px 16px 12px;
+.lcc-chat__scrollwrap {
+  position: relative;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+}
+.lcc-chat__scroll {
+  overflow-y: auto;
+  padding: 8px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
 }
 .lcc-chat__empty { color: var(--turn-color-secondary); display: grid; gap: 12px; padding-top: 18px; }
 .lcc-chat__empty p { margin: 0; font-size: 14.5px; line-height: 1.45; }
@@ -2165,25 +2174,141 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
 .lcc-chat__msg.is-os { justify-items: start; }
 .lcc-chat__bubble {
   margin: 0;
-  max-width: 88%;
+  max-width: 85%;
   padding: 10px 14px;
   border-radius: 18px;
   font-size: 15.5px;
-  line-height: 1.4;
+  line-height: 1.6;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
+/* Los: right-aligned colored bubble. */
 .lcc-chat__msg.is-los .lcc-chat__bubble {
   background: var(--turn-color-accent, #0877d1);
   color: #fff;
   border-bottom-right-radius: 6px;
 }
+/* Turn OS: NO bubble — text straight on the page, full width, like
+   ChatGPT / Claude. Cards keep their card look below. */
 .lcc-chat__msg.is-os .lcc-chat__bubble {
-  background: var(--turn-color-elevated);
-  border: 1px solid var(--turn-color-divider);
+  background: transparent;
+  border: none;
   color: var(--turn-color-primary);
-  border-bottom-left-radius: 6px;
+  max-width: 100%;
+  width: 100%;
+  padding: 0 2px;
+  font-size: 16px;
 }
-.lcc-chat__msg.is-busy .lcc-chat__bubble { opacity: 0.7; font-style: italic; }
+
+/* Thinking — three dots pulsing in sequence where the reply will land. */
+.lcc-chat__thinking {
+  display: inline-flex;
+  gap: 5px;
+  padding: 10px 2px;
+}
+.lcc-chat__thinking span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--turn-color-secondary);
+  animation: lccThink 1.1s ease-in-out infinite;
+}
+.lcc-chat__thinking span:nth-child(2) { animation-delay: 0.18s; }
+.lcc-chat__thinking span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes lccThink {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+/* Streaming: blinking cursor + each fresh chunk fades in. */
+.lcc-chat__cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--turn-color-accent, #0877d1);
+  animation: lccCursor 0.9s steps(2, start) infinite;
+}
+@keyframes lccCursor {
+  50% { opacity: 0; }
+}
+.lcc-chat__chunk { animation: lccChunkIn 150ms ease-out both; }
+@keyframes lccChunkIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Floating controls above the composer. */
+.lcc-chat__stop,
+.lcc-chat__jump {
+  position: absolute;
+  bottom: 12px;
+  border: 1px solid var(--turn-color-divider);
+  background: var(--turn-color-elevated);
+  color: var(--turn-color-primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  animation: lccChatIn 200ms ease-out both;
+}
+.lcc-chat__stop {
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 9px 18px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 750;
+}
+.lcc-chat__jump {
+  right: 16px;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 19px;
+  font-weight: 800;
+}
+.lcc-chat__jump.is-raised { bottom: 64px; }
+
+/* Code blocks — dark, mono, language label, copy. */
+.lcc-chat__code {
+  display: block;
+  margin: 8px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1b1e26;
+  color: #e8eaf2;
+}
+.lcc-chat__code-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 12px;
+}
+.lcc-chat__code-lang {
+  color: #9aa3b5;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.lcc-chat__code-bar button {
+  border: none;
+  background: transparent;
+  color: #c3cad9;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  min-height: 28px;
+  transition: color 150ms ease-out;
+}
+.lcc-chat__code-bar button:active { color: #fff; }
+.lcc-chat__code code {
+  display: block;
+  padding: 12px 14px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+}
 .lcc-chat__cards, .lcc-chat__msg .lcc-chat__card { width: 100%; }
 .lcc-chat__cards { display: grid; gap: 8px; }
 .lcc-chat__card {
@@ -2266,10 +2391,19 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
   color: var(--turn-color-primary);
   border-radius: 22px;
   font-size: 16px;
+  line-height: 1.45;
   padding: 11px 16px;
   resize: none;
-  max-height: 120px;
+  max-height: 148px;
   min-height: 44px;
+  overflow-y: auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  transition: border-color 200ms ease-out, box-shadow 200ms ease-out;
+}
+.lcc-chat__composer textarea:focus {
+  outline: none;
+  border-color: var(--turn-color-accent, #0877d1);
+  box-shadow: 0 0 0 3px rgba(8, 119, 209, 0.15);
 }
 .lcc-chat__send {
   border: none;
@@ -2278,20 +2412,32 @@ span.track-c-wall__wk[role="button"] { cursor: pointer; }
   min-height: 44px;
   font-size: 20px;
   font-weight: 800;
+  background: var(--turn-color-divider);
+  color: var(--turn-color-secondary);
+  transition: background-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
+}
+.lcc-chat__send.is-armed {
   background: var(--turn-color-accent, #0877d1);
   color: #fff;
 }
-.lcc-chat__send:disabled { opacity: 0.4; }
+.lcc-chat__send:disabled { opacity: 0.9; }
+.lcc-chat__send.is-armed:active { transform: scale(0.94); }
 
-/* Smooth entrance — ChatGPT-feel instead of popping in. */
+/* Smooth entrance — rise + fade, never a hard pop. */
 @keyframes lccChatIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
-.lcc-chat__msg { animation: lccChatIn 260ms ease-out both; }
-.lcc-chat__card { animation: lccChatIn 320ms ease-out both; }
+.lcc-chat__msg { animation: lccChatIn 200ms ease-out both; }
+.lcc-chat__card { animation: lccChatIn 280ms ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .lcc-chat__msg, .lcc-chat__card { animation: none; }
+  .lcc-chat__msg,
+  .lcc-chat__card,
+  .lcc-chat__chunk,
+  .lcc-chat__cursor,
+  .lcc-chat__thinking span,
+  .lcc-chat__stop,
+  .lcc-chat__jump { animation: none; }
 }
 
 /* Markdown-lite in model replies — headings, bullets, bold. */

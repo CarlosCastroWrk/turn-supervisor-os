@@ -39,6 +39,8 @@ interface ChatMessage {
   readonly intents?: IntentBlock;
   readonly offerAi?: string; // reruns the interpreter with this text on tap
   readonly busy?: boolean;
+  /** Model reply being revealed progressively — presentation only. */
+  readonly streaming?: boolean;
 }
 
 export interface TurnChatProps {
@@ -140,7 +142,7 @@ const rehydrate = (stored: readonly StoredMessage[]): ChatMessage[] =>
 
 const dehydrate = (messages: readonly ChatMessage[]): StoredMessage[] =>
   messages
-    .filter((message) => !message.busy)
+    .filter((message) => !message.busy && !message.streaming)
     .slice(-THREAD_CAP)
     .map((message) => ({
       id: message.id,
@@ -173,6 +175,53 @@ const looksLikeCommand = (
   const crewNamed = state.crews.some((crew) => crewFirstNameMatches(crew.name, text));
   return COMMAND_WORD_RE.test(text) || crewNamed;
 };
+
+// The freshly revealed slice of a streaming reply fades in (150ms) instead of
+// popping. Keyed by length so each new chunk re-mounts and replays the fade.
+function StreamingTail({ text }: { readonly text: string }) {
+  const prevRef = useRef(0);
+  const prev = Math.min(prevRef.current, text.length);
+  useEffect(() => {
+    prevRef.current = text.length;
+  });
+  return (
+    <>
+      {text.slice(0, prev)}
+      <span className="lcc-chat__chunk" key={text.length}>{text.slice(prev)}</span>
+    </>
+  );
+}
+
+// Fenced ``` code in model replies — dark block, mono, language label, copy.
+function ChatCodeBlock({ raw, streaming }: { readonly raw: string; readonly streaming?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const newline = raw.indexOf('\n');
+  const firstLine = newline === -1 ? raw : raw.slice(0, newline);
+  const hasLang = newline !== -1 && /^[a-z0-9+#-]{1,20}$/i.test(firstLine.trim()) && firstLine.trim() !== '';
+  const lang = hasLang ? firstLine.trim() : '';
+  const code = (hasLang ? raw.slice(newline + 1) : raw).replace(/^\n/, '').replace(/\n$/, '');
+  return (
+    <span className="lcc-chat__code">
+      <span className="lcc-chat__code-bar">
+        <span className="lcc-chat__code-lang">{lang || 'code'}</span>
+        {!streaming ? (
+          <button
+            onClick={() => {
+              void navigator.clipboard?.writeText(code).then(() => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1600);
+              }).catch(() => undefined);
+            }}
+            type="button"
+          >
+            {copied ? 'Copied ✓' : 'Copy'}
+          </button>
+        ) : null}
+      </span>
+      <code>{code}</code>
+    </span>
+  );
+}
 
 export function TurnChat({
   open,
@@ -225,28 +274,114 @@ export function TurnChat({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
-  // Scroll behavior: new messages scroll to the bottom, but coming BACK from
-  // a unit he opened off a card restores the exact spot in the list — so he
-  // can work a long card top to bottom without re-scrolling every time.
+  // Scroll behavior, the ChatGPT way: pinned to the bottom while replies
+  // stream — but the moment Los scrolls UP, stop fighting him and show a
+  // floating "jump to bottom" arrow instead. Coming BACK from a unit he
+  // opened off a card still restores the exact spot in the list.
   const savedScrollRef = useRef<number | null>(null);
-  const messageCountRef = useRef(messages.length);
+  const pinnedRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
+  const scrollToBottom = (smooth = false) => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    scroller.scrollTo({ behavior: smooth ? 'smooth' : 'auto', top: scroller.scrollHeight });
+  };
+  const handleScroll = () => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    pinnedRef.current = atBottom;
+    setShowJump(!atBottom);
+  };
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller || !open) return;
     if (savedScrollRef.current !== null) {
       scroller.scrollTop = savedScrollRef.current;
       savedScrollRef.current = null;
+      handleScroll();
       return;
     }
+    pinnedRef.current = true;
+    setShowJump(false);
     scroller.scrollTop = scroller.scrollHeight;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   useEffect(() => {
-    if (messages.length > messageCountRef.current) {
-      const scroller = scrollRef.current;
-      if (scroller) scroller.scrollTop = scroller.scrollHeight;
-    }
-    messageCountRef.current = messages.length;
+    if (pinnedRef.current) scrollToBottom();
   }, [messages]);
+
+  // iOS keyboard: size the whole chat to the VISUAL viewport so the composer
+  // rises with the keyboard — no gap, nothing hidden behind it.
+  const [viewportBox, setViewportBox] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const sync = () => {
+      setViewportBox({ height: Math.round(viewport.height), top: Math.round(viewport.offsetTop) });
+      if (pinnedRef.current) window.requestAnimationFrame(() => scrollToBottom());
+    };
+    sync();
+    viewport.addEventListener('resize', sync);
+    viewport.addEventListener('scroll', sync);
+    return () => {
+      viewport.removeEventListener('resize', sync);
+      viewport.removeEventListener('scroll', sync);
+      setViewportBox(null);
+    };
+  }, [open]);
+
+  // Composer grows with the draft up to ~6 lines, then scrolls inside.
+  const autoGrow = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 148)}px`;
+  };
+
+  // Fake client-side streaming: the finished reply reveals at ~90–140
+  // chars/sec with jitter, so it reads organic instead of metronomic. The
+  // backend call is untouched — this is pure presentation.
+  const streamTimer = useRef<number | null>(null);
+  const streamTarget = useRef<{ id: number; full: string; after: Partial<ChatMessage> } | null>(null);
+  const skipStream = useRef(false);
+  const finishStreaming = () => {
+    if (streamTimer.current !== null) {
+      window.clearInterval(streamTimer.current);
+      streamTimer.current = null;
+    }
+    const target = streamTarget.current;
+    streamTarget.current = null;
+    if (target) patch(target.id, { streaming: false, text: target.full, ...target.after });
+  };
+  const streamIn = (id: number, full: string, after: Partial<ChatMessage>) => {
+    finishStreaming();
+    if (skipStream.current || !full) {
+      patch(id, { busy: false, streaming: false, text: full || undefined, ...after });
+      return;
+    }
+    streamTarget.current = { after, full, id };
+    let shown = 0;
+    patch(id, { busy: false, streaming: true, text: '' });
+    streamTimer.current = window.setInterval(() => {
+      // 80ms ticks × 7–12 chars ≈ 90–150 chars/sec.
+      shown = Math.min(full.length, shown + 7 + Math.floor(Math.random() * 6));
+      if (shown >= full.length) {
+        finishStreaming();
+        return;
+      }
+      patch(id, { text: full.slice(0, shown) });
+    }, 80);
+  };
+  useEffect(() => () => {
+    if (streamTimer.current !== null) window.clearInterval(streamTimer.current);
+  }, []);
+  const stopGenerating = () => {
+    skipStream.current = true;
+    finishStreaming();
+  };
+  const generating = messages.some((message) => message.busy || message.streaming);
 
   const navigateFromCard = (nav: TurnChatNav) => {
     savedScrollRef.current = scrollRef.current?.scrollTop ?? null;
@@ -255,23 +390,63 @@ export function TurnChat({
 
   const [copiedCard, setCopiedCard] = useState<string | null>(null);
 
-  // Markdown-lite for model replies: ## headings, - bullets, **bold** — the
-  // clean-report look without any HTML risk (we only build React nodes).
+  // Markdown-lite for model replies: ## headings, - bullets, **bold**, and
+  // ``` code fences — the clean-report look without any HTML risk (we only
+  // build React nodes). While a reply streams, the last line renders raw with
+  // a fade-in tail and the ▍ cursor, so markdown never flickers mid-word.
   const renderInline = (line: string) =>
     line.split(/(\*\*[^*]+\*\*)/g).map((part, index) =>
       part.startsWith('**') && part.endsWith('**')
         ? <strong key={index}>{part.slice(2, -2)}</strong>
         : part);
-  const renderRich = (text: string) => text.split('\n').map((line, index) => {
-    if (/^#{1,3}\s+/.test(line)) {
-      return <span className="lcc-chat__rich-h" key={index}>{renderInline(line.replace(/^#{1,3}\s+/, ''))}</span>;
-    }
-    if (/^[-•]\s+/.test(line)) {
-      return <span className="lcc-chat__rich-li" key={index}>{renderInline(line.replace(/^[-•]\s+/, ''))}</span>;
-    }
-    if (!line.trim()) return <span className="lcc-chat__rich-gap" key={index} />;
-    return <span className="lcc-chat__rich-p" key={index}>{renderInline(line)}</span>;
-  });
+  const renderProse = (text: string, streamingTail: boolean) => {
+    const lines = text.split('\n');
+    return lines.map((line, index) => {
+      const last = index === lines.length - 1;
+      if (streamingTail && last) {
+        return (
+          <span className="lcc-chat__rich-p" key={`tail-${index}`}>
+            <StreamingTail text={line} />
+          </span>
+        );
+      }
+      if (/^#{1,3}\s+/.test(line)) {
+        return <span className="lcc-chat__rich-h" key={index}>{renderInline(line.replace(/^#{1,3}\s+/, ''))}</span>;
+      }
+      if (/^[-•]\s+/.test(line)) {
+        return <span className="lcc-chat__rich-li" key={index}>{renderInline(line.replace(/^[-•]\s+/, ''))}</span>;
+      }
+      if (!line.trim()) return <span className="lcc-chat__rich-gap" key={index} />;
+      return <span className="lcc-chat__rich-p" key={index}>{renderInline(line)}</span>;
+    });
+  };
+  const renderRich = (text: string, streaming = false) => {
+    const segments = text.split('```');
+    const nodes = segments.map((segment, index) => {
+      const lastSegment = index === segments.length - 1;
+      if (index % 2 === 1) {
+        return (
+          <ChatCodeBlock
+            key={`code-${index}`}
+            raw={segment}
+            streaming={streaming && lastSegment}
+          />
+        );
+      }
+      if (!segment && !lastSegment) return null;
+      return (
+        <span key={`prose-${index}`}>
+          {renderProse(segment, streaming && lastSegment)}
+        </span>
+      );
+    });
+    return (
+      <>
+        {nodes}
+        {streaming ? <span aria-hidden="true" className="lcc-chat__cursor">▍</span> : null}
+      </>
+    );
+  };
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -361,7 +536,7 @@ export function TurnChat({
   // The unified turn — the model answers AND proposes actions in one call,
   // grounded in the board digest. Writes still land only after his confirm.
   const runUnified = async (history: readonly ChatMessage[], text: string) => {
-    const id = push({ busy: true, role: 'os', text: 'Thinking…' });
+    const id = push({ busy: true, role: 'os' });
     const turns: ChatMessage[] = [...history, { id: 0, role: 'los', text }];
     const tail: ChatTurnMessage[] = turns
       .map((message) => ({
@@ -383,8 +558,7 @@ export function TurnChat({
         messages: tail,
         rosterUnitNumbers: stateRef.current.units.map((unit) => unit.unitNumber),
       });
-      patch(id, {
-        busy: false,
+      const after: Partial<ChatMessage> = {
         intents: result.intents.length > 0
           ? {
             checked: new Set(result.intents.map((_, index) => index)),
@@ -392,8 +566,11 @@ export function TurnChat({
             sourceText: text,
           }
           : undefined,
-        text: result.reply || (result.intents.length > 0 ? undefined : '…'),
-      });
+      };
+      const reply = result.reply || (result.intents.length > 0 ? '' : '…');
+      // The reply streams in word by word; the proposal card lands when the
+      // text finishes. Same data, same confirm flow — just the reveal.
+      streamIn(id, reply, after);
     } catch (caught) {
       patch(id, {
         busy: false,
@@ -419,6 +596,13 @@ export function TurnChat({
     const text = draft.trim();
     if (!text) return;
     setDraft('');
+    window.requestAnimationFrame(autoGrow);
+    try {
+      navigator.vibrate?.(10);
+    } catch { /* no haptics here */ }
+    skipStream.current = false;
+    pinnedRef.current = true;
+    setShowJump(false);
     const history = messages;
     push({ role: 'los', text });
 
@@ -473,7 +657,14 @@ export function TurnChat({
   const archivedThreads = store.threads.filter((thread) => thread.archived);
 
   return (
-    <div aria-label="Turn Chat" className="lcc-chat" role="dialog">
+    <div
+      aria-label="Turn Chat"
+      className="lcc-chat"
+      role="dialog"
+      style={viewportBox
+        ? { height: viewportBox.height, top: viewportBox.top }
+        : undefined}
+    >
       <div className="lcc-chat__panel">
         <header className="lcc-chat__header">
           <button
@@ -513,7 +704,13 @@ export function TurnChat({
           <button onClick={onQuickMore} type="button">⋯ More</button>
         </div>
 
-        <div className="lcc-chat__scroll" data-turn-scroll-region="chat" ref={scrollRef}>
+        <div className="lcc-chat__scrollwrap">
+        <div
+          className="lcc-chat__scroll"
+          data-turn-scroll-region="chat"
+          onScroll={handleScroll}
+          ref={scrollRef}
+        >
           {messages.length === 0 ? (
             <div className="lcc-chat__empty">
               <p className="lcc-chat__hello">What’s the move, Los?</p>
@@ -543,9 +740,16 @@ export function TurnChat({
               className={`lcc-chat__msg is-${message.role}${message.busy ? ' is-busy' : ''}`}
               key={message.id}
             >
-              {message.text ? (
-                <p className="lcc-chat__bubble">
-                  {message.role === 'os' && !message.busy ? renderRich(message.text) : message.text}
+              {message.busy ? (
+                <div aria-label="Thinking" className="lcc-chat__thinking" role="status">
+                  <span /><span /><span />
+                </div>
+              ) : null}
+              {message.text !== undefined && !message.busy ? (
+                <p className={`lcc-chat__bubble${message.streaming ? ' is-streaming' : ''}`}>
+                  {message.role === 'os'
+                    ? renderRich(message.text, message.streaming)
+                    : message.text}
                 </p>
               ) : null}
               {message.offerAi ? (
@@ -680,11 +884,53 @@ export function TurnChat({
             </div>
           ))}
         </div>
+        {generating ? (
+          <button
+            aria-label="Stop generating"
+            className="lcc-chat__stop"
+            onClick={stopGenerating}
+            type="button"
+          >
+            ◼ Stop
+          </button>
+        ) : null}
+        {showJump && !generating ? (
+          <button
+            aria-label="Scroll to newest message"
+            className="lcc-chat__jump"
+            onClick={() => {
+              pinnedRef.current = true;
+              setShowJump(false);
+              scrollToBottom(true);
+            }}
+            type="button"
+          >
+            ↓
+          </button>
+        ) : null}
+        {showJump && generating ? (
+          <button
+            aria-label="Scroll to newest message"
+            className="lcc-chat__jump is-raised"
+            onClick={() => {
+              pinnedRef.current = true;
+              setShowJump(false);
+              scrollToBottom(true);
+            }}
+            type="button"
+          >
+            ↓
+          </button>
+        ) : null}
+        </div>
 
         <div className="lcc-chat__composer">
           <textarea
             aria-label="Ask or tell Turn OS"
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              autoGrow();
+            }}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -698,7 +944,7 @@ export function TurnChat({
           />
           <button
             aria-label="Send"
-            className="lcc-chat__send"
+            className={`lcc-chat__send${draft.trim() ? ' is-armed' : ''}`}
             disabled={!draft.trim()}
             onClick={send}
             type="button"

@@ -107,7 +107,8 @@ test('a week task question answers the pay-packet list, lowest unit first', () =
   const answer = answerTurnChat(state, 'what were the cut ins for week 2');
   assert.ok(answer);
   const card = answer.cards[0];
-  assert.match(card.title, /^Cut-ins · week 2 · \d+ rooms?$/);
+  // Title counts DONE rooms (pay basis); in-progress rooms ride below it.
+  assert.match(card.title, /^Cut-ins · week 2 · \d+ done$/);
   assert.ok(card.subtitle?.includes('lowest unit first'));
   const unitLines = card.lines.filter((line) => line.nav?.kind === 'unit');
   const numbers = unitLines.map((line) => Number(line.text.split(' ')[0]));
@@ -116,6 +117,15 @@ test('a week task question answers the pay-packet list, lowest unit first', () =
   const heavy = answerTurnChat(state, 'heavy cleans this week');
   assert.ok(heavy);
   assert.match(heavy.cards[0].title, /^Heavy cleans · week \d+/);
+});
+
+test('a crew-scoped task question answers the TASK, not the crew profile', () => {
+  // "Sandra's and Rocky's cut ins today" misrouted to a bare crew card in
+  // the field (Aug 13) — task words must win over the crew branch, scoped
+  // to the named crews and day, and include not-yet-done rooms honestly.
+  const answer = answerTurnChat(state, "what was Bluebird's cut ins today so far");
+  assert.ok(answer);
+  assert.match(answer.cards[0].title, /^Cut-ins · today · \d+ done$/);
 });
 
 test('a floor question answers with only that floor', () => {

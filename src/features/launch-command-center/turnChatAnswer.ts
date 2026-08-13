@@ -723,13 +723,19 @@ const weekTaskCard = (
   now: Date,
   kind: (typeof WEEK_TASK_KINDS)[number],
   week: number,
+  // "Sandra's and Rocky's cut ins today" — scope to named crews and/or days.
+  crewIds?: readonly string[],
+  days?: readonly string[],
 ): TurnChatCard => {
   interface TaskRoom { section: string; workType?: string; crewName: string }
   const byUnit = new Map<string, TaskRoom[]>();
   for (const [crewId, payroll] of buildAllCrewPayroll(state, now)) {
+    if (crewIds && crewIds.length > 0 && !crewIds.includes(crewId)) continue;
     const crewName = state.crews.find((crew) => crew.id === crewId)?.name ?? '';
     for (const room of payroll.rooms) {
-      if (payWeekNumberOf(`${room.date}T12:00:00`) !== week) continue;
+      if (days && days.length > 0
+        ? !days.includes(room.date)
+        : payWeekNumberOf(`${room.date}T12:00:00`) !== week) continue;
       if (!room.workType || !(kind.types as readonly string[]).includes(room.workType)) continue;
       const bucket = byUnit.get(room.unitNumber) ?? [];
       bucket.push({ crewName, section: room.section, workType: room.workType });
@@ -758,12 +764,45 @@ const weekTaskCard = (
       };
     });
   const total = [...byUnit.values()].reduce((sum, rooms) => sum + rooms.length, 0);
+  // "Today so far" honesty: rooms with this task IN FRONT of crews right now
+  // (assigned/working, not yet reported done) — so an afternoon question never
+  // reads as "nothing" while the crew is mid-room.
+  const liveLines: TurnChatLine[] = [];
+  for (const unit of state.units) {
+    const open = projectTrackCUnitWork(state, unit.id).filter((work) =>
+      work.release === 'released'
+      && work.property !== 'property-accepted'
+      && ['assigned', 'working'].includes(work.execution)
+      && work.workType
+      && (kind.types as readonly string[]).includes(work.workType)
+      && (!crewIds || crewIds.length === 0
+        || work.activeCrewIds.some((crewId) => crewIds.includes(crewId))));
+    if (open.length === 0) continue;
+    const crews = [...new Set(open.flatMap((work) => work.activeCrewIds))]
+      .map((crewId) => state.crews.find((crew) => crew.id === crewId)?.name)
+      .filter(Boolean)
+      .join(' + ');
+    liveLines.push({
+      nav: { kind: 'unit', unitId: unit.id },
+      text: `${unit.unitNumber} — ${open
+        .map((work) => (work.section === 'common' ? 'Common' : work.section))
+        .join(', ')}${crews ? ` · ${crews}` : ''}`,
+    });
+    if (liveLines.length >= 20) break;
+  }
+  const scopeLabel = days && days.length > 0
+    ? days.length === 1 && days[0] === localDateOf(now) ? 'today' : `${days.length} day${days.length === 1 ? '' : 's'}`
+    : `week ${week}`;
+  const emptyDone = `No ${kind.label.toLowerCase()} reported done ${scopeLabel === 'today' ? 'yet today' : `in ${scopeLabel}`}.`;
   return {
-    lines: lines.length > 0
-      ? lines
-      : [{ text: `No ${kind.label.toLowerCase()} reported done in week ${week}.` }],
-    subtitle: 'lowest unit first · counts = done rooms · tap to open',
-    title: `${kind.label} · week ${week} · ${total} room${total === 1 ? '' : 's'}`,
+    lines: [
+      ...(lines.length > 0 ? lines : [{ text: emptyDone }]),
+      ...(liveLines.length > 0
+        ? [{ text: `On the board now (not reported done yet):` }, ...liveLines]
+        : []),
+    ],
+    subtitle: 'done rooms = pay basis · lowest unit first · tap to open',
+    title: `${kind.label} · ${scopeLabel} · ${total} done`,
   };
 };
 
@@ -799,7 +838,7 @@ export const buildTurnChatHistoryDigest = (
       list.push(`${room.section === 'common' ? 'Com' : room.section}${room.workType ? `=${room.workType}` : ''}`);
       byUnit.set(room.unitNumber, list);
     }
-    lines.push(`${crew.name} (${crew.trade}): week ${payLineText(payroll.week)}${crew.trade === 'paint' ? ` — ${weekComponents.full} full, ${weekComponents.touchUp} touch-up, ${weekComponents.cutIn} cut-in` : ''}; today ${payLineText(payroll.today)}; whole Turn ${payLineText(payroll.turn)}; last week ${lastWeekRooms.length} rooms`);
+    lines.push(`${crew.name} (${crew.trade}): week ${payLineText(payroll.week)}${crew.trade === 'paint' ? ` — ${weekComponents.full} full, ${weekComponents.touchUp} touch-up, ${weekComponents.cutIn} cut-in` : ''}; reported done today ${payLineText(payroll.today)} (work still in progress is NOT here — see CREW NOW); whole Turn ${payLineText(payroll.turn)}; last week ${lastWeekRooms.length} rooms`);
     if (byUnit.size > 0 && byUnit.size <= 60) {
       lines.push(`  wk units: ${[...byUnit.entries()].map(([unitNumber, rooms]) => `${unitNumber} ${rooms.join(',')}`).join(' · ')}`);
     }
@@ -834,6 +873,11 @@ export const buildTurnChatDigest = (state: TrackCState): string => {
     lines.push(`${tradeWord(trade).toUpperCase()}: ${released} rooms released, ${working} working, ${inspect} to inspect, ${callbacks} callbacks, ${accepted} accepted`);
   }
   lines.push(`CREWS: ${crewLine || 'none'}`);
+  // CREW NOW: what is in front of each crew at this moment (assigned or
+  // working, NOT yet reported done) — so "what's Rocky on today" can never
+  // read as "nothing" while he's mid-room. Cut-in rooms called out because
+  // Los tracks those separately for pay.
+  const crewNow = new Map<string, { rooms: number; units: Set<string>; cutIns: string[] }>();
   lines.push('ACTIVE UNITS (room task=status; P=Paint C=Clean; rooms not listed are done/accepted):');
   let activeCount = 0;
   for (const unit of state.units) {
@@ -844,6 +888,18 @@ export const buildTurnChatDigest = (state: TrackCState): string => {
         && work.release === 'released'
         && work.property !== 'property-accepted');
       if (open.length === 0) continue;
+      for (const work of open) {
+        if (!['assigned', 'working'].includes(work.execution)) continue;
+        for (const crewId of work.activeCrewIds) {
+          const entry = crewNow.get(crewId) ?? { cutIns: [], rooms: 0, units: new Set<string>() };
+          entry.rooms += 1;
+          entry.units.add(unit.unitNumber);
+          if (work.workType?.includes('cut-in')) {
+            entry.cutIns.push(`${unit.unitNumber} ${work.section === 'common' ? 'Com' : work.section}`);
+          }
+          crewNow.set(crewId, entry);
+        }
+      }
       const crewNames = [...new Set(open.flatMap((work) => work.activeCrewIds))]
         .map((crewId) => state.crews.find((crew) => crew.id === crewId)?.name)
         .filter(Boolean)
@@ -856,6 +912,14 @@ export const buildTurnChatDigest = (state: TrackCState): string => {
     activeCount += 1;
     if (activeCount > 140) continue;
     lines.push(`${unit.unitNumber} ${parts.join(' | ')}`);
+  }
+  if (crewNow.size > 0) {
+    lines.push('CREW NOW (in front of them right now, NOT yet reported done):');
+    for (const [crewId, entry] of crewNow) {
+      const crew = state.crews.find((candidate) => candidate.id === crewId);
+      if (!crew) continue;
+      lines.push(`${crew.name} (${crew.trade}): ${entry.rooms} room${entry.rooms === 1 ? '' : 's'} across ${entry.units.size} unit${entry.units.size === 1 ? '' : 's'} (${[...entry.units].slice(0, 12).join(', ')})${entry.cutIns.length > 0 ? `; cut-in rooms now: ${entry.cutIns.slice(0, 12).join(', ')}` : ''}`);
+    }
   }
   if (activeCount > 140) {
     lines.push(`(+${activeCount - 140} more active units not listed)`);
@@ -919,9 +983,38 @@ export const answerTurnChat = (
     return { cards: [extrasCard(state, extras, kinds, extraDays, week)] };
   }
 
-  // A crew's day: "rocky", "rocky today", "what's sandra on".
-  const crew = state.crews.find((candidate) => crewFirstNameMatches(candidate.name, query));
-  if (crew) {
+  // Every crew the sentence names — "Sandra's and Rocky's" is TWO crews.
+  const namedCrews = state.crews.filter((candidate) =>
+    crewFirstNameMatches(candidate.name, query));
+
+  // Task questions WIN over the crew card: "Sandra and Rocky's cut ins today"
+  // is about CUT-INS (scoped to those crews and that day), not Sandra's
+  // profile. Runs before the crew branch on purpose — that misroute burned
+  // Los in the field.
+  const taskKind = WEEK_TASK_KINDS.find((kind) => kind.match.test(query));
+  if (taskKind) {
+    const weekMatch = /w(?:ee)?k\s*(\d{1,2})/.exec(query);
+    const week = weekMatch
+      ? Number(weekMatch[1])
+      : /last week/.test(query)
+        ? payWeekNumberOf(now.toISOString()) - 1
+        : payWeekNumberOf(now.toISOString());
+    const taskDays = daysFromQuery(query, now).map((day) => day.date);
+    return {
+      cards: [weekTaskCard(
+        state,
+        now,
+        taskKind,
+        week,
+        namedCrews.map((candidate) => candidate.id),
+        taskDays,
+      )],
+    };
+  }
+
+  // A crew's day: "rocky", "rocky today", "what's sandra on". Naming two
+  // crews gets both cards.
+  if (namedCrews.length > 0) {
     // "Rocky's list/text/message" → the sendable day list (Spanish copy);
     // day names or sheet words → the payroll SHEET (what they DID, day by
     // day, lowest unit first — for filling the payboard); week/total
@@ -934,26 +1027,16 @@ export const answerTurnChat = (
       || sheetDays.length > 1
       || /sheet|payboard|pay board|payroll|\bdid\b|hizo/.test(query);
     const wantsHistory = /week|how many|count|total/.test(query);
-    const card = wantsList
-      ? crewListCard(state, crew.id)
-      : wantsHistory && sheetDays.length === 0
-        ? payrollCard(state, crew.id, now)
-        : wantsSheet
-          ? payrollSheetCard(state, crew.id, now, sheetDays.length > 0 ? sheetDays : undefined)
-          : crewCard(state, crew.id);
-    if (card) return { cards: [card] };
-  }
-
-  // "What were the cut-ins for week 2" — the pay-packet list, no crew named.
-  const taskKind = WEEK_TASK_KINDS.find((kind) => kind.match.test(query));
-  if (taskKind) {
-    const weekMatch = /w(?:ee)?k\s*(\d{1,2})/.exec(query);
-    const week = weekMatch
-      ? Number(weekMatch[1])
-      : /last week/.test(query)
-        ? payWeekNumberOf(now.toISOString()) - 1
-        : payWeekNumberOf(now.toISOString());
-    return { cards: [weekTaskCard(state, now, taskKind, week)] };
+    const cards = namedCrews.slice(0, 3)
+      .map((crew) => (wantsList
+        ? crewListCard(state, crew.id)
+        : wantsHistory && sheetDays.length === 0
+          ? payrollCard(state, crew.id, now)
+          : wantsSheet
+            ? payrollSheetCard(state, crew.id, now, sheetDays.length > 0 ? sheetDays : undefined)
+            : crewCard(state, crew.id)))
+      .filter((card): card is TurnChatCard => Boolean(card));
+    if (cards.length > 0) return { cards };
   }
 
   // "floor 11" scopes every status answer; on its own it's the floor overview.

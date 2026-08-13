@@ -148,11 +148,21 @@ const dehydrate = (messages: readonly ChatMessage[]): StoredMessage[] =>
       id: message.id,
       outcomes: message.intents?.outcomes,
       role: message.role,
-      // Cards collapse to their title line — live data answers fresh anyway.
+      // Cards keep their CONTENT as text (title + lines, capped) — a reloaded
+      // chat used to collapse them to bare "▸ Sandra — Paint" titles, which
+      // read as broken empty answers in the field. Tap-navigation doesn't
+      // survive the reload, but the information does.
       text: message.text
         ?? message.answer?.note
         ?? (message.answer?.cards.length
-          ? message.answer.cards.map((card) => `▸ ${card.title}`).join('\n')
+          ? message.answer.cards
+            .map((card) => [
+              `▸ ${card.title}`,
+              ...card.lines.slice(0, 12).map((line) => line.text),
+              ...(card.lines.length > 12 ? [`…and ${card.lines.length - 12} more`] : []),
+            ].join('\n'))
+            .join('\n\n')
+            .slice(0, 1200)
           : undefined),
     }));
 

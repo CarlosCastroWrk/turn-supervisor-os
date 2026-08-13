@@ -1402,13 +1402,35 @@ export const CrewView = ({
         );
       })()}
       {(['paint', 'clean'] as const).map((wallTrade) => {
-        // Wall-board transfer — every unit with THIS trade released this pay week,
+        // Wall-board transfer — every unit with THIS trade in this pay week,
         // in board order, laid out exactly like Los's physical wall grid
         // (Comn · A · B · C · D · E · Crew · approved) so he can copy it cell by
         // cell. Paint cells also show the task tag (F/TU/CI/…); Clean shows HC for
         // a heavy clean (regular clean has no tag). One grid per physical board.
+        //
+        // ONE week per unit, ALL its rooms together (1001 field bug: room A got
+        // re-listed a day later, so per-room release weeks split the unit across
+        // two week boards while the unit page said all-approved). The unit's week
+        // = Los's w# chip correction if he made one (same turn-os:wall-week-v2
+        // the TurnBoard chip writes), else the week the crew DID the work (same
+        // basis as pay), else the earliest release.
         const SECTIONS = ['common', 'A', 'B', 'C', 'D', 'E'] as const;
         const weekNo = activePayWeek;
+        let weekOverrides: Record<string, number> = {};
+        try {
+          weekOverrides = JSON.parse(
+            window.localStorage.getItem('turn-os:wall-week-v2') ?? '{}',
+          ) as Record<string, number>;
+        } catch { /* no corrections on this device */ }
+        const latestDoneByUnit = new Map<string, string>();
+        for (const event of state.events) {
+          if (event.eventType !== 'crew-reported-complete') continue;
+          if (event.target.trade !== wallTrade) continue;
+          const existing = latestDoneByUnit.get(event.target.unitId) ?? '';
+          if (event.recordedAt > existing) {
+            latestDoneByUnit.set(event.target.unitId, event.recordedAt);
+          }
+        }
         const colorName = ['amber', 'green', 'pink'][wallWeekColor(weekNo)] ?? '';
         const crewNameOf = (id?: string) =>
           (id ? state.crews.find((crew) => crew.id === id)?.name ?? '' : '');
@@ -1442,9 +1464,16 @@ export const CrewView = ({
           const tradeWork = projectTrackCUnitWork(state, unit.id).filter(
             (work) => work.trade === wallTrade
               && work.release === 'released'
-              && work.releasedAt
-              && payWeekNumberOf(work.releasedAt) === weekNo);
+              && work.releasedAt);
           if (tradeWork.length === 0) continue;
+          const override = weekOverrides[`${unit.id}:${wallTrade}`];
+          const earliestRelease = tradeWork.reduce(
+            (min, work) => (!min || (work.releasedAt ?? '') < min ? work.releasedAt ?? '' : min),
+            '',
+          );
+          const unitWeek = override
+            ?? payWeekNumberOf(latestDoneByUnit.get(unit.id) ?? earliestRelease);
+          if (unitWeek !== weekNo) continue;
           const cells: Record<string, Cell> = {};
           let crewId: string | undefined;
           let anyApproved = false;
@@ -1506,6 +1535,8 @@ export const CrewView = ({
                 {wallTrade === 'paint'
                   ? ' Tag under each mark is the task — tap a unit to fix a wrong one.'
                   : ' HC under a mark = heavy clean. Tap a unit to fix a wrong one.'}
+                {' '}A unit shows ALL its rooms on ONE week — the week the crew did
+                the work, or your w# chip fix on the TurnBoard wall.
               </p>
               <div className="track-c-wallxfer__scroll">
                 <table className="track-c-wallxfer__grid">

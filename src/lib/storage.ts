@@ -8,6 +8,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
+import lzString from 'lz-string';
 import { seedData } from '../data/seed';
 import type { AppData } from '../types';
 import { applyActivityLogRetention } from './activityRetention';
@@ -31,6 +32,41 @@ export const APP_DATA_STORAGE_KEY = 'turn-supervisor-os:v0.1';
 const STORAGE_KEY = APP_DATA_STORAGE_KEY;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`;
 export const APP_DATA_SAVE_INTERVAL_MS = 500;
+
+// The ledger hit Safari's ~5MB localStorage wall mid-walk (Aug 12) and taps
+// stopped saving. Big payloads are now stored LZ-compressed (UTF-16 safe,
+// synchronous — built for localStorage), which fits 4-8x more field history in
+// the same budget. Small payloads stay plain JSON so everyday saves stay
+// instant. Loading accepts both forms forever: plain JSON starts with '{',
+// compressed payloads carry this prefix. Backup FILES are always plain JSON.
+const COMPRESSED_PREFIX = 'turn-os-lz16:';
+const COMPRESS_THRESHOLD_CHARS = 900_000;
+const { compressToUTF16, decompressFromUTF16 } = lzString;
+
+const encodeStoredPayload = (serialized: string): string =>
+  serialized.length > COMPRESS_THRESHOLD_CHARS
+    ? `${COMPRESSED_PREFIX}${compressToUTF16(serialized)}`
+    : serialized;
+
+const decodeStoredPayload = (stored: string): string => {
+  if (!stored.startsWith(COMPRESSED_PREFIX)) return stored;
+  const decoded = decompressFromUTF16(stored.slice(COMPRESSED_PREFIX.length));
+  if (!decoded) {
+    throw new Error('The compressed browser-storage payload could not be read.');
+  }
+  return decoded;
+};
+
+// The stored ledger as plain JSON (decoded if compressed), for emergency
+// backup downloads — never hand a compressed blob to a .json file.
+export const readStoredAppDataJson = (): string | null => {
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    return stored === null ? null : decodeStoredPayload(stored);
+  } catch {
+    return null;
+  }
+};
 
 // Practical localStorage ceiling on iOS Safari is ~5 MB measured in UTF-16
 // characters; keep a safety margin so the warning fires well before writes
@@ -130,8 +166,8 @@ export const hasStoredAppData = () => {
 export const loadAppDataResult = (): AppDataLoadResult => {
   let stored: string | null = null;
   try {
-    stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
+    const rawStored = window.localStorage.getItem(STORAGE_KEY);
+    if (!rawStored) {
       appDataLoadBlocked = false;
       setAppDataSaveStatus('saved', false);
       return {
@@ -141,6 +177,11 @@ export const loadAppDataResult = (): AppDataLoadResult => {
         warnings: [],
       };
     }
+    // Recovery Mode and the corrupt-snapshot both work on plain JSON — decode
+    // first so a decode failure preserves the raw payload, and a validation
+    // failure preserves readable JSON.
+    stored = rawStored;
+    stored = decodeStoredPayload(rawStored);
 
     const parsed = parseStoredAppData(stored);
     appDataLoadBlocked = false;
@@ -226,16 +267,18 @@ export const saveAppData = (data: AppData) => {
     console.warn('Turn Supervisor OS data was not saved because the existing local payload failed validation.');
     return false;
   }
-  const serialized = JSON.stringify(applyActivityLogRetention(data));
+  const encoded = encodeStoredPayload(
+    JSON.stringify(applyActivityLogRetention(data)),
+  );
   try {
-    window.localStorage.setItem(STORAGE_KEY, serialized);
+    window.localStorage.setItem(STORAGE_KEY, encoded);
     lastSaveHitQuota = false;
     return true;
   } catch (error) {
     console.warn('Failed to save Turn Supervisor OS data — freeing space and retrying.', error);
     if (freeEmergencyStorage()) {
       try {
-        window.localStorage.setItem(STORAGE_KEY, serialized);
+        window.localStorage.setItem(STORAGE_KEY, encoded);
         console.warn('Save succeeded after freeing caches/corrupt snapshot.');
         lastSaveHitQuota = false;
         return true;
@@ -298,13 +341,13 @@ export const persistAppDataNow = (data: AppData) => {
 export const restoreAppDataNow = (data: AppData) => {
   const retained = applyActivityLogRetention(data);
   try {
-    const serialized = JSON.stringify(retained);
-    window.localStorage.setItem(STORAGE_KEY, serialized);
+    const encoded = encodeStoredPayload(JSON.stringify(retained));
+    window.localStorage.setItem(STORAGE_KEY, encoded);
     const readback = window.localStorage.getItem(STORAGE_KEY);
-    if (readback !== serialized) {
+    if (readback !== encoded) {
       throw new Error('Saved data did not match browser-storage readback.');
     }
-    parseJsonBackup(readback);
+    parseJsonBackup(decodeStoredPayload(readback));
     appDataWriter.cancel();
     appDataLoadBlocked = false;
     setAppDataSaveStatus('saved', false);

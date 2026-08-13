@@ -1,5 +1,5 @@
 import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from 'react';
-import { APP_DATA_STORAGE_KEY } from '../lib/storage';
+import { readStoredAppDataJson } from '../lib/storage';
 
 interface RootErrorBoundaryProps {
   children: ReactNode;
@@ -32,7 +32,7 @@ export class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErr
 
   private downloadBackup = (): void => {
     try {
-      const raw = window.localStorage.getItem(APP_DATA_STORAGE_KEY);
+      const raw = readStoredAppDataJson();
       if (!raw) {
         window.alert('No saved Turn data was found on this device to back up.');
         return;

@@ -7,6 +7,7 @@ import {
   getAppDataSaveStatus,
   loadAppData,
   persistAppDataNow,
+  readStoredAppDataJson,
 } from '../src/lib/storage.ts';
 import { applyDayTaskStateChange } from '../src/features/wave2a2-core/appDataAdapters.ts';
 import { createSyntheticActiveSession } from '../src/features/wave2a2-track-b/fixtures.ts';
@@ -338,6 +339,55 @@ test('malformed local field arrays fail safely on reopen without replacing store
     }
   } finally {
     console.warn = originalWarn;
+    if (originalWindow === undefined) {
+      Reflect.deleteProperty(globalThis, 'window');
+    } else {
+      Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
+    }
+  }
+});
+
+test('a big ledger is stored compressed and reads back intact — small stays plain JSON', () => {
+  // Aug 12: the ledger hit Safari's ~5MB localStorage wall mid-walk and taps
+  // stopped saving. Payloads past the threshold now store LZ-compressed;
+  // loading accepts both forms.
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')?.value;
+  try {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => store.get(key) ?? null,
+          removeItem: (key: string) => { store.delete(key); },
+          setItem: (key: string, value: string) => { store.set(key, value); },
+        },
+      },
+    });
+
+    // Small payload: plain JSON, instantly readable.
+    assert.equal(persistAppDataNow(structuredClone(seedData)), true);
+    const smallStored = store.get('turn-supervisor-os:v0.1');
+    assert.ok(smallStored?.startsWith('{'), 'small ledger stays plain JSON');
+
+    // Big payload (past the compress threshold): stored much smaller, with the
+    // compression prefix, and decodes back to the exact same content.
+    const big = structuredClone(seedData);
+    const bigNote = 'crew finished B and C, texture in D. '.repeat(30_000);
+    (big as { projects: { name: string }[] }).projects[0].name = bigNote;
+    assert.equal(persistAppDataNow(big), true);
+    const bigStored = store.get('turn-supervisor-os:v0.1');
+    assert.ok(bigStored?.startsWith('turn-os-lz16:'), 'big ledger is compressed');
+    const plainLength = JSON.stringify(big).length;
+    assert.ok(
+      (bigStored?.length ?? Infinity) < plainLength / 2,
+      `compressed (${bigStored?.length}) should be far smaller than plain (${plainLength})`,
+    );
+    const decoded = readStoredAppDataJson();
+    assert.ok(decoded, 'decoded payload readable');
+    const parsed = JSON.parse(decoded as string) as { projects: { name: string }[] };
+    assert.equal(parsed.projects[0].name, bigNote, 'content survives the round trip');
+  } finally {
     if (originalWindow === undefined) {
       Reflect.deleteProperty(globalThis, 'window');
     } else {

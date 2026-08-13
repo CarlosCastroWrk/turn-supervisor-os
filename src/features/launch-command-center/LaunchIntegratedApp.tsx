@@ -1,4 +1,4 @@
-import { AlertTriangle, Download, Footprints, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download, Footprints, RefreshCw, ShieldCheck } from 'lucide-react';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   useCallback,
@@ -456,6 +456,16 @@ function LaunchOperationalApp({
     const timer = window.setTimeout(() => setFieldToast(''), 3000);
     return () => window.clearTimeout(timer);
   }, [fieldToast]);
+  // A previous session ended with storage-full save failures, and the app just
+  // pulled those taps back from the emergency copy — tell Los, since last time
+  // he re-entered them from phone notes.
+  const [recoveredNotice, setRecoveredNotice] = useState(false);
+  useEffect(() => {
+    if (persistence.emergencyRecovered) setRecoveredNotice(true);
+  }, [persistence.emergencyRecovered]);
+  // Early storage warning ON HOME, not buried in More → Data: dismissable, but
+  // comes back each app open while usage stays high.
+  const [storageWatchDismissed, setStorageWatchDismissed] = useState(false);
   const [blockReason, setBlockReason] = useState('');
   const [blockTrade, setBlockTrade] = useState<'paint' | 'clean' | 'both'>('both');
   const [walkRequests, setWalkRequests] = useState<
@@ -3158,9 +3168,63 @@ function LaunchOperationalApp({
       )}
     </section>
   ) : null;
+  const recoveredAlert = recoveredNotice ? (
+    <section className="persistence-alert lcc-host-alert" role="status">
+      <ShieldCheck size={22} aria-hidden="true" />
+      <div>
+        <strong>Unsaved taps rescued</strong>
+        <p>
+          The taps that could not save last time were kept in an emergency copy
+          and are back in the app. Double-check the last unit you worked on.
+        </p>
+      </div>
+      <button
+        aria-label="Dismiss"
+        className="lcc-host-alert__dismiss"
+        onClick={() => setRecoveredNotice(false)}
+        type="button"
+      >
+        ✕
+      </button>
+    </section>
+  ) : null;
+  const storageWatchAlert = storageUsage
+    && storageUsage.level !== 'ok'
+    && !storageWatchDismissed
+    && !storageFull ? (
+      <section className="persistence-alert lcc-host-alert lcc-host-alert--error" role="status">
+        <AlertTriangle size={22} aria-hidden="true" />
+        <div>
+          <strong>App storage {storageUsage.percentUsed}% full</strong>
+          <p>
+            Plenty of room left today, but don’t discover the ceiling mid-walk —
+            back up now and tell Claude it’s climbing.
+          </p>
+          <button
+            className="lcc-host-alert__action"
+            onClick={() => {
+              void protectTurnNow().then((message) => setFieldToast(message));
+            }}
+            type="button"
+          >
+            Back up now
+          </button>
+        </div>
+        <button
+          aria-label="Dismiss"
+          className="lcc-host-alert__dismiss"
+          onClick={() => setStorageWatchDismissed(true)}
+          type="button"
+        >
+          ✕
+        </button>
+      </section>
+    ) : null;
   const hostAlerts = (
     <>
       {persistWarningAlert}
+      {recoveredAlert}
+      {storageWatchAlert}
       {walkRequestAlert}
       {saveAlert}
       {cacheAlert}

@@ -20,6 +20,11 @@ import {
 } from './backups';
 import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
+import {
+  clearEmergencyLedger,
+  readEmergencyLedger,
+  stashEmergencyLedger,
+} from './emergencyLedger';
 import { createFieldDraftStore } from './fieldDraft';
 import { applyLegacyPhotoMigration, clearPhotoBlobs, migrateLegacyPhotoPayloads } from './photoStorage';
 import {
@@ -262,17 +267,28 @@ const freeEmergencyStorage = (): boolean => {
 let lastSaveHitQuota = false;
 export const didLastSaveHitQuota = () => lastSaveHitQuota;
 
+// True while an emergency IndexedDB stash may exist for THIS session. Once a
+// normal save lands again, the stash is stale (localStorage is newer) and must
+// go, or the next boot would roll the ledger back to the failure moment.
+let emergencyStashPending = false;
+
 export const saveAppData = (data: AppData) => {
   if (appDataLoadBlocked) {
     console.warn('Turn Supervisor OS data was not saved because the existing local payload failed validation.');
     return false;
   }
-  const encoded = encodeStoredPayload(
-    JSON.stringify(applyActivityLogRetention(data)),
-  );
+  const serialized = JSON.stringify(applyActivityLogRetention(data));
+  const encoded = encodeStoredPayload(serialized);
+  const markSaved = () => {
+    lastSaveHitQuota = false;
+    if (emergencyStashPending) {
+      emergencyStashPending = false;
+      void clearEmergencyLedger().catch(() => undefined);
+    }
+  };
   try {
     window.localStorage.setItem(STORAGE_KEY, encoded);
-    lastSaveHitQuota = false;
+    markSaved();
     return true;
   } catch (error) {
     console.warn('Failed to save Turn Supervisor OS data — freeing space and retrying.', error);
@@ -280,14 +296,39 @@ export const saveAppData = (data: AppData) => {
       try {
         window.localStorage.setItem(STORAGE_KEY, encoded);
         console.warn('Save succeeded after freeing caches/corrupt snapshot.');
-        lastSaveHitQuota = false;
+        markSaved();
         return true;
       } catch (retryError) {
         console.warn('Save still failing after freeing space.', retryError);
       }
     }
     lastSaveHitQuota = true;
+    // The tap could not land in localStorage — stash the FULL plain ledger in
+    // IndexedDB (no 5MB cap there). The next app open adopts it, so a refused
+    // save is a bump, never a lost record.
+    emergencyStashPending = true;
+    void stashEmergencyLedger(serialized).catch((stashError) => {
+      console.warn('Emergency ledger stash also failed.', stashError);
+    });
     return false;
+  }
+};
+
+// One-shot at boot (guarded so both hook mounts don't race): if a previous
+// session ended with failing saves, its freshest ledger is in the emergency
+// stash — adopt it before Los starts tapping. Returns the adopted data or null.
+let emergencyAdoptionAttempted = false;
+export const adoptEmergencyLedger = async (): Promise<AppData | null> => {
+  if (emergencyAdoptionAttempted) return null;
+  emergencyAdoptionAttempted = true;
+  try {
+    const record = await readEmergencyLedger();
+    if (!record) return null;
+    const parsed = parseStoredAppData(record.json);
+    return parsed.data;
+  } catch (error) {
+    console.warn('The emergency ledger could not be adopted — leaving it in place.', error);
+    return null;
   }
 };
 
@@ -419,6 +460,11 @@ export const clearAppData = async () => {
   } catch (error) {
     console.warn('Failed to clear local photo files during device reset.', error);
   }
+  try {
+    await clearEmergencyLedger();
+  } catch (error) {
+    console.warn('Failed to clear the emergency ledger during device reset.', error);
+  }
   return ownerCleared && rememberedAccountCleared && recordsCleared && photosCleared;
 };
 
@@ -465,6 +511,33 @@ export const usePersistentAppData = () => {
     setLoadWarnings([]);
     setRecovery(null);
     return true;
+  }, []);
+  const [emergencyRecovered, setEmergencyRecovered] = useState(false);
+
+  // If the last session ended with storage-full save failures, the freshest
+  // ledger is waiting in the emergency IndexedDB stash — adopt it right at
+  // boot, before Los taps anything, so those "lost" taps come back on their own.
+  useEffect(() => {
+    if (initialLoad.recovery) return;
+    void adoptEmergencyLedger().then((adopted) => {
+      if (!adopted) return;
+      if (dataRef.current !== initiallyLoadedDataRef.current) {
+        console.warn('Emergency ledger found but the session already has new taps — leaving it for the next boot.');
+        return;
+      }
+      if (!restoreAppDataNow(adopted)) {
+        console.warn('Emergency ledger could not be re-persisted — leaving it in place.');
+        return;
+      }
+      dataRef.current = adopted;
+      immediatelyPersistedDataRef.current = adopted;
+      initiallyLoadedDataRef.current = adopted;
+      setStoredData(adopted);
+      setHasStoredData(true);
+      setEmergencyRecovered(true);
+      void clearEmergencyLedger().catch(() => undefined);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetToDemo = useCallback(async () => {
@@ -580,6 +653,7 @@ export const usePersistentAppData = () => {
       commitDataNow,
       data,
       setData,
+      emergencyRecovered,
       hasStoredData,
       loadWarnings,
       recovery,
@@ -592,6 +666,7 @@ export const usePersistentAppData = () => {
     [
       commitDataNow,
       data,
+      emergencyRecovered,
       hasStoredData,
       loadWarnings,
       recovery,

@@ -3559,7 +3559,7 @@ function LaunchOperationalApp({
             });
             setFieldToast(saved
               ? `Moved ${trade === 'paint' ? 'Paint' : 'Clean'} from ${source.unitNumber} to ${target.unitNumber} — assign the crew there.`
-              : 'Start the day first, then move it.');
+              : 'The move did not save — check the storage banner and try again.');
           }}
           onToggleCrewActive={(crewId, active) => {
             const name = crewRecords.find((crew) => crew.id === crewId)?.name ?? 'Crew';
@@ -3590,20 +3590,20 @@ function LaunchOperationalApp({
           onSetTradeRelease={(unitId, trade, released, workType) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === unitId)?.unitNumber ?? '';
-            const hasActiveSession = data.daySessions.some((session) =>
-              session.projectId === data.activeProjectId
-              && ['active', 'ending', 'reopened'].includes(session.status));
-            if (released && !hasActiveSession) {
-              setFieldToast('Start the day first — then mark what Joseph released.');
+            // The writers fall back to the most recent Day Session, so evening
+            // and before-Start-Day releases work. Only a project with NO day
+            // ever started has nowhere to attach a release.
+            const hasAnySession = data.daySessions.some((session) =>
+              session.projectId === data.activeProjectId);
+            if (released && !hasAnySession) {
+              setPersistWarning('Start a day first — a release needs a day to attach to.');
               return;
             }
             const saved = commitDataNow((current) => {
               let next = current;
-              // Unassigning crews records field events, which need an active Day
-              // Session. Removing the release row does NOT — so when the day
-              // isn't started, skip the crew-clearing and just drop the rows.
-              // (Never let "start the day" block fixing Joseph's mistake.)
-              if (!released && hasActiveSession) {
+              // Unassigning crews records field events; those attach to the
+              // most recent Day Session when none is active.
+              if (!released && hasAnySession) {
                 const cleared = clearTrackCAssignments(trackCState, {
                   eventIdPrefix: createId('unrelease'),
                   recordedAt: nowISO(),
@@ -3711,11 +3711,13 @@ function LaunchOperationalApp({
             const unitNumber = trackCState.units
               .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
             const roomLabel = target.section === 'common' ? 'Common' : target.section;
-            const hasActiveSession = data.daySessions.some((session) =>
-              session.projectId === data.activeProjectId
-              && ['active', 'ending', 'reopened'].includes(session.status));
-            if (!hasActiveSession) {
-              setFieldToast('Start the day first — then start the new round from the unit page.');
+            // The release writers attach to the most recent Day Session when
+            // none is active — Joseph re-releases get logged in the evening
+            // too. Only a project with no day ever started is blocked.
+            const hasAnySession = data.daySessions.some((session) =>
+              session.projectId === data.activeProjectId);
+            if (!hasAnySession) {
+              setFieldToast('Start a day first — the new round needs a day to attach to.');
               return false;
             }
             const taskWord = workType === 'full-cut-in'
@@ -3763,6 +3765,15 @@ function LaunchOperationalApp({
           onSetSectionRelease={(target, released) => {
             const unitNumber = trackCState.units
               .find((unit) => unit.id === target.unitId)?.unitNumber ?? '';
+            // Never claim success the writer can't deliver: with no Day
+            // Session at all (brand-new project) the release has nothing to
+            // attach to — say so instead of toasting "released".
+            const noSessionToAttach = released && !data.daySessions.some((session) =>
+              session.projectId === data.activeProjectId);
+            if (noSessionToAttach) {
+              setPersistWarning('Start a day first — a release needs a day to attach to.');
+              return;
+            }
             const saved = commitDataNow((current) => setSectionReleaseState(current, {
               idFactory: createId,
               nowIso: nowISO(),
@@ -3775,7 +3786,7 @@ function LaunchOperationalApp({
               ? released
                 ? `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} ${target.trade === 'paint' ? 'Paint' : 'Clean'} marked released.`
                 : `Unit ${unitNumber} ${target.section === 'common' ? 'Common' : target.section} ${target.trade === 'paint' ? 'Paint' : 'Clean'} marked NOT released.`
-              : 'Start the day first — then adjust the release from the unit page.');
+              : 'That did not save — check the storage banner and try again.');
           }}
           onCommitUnitPhoto={(photo) =>
             // Photos are dispute evidence — persist synchronously like field

@@ -1355,13 +1355,30 @@ export function setSectionReleaseState(
           }),
     });
   }
+  // Adding a room must work whenever Los taps it — he squares his board in
+  // the evening AFTER End Day and in the morning BEFORE Start Day, exactly
+  // when there is no ACTIVE session. Same fallback the field-event writer
+  // uses: attach to the most recent Day Session. (Before this, the tap
+  // silently did nothing outside an active day — and the toast said it
+  // worked. Field-reported Aug 14.)
   const session = data.daySessions.find((candidate) =>
     candidate.projectId === data.activeProjectId
-    && ['active', 'ending', 'reopened'].includes(candidate.status));
+    && ['active', 'ending', 'reopened'].includes(candidate.status))
+    ?? [...data.daySessions]
+      .filter((candidate) => candidate.projectId === data.activeProjectId)
+      .sort((left, right) => (left.updatedAt < right.updatedAt ? 1 : -1))[0];
   if (!session) return data;
+  // Already released ANYWHERE live (any session's batches — not just this
+  // one's): a duplicate row re-stamps the room's release and resets its
+  // round, the exact bug that split unit 1001 across two week boards.
+  const projectSessionBatchIds = new Set(
+    data.daySessions
+      .filter((candidate) => candidate.projectId === data.activeProjectId)
+      .flatMap((candidate) => candidate.releaseBatchIds),
+  );
   const alreadyReleased = data.dailyReleaseBatches.some((batch) =>
     batch.projectId === data.activeProjectId
-    && session.releaseBatchIds.includes(batch.id)
+    && projectSessionBatchIds.has(batch.id)
     && batch.items.some((item) =>
       item.unitId === input.unitId
       && item.trade === input.trade
@@ -1433,18 +1450,33 @@ export function setTradeReleaseState(
           }),
     });
   }
+  // Same fallback as the room-grain writer: no ACTIVE session (evening after
+  // End Day, morning before Start Day) attaches to the most recent one
+  // instead of silently doing nothing behind a success toast.
   const session = data.daySessions.find((candidate) =>
     candidate.projectId === data.activeProjectId
-    && ['active', 'ending', 'reopened'].includes(candidate.status));
+    && ['active', 'ending', 'reopened'].includes(candidate.status))
+    ?? [...data.daySessions]
+      .filter((candidate) => candidate.projectId === data.activeProjectId)
+      .sort((left, right) => (left.updatedAt < right.updatedAt ? 1 : -1))[0];
   if (!session) return data;
   const unit = projectPropertyRoster(data).units
     .find((candidate) => candidate.id === input.unitId);
   if (!unit) return data;
   const tradeName = input.trade === 'paint' ? 'Paint' : 'Clean';
+  // Skip rooms already released under ANY session's live batches — checking
+  // only the active session re-added rooms released on an earlier day, and
+  // that duplicate row reset the room's round (crew + status vanished; the
+  // unit split across two week boards — unit 1001, Aug 13).
+  const projectSessionBatchIds = new Set(
+    data.daySessions
+      .filter((candidate) => candidate.projectId === data.activeProjectId)
+      .flatMap((candidate) => candidate.releaseBatchIds),
+  );
   const existing = new Set(data.dailyReleaseBatches
     .filter((batch) =>
       batch.projectId === data.activeProjectId
-      && session.releaseBatchIds.includes(batch.id))
+      && projectSessionBatchIds.has(batch.id))
     .flatMap((batch) => batch.items
       .filter((item) => item.unitId === input.unitId && item.trade === input.trade)
       .map((item) => item.section)));

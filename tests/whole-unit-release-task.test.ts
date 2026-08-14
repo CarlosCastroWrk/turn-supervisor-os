@@ -65,3 +65,59 @@ test('whole-unit release with no task stamps nothing (prior behavior preserved)'
   assert.ok(types.every((type) => type === undefined),
     'without a picked task the release records no workType, exactly as before');
 });
+
+// Aug 14 field bug: "sometimes I am unable to add rooms to a unit" — with no
+// ACTIVE day session (evening after End Day, morning before Start Day) the
+// release writers silently did nothing while the toast said released. They
+// now fall back to the most recent Day Session. And the already-released
+// check must look across ALL sessions' batches, or a whole-unit release
+// duplicates rooms released on an earlier day (the unit-1001 week split).
+
+test('adding a room works with the day CLOSED — attaches to the latest session', async () => {
+  const { setSectionReleaseState } = await import('../src/features/wave2a2-core/appDataAdapters.ts');
+  const { data, unitId } = buildData();
+  data.daySessions = data.daySessions.map((session) => ({ ...session, status: 'closed' as const }));
+  const released = setSectionReleaseState(data, {
+    idFactory, nowIso: NOW, released: true, section: 'A', trade: 'paint', unitId,
+  });
+  const state = projectTrackCState(released);
+  const fact = state.units.find((candidate) => candidate.id === unitId)
+    ?.workFacts.find((candidate) => candidate.trade === 'paint' && candidate.section === 'A');
+  assert.equal(fact?.release, 'released', 'the room releases even after End Day');
+  assert.ok(
+    released.daySessions.some((session) => session.releaseBatchIds.length > 0),
+    'the adjustment batch attached to the fallback session',
+  );
+});
+
+test('whole-unit release never duplicates rooms released under an EARLIER session', () => {
+  const { data, unitId } = buildData();
+  // Day one released room A; day two is a separate active session.
+  const dayOne = setTradeReleaseState(data, {
+    idFactory, nowIso: NOW, released: true, trade: 'paint', unitId, workType: 'cut-in',
+  });
+  const originalCount = dayOne.dailyReleaseBatches
+    .flatMap((batch) => batch.items)
+    .filter((item) => item.unitId === unitId && item.trade === 'paint').length;
+  const dayTwo: AppData = {
+    ...dayOne,
+    daySessions: [
+      { ...dayOne.daySessions[0], status: 'closed' as const },
+      {
+        ...dayOne.daySessions[0], id: 's2', date: '2026-08-09',
+        releaseBatchIds: [], status: 'active' as const,
+      },
+    ],
+  };
+  const again = setTradeReleaseState(dayTwo, {
+    idFactory, nowIso: '2026-08-09T14:00:00.000Z', released: true, trade: 'paint', unitId,
+  });
+  const items = again.dailyReleaseBatches
+    .flatMap((batch) => batch.items)
+    .filter((item) => item.unitId === unitId && item.trade === 'paint');
+  assert.equal(
+    items.length,
+    originalCount,
+    'day-two whole-unit release adds NO duplicate rows for already-released rooms',
+  );
+});

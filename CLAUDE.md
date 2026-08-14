@@ -12,7 +12,7 @@ Turn OS is **Los's personal iPhone-first PWA** for supervising the Moon Tower st
 ## Field rules that shape the data model (Tony/Joseph SOP)
 - Paper wall-board is AUTHORITATIVE; the app is Los's personal record. Board marks: "/" = released, written name = assigned, X = done, CC = Los/property approved.
 - Joseph (property manager) releases units daily, in person, at room grain ("paint 307 — A, B, C"). Partial releases are real. Walks can lag a day (painted today, walked tomorrow).
-- Pay week = **Sunday 00:00 → Saturday 5:00 PM** (work after Sat 5 PM belongs to the next week). Pay basis = crew-reported-complete, deduped by unit+trade+section.
+- Pay week = **Sunday 00:00 → Saturday 23:59, date only** (Los-confirmed Aug 8 — no 5 PM cutoff). Pay basis = crew-reported-complete, deduped per crew+unit+trade+section per ROUND (a Joseph-approved-then-re-released room pays again; a same-round redo does not).
 - Change orders: wall hole > quarter, tubs. Three official JotForm links in `src/config/officialPdsLinks.ts` (release proof / change order / turn sign-off).
 - Portal (read-only web page) is for Joseph & Paige, never shows pay/pricing/phones.
 

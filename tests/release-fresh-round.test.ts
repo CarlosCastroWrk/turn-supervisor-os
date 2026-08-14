@@ -203,3 +203,40 @@ test('approved or Los-passed work never queues as Needs Crew, even with no crew 
     .map((record) => `${record.target.unitId}:${record.target.section}`);
   assert.deepEqual(needsCrewKeys, [], 'finished work is not unassigned work');
 });
+
+// Payroll-eve pin (Aug 14): a NEW ROUND pays the same crew AGAIN — "round-one
+// pay survives; the new work pays like new work" — while a same-round redo
+// (callback re-report) still pays once.
+test('same crew is paid for round one AND the new round — but a redo pays once', () => {
+  const roundTwoState = (events: object[]): TrackCState => ({
+    units: [{
+      id: 'u1',
+      unitNumber: '803',
+      workFacts: [{
+        id: 'f1', unitId: 'u1', trade: 'paint', section: 'common',
+        release: 'released', access: 'clear', sourceConfidence: 'confirmed',
+        sourceLabel: 'test',
+        // Round two released Aug 12 — round-one events predate this stamp.
+        releasedAt: '2026-08-12T15:00:00.000Z',
+      }],
+    }],
+    crews: [{ id: 'rocky', name: 'Rocky', trade: 'paint', active: true }],
+    events,
+  } as unknown as TrackCState);
+
+  // Round one done Aug 10, round two done Aug 12 after the re-release.
+  const twoRounds = roundTwoState([
+    { confirmation: 'confirmed', crewId: 'rocky', eventType: 'crew-reported-complete', id: 'p1', recordedAt: '2026-08-10T18:00:00.000Z', target },
+    { confirmation: 'confirmed', crewId: 'rocky', eventType: 'crew-reported-complete', id: 'p2', recordedAt: '2026-08-12T18:00:00.000Z', target },
+  ]);
+  const paid = buildAllCrewPayroll(twoRounds, new Date('2026-08-12T20:00:00.000Z')).get('rocky');
+  assert.equal(paid?.rooms.length, 2, 'round one and the new round BOTH pay');
+
+  // A redo inside ONE round (two reports, both after the live stamp) pays once.
+  const redo = roundTwoState([
+    { confirmation: 'confirmed', crewId: 'rocky', eventType: 'crew-reported-complete', id: 'p3', recordedAt: '2026-08-12T18:00:00.000Z', target },
+    { confirmation: 'confirmed', crewId: 'rocky', eventType: 'crew-reported-complete', id: 'p4', recordedAt: '2026-08-12T19:00:00.000Z', target },
+  ]);
+  const once = buildAllCrewPayroll(redo, new Date('2026-08-12T20:00:00.000Z')).get('rocky');
+  assert.equal(once?.rooms.length, 1, 'a same-round redo still pays exactly once');
+});

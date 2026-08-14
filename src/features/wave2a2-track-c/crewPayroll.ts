@@ -46,7 +46,7 @@ export interface PayRoom {
 export interface CrewPayroll {
   readonly crewId: string;
   readonly today: PayLine;
-  readonly week: PayLine; // current pay week (Sun 00:00 -> Sat 5:00 PM)
+  readonly week: PayLine; // current pay week (Sun -> Sat, date only)
   readonly turn: PayLine; // whole Turn, deduped
   readonly turnTypes: TypeTally; // whole-Turn paint work-type totals
   readonly perDay: readonly CrewPayDay[]; // ascending by date, each room on its first day
@@ -105,11 +105,17 @@ export const buildAllCrewPayroll = (
   // convert it texture-only, which un-releases the section) and its old
   // crew-done event must stop paying — Los's rule: a deleted room pays no one.
   const releasedNow = new Set<string>();
+  // The current round's start per room (its live release stamp) — a NEW ROUND
+  // (approved, then re-released for more work) is NEW pay for the same crew.
+  const roundStartOf = new Map<string, string>();
   for (const unit of state.units) {
     unitNumberOf.set(unit.id, unit.unitNumber);
     for (const fact of unit.workFacts) {
       if (fact.release === 'released') {
         releasedNow.add(`${fact.unitId}:${fact.trade}:${fact.section}`);
+        if (fact.releasedAt) {
+          roundStartOf.set(`${fact.unitId}:${fact.trade}:${fact.section}`, fact.releasedAt);
+        }
       }
       if (fact.trade !== 'paint') continue;
       workTypeOf.set(
@@ -146,11 +152,18 @@ export const buildAllCrewPayroll = (
     // so a stale done-event on a deleted room never pays. Un-releasing a room
     // (delete, or texture-only) drops it from releasedNow, so it stops paying.
     if (!releasedNow.has(scope)) continue;
-    // A crew is paid ONCE per room: a redo — the same crew called back to fix
-    // their own room — never adds a second pay. (Two DIFFERENT crews on one
+    // A crew is paid ONCE per room PER ROUND: a redo — the same crew called
+    // back to fix their own room — never adds a second pay (same round). But
+    // when Joseph APPROVED the room and then re-released it for more work (the
+    // New round door), that's new work and pays again, even for the same crew
+    // — "round-one pay survives; the new work pays like new work." Reports
+    // from before the room's live release stamp are the earlier round(s),
+    // reports after it are the current round. (Two DIFFERENT crews on one
     // room is rare/a mistake; both are counted and the payroll pre-flight
     // flags it for Los to resolve, rather than auto-guessing which one did it.)
-    const roomKey = `${crewId}:${scope}`;
+    const roundStart = roundStartOf.get(scope);
+    const round = roundStart && event.recordedAt < roundStart ? 'prior' : 'current';
+    const roomKey = `${crewId}:${scope}:${round}`;
     if (seenRooms.has(roomKey)) continue;
     seenRooms.add(roomKey);
 

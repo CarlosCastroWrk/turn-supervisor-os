@@ -20,6 +20,7 @@ import type {
   TrackCWorkProjection,
 } from './model';
 import { paintWorkTypeLabel, trackCSectionLabel } from './model';
+import { savePayWeekPacketPdf } from './payPacketPdf';
 import {
   buildAllCrewPayroll,
   formatPayLine,
@@ -1066,6 +1067,27 @@ export const CrewView = ({
                 type="button"
               >
                 Copy the pay packet
+              </button>
+              <button
+                className="track-c-weeksummary__copy"
+                onClick={() => {
+                  void savePayWeekPacketPdf({
+                    changeOrderTotal: totalChangeOrders,
+                    cleanTotal: totalClean,
+                    crews: perCrew,
+                    cutIns,
+                    paintTotalsLine: formatTypeTally(totalPaint),
+                    propertyName: state.propertyName,
+                    supervisor: 'Los',
+                    textureTotal: totalTextures,
+                    weekStart,
+                  })
+                    .then((filename) => setPayCopied(`Saved ${filename} — hand it to Tony or AirDrop it.`))
+                    .catch(() => setPayCopied('PDF needs a moment online first — try again.'));
+                }}
+                type="button"
+              >
+                Save as PDF — for Tony
               </button>
               {payCopied ? <p className="track-c-weeksummary__copied">{payCopied}</p> : null}
             </div>

@@ -9,6 +9,7 @@ import { CalendarDays,
   HardDrive,
   Import,
   Laptop,
+  LockKeyhole,
   LogOut,
   Moon,
   Settings,
@@ -39,6 +40,7 @@ import type {
 
 const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   'backup-restore': <Archive aria-hidden="true" size={21} />,
+  'close-turn': <LockKeyhole aria-hidden="true" size={21} />,
   activity: <Activity aria-hidden="true" size={21} />,
   'day-history': <CalendarDays aria-hidden="true" size={21} />,
   crews: <Users aria-hidden="true" size={21} />,

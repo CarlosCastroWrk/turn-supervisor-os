@@ -1,5 +1,6 @@
 export type TrackBToolDestination =
   | 'backup-restore'
+  | 'close-turn'
   | 'crews'
   | 'day-history'
   | 'my-notes'
@@ -70,6 +71,11 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     items: [
       { id: 'setup', label: 'Project Setup', detail: 'Property, dates, contacts, crews, roster \u2014 edit anytime' },
       { id: 'unit-import', label: 'Add Today’s Work', detail: 'Quick-add grid, photo, or paste — what Joseph released' },
+      {
+        id: 'close-turn',
+        label: 'Close Turn',
+        detail: 'Turn finished? Seal it read-only — browse forever, reopen anytime',
+      },
     ],
   },
   {

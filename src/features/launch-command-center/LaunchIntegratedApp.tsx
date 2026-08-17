@@ -31,6 +31,13 @@ import {
 import { projectLaunchAppData } from './appDataProjection';
 import { createLaunchBoardRepository } from './boardRepository';
 import { projectCanonicalFieldConsumers } from './canonicalFieldConsumers';
+import { ClosedTurnHome } from './ClosedTurnHome';
+import { buildAllCrewPayroll } from '../wave2a2-track-c/crewPayroll';
+import {
+  closeActiveTurn,
+  closedTurnSummary,
+  reopenActiveTurn,
+} from '../wave2a2-core/closedTurn';
 import type {
   LaunchPrimaryDestination,
   LaunchQuickActionId,
@@ -242,7 +249,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'crews' | 'day-history' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
+type MoreDetailPage = 'close-turn' | 'crews' | 'day-history' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -391,9 +398,9 @@ function LaunchOperationalApp({
   persistence: ReturnType<typeof usePersistentAppData>;
 }) {
   const {
-    commitDataNow,
+    commitDataNow: rawCommitDataNow,
     data,
-    setData,
+    setData: rawSetData,
     hasStoredData,
     loadWarnings,
     restoreDataNow,
@@ -401,7 +408,7 @@ function LaunchOperationalApp({
     saveStatus,
     storagePersistence,
   } = persistence;
-  const sync = useSupabaseSync(data, setData, hasStoredData);
+  const sync = useSupabaseSync(data, rawSetData, hasStoredData);
   // The load-warning banner can be tucked away once Los has seen it. It re-shows
   // only if a NEW set of warnings appears (the signature changes), so it never
   // silently hides a fresh problem.
@@ -451,6 +458,30 @@ function LaunchOperationalApp({
   // banner is non-dismissable and offers a one-tap backup — a dropped tap here
   // is a silently wrong pay count, so it must not be swipe-away-able.
   const [storageFull, setStorageFull] = useState(false);
+  // Close Turn write gate. When the active project is sealed (archivedAt), every
+  // commit path the UI can reach flows through these wrappers and is refused
+  // with a visible reason — never a silent no-op (that lesson is paid for).
+  // Close/reopen themselves use rawCommitDataNow, the only sanctioned bypass.
+  const sealedProject = useMemo(() => {
+    const project = data.projects.find((item) => item.id === data.activeProjectId);
+    return project?.archivedAt && project.mode === 'real' ? project : undefined;
+  }, [data.activeProjectId, data.projects]);
+  const activeTurnClosed = Boolean(sealedProject);
+  const sealedTurnName = sealedProject?.name ?? 'This turn';
+  const commitDataNow = useCallback<typeof rawCommitDataNow>((update) => {
+    if (sealedProject) {
+      setPersistWarning(`${sealedProject.name} is sealed — read only. More → Close Turn to reopen it.`);
+      return false;
+    }
+    return rawCommitDataNow(update);
+  }, [rawCommitDataNow, sealedProject]);
+  const setData = useCallback<typeof rawSetData>((update) => {
+    if (sealedProject) {
+      setPersistWarning(`${sealedProject.name} is sealed — read only. More → Close Turn to reopen it.`);
+      return;
+    }
+    rawSetData(update);
+  }, [rawSetData, sealedProject]);
   useEffect(() => {
     if (!fieldToast) return undefined;
     const timer = window.setTimeout(() => setFieldToast(''), 3000);
@@ -514,6 +545,8 @@ function LaunchOperationalApp({
   const [crewEditor, setCrewEditor] = useState<CrewEditorState>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
+  // Two-tap confirm for sealing a turn — reset every time the page is entered.
+  const [closeTurnConfirm, setCloseTurnConfirm] = useState(false);
   const [moreStatus, setMoreStatus] = useState(
     'Personal workspace · paper remains authoritative',
   );
@@ -1213,6 +1246,50 @@ function LaunchOperationalApp({
     () => data.projects.find((project) => project.id === data.activeProjectId),
     [data.activeProjectId, data.projects],
   );
+  // The saved-turn stat card. Computed only when someone is looking at it (the
+  // sealed Home or the More → Close Turn page) — buildAllCrewPayroll walks the
+  // whole ledger and must not run on every keystroke of a live day.
+  const savedTurnSummary = useMemo(
+    () => (activeTurnClosed || moreDetailPage === 'close-turn'
+      ? closedTurnSummary(data, trackCState, buildAllCrewPayroll(trackCState, new Date()))
+      : null),
+    [activeTurnClosed, data, moreDetailPage, trackCState],
+  );
+  const reopenSealedTurn = useCallback(() => {
+    let failure: string | null = null;
+    const saved = rawCommitDataNow((current) => {
+      const result = reopenActiveTurn(current, nowISO());
+      if (!result.ok) {
+        failure = result.reason;
+        return current;
+      }
+      return result.data;
+    });
+    if (failure) {
+      setPersistWarning(failure);
+      return;
+    }
+    if (saved) setFieldToast('Reopened — the turn is live again.');
+  }, [rawCommitDataNow]);
+  const sealActiveTurn = useCallback(() => {
+    let failure: string | null = null;
+    const saved = rawCommitDataNow((current) => {
+      const result = closeActiveTurn(current, nowISO());
+      if (!result.ok) {
+        failure = result.reason;
+        return current;
+      }
+      return result.data;
+    });
+    if (failure) {
+      setPersistWarning(failure);
+      return;
+    }
+    if (saved) {
+      setCloseTurnConfirm(false);
+      setFieldToast('Sealed — read only from here. Reopen anytime.');
+    }
+  }, [rawCommitDataNow]);
   const activeProjectContacts = useMemo(
     () => (data.propertyContacts ?? []).filter(
       (contact) => contact.projectId === data.activeProjectId,
@@ -2660,6 +2737,11 @@ function LaunchOperationalApp({
       setMoreDetailPage('my-notes');
       return;
     }
+    if (destination === 'close-turn') {
+      setCloseTurnConfirm(false);
+      setMoreDetailPage('close-turn');
+      return;
+    }
     if (destination === 'field-standard') {
       setMoreDetailPage('standard');
       return;
@@ -2772,7 +2854,9 @@ function LaunchOperationalApp({
       return;
     }
 
-    setData(result.data as AppData);
+    // Activation may run even while a finished turn is sealed: it moves the app
+    // onto a NEW project and never edits the sealed one, so it uses the raw path.
+    rawSetData(result.data as AppData);
     setupDraftStore?.clear(setupDraftOwnerKey);
     setSetupStatus('Personal project activated and saved on this device.');
     setupActivationCommittedRef.current = true;
@@ -3138,6 +3222,15 @@ function LaunchOperationalApp({
     );
   })() : null;
 
+  const sealedTurnAlert = activeTurnClosed ? (
+    <section className="lcc-host-alert" role="status">
+      <ShieldCheck size={22} aria-hidden="true" />
+      <div>
+        <strong>🔒 {sealedTurnName} is sealed — read only</strong>
+        <p>Browse everything; nothing can change. Reopen from Home or More → Close Turn.</p>
+      </div>
+    </section>
+  ) : null;
   const persistWarningAlert = persistWarning ? (
     <section className="persistence-alert lcc-host-alert lcc-host-alert--error" role="alert">
       <AlertTriangle size={22} aria-hidden="true" />
@@ -3222,6 +3315,7 @@ function LaunchOperationalApp({
     ) : null;
   const hostAlerts = (
     <>
+      {sealedTurnAlert}
       {persistWarningAlert}
       {recoveredAlert}
       {storageWatchAlert}
@@ -4255,6 +4349,13 @@ function LaunchOperationalApp({
               : 'Start the day before confirming released work.'
           }
         />
+      ) : activeTurnClosed && savedTurnSummary ? (
+        <ClosedTurnHome
+          onOpenBoard={() => handlePrimaryNavigation('turnboard')}
+          onOpenCrews={() => handlePrimaryNavigation('crews')}
+          onReopen={reopenSealedTurn}
+          summary={savedTurnSummary}
+        />
       ) : (
         <DayTaskWorkspace
           key={currentDate}
@@ -4466,6 +4567,82 @@ function LaunchOperationalApp({
             statusLabel={moreStatus}
           />
         </ProfilePrivacyScrollRegion>
+      ) : moreDetailPage === 'close-turn' ? (
+        <NativeDetailShell
+          description={activeTurnClosed
+            ? 'This turn is sealed. Browse everything; nothing can change until you reopen it.'
+            : 'Done with the turn? Sealing locks the record read-only — the board, units, crews, and pay weeks stay exactly as they ended. Nothing is deleted, and you can reopen anytime.'}
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel={activeTurnClosed ? '🔒 Sealed' : 'Nothing changes until you confirm'}
+          title="Close Turn"
+        >
+          {savedTurnSummary ? (
+            <GroupedInsetSection label={savedTurnSummary.name}>
+              <GroupedInsetRow
+                label="Dates"
+                value={savedTurnSummary.startDate && savedTurnSummary.endDate
+                  ? `${savedTurnSummary.startDate} → ${savedTurnSummary.endDate}`
+                  : 'Not recorded'}
+                detail={`${savedTurnSummary.dayCount} working day${savedTurnSummary.dayCount === 1 ? '' : 's'}`}
+              />
+              <GroupedInsetRow label="Units worked" value={String(savedTurnSummary.unitCount)} />
+              <GroupedInsetRow
+                label="Rooms released"
+                value={`Paint ${savedTurnSummary.paintRoomsReleased} · Clean ${savedTurnSummary.cleanRoomsReleased}`}
+              />
+              <GroupedInsetRow
+                label="Rooms reported done"
+                value={`Paint ${savedTurnSummary.paintRoomsDone} · Clean ${savedTurnSummary.cleanRoomsDone}`}
+              />
+              {savedTurnSummary.paintTypeLine ? (
+                <GroupedInsetRow label="Paint tasks" value={savedTurnSummary.paintTypeLine} />
+              ) : null}
+            </GroupedInsetSection>
+          ) : null}
+          {activeTurnClosed ? (
+            <GroupedInsetSection
+              label="Reopen"
+              footer="Reopening makes releases, crews, and payroll editable again. You can re-seal anytime."
+            >
+              <GroupedInsetRow
+                danger
+                detail="The record becomes editable again"
+                label="Reopen this turn"
+                onActivate={reopenSealedTurn}
+              />
+            </GroupedInsetSection>
+          ) : activeDaySession ? (
+            <GroupedInsetSection
+              label="Not yet"
+              footer="Today is still open on Home. End the day first, then seal the turn."
+            >
+              <GroupedInsetRow label="End the day first" tone="attention" value="Home → End day" />
+            </GroupedInsetSection>
+          ) : (
+            <GroupedInsetSection
+              label="Seal it"
+              footer="Two taps on purpose — sealing flips the whole app read-only for this turn."
+            >
+              {closeTurnConfirm ? (
+                <>
+                  <GroupedInsetRow
+                    danger
+                    detail="Read only until you reopen — nothing is deleted"
+                    label={`Yes — seal ${activeProject?.name ?? 'this turn'}`}
+                    onActivate={sealActiveTurn}
+                  />
+                  <GroupedInsetRow label="Never mind" onActivate={() => setCloseTurnConfirm(false)} />
+                </>
+              ) : (
+                <GroupedInsetRow
+                  detail="Locks the record exactly as it ended"
+                  label={`Seal ${activeProject?.name ?? 'this turn'}…`}
+                  onActivate={() => setCloseTurnConfirm(true)}
+                />
+              )}
+            </GroupedInsetSection>
+          )}
+        </NativeDetailShell>
       ) : moreDetailPage === 'privacy' ? (
         <ProfilePrivacyScrollRegion kind="privacy">
           <NativeDetailShell

@@ -4071,7 +4071,12 @@ function LaunchOperationalApp({
             </button>
             <button
               className="lcc-welcome__secondary"
-              onClick={() => setDemoExplored(true)}
+              onClick={() => {
+                // The Demo Turn (fake tower with live work) is the real tour —
+                // far better first contact than the bare sample project.
+                setDemoExplored(true);
+                enterDemoTurnNow();
+              }}
               type="button"
             >
               Explore the demo first

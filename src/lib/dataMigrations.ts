@@ -91,6 +91,14 @@ const pickActiveProjectId = (projects: Project[], currentActiveProjectId: string
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   if (!activeProject) {
+    // A SEALED (Close Turn) real project stays active across reloads — Los is
+    // browsing his saved record, and this must never bounce him to the sample
+    // project. Only a genuinely missing project gets redirected.
+    const sealedActive = projects.find((project) =>
+      project.id === currentActiveProjectId && project.archivedAt && project.mode === 'real');
+    if (sealedActive) {
+      return sealedActive.id;
+    }
     return realProjects[0]?.id ?? visibleProjects[0]?.id ?? projects[0].id;
   }
 

@@ -11,6 +11,7 @@ import {
   isTurnClosed,
   reopenActiveTurn,
 } from '../src/features/wave2a2-core/closedTurn.ts';
+import { normalizeAppData } from '../src/lib/dataMigrations.ts';
 import type { AppData } from '../src/types.ts';
 
 // Close Turn seals the ACTIVE project IN PLACE: activeProjectId must not move
@@ -86,6 +87,24 @@ test('reopen clears the seal and the turn is live again', () => {
   assert.equal(project?.archivedAt, undefined, 'archivedAt is fully removed, not blanked');
   assert.ok(!isTurnClosed(reopened.data));
   assert.equal(reopened.data.activityLogs[0]?.action, 'Turn reopened');
+});
+
+test('a sealed active turn survives app reload — normalize must not bounce to the sample project', () => {
+  const { data } = buildData();
+  const original = data.projects.find((item) => item.id === data.activeProjectId);
+  assert.ok(original);
+  // Los's phone: the first-boot sample project still sits next to the real one.
+  data.projects = [...data.projects, {
+    ...structuredClone(original), archivedAt: undefined, id: 'sample-demo', mode: 'demo' as const,
+  }];
+  const sealed = closeActiveTurn(data, NOW);
+  assert.ok(sealed.ok);
+  const normalized = normalizeAppData(structuredClone(sealed.data));
+  assert.equal(
+    normalized.activeProjectId,
+    data.activeProjectId,
+    'reload keeps the sealed turn on screen',
+  );
 });
 
 test('the saved-turn stat line counts released rooms from the ledger', () => {

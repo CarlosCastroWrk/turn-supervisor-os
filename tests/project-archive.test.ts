@@ -102,7 +102,12 @@ test('switchActiveProject ignores archived projects until they are restored', ()
   assert.equal(switched.activeProjectId, 'project_real_b');
 });
 
-test('normalizeAppData does not keep an archived project active after sync or reload', () => {
+test('normalizeAppData KEEPS a sealed real project active across reloads (Close Turn)', () => {
+  // Intent flipped Aug 17 2026 with Close Turn: a sealed (archived) REAL
+  // project that is active is Los deliberately browsing his saved record —
+  // reload must not bounce him to another project. Legacy archiveProject
+  // still moves activeProjectId away at archive time, so an archived-active
+  // state only ever means Close Turn.
   const data = withRealProjects();
   const normalized = normalizeAppData({
     ...data,
@@ -114,5 +119,5 @@ test('normalizeAppData does not keep an archived project active after sync or re
     ],
   });
 
-  assert.equal(normalized.activeProjectId, 'project_real_b');
+  assert.equal(normalized.activeProjectId, 'project_real_a');
 });

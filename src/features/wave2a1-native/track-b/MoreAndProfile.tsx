@@ -34,6 +34,7 @@ import {
 const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   'backup-restore': <Archive size={21} />,
   'close-turn': <LockKeyhole size={21} />,
+  'demo-turn': <Flag size={21} />,
   activity: <Activity aria-hidden="true" size={21} />,
   'day-history': <CalendarDays size={21} />,
   crews: <Users size={21} />,

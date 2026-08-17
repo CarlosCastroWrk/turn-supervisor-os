@@ -2,6 +2,7 @@ export type TrackBToolDestination =
   | 'backup-restore'
   | 'close-turn'
   | 'crews'
+  | 'demo-turn'
   | 'day-history'
   | 'my-notes'
   | 'official-pds-forms'
@@ -75,6 +76,11 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
         id: 'close-turn',
         label: 'Close Turn',
         detail: 'Turn finished? Seal it read-only — browse forever, reopen anytime',
+      },
+      {
+        id: 'demo-turn',
+        label: 'Demo Turn',
+        detail: 'A fake tower to practice and show — nothing real gets touched',
       },
     ],
   },

@@ -38,6 +38,7 @@ import {
   closedTurnSummary,
   reopenActiveTurn,
 } from '../wave2a2-core/closedTurn';
+import { enterDemoTurn, exitDemoTurn } from '../../data/demoTurn';
 import type {
   LaunchPrimaryDestination,
   LaunchQuickActionId,
@@ -249,7 +250,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'close-turn' | 'crews' | 'day-history' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
+type MoreDetailPage = 'close-turn' | 'crews' | 'day-history' | 'demo-turn' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -2107,6 +2108,49 @@ function LaunchOperationalApp({
     openDestination(item.destinationId);
   }, [openDestination]);
 
+  // Demo Turn controls. Enter/reset/exit run on the RAW commit path on purpose:
+  // entering the demo from a SEALED turn is the whole point (show the app with
+  // zero risk to the record), and exit lands back on the sealed saved-turn Home.
+  const enterDemoTurnNow = useCallback(() => {
+    let failure: string | null = null;
+    const saved = rawCommitDataNow((current) => {
+      const result = enterDemoTurn(current, nowISO());
+      if (!result.ok) {
+        failure = result.reason;
+        return current;
+      }
+      return result.data;
+    });
+    if (failure) {
+      setPersistWarning(failure);
+      return;
+    }
+    if (saved) {
+      setMoreDetailPage(null);
+      navigate('dashboard');
+      setFieldToast('Demo Tower is live — fake crews, fake units, play with anything.');
+    }
+  }, [navigate, rawCommitDataNow]);
+  const exitDemoTurnNow = useCallback(() => {
+    let failure: string | null = null;
+    const saved = rawCommitDataNow((current) => {
+      const result = exitDemoTurn(current);
+      if (!result.ok) {
+        failure = result.reason;
+        return current;
+      }
+      return result.data;
+    });
+    if (failure) {
+      setPersistWarning(failure);
+      return;
+    }
+    if (saved) {
+      setMoreDetailPage(null);
+      navigate('dashboard');
+      setFieldToast('Back to your real turn.');
+    }
+  }, [navigate, rawCommitDataNow]);
   const handlePrimaryNavigation = useCallback((destination: LaunchPrimaryDestination) => {
     // A tab tap is a fresh start — stale "return to where you came from"
     // memory must never redirect a later Back to the wrong surface.
@@ -2742,6 +2786,10 @@ function LaunchOperationalApp({
       setMoreDetailPage('close-turn');
       return;
     }
+    if (destination === 'demo-turn') {
+      setMoreDetailPage('demo-turn');
+      return;
+    }
     if (destination === 'field-standard') {
       setMoreDetailPage('standard');
       return;
@@ -3015,6 +3063,9 @@ function LaunchOperationalApp({
   // so a fresh device can't blank the portal.
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
+    // Only a LIVE REAL turn publishes. The Demo Turn must never reach Joseph
+    // and Paige's portal, and a sealed turn stops updating it.
+    if (launchProjection.project?.mode !== 'real') return undefined;
     const units = buildPortalUnits(trackCState);
     if (units.length === 0) return undefined;
     const timer = window.setTimeout(() => {
@@ -3043,7 +3094,12 @@ function LaunchOperationalApp({
       })();
     }, 8_000);
     return () => window.clearTimeout(timer);
-  }, [launchProjection.project?.supervisorName, launchProjection.propertyName, trackCState]);
+  }, [
+    launchProjection.project?.mode,
+    launchProjection.project?.supervisorName,
+    launchProjection.propertyName,
+    trackCState,
+  ]);
 
   // Walk requests from the portal (Joseph/Paige) surface on Home.
   useEffect(() => {
@@ -3222,6 +3278,18 @@ function LaunchOperationalApp({
     );
   })() : null;
 
+  const demoTurnAlert = activeProject?.mode === 'demo' ? (
+    <section className="lcc-host-alert" role="status">
+      <RefreshCw size={22} aria-hidden="true" />
+      <div>
+        <strong>🎬 Demo Turn — everything here is fake</strong>
+        <p>Fake tower, fake crews, sends go nowhere. Your real turn is untouched.</p>
+        <button className="lcc-host-alert__action" onClick={exitDemoTurnNow} type="button">
+          Exit demo
+        </button>
+      </div>
+    </section>
+  ) : null;
   const sealedTurnAlert = activeTurnClosed ? (
     <section className="lcc-host-alert" role="status">
       <ShieldCheck size={22} aria-hidden="true" />
@@ -3315,6 +3383,7 @@ function LaunchOperationalApp({
     ) : null;
   const hostAlerts = (
     <>
+      {demoTurnAlert}
       {sealedTurnAlert}
       {persistWarningAlert}
       {recoveredAlert}
@@ -4567,6 +4636,41 @@ function LaunchOperationalApp({
             statusLabel={moreStatus}
           />
         </ProfilePrivacyScrollRegion>
+      ) : moreDetailPage === 'demo-turn' ? (
+        <NativeDetailShell
+          description={activeProject?.mode === 'demo'
+            ? 'You are inside the Demo Turn. Everything on every screen is fake until you exit.'
+            : 'A fake tower for practicing and showing the app — releases, crews, callbacks, walks, payroll, chat. Your real turn stays exactly as it is.'}
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel={activeProject?.mode === 'demo' ? '🎬 Demo running' : 'Nothing real gets touched'}
+          title="Demo Turn"
+        >
+          <GroupedInsetSection
+            label={activeProject?.mode === 'demo' ? 'Demo controls' : 'Start'}
+            footer="Enter and Reset both rebuild the same fresh fake tower: 16 units, 4 crews with no phones, a day and a half of work already on the board."
+          >
+            {activeProject?.mode === 'demo' ? (
+              <>
+                <GroupedInsetRow
+                  detail="Wipe demo changes back to the fresh tower"
+                  label="Reset the demo"
+                  onActivate={enterDemoTurnNow}
+                />
+                <GroupedInsetRow
+                  detail="Your real record, exactly as you left it"
+                  label="Exit — back to my turn"
+                  onActivate={exitDemoTurnNow}
+                />
+              </>
+            ) : (
+              <GroupedInsetRow
+                detail="16 fake units, 4 fake crews, work mid-flight"
+                label="Enter the Demo Turn"
+                onActivate={enterDemoTurnNow}
+              />
+            )}
+          </GroupedInsetSection>
+        </NativeDetailShell>
       ) : moreDetailPage === 'close-turn' ? (
         <NativeDetailShell
           description={activeTurnClosed

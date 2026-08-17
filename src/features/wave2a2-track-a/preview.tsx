@@ -207,10 +207,8 @@ export function TrackAPreview() {
           : route.charAt(0).toUpperCase() + route.slice(1)}
         dateLabel={LAUNCH_SYNTHETIC_CONTEXT.dateLabel}
         detailMode={route === 'search' || route === 'notifications'}
-        notificationCount={2}
         onNavigate={navigate}
         onOpenIntelligence={() => undefined}
-        onOpenNotifications={() => openDetail('notifications')}
         onOpenPlus={() => setPlusOpen(true)}
         onOpenSearch={() => openDetail('search')}
         propertyName={LAUNCH_SYNTHETIC_CONTEXT.propertyName}

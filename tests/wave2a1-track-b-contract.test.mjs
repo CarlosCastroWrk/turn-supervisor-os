@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   TRACK_B_CREW_FIELDS,
   TRACK_B_MORE_GROUPS,
-  TRACK_B_REPORT_METRICS,
   TRACK_B_SETUP_QUESTIONS,
   validateTrackBCrewDraft,
 } from '../src/features/wave2a1-native/track-b/model.ts';
@@ -25,7 +24,7 @@ test('More preserves the approved grouped information architecture', () => {
     [
       {
         label: 'Work',
-        items: ['Crews', 'My Notes', 'Activity', 'Day History', 'The Standard', 'Reports and Proof', 'Official PDS Forms', 'Property Portal'],
+        items: ['Crews', 'My Notes', 'Activity', 'Day History', 'The Standard', 'Official PDS Forms', 'Property Portal'],
       },
       {
         label: 'Project',
@@ -87,20 +86,8 @@ test('Crew data stays limited to the approved four fields', () => {
   );
 });
 
-test('Reports include only the approved recorded-count metrics', () => {
-  assert.deepEqual(
-    TRACK_B_REPORT_METRICS.map((metric) => metric.label),
-    [
-      'Units touched',
-      'Rooms inspected',
-      'Working (rooms)',
-      'Waiting (rooms)',
-      'Callback rooms',
-      'Rooms ready to walk',
-      'Updates logged',
-    ],
-  );
-});
+// The Reports and Proof page (and its metric pins) was retired in the
+// Aug 2026 purge — Los never used it.
 
 test('native shell contracts prevent iPhone zoom and horizontal page movement', async () => {
   const css = await readFeature('trackB.css');
@@ -123,14 +110,14 @@ test('components keep persistence, auth, and proof boundaries explicit', async (
   const sources = await Promise.all([
     readFeature('CrewTools.tsx'),
     readFeature('MoreAndProfile.tsx'),
-    readFeature('ReportsAndProof.tsx'),
     readFeature('SetupQuestionnaire.tsx'),
   ]);
   const source = sources.join('\n');
 
   assert.match(source, /does not claim persistence on its own/i);
   assert.match(source, /Preview protection and Turn OS sign-in are separate boundaries/i);
-  assert.match(source, /does not create approval,[\s\S]*payroll,[\s\S]*official paper status/i);
+  // "does not create approval/payroll/official paper status" copy retired with
+  // the Reports and Proof page (Aug 2026 purge).
   assert.match(source, /Answers remain provisional/i);
   assert.equal(/time saved/i.test(source), false);
   assert.equal(/W-?9|pay rate|tenant|resident data/i.test(source), false);

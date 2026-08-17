@@ -22,9 +22,18 @@ export interface ClosedTurnHomeProps {
   onOpenBoard: () => void;
   onOpenCrews: () => void;
   onReopen: () => void;
+  onStartNewTurn: () => void;
+  onEnterDemo: () => void;
 }
 
-export function ClosedTurnHome({ onOpenBoard, onOpenCrews, onReopen, summary }: ClosedTurnHomeProps) {
+export function ClosedTurnHome({
+  onEnterDemo,
+  onOpenBoard,
+  onOpenCrews,
+  onReopen,
+  onStartNewTurn,
+  summary,
+}: ClosedTurnHomeProps) {
   const [confirmingReopen, setConfirmingReopen] = useState(false);
   const dates = summary.startDate && summary.endDate
     ? `${friendlyDay(summary.startDate)} – ${friendlyDay(summary.endDate)}`
@@ -71,6 +80,21 @@ export function ClosedTurnHome({ onOpenBoard, onOpenCrews, onReopen, summary }: 
           detail="Crew boards, pay weeks, and packets"
           label="Crews and pay"
           onActivate={onOpenCrews}
+        />
+      </GroupedInsetSection>
+      <GroupedInsetSection
+        label="What's next"
+        footer="This saved turn stays sealed either way."
+      >
+        <GroupedInsetRow
+          detail="Set up the next property from scratch"
+          label="Start a new turn"
+          onActivate={onStartNewTurn}
+        />
+        <GroupedInsetRow
+          detail="Practice or show the app on a fake tower"
+          label="Enter the Demo Turn"
+          onActivate={onEnterDemo}
         />
       </GroupedInsetSection>
       <GroupedInsetSection

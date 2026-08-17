@@ -1,5 +1,4 @@
 import {
-  Bell,
   Home,
   ListChecks,
   MoreHorizontal,
@@ -69,7 +68,7 @@ const findPrimaryScrollRegion = (main: HTMLElement) => {
 };
 
 export interface Wave2A2UnifiedShellProps
-  extends LaunchCommandCenterShellProps {
+  extends Omit<LaunchCommandCenterShellProps, 'notificationCount' | 'onOpenNotifications'> {
   contentOwnsMain?: boolean;
   contentScrollRestoration?: {
     key: string;
@@ -124,11 +123,9 @@ export function Wave2A2UnifiedShell({
   detailMode = false,
   onboarding = false,
   intelligenceAvailable = false,
-  notificationCount = 0,
   onNavigate,
   onOpenHome,
   onOpenIntelligence,
-  onOpenNotifications,
   onOpenPlus,
   onOpenSearch,
   propertyName,
@@ -246,10 +243,6 @@ export function Wave2A2UnifiedShell({
     return () => window.cancelAnimationFrame(frame);
   }, [backgroundInert, contentFocusKey]);
 
-  const notificationLabel = notificationCount === 1
-    ? 'Open notifications, 1 unread'
-    : `Open notifications, ${notificationCount} unread`;
-
   return (
     <div
       aria-hidden={backgroundInert || undefined}
@@ -288,20 +281,6 @@ export function Wave2A2UnifiedShell({
             type="button"
           >
             <Search aria-hidden="true" size={20} />
-          </button>
-          <button
-            aria-label={notificationLabel}
-            data-lcc-critical-target="true"
-            data-w2a2-critical-target="true"
-            onClick={onOpenNotifications}
-            type="button"
-          >
-            <Bell aria-hidden="true" size={20} />
-            {notificationCount > 0 ? (
-              <span className="w2a2-header__badge" aria-hidden="true">
-                {notificationCount > 99 ? '99+' : notificationCount}
-              </span>
-            ) : null}
           </button>
           <button
             aria-haspopup={intelligenceAvailable ? 'dialog' : undefined}

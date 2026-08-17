@@ -45,12 +45,9 @@ import type {
 } from './types';
 import {
   NativeHomeSummaryPage,
-  NativeNotificationsPage,
   NativeSearchPage,
   selectNativeHomeSummary,
   type NativeHomeRecord,
-  type NativeNotificationItem,
-  type NativeNotificationTab,
   type NativeSearchGroup,
   type NativeSearchResult,
 } from '../wave2a1-native/track-a';
@@ -61,11 +58,9 @@ import {
   TrackBCrewFormPage,
   TrackBCrewListPage,
   TrackBProfilePage,
-  TrackBReportsAndProofPage,
   type TrackBCrewDraft,
   type TrackBCrewRecord,
   type TrackBDataStatus,
-  type TrackBReportCounts,
   type TrackBToolDestination,
 } from '../wave2a1-native/track-b';
 import {
@@ -227,8 +222,6 @@ import { AssignmentsView } from '../../views/AssignmentsView';
 import { CopilotView, type CopilotViewHandle } from '../../views/CopilotView';
 import { DailyLogView } from '../../views/DailyLogView';
 import { ExportView } from '../../views/ExportView';
-import { IssuesView } from '../../views/IssuesView';
-import { ReviewView } from '../../views/ReviewView';
 import { buildJsonBackupWithLocalPhotos } from '../../lib/photoBackup';
 import { downloadTextFile } from '../../lib/exporters';
 import { parseJsonBackup } from '../../lib/backups';
@@ -289,7 +282,6 @@ const trackCTabForRoute = (view: AppView): TrackCPrimaryTab => {
   if (
     view === 'more'
     || view === 'setup'
-    || view === 'reports'
     || view === 'sync'
     || view === 'export'
   ) return 'more';
@@ -345,15 +337,11 @@ const contentTitleForRoute = (view: AppView, unitNumber?: string) => {
   if (view === 'activity') return 'Activity';
   if (view === 'more') return 'More';
   if (view === 'search') return 'Search';
-  if (view === 'notifications') return 'Notifications';
   if (view === 'unitDetail') return unitNumber ? `Unit ${unitNumber}` : 'Unit';
   if (view === 'units') return 'TurnBoard';
-  if (view === 'issues') return 'Issues';
   if (view === 'crews') return 'Crews';
   if (view === 'assignments') return 'Assign Crews';
   if (view === 'daily') return 'Daily log';
-  if (view === 'reports') return 'Reports';
-  if (view === 'review') return 'Review';
   if (view === 'setup') return 'Setup';
   if (view === 'sync') return 'Sync';
   if (view === 'export') return 'Data and backup';
@@ -392,6 +380,8 @@ const localEventDate = (iso: string) => {
   const date = new Date(iso);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
+
+const EMPTY_READ_IDS: ReadonlySet<string> = new Set();
 
 function LaunchOperationalApp({
   persistence,
@@ -523,26 +513,6 @@ function LaunchOperationalApp({
   const [selectedActivity, setSelectedActivity] = useState<BoardFirstActivityItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [notificationTab, setNotificationTab] = useState<NativeNotificationTab>('all');
-  const [readNotificationIds, setReadNotificationIds] = useState<Set<string>>(() => {
-    try {
-      const raw = window.localStorage.getItem('turn-os:read-notifications');
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
-      return new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : []);
-    } catch {
-      return new Set<string>();
-    }
-  });
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        'turn-os:read-notifications',
-        JSON.stringify([...readNotificationIds].slice(-500)),
-      );
-    } catch {
-      // Storage full — read state survives the session only.
-    }
-  }, [readNotificationIds]);
   const [crewEditor, setCrewEditor] = useState<CrewEditorState>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
@@ -697,8 +667,8 @@ function LaunchOperationalApp({
   }, []);
 
   const launchProjection = useMemo(
-    () => projectLaunchAppData(data, now, readNotificationIds),
-    [data, now, readNotificationIds],
+    () => projectLaunchAppData(data, now),
+    [data, now],
   );
   const boardRepositoryState = useMemo(() => createLaunchBoardRepository(data), [data]);
   const boardRepository = boardRepositoryState.repository;
@@ -1355,11 +1325,11 @@ function LaunchOperationalApp({
     () => canonicalProjectionResult.projection
       ? projectCanonicalFieldConsumers(
         canonicalProjectionResult.projection,
-        readNotificationIds,
+        EMPTY_READ_IDS,
         unitNotes,
       )
       : undefined,
-    [canonicalProjectionResult.projection, readNotificationIds, unitNotes],
+    [canonicalProjectionResult.projection, unitNotes],
   );
   // Current Work must show what is STILL OWED across the whole Turn — released
   // but unfinished work carries over from previous days (a unit whose paint was
@@ -1610,28 +1580,6 @@ function LaunchOperationalApp({
     noteSearchResults,
     requiresCanonicalPersonalProjection,
   ]);
-  const nativeNotifications = useMemo<NativeNotificationItem[]>(
-    () => canonicalConsumers
-      ? canonicalConsumers.notifications.map((item) => ({ ...item }))
-      : requiresCanonicalPersonalProjection
-        ? []
-        : launchProjection.notifications.map((item) => ({
-          category: item.category,
-          destinationId: item.destinationId,
-          destinationLabel: item.destinationLabel,
-          group: item.group,
-          id: item.id,
-          read: item.read,
-          reason: item.reason,
-          timeLabel: item.timeLabel,
-          title: item.unitLabel,
-        })),
-    [
-      canonicalConsumers,
-      launchProjection.notifications,
-      requiresCanonicalPersonalProjection,
-    ],
-  );
   const crewRecords = useMemo<TrackBCrewRecord[]>(
     () => data.crewMembers
       .filter((crew) =>
@@ -1740,35 +1688,6 @@ function LaunchOperationalApp({
     launchProjection.propertyName,
     selectedActivity,
   ]);
-  const reportCounts = useMemo<TrackBReportCounts>(() => {
-    const canonical = canonicalProjectionResult.projection;
-    if (canonical) {
-      return {
-        activityCount: canonical.counts.activity,
-        callbacksFound: canonical.counts.callbacks,
-        callbacksResolved: 0,
-        readyToWalk: canonical.counts.ready,
-        sectionsInspected: canonical.todayTask.progress.actual,
-        unitsTouched: canonical.counts.unitsTouched,
-        waiting: canonical.counts.waiting,
-        working: canonical.counts.working,
-      };
-    }
-    return {
-      activityCount: boardActivity.length,
-      callbacksFound: launchProjection.counts.callbacks,
-      callbacksResolved: 0,
-      readyToWalk: launchProjection.counts.readyToWalk,
-      sectionsInspected: boardActivity.filter(
-        (item) => item.kind === 'los-inspection' && Boolean(item.section),
-      ).length,
-      unitsTouched: new Set(
-        boardActivity.flatMap((item) => item.unitId ? [item.unitId] : []),
-      ).size,
-      waiting: launchProjection.counts.blocked,
-      working: launchProjection.counts.working,
-    };
-  }, [boardActivity, canonicalProjectionResult.projection, launchProjection.counts]);
   const backupStatus = useMemo<TrackBDataStatus>(() => {
     if (saveStatus.state === 'failed') {
       return {
@@ -1856,10 +1775,7 @@ function LaunchOperationalApp({
       if (nextLocation.route.view !== 'crews') setCrewEditor(null);
       if (nextLocation.route.view !== 'more') setMoreDetailPage(null);
       if (nextLocation.route.view !== 'dashboard') setHomeMode('day');
-      if (
-        nextLocation.route.view !== 'search'
-        && nextLocation.route.view !== 'notifications'
-      ) {
+      if (nextLocation.route.view !== 'search') {
         rememberRouteInTab(nextLocation.route, 'replace');
       }
       window.scrollTo({ top: 0, behavior: 'auto' });
@@ -1911,7 +1827,7 @@ function LaunchOperationalApp({
     }
   }, [rememberRouteInTab]);
 
-  const openFullPage = useCallback((view: 'search' | 'notifications') => {
+  const openFullPage = useCallback((view: 'search') => {
     transientOriginRef.current = captureTrackCTransientOrigin(
       tabRouteMemoryRef.current,
       view,
@@ -2058,7 +1974,8 @@ function LaunchOperationalApp({
       return;
     }
     if (destinationId.startsWith('issue:')) {
-      navigate('issues', undefined, { issueId: destinationId.slice('issue:'.length) });
+      // Legacy Issue records retired Aug 2026 — the board is where problems live.
+      navigate('units');
       return;
     }
     if (destinationId === 'crews') {
@@ -2092,21 +2009,6 @@ function LaunchOperationalApp({
     }
     openDestination(result.destinationId);
   }, [openDestination, searchQuery]);
-
-  // Checking notifications clears them — everything on screen counts as seen.
-  useEffect(() => {
-    if (route.view !== 'notifications') return;
-    setReadNotificationIds((current) => {
-      const next = new Set(current);
-      for (const item of nativeNotifications) next.add(item.id);
-      return next.size === current.size ? current : next;
-    });
-  }, [nativeNotifications, route.view]);
-
-  const handleNotification = useCallback((item: NativeNotificationItem) => {
-    setReadNotificationIds((current) => new Set([...current, item.id]));
-    openDestination(item.destinationId);
-  }, [openDestination]);
 
   // Demo Turn controls. Enter/reset/exit run on the RAW commit path on purpose:
   // entering the demo from a SEALED turn is the whole point (show the app with
@@ -2229,7 +2131,7 @@ function LaunchOperationalApp({
       navigate('units', undefined, { fieldWorkflow: 'walk' });
       return;
     }
-    navigate('reports');
+    navigate('more');
   }, [activeDaySession, navigate]);
 
   const startFastDay = useCallback((
@@ -2808,10 +2710,6 @@ function LaunchOperationalApp({
       setMoreDetailPage('crews');
       return;
     }
-    if (destination === 'reports-and-proof') {
-      navigate('reports');
-      return;
-    }
     if (destination === 'activity') {
       navigate('activity');
       return;
@@ -2935,7 +2833,7 @@ function LaunchOperationalApp({
     const destinationView = {
       backup: 'export',
       crews: 'crews',
-      reports: 'reports',
+      reports: 'more',
       setup: 'setup',
       sync: 'sync',
     }[request.destination] as AppView;
@@ -3415,19 +3313,6 @@ function LaunchOperationalApp({
           onNavigate={navigate}
         />
       ) : null}
-      {route.view === 'issues' ? (
-        <IssuesView data={data} setData={setData} focusedIssueId={route.issueId} />
-      ) : null}
-      {route.view === 'review' ? (
-        <ReviewView
-          data={data}
-          onNavigate={navigate}
-          onRetrySave={retrySave}
-          saveStatus={saveStatus}
-          setData={setData}
-          sync={sync}
-        />
-      ) : null}
       {route.view === 'assignments' ? <AssignmentsView data={data} setData={setData} /> : null}
       {route.view === 'daily' ? <DailyLogView data={data} setData={setData} /> : null}
       {route.view === 'training' ? <TrainingQuestionsView data={data} setData={setData} /> : null}
@@ -3456,10 +3341,6 @@ function LaunchOperationalApp({
   const legacyToolBack = () => {
     if (route.view === 'unitDetail' || route.view === 'units') {
       navigate('units');
-      return;
-    }
-    if (route.view === 'issues') {
-      navigate('dashboard');
       return;
     }
     navigate('more');
@@ -3605,7 +3486,6 @@ function LaunchOperationalApp({
   );
   const routeSupportsScrollRestoration = (
     route.view !== 'search'
-    && route.view !== 'notifications'
     && rememberedRoute.routeKey === currentRouteKey
   );
 
@@ -4104,14 +3984,6 @@ function LaunchOperationalApp({
       query={searchQuery}
       recentSearches={recentSearches}
     />
-  ) : route.view === 'notifications' ? (
-    <NativeNotificationsPage
-      activeTab={notificationTab}
-      items={nativeNotifications}
-      onBack={closeFullPage}
-      onOpenNotification={handleNotification}
-      onTabChange={setNotificationTab}
-    />
   ) : route.view === 'dashboard' ? (
     <div className="lcc-host-stack">
       {hostAlerts}
@@ -4420,9 +4292,11 @@ function LaunchOperationalApp({
         />
       ) : activeTurnClosed && savedTurnSummary ? (
         <ClosedTurnHome
+          onEnterDemo={enterDemoTurnNow}
           onOpenBoard={() => handlePrimaryNavigation('turnboard')}
           onOpenCrews={() => handlePrimaryNavigation('crews')}
           onReopen={reopenSealedTurn}
+          onStartNewTurn={() => handleMoreNavigation('setup')}
           summary={savedTurnSummary}
         />
       ) : (
@@ -5393,17 +5267,6 @@ function LaunchOperationalApp({
         </NativeDetailShell>
       )}
     </div>
-  ) : route.view === 'reports' ? (
-    <div className="lcc-host-stack">
-      {hostAlerts}
-      <TrackBReportsAndProofPage
-        backupStatus={backupStatus}
-        counts={reportCounts}
-        dataScopeLabel="Personal app records only"
-        onBack={() => navigate('more')}
-        syncStatus={syncStatus}
-      />
-    </div>
   ) : (
     <div className="lcc-host-stack">
       {hostAlerts}
@@ -5419,7 +5282,6 @@ function LaunchOperationalApp({
   );
 
   const shellDetailMode = route.view === 'search'
-    || route.view === 'notifications'
     || route.view === 'setup'
     || route.view === 'unitDetail'
     || route.view === 'assignments'
@@ -5449,7 +5311,7 @@ function LaunchOperationalApp({
           || moreDetailPage === 'privacy'
         }
         contentDialogOpen={boardDialogOpen || trackCDialogOpen}
-        contentOwnsMain={route.view === 'search' || route.view === 'notifications'}
+        contentOwnsMain={route.view === 'search'}
         contentTitle={contentTitle}
         contentScrollRestoration={{
           key: currentRouteKey,
@@ -5470,11 +5332,9 @@ function LaunchOperationalApp({
         dateLabel={launchProjection.dateLabel}
         detailMode={shellDetailMode}
         onboarding={launchProjection.project?.mode !== 'real' && !demoExplored}
-        notificationCount={nativeNotifications.filter((item) => !item.read).length}
         onNavigate={handlePrimaryNavigation}
         onOpenHome={() => handlePrimaryNavigation('home')}
         onOpenIntelligence={() => undefined}
-        onOpenNotifications={() => openFullPage('notifications')}
         onOpenPlus={openNativePlus}
         onOpenSearch={() => openFullPage('search')}
         propertyName={launchProjection.propertyName}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DictationRosterUnit } from '../src/features/wave2a2-core/dictationParse.ts';
+import type { DictationRosterUnit } from '../src/features/wave2a2-core/startDayParse.ts';
 import {
   detectStartDayWorkType,
   parseStartDayMemo,

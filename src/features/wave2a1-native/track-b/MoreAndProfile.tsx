@@ -44,7 +44,6 @@ const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   portal: <Globe size={21} />,
   privacy: <ShieldCheck size={21} />,
   profile: <UserRound size={21} />,
-  'reports-and-proof': <BarChart3 size={21} />,
   setup: <Settings size={21} />,
   'sign-out': <LogOut size={21} />,
   storage: <HardDrive size={21} />,

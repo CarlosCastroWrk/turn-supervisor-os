@@ -145,9 +145,11 @@ test('focused routes keep one main while pages that own main remain singular', (
   assert.match(shellSource, /hidden=\{detailMode \|\| onboarding\}/u);
   assert.match(shellSource, /contentOwnsMain \? \(\s*<div/u);
   assert.match(shellSource, /:\s*\(\s*<main/u);
+  // Notifications page retired in the Aug 2026 purge — search is the one
+  // remaining full page that owns main.
   assert.match(
     hostSource,
-    /contentOwnsMain=\{route\.view === 'search' \|\| route\.view === 'notifications'\}/u,
+    /contentOwnsMain=\{route\.view === 'search'\}/u,
   );
 });
 

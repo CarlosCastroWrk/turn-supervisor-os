@@ -1,6 +1,14 @@
 import type { FieldSection, FieldTrade, ReleaseWorkType } from '../../types';
 import { crewFirstNameMatches } from '../../lib/constants';
-import type { DictationRosterUnit } from './dictationParse';
+
+// The roster grain the parser matches against (moved here from the retired
+// dictationParse when the old Start Day wizard was deleted).
+export interface DictationRosterUnit {
+  readonly id: string;
+  readonly unitNumber: string;
+  readonly beds: readonly FieldSection[]; // bedroom sections this unit has, e.g. ['A','B','C']
+  readonly hasCommon: boolean;
+}
 
 // Start Day memo parser — deterministic, offline, no AI, no sign-in.
 //

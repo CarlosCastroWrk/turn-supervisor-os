@@ -25,14 +25,8 @@ export {
   type TrackBSetupQuestionnaireProps,
 } from './SetupQuestionnaire';
 export {
-  TrackBReportsAndProofPage,
-  type TrackBDataStatus,
-  type TrackBReportsAndProofPageProps,
-} from './ReportsAndProof';
-export {
   TRACK_B_CREW_FIELDS,
   TRACK_B_MORE_GROUPS,
-  TRACK_B_REPORT_METRICS,
   TRACK_B_SETUP_QUESTIONS,
   getTrackBCrewInitials,
   validateTrackBCrewDraft,
@@ -42,7 +36,7 @@ export {
   type TrackBMoreAction,
   type TrackBMoreGroup,
   type TrackBMoreItem,
-  type TrackBReportCounts,
+  type TrackBDataStatus,
   type TrackBSetupQuestion,
   type TrackBSetupQuestionId,
   type TrackBToolDestination,

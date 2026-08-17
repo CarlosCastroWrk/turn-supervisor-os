@@ -10,7 +10,6 @@ export type TrackBToolDestination =
   | 'portal'
   | 'privacy'
   | 'profile'
-  | 'reports-and-proof'
   | 'setup'
   | 'storage'
   | 'sync'
@@ -48,11 +47,6 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
         id: 'field-standard',
         label: 'The Standard',
         detail: 'Clean + paint pass bar, change-order + pay rules — one tap on a walk',
-      },
-      {
-        id: 'reports-and-proof',
-        label: 'Reports and Proof',
-        detail: 'Review recorded field counts and device status',
       },
       {
         id: 'official-pds-forms',
@@ -228,29 +222,11 @@ export const getTrackBCrewInitials = (name: string) => {
   return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
 };
 
-export interface TrackBReportCounts {
-  unitsTouched: number;
-  sectionsInspected: number;
-  working: number;
-  waiting: number;
-  callbacksFound: number;
-  callbacksResolved: number;
-  readyToWalk: number;
-  activityCount: number;
+// Device data status chips (Backups / Sync on the Storage page). Lived in
+// ReportsAndProof.tsx until that page was retired in the Aug 2026 purge.
+export interface TrackBDataStatus {
+  label: string;
+  detail: string;
+  tone: 'ready' | 'attention' | 'unknown';
 }
 
-// Labels name the GRAIN so a supervisor never reads two correct-but-different
-// numbers as broken math. Units = whole units; the rest are rooms (section-
-// trades). "Callbacks resolved" was removed — it was always a hardcoded 0.
-export const TRACK_B_REPORT_METRICS = [
-  { id: 'unitsTouched', label: 'Units touched' },
-  { id: 'sectionsInspected', label: 'Rooms inspected' },
-  { id: 'working', label: 'Working (rooms)' },
-  { id: 'waiting', label: 'Waiting (rooms)' },
-  { id: 'callbacksFound', label: 'Callback rooms' },
-  { id: 'readyToWalk', label: 'Rooms ready to walk' },
-  { id: 'activityCount', label: 'Updates logged' },
-] as const satisfies readonly {
-  id: keyof TrackBReportCounts;
-  label: string;
-}[];

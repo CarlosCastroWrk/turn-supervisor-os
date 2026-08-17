@@ -51,7 +51,6 @@ const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   portal: <Globe aria-hidden="true" size={21} />,
   privacy: <ShieldCheck aria-hidden="true" size={21} />,
   profile: <UserRound aria-hidden="true" size={21} />,
-  'reports-and-proof': <BarChart3 aria-hidden="true" size={21} />,
   setup: <Settings aria-hidden="true" size={21} />,
   'sign-out': <LogOut aria-hidden="true" size={21} />,
   storage: <HardDrive aria-hidden="true" size={21} />,

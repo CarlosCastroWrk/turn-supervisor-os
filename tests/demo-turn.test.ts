@@ -69,16 +69,27 @@ test('the demo board is alive: 16 units, work in several states, payable rooms',
   assert.ok(blue && blue.rooms.length > 0, 'Blue Crew has payable rooms');
 });
 
-test('every demo crew and contact has an empty phone — sends go nowhere', () => {
+test('demo phones: empty by default (sends nowhere), Los\'s number when given', () => {
   const entered = enterDemoTurn(realBase(), NOW);
   assert.ok(entered.ok);
   const demoCrews = entered.data.crewMembers.filter(
     (crew) => crew.projectId === DEMO_TOWER_PROJECT_ID);
   assert.ok(demoCrews.length >= 4);
-  assert.ok(demoCrews.every((crew) => (crew.phone ?? '') === ''));
+  assert.ok(demoCrews.every((crew) => (crew.phone ?? '') === ''), 'no number = no links');
   const contacts = entered.data.propertyContacts.filter(
     (contact) => contact.projectId === DEMO_TOWER_PROJECT_ID);
   assert.ok(contacts.length > 0 && contacts.every((contact) => (contact.phone ?? '') === ''));
+
+  // With Los's own number, every demo crew and the contact carry it — the
+  // real text flows fire at HIS phone during a show, never at a crew.
+  const withPhone = enterDemoTurn(realBase(), NOW, '+15125550100');
+  assert.ok(withPhone.ok);
+  const phonedCrews = withPhone.data.crewMembers.filter(
+    (crew) => crew.projectId === DEMO_TOWER_PROJECT_ID);
+  assert.ok(phonedCrews.every((crew) => crew.phone === '+15125550100'));
+  const phonedContacts = withPhone.data.propertyContacts.filter(
+    (contact) => contact.projectId === DEMO_TOWER_PROJECT_ID);
+  assert.ok(phonedContacts.every((contact) => contact.phone === '+15125550100'));
 });
 
 test('demo data passes the SAME loader validator as real data', () => {

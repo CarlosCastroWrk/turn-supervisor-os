@@ -518,6 +518,15 @@ function LaunchOperationalApp({
   const [moreDetailPage, setMoreDetailPage] = useState<MoreDetailPage>(null);
   // Two-tap confirm for sealing a turn — reset every time the page is entered.
   const [closeTurnConfirm, setCloseTurnConfirm] = useState(false);
+  // Los's own number for Demo Turn texts — demo crews carry it so the real
+  // send flows fire at HIS phone during a show. Device-local, never synced.
+  const [demoPhone, setDemoPhone] = useState<string>(() => {
+    try { return window.localStorage.getItem('turn-os:demo-phone') ?? ''; } catch { return ''; }
+  });
+  const saveDemoPhone = useCallback((value: string) => {
+    setDemoPhone(value);
+    try { window.localStorage.setItem('turn-os:demo-phone', value); } catch { /* session-only */ }
+  }, []);
   const [moreStatus, setMoreStatus] = useState(
     'Personal workspace · paper remains authoritative',
   );
@@ -2016,7 +2025,7 @@ function LaunchOperationalApp({
   const enterDemoTurnNow = useCallback(() => {
     let failure: string | null = null;
     const saved = rawCommitDataNow((current) => {
-      const result = enterDemoTurn(current, nowISO());
+      const result = enterDemoTurn(current, nowISO(), demoPhone.trim());
       if (!result.ok) {
         failure = result.reason;
         return current;
@@ -2030,9 +2039,11 @@ function LaunchOperationalApp({
     if (saved) {
       setMoreDetailPage(null);
       navigate('dashboard');
-      setFieldToast('Demo Tower is live — fake crews, fake units, play with anything.');
+      setFieldToast(demoPhone.trim()
+        ? 'Demo Tower is live — crew texts will come to YOUR phone.'
+        : 'Demo Tower is live — fake crews, fake units, play with anything.');
     }
-  }, [navigate, rawCommitDataNow]);
+  }, [demoPhone, navigate, rawCommitDataNow]);
   const exitDemoTurnNow = useCallback(() => {
     let failure: string | null = null;
     const saved = rawCommitDataNow((current) => {
@@ -3181,7 +3192,11 @@ function LaunchOperationalApp({
       <RefreshCw size={22} aria-hidden="true" />
       <div>
         <strong>🎬 Demo Turn — everything here is fake</strong>
-        <p>Fake tower, fake crews, sends go nowhere. Your real turn is untouched.</p>
+        <p>
+          {demoPhone.trim()
+            ? 'Fake tower, fake crews — crew texts come to YOUR phone. Your real turn is untouched.'
+            : 'Fake tower, fake crews, sends go nowhere. Your real turn is untouched.'}
+        </p>
         <button className="lcc-host-alert__action" onClick={exitDemoTurnNow} type="button">
           Exit demo
         </button>
@@ -4525,8 +4540,25 @@ function LaunchOperationalApp({
           title="Demo Turn"
         >
           <GroupedInsetSection
+            label="Where do demo texts go?"
+            footer="Put YOUR number here and every demo crew carries it — assign lists, callback texts, the send queue all fire for real, at your phone, never at a crew. Leave it empty and the text buttons stay hidden. Takes effect on the next Enter or Reset."
+          >
+            <div className="track-c-demo-phone">
+              <input
+                aria-label="Your phone number for demo texts"
+                autoComplete="tel"
+                className="track-c-demo-phone__input"
+                inputMode="tel"
+                onChange={(event) => saveDemoPhone(event.target.value)}
+                placeholder="+1 512 555 0100 — your number"
+                type="tel"
+                value={demoPhone}
+              />
+            </div>
+          </GroupedInsetSection>
+          <GroupedInsetSection
             label={activeProject?.mode === 'demo' ? 'Demo controls' : 'Start'}
-            footer="Enter and Reset both rebuild the same fresh fake tower: 16 units, 4 crews with no phones, a day and a half of work already on the board."
+            footer="Enter and Reset both rebuild the same fresh fake tower: 16 units, 4 crews, a day and a half of work already on the board — Start Day, assign + text, callbacks, walks, End Day, and the pay packet all work exactly like your real turn."
           >
             {activeProject?.mode === 'demo' ? (
               <>

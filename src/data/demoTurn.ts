@@ -1,4 +1,5 @@
 import { seedData } from './seed';
+import { appendPersonalNoteActivity } from '../features/wave2a1-native/track-c/personalActivity';
 import {
   appendManualReleaseBatchOnce,
   applyTrackCStateChange,
@@ -79,7 +80,7 @@ const demoUnits = (createdAt: string): Unit[] => {
   return units;
 };
 
-const demoCrews = (createdAt: string): CrewMember[] => ([
+const demoCrews = (createdAt: string, demoPhone: string): CrewMember[] => ([
   { name: 'Blue Crew (demo)', trade: 'Painter' },
   { name: 'Red Crew (demo)', trade: 'Painter' },
   { name: 'Green Crew (demo)', trade: 'Cleaner' },
@@ -92,8 +93,10 @@ const demoCrews = (createdAt: string): CrewMember[] => ([
   id: `${DEMO_PREFIX}crew-${index + 1}`,
   language: 'Español',
   name: crew.name,
-  notes: 'Demo crew — no phone on purpose, sends go nowhere.',
-  phone: '',
+  notes: demoPhone
+    ? 'Demo crew — texts go to YOUR number so you can show the real flow.'
+    : 'Demo crew — no phone on purpose, sends go nowhere.',
+  phone: demoPhone,
   projectId: DEMO_TOWER_PROJECT_ID,
   trade: crew.trade,
   updatedAt: createdAt,
@@ -263,19 +266,19 @@ const demoSession = (id: string, dayIso: string, contact: string): DaySession =>
 
 // Build the whole demo world on a scratch AppData whose ONLY project is the
 // demo tower, by replaying a believable day-and-a-half of turn work.
-export const buildDemoTurnScratch = (nowIso: string): AppData => {
+export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData => {
   const created = shiftIso(nowIso, -30);
   const contact: PropertyContact = {
     createdAt: created,
     id: `${DEMO_PREFIX}contact`,
     isPrimary: true,
     name: 'Jordan (demo property)',
-    phone: '',
+    phone: demoPhone,
     projectId: DEMO_TOWER_PROJECT_ID,
     title: 'Property Manager',
     updatedAt: created,
   };
-  const crews = demoCrews(created);
+  const crews = demoCrews(created, demoPhone);
   const project = demoProjectEntity(nowIso, contact.id, {
     clean: crews.filter((crew) => crew.trade === 'Cleaner').map((crew) => crew.id),
     paint: crews.filter((crew) => crew.trade === 'Painter').map((crew) => crew.id),
@@ -375,6 +378,22 @@ export const buildDemoTurnScratch = (nowIso: string): AppData => {
       action: 'record-los-pass' as const, at: shiftIso(yesterday, 6), section, trade: 'paint' as const, unitNumber,
     }))));
   sectionAction(handles, [{ action: 'open-callback', at: shiftIso(yesterday, 6.5), section: 'B', trade: 'paint', unitNumber: '104' }]);
+  // Extras exactly like the real turn: a texture repair and a change order,
+  // written through the real note writer so the extras sheet and pay packet
+  // pick them up the same way they did at Moon Tower.
+  const noteOn = (unitNumber: string, kind: 'change-order' | 'texture', wording: string, at: string) => {
+    const unit = handles.data.units.find((candidate) =>
+      candidate.projectId === DEMO_TOWER_PROJECT_ID && candidate.unitNumber === unitNumber);
+    if (!unit) throw new Error(`demo build: note unit ${unitNumber} missing`);
+    const result = appendPersonalNoteActivity(handles.data, { kind, unitId: unit.id, wording }, {
+      createActivityId: () => `${DEMO_PREFIX}note-${(handles.seq += 1)}`,
+      now: () => at,
+    });
+    if (!result.ok) throw new Error(`demo build: note on ${unitNumber} failed (${result.error})`);
+    handles.data = result.data;
+  };
+  noteOn('104', 'texture', 'Texture repair — room B ×2 (wall patch behind the door)', shiftIso(yesterday, 6.6));
+  noteOn('202', 'change-order', '2×2 ceiling drywall — approved by Jordan on the walk', shiftIso(yesterday, 6.7));
   // Jordan accepts 101 and 102 paint on the afternoon walk.
   acceptUnits(handles, { at: shiftIso(yesterday, 7), trade: 'paint', unitNumbers: ['101', '102'] });
 
@@ -449,10 +468,13 @@ export type DemoTurnResult =
 // Enter (or reset) the Demo Turn: strip any previous demo slice, generate a
 // fresh one, and switch onto it. The real turn — sealed or live — is carried
 // through untouched.
-export const enterDemoTurn = (data: AppData, nowIso: string): DemoTurnResult => {
+// demoPhone: Los's OWN number. When set, every demo crew and the demo property
+// contact carry it, so "text the crew" flows fire for real — at Los's phone,
+// never at a crew. Empty = links hidden (the phone-gated buttons stay off).
+export const enterDemoTurn = (data: AppData, nowIso: string, demoPhone = ''): DemoTurnResult => {
   let scratch: AppData;
   try {
-    scratch = buildDemoTurnScratch(nowIso);
+    scratch = buildDemoTurnScratch(nowIso, demoPhone);
   } catch (cause) {
     return { ok: false, reason: cause instanceof Error ? cause.message : 'Demo build failed.' };
   }

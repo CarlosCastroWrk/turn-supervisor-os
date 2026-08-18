@@ -1634,3 +1634,11 @@ button.w2a2b-done-toggle {
   white-space: nowrap;
   margin-right: 6px;
 }
+
+/* Mac tier (roadmap Step 4): Home breathes a little wider on a real screen.
+   Additive — phone and iPad keep the 800px column. */
+@media (min-width: 1200px) {
+  .w2a2b-home {
+    max-width: 960px;
+  }
+}

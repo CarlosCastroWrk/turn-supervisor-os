@@ -1031,7 +1031,11 @@ test('initial remote replacement preserves a real-project crew referenced only b
   assert.equal(replaced.fieldEvents[0]?.actorId, eventActorCrew.id);
 });
 
-test('Wave 2A.2 local collections are absent from the unchanged remote table configuration', () => {
+test('the Turn ledger is IN the sync scope — field world tables sync (Aug 2026)', () => {
+  // Intent flipped with roadmap Step 4: the field world (day sessions,
+  // release batches, today tasks, FIELD EVENTS, walk sessions, property
+  // contacts) now syncs as jsonb rows. A turn is not backed up unless its
+  // ledger is.
   assert.deepEqual(syncedTables, [
     'projects',
     'buildings',
@@ -1050,8 +1054,13 @@ test('Wave 2A.2 local collections are absent from the unchanged remote table con
     'memory_candidates',
     'follow_up_tasks',
     'ai_usage_events',
+    'day_sessions',
+    'daily_release_batches',
+    'today_tasks',
+    'field_events',
+    'walk_sessions',
+    'property_contacts',
   ]);
-  assert.equal(syncedTables.some((table) => ['day_sessions', 'daily_release_batches', 'today_tasks', 'field_events', 'walk_sessions'].includes(table)), false);
 });
 
 test('pull-before-upload keeps a newer cloud row from being re-overwritten by a stale local row', async () => {

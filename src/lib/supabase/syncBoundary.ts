@@ -36,7 +36,13 @@ export type SyncBoundaryKey =
   | 'memories'
   | 'memoryCandidates'
   | 'followUpTasks'
-  | 'aiUsageEvents';
+  | 'aiUsageEvents'
+  | 'daySessions'
+  | 'dailyReleaseBatches'
+  | 'todayTasks'
+  | 'fieldEvents'
+  | 'walkSessions'
+  | 'propertyContacts';
 
 export type SyncRemoteData = Partial<Record<SyncBoundaryKey, { id: string }[]>>;
 
@@ -155,6 +161,14 @@ export const isDemoScopedSyncItem = (
   switch (key) {
     case 'projects':
       return boundary.demoProjectIds.has(item.id);
+    // The field world all carries projectId directly — one rule covers it.
+    case 'daySessions':
+    case 'dailyReleaseBatches':
+    case 'todayTasks':
+    case 'fieldEvents':
+    case 'walkSessions':
+    case 'propertyContacts':
+      return boundary.demoProjectIds.has((item as { projectId?: string }).projectId ?? '');
     case 'buildings':
       return boundary.demoBuildingIds.has(item.id);
     case 'floors':
@@ -274,5 +288,29 @@ export const withLocalDemoRows = (local: AppData, remote: SyncRemoteData): SyncR
       local.aiUsageEvents.filter((event) => isDemoScopedSyncItem(boundary, 'aiUsageEvents', event)),
     ),
     trainingQuestions: remote.trainingQuestions as TrainingQuestion[] | undefined,
+    daySessions: appendMissingRows(
+      remote.daySessions,
+      (local.daySessions ?? []).filter((session) => boundary.demoProjectIds.has(session.projectId)),
+    ),
+    dailyReleaseBatches: appendMissingRows(
+      remote.dailyReleaseBatches,
+      (local.dailyReleaseBatches ?? []).filter((batch) => boundary.demoProjectIds.has(batch.projectId)),
+    ),
+    todayTasks: appendMissingRows(
+      remote.todayTasks,
+      (local.todayTasks ?? []).filter((task) => boundary.demoProjectIds.has(task.projectId)),
+    ),
+    fieldEvents: appendMissingRows(
+      remote.fieldEvents,
+      (local.fieldEvents ?? []).filter((event) => boundary.demoProjectIds.has(event.projectId)),
+    ),
+    walkSessions: appendMissingRows(
+      remote.walkSessions,
+      (local.walkSessions ?? []).filter((session) => boundary.demoProjectIds.has(session.projectId)),
+    ),
+    propertyContacts: appendMissingRows(
+      remote.propertyContacts,
+      (local.propertyContacts ?? []).filter((contact) => boundary.demoProjectIds.has(contact.projectId)),
+    ),
   };
 };

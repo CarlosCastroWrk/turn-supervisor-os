@@ -18,6 +18,12 @@ import type {
   ReportDocumentDraft,
   TrainingQuestion,
   Unit,
+  DailyReleaseBatch,
+  DaySession,
+  FieldEvent,
+  PropertyContact,
+  TodayTask,
+  WalkSession,
 } from '../../types';
 import { ACTIVITY_LOG_RETENTION_LIMIT } from '../activityRetention';
 import { normalizeAppData } from '../dataMigrations';
@@ -159,6 +165,49 @@ const reportSectionsValue = (row: Row, key: string): ReportDocumentDraft['sectio
     };
   });
 };
+
+
+// The field world (the Turn ledger). Rows carry the WHOLE record as jsonb so
+// local shape changes never need a column migration; updated_at is the app's
+// own stamp (events are immutable) so merges stay deterministic.
+const fieldWorldConfig = <T extends { id: string; projectId: string }>(
+  key: SyncedKey,
+  table: string,
+  stamps: (item: T) => { created: string; updated: string },
+): SyncTable<{ id: string }> => ({
+  fromRow: (row) => {
+    const data = (row.data ?? {}) as T;
+    return (data.id ? data : { ...data, id: stringValue(row, 'id') }) as { id: string };
+  },
+  key,
+  table,
+  toRow: (item) => {
+    const record = item as T;
+    const stamp = stamps(record);
+    return {
+      created_at: stamp.created,
+      data: record as unknown as Row[string],
+      id: record.id,
+      project_id: record.projectId,
+      updated_at: stamp.updated,
+    };
+  },
+});
+
+const fieldWorldConfigs: SyncTable<{ id: string }>[] = [
+  fieldWorldConfig<DaySession>('daySessions', 'day_sessions',
+    (item) => ({ created: item.createdAt, updated: item.updatedAt })),
+  fieldWorldConfig<DailyReleaseBatch>('dailyReleaseBatches', 'daily_release_batches',
+    (item) => ({ created: item.createdAt, updated: item.updatedAt })),
+  fieldWorldConfig<TodayTask>('todayTasks', 'today_tasks',
+    (item) => ({ created: item.createdAt, updated: item.updatedAt })),
+  fieldWorldConfig<FieldEvent>('fieldEvents', 'field_events',
+    (item) => ({ created: item.recordedAt, updated: item.recordedAt })),
+  fieldWorldConfig<WalkSession>('walkSessions', 'walk_sessions',
+    (item) => ({ created: item.createdAt, updated: item.updatedAt })),
+  fieldWorldConfig<PropertyContact>('propertyContacts', 'property_contacts',
+    (item) => ({ created: item.createdAt, updated: item.updatedAt })),
+];
 
 const tableConfigs: SyncTable<{ id: string }>[] = [
   {
@@ -770,6 +819,7 @@ const tableConfigs: SyncTable<{ id: string }>[] = [
         updatedAt: stringValue(row, 'updated_at', nowISO()),
       }) satisfies AiUsageEvent,
   },
+  ...fieldWorldConfigs,
 ];
 
 export const syncedTables = tableConfigs.map((config) => config.table);
@@ -813,6 +863,12 @@ export const mergeRemoteData = (local: AppData, remote: SyncRemoteData): AppData
     memoryCandidates: mergeRows(local.memoryCandidates, (remote.memoryCandidates ?? []) as MemoryCandidate[]),
     followUpTasks: mergeRows(local.followUpTasks, (remote.followUpTasks ?? []) as FollowUpTask[]),
     aiUsageEvents: mergeRows(local.aiUsageEvents, (remote.aiUsageEvents ?? []) as AiUsageEvent[]),
+    daySessions: mergeRows(local.daySessions ?? [], (remote.daySessions ?? []) as DaySession[]),
+    dailyReleaseBatches: mergeRows(local.dailyReleaseBatches ?? [], (remote.dailyReleaseBatches ?? []) as DailyReleaseBatch[]),
+    todayTasks: mergeRows(local.todayTasks ?? [], (remote.todayTasks ?? []) as TodayTask[]),
+    fieldEvents: mergeRows(local.fieldEvents ?? [], (remote.fieldEvents ?? []) as FieldEvent[]),
+    walkSessions: mergeRows(local.walkSessions ?? [], (remote.walkSessions ?? []) as WalkSession[]),
+    propertyContacts: mergeRows(local.propertyContacts ?? [], (remote.propertyContacts ?? []) as PropertyContact[]),
   });
 
 const rowFingerprint = (config: SyncTable<{ id: string }>, item: { id: string }) => syncRowFingerprint(config.toRow(item));
@@ -848,7 +904,7 @@ const baselineFromRemoteData = (remote: SyncRemoteData): SyncBaseline => {
 
 const changedItemsForConfig = (data: AppData, baseline: SyncBaseline, config: SyncTable<{ id: string }>) => {
   const tableBaseline = baseline[config.key];
-  const items = data[config.key] as { id: string }[];
+  const items = (data[config.key] ?? []) as { id: string }[];
   const changedItems = items.filter((item) => rowFingerprint(config, item) !== tableBaseline?.get(item.id));
   if (config.key !== 'activityLogs' || !baseline.activityWindowStart) {
     return changedItems;
@@ -1225,6 +1281,36 @@ export const replaceRemoteData = (local: AppData, remote: SyncRemoteData): AppDa
       required.projectIds,
     ),
     trainingQuestions: (remote.trainingQuestions ?? local.trainingQuestions) as TrainingQuestion[],
+    daySessions: appendRequiredProjectRows(
+      (remoteWithLocalDemo.daySessions ?? local.daySessions ?? []) as DaySession[],
+      local.daySessions ?? [],
+      required.projectIds,
+    ),
+    dailyReleaseBatches: appendRequiredProjectRows(
+      (remoteWithLocalDemo.dailyReleaseBatches ?? local.dailyReleaseBatches ?? []) as DailyReleaseBatch[],
+      local.dailyReleaseBatches ?? [],
+      required.projectIds,
+    ),
+    todayTasks: appendRequiredProjectRows(
+      (remoteWithLocalDemo.todayTasks ?? local.todayTasks ?? []) as TodayTask[],
+      local.todayTasks ?? [],
+      required.projectIds,
+    ),
+    fieldEvents: appendRequiredProjectRows(
+      (remoteWithLocalDemo.fieldEvents ?? local.fieldEvents ?? []) as FieldEvent[],
+      local.fieldEvents ?? [],
+      required.projectIds,
+    ),
+    walkSessions: appendRequiredProjectRows(
+      (remoteWithLocalDemo.walkSessions ?? local.walkSessions ?? []) as WalkSession[],
+      local.walkSessions ?? [],
+      required.projectIds,
+    ),
+    propertyContacts: appendRequiredProjectRows(
+      (remoteWithLocalDemo.propertyContacts ?? local.propertyContacts ?? []) as PropertyContact[],
+      local.propertyContacts ?? [],
+      required.projectIds,
+    ),
     activityLogs: appendRequiredProjectRows(
       (remoteWithLocalDemo.activityLogs ?? local.activityLogs) as ActivityLog[],
       local.activityLogs,

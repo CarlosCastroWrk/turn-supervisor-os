@@ -3159,3 +3159,44 @@ button.track-c-preflight__item:active { opacity: 0.75; }
 
 /* "New round" chips for an approved room Joseph re-released. */
 .track-c-room-menu button.is-reopen { color: #0a6a9e; font-weight: 700; }
+
+/* iPad-landscape / Mac tiers (roadmap Step 4): the TurnBoard becomes a wall of
+   unit cards and crews go two-up — the "board on a table" view for sitting
+   across from Tony or Rey. Additive only: phone and the 700px tablet layout
+   above are untouched. Non-row children (empty states, headers) span full
+   width so the grid never squeezes them. */
+@media (min-width: 1100px) {
+  .track-c-unit-list,
+  .track-c-crew-list {
+    max-width: 1560px;
+  }
+
+  .track-c-unit-list,
+  .track-c-crew-list {
+    align-content: start;
+    column-gap: 12px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .track-c-unit-list > *,
+  .track-c-crew-list > * {
+    min-width: 0;
+  }
+
+  .track-c-unit-list > :not(.track-c-unit-row),
+  .track-c-crew-list > :not(.track-c-crew-row) {
+    grid-column: 1 / -1;
+  }
+
+  .track-c-unit-row,
+  .track-c-crew-row {
+    border-bottom: 1px solid var(--track-c-border);
+  }
+}
+
+@media (min-width: 1600px) {
+  .track-c-unit-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

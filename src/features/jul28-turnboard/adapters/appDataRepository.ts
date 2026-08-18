@@ -361,13 +361,10 @@ export const createJul28AppDataTurnBoardRepository = (
       [data.activeProjectId],
     );
   }
-  if (project.archivedAt) {
-    return failure(
-      'active-project-archived',
-      'The active AppData project is archived. No TurnBoard repository was created.',
-      [project.id],
-    );
-  }
+  // A SEALED (Close Turn) real project stays fully browsable — the board is
+  // the saved record. The archived guard predates Close Turn (Aug 2026) and
+  // used to block the whole TurnBoard on Los's sealed Moon Tower; writes are
+  // refused at the host commit gate instead, so reading here is safe.
 
   const activeUnits = data.units.filter((unit) => unit.projectId === project.id);
   const unitsWithMissingIdentity = activeUnits

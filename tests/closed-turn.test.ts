@@ -107,6 +107,19 @@ test('a sealed active turn survives app reload — normalize must not bounce to 
   );
 });
 
+test('a sealed turn still gets a TurnBoard — browsing the saved record works', async () => {
+  // Field bug (Aug 18, 5:43 AM): sealing Moon Tower raised "TurnBoard source
+  // is unavailable — the active AppData project is archived". The archived
+  // guard predated Close Turn; reads must work, the commit gate blocks writes.
+  const { createJul28AppDataTurnBoardRepository } = await import(
+    '../src/features/jul28-turnboard/adapters/appDataRepository.ts');
+  const { data } = buildData();
+  const sealed = closeActiveTurn(data, NOW);
+  assert.ok(sealed.ok);
+  const repository = createJul28AppDataTurnBoardRepository(sealed.data) as { ok: boolean };
+  assert.ok(repository.ok, 'sealed project still builds the board repository');
+});
+
 test('the saved-turn stat line counts released rooms from the ledger', () => {
   const { data, unitId } = buildData();
   data.daySessions = [{

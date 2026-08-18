@@ -88,7 +88,7 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
         label: 'Backups',
         detail: 'Save tonight\u2019s Turn file, or restore one — your off-phone copy',
       },
-      { id: 'sync', label: 'Sync', detail: 'Cloud sync is off for now — the phone is the record' },
+      { id: 'sync', label: 'Sync', detail: 'Cloud copy of the whole turn — ledger included, sign in to link' },
       { id: 'privacy', label: 'Privacy', detail: 'Everything stays on this phone unless you share it' },
       { id: 'storage', label: 'Storage', detail: 'Review records and files on this device' },
     ],

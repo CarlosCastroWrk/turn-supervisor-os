@@ -26,9 +26,9 @@ Turn OS is **Los's personal iPhone-first PWA** for supervising the Moon Tower st
 7. **Idempotency:** retry paths (e.g. re-sending the same release batch) must stay no-ops before any duplicate guards fire.
 
 ## Build & deploy
-- Deploy: `vercel deploy --prod --yes --build-env VITE_ENABLE_INTAKE=true --build-env VITE_ALPHA_GIT_SHA=$(git rev-parse --short HEAD)` (run unsandboxed; sandboxed vite/git hang).
+- Deploy: `vercel deploy --prod --yes --build-env VITE_ENABLE_INTAKE=true --build-env VITE_ENABLE_SYNC=true --build-env VITE_ALPHA_GIT_SHA=$(git rev-parse --short HEAD)` (run unsandboxed; sandboxed vite/git hang).
 - Git push: `GIT_TERMINAL_PROMPT=0 git -c credential.helper='!gh auth git-credential' push`.
-- Official origin: https://turn-supervisor-os.vercel.app — deployment-hash URLs are separate storage worlds and auto-redirect. Sync preview: https://turn-os-sync-preview.vercel.app (VITE_ENABLE_SYNC=true build).
+- Official origin: https://turn-supervisor-os.vercel.app — deployment-hash URLs are separate storage worlds and auto-redirect. Sync is LIVE in prod since Aug 18 2026 (field-world tables incl. fieldEvents sync as jsonb; migration 20260818120000). Sync preview: https://turn-os-sync-preview.vercel.app.
 - Verify every deploy by polling the served bundle for the new SHA and feature markers before telling Los it's live. The PWA self-updates on foreground (service worker checks on visibilitychange).
 - Auth: Supabase, single allowed email `loscastro75@gmail.com` (TURN_OS_ALLOWED_EMAIL). AI endpoints (`/api/importIntake/extract`, `/api/compose`) and portal publish are locked behind it; portal view/walk-requests use TURN_OS_PORTAL_TOKEN.
 

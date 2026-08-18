@@ -36,7 +36,7 @@ test('More preserves the approved grouped information architecture', () => {
       },
       {
         label: 'Account',
-        items: ['Profile', 'Sign Out'],
+        items: ['Profile', 'Help', 'Sign Out'],
       },
     ],
   );

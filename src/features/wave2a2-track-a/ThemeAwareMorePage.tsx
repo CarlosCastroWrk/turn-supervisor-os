@@ -41,6 +41,7 @@ import type {
 const itemIcons: Record<TrackBMoreAction, ReactNode> = {
   'backup-restore': <Archive aria-hidden="true" size={21} />,
   'close-turn': <LockKeyhole aria-hidden="true" size={21} />,
+  help: <NotebookPen aria-hidden="true" size={21} />,
   'demo-turn': <Flag aria-hidden="true" size={21} />,
   activity: <Activity aria-hidden="true" size={21} />,
   'day-history': <CalendarDays aria-hidden="true" size={21} />,

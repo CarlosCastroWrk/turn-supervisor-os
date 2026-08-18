@@ -243,7 +243,7 @@ type CrewEditorState =
   | { crewId: string; mode: 'edit' }
   | null;
 
-type MoreDetailPage = 'close-turn' | 'crews' | 'day-history' | 'demo-turn' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
+type MoreDetailPage = 'close-turn' | 'crews' | 'day-history' | 'demo-turn' | 'help' | 'forms' | 'my-notes' | 'portal' | 'profile' | 'privacy' | 'standard' | 'storage' | null;
 type HomeMode = 'day' | 'manual-release' | 'start-day';
 
 const FAST_START_DAY_SECTIONS = new Set<FieldSection>([
@@ -2703,6 +2703,10 @@ function LaunchOperationalApp({
       setMoreDetailPage('demo-turn');
       return;
     }
+    if (destination === 'help') {
+      setMoreDetailPage('help');
+      return;
+    }
     if (destination === 'field-standard') {
       setMoreDetailPage('standard');
       return;
@@ -4530,6 +4534,37 @@ function LaunchOperationalApp({
             statusLabel={moreStatus}
           />
         </ProfilePrivacyScrollRegion>
+      ) : moreDetailPage === 'help' ? (
+        <NativeDetailShell
+          description="How this app runs your day — short and honest. Paper remains the official TurnBoard."
+          onBack={() => setMoreDetailPage(null)}
+          statusLabel="Field guide"
+          title="Help"
+        >
+          <GroupedInsetSection label="The daily loop">
+            <GroupedInsetRow label="1 · Start Day" detail="Home → Start Day. Paste Joseph's list (or dictate). Rooms, tasks, and crews land on the board." />
+            <GroupedInsetRow label="2 · Assign and text" detail="Crew card → assign units → text the list. Crews answer as rooms finish." />
+            <GroupedInsetRow label="3 · Tap as crews finish" detail="Home crew board — one tap moves the room forward. Wrong tap? Hold the room for undo options." />
+            <GroupedInsetRow label="4 · Walk and approve" detail="Ready to walk → Start walk. Pass rooms or call them back with a reason — the reason becomes the crew text." />
+            <GroupedInsetRow label="5 · End Day" detail="Home → End day. The wall-transfer grid is tonight's paper board, week by week." />
+          </GroupedInsetSection>
+          <GroupedInsetSection label="The queues">
+            <GroupedInsetRow label="Needs Crew" detail="Released, nobody assigned yet — real work waiting." />
+            <GroupedInsetRow label="Working" detail="Assigned, crew on it." />
+            <GroupedInsetRow label="Needs Inspection" detail="Crew says done — walk it." />
+            <GroupedInsetRow label="Callbacks" detail="You bounced it — crew fixes their own work, no extra pay." />
+            <GroupedInsetRow label="Ready to walk" detail="Passed your eye — show Joseph or Paige." />
+          </GroupedInsetSection>
+          <GroupedInsetSection label="Payroll">
+            <GroupedInsetRow label="Crews tab → Paying week" detail="Pick the week, read the packet — same numbers as the receipts. Copy it or Save as PDF for Tony." />
+            <GroupedInsetRow label="The rules" detail="Pay = first confirmed crew-done per crew, room, and round. A re-released room pays again; a callback redo does not. Full+cut-in counts as both." />
+          </GroupedInsetSection>
+          <GroupedInsetSection label="When something's off">
+            <GroupedInsetRow label="A tap didn't save" detail="A loud banner tells you — never silent. If storage is full: Back up now, then keep working." />
+            <GroupedInsetRow label="Sealed turn" detail="Everything is look-don't-touch. Reopen from Home or More → Close Turn." />
+            <GroupedInsetRow label="Ask the chat" detail="The + button → chat. Unit numbers, crews, 'where are we' — it answers from the board, and can make changes when you say so." />
+          </GroupedInsetSection>
+        </NativeDetailShell>
       ) : moreDetailPage === 'demo-turn' ? (
         <NativeDetailShell
           description={activeProject?.mode === 'demo'

@@ -7,6 +7,7 @@ export type TrackBToolDestination =
   | 'my-notes'
   | 'official-pds-forms'
   | 'field-standard'
+  | 'help'
   | 'portal'
   | 'privacy'
   | 'profile'
@@ -97,6 +98,7 @@ export const TRACK_B_MORE_GROUPS: readonly TrackBMoreGroup[] = [
     label: 'Account',
     items: [
       { id: 'profile', label: 'Profile', detail: 'Personal details and app preferences' },
+      { id: 'help', label: 'Help', detail: 'The daily loop, the queues, payroll, and what to do when stuck' },
       { id: 'sign-out', label: 'Sign Out', detail: 'End the current Turn OS session' },
     ],
   },

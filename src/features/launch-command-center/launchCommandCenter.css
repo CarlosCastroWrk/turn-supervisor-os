@@ -780,19 +780,24 @@
 }
 
 .lcc-login {
-  align-items: center;
   background:
     radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--lcc-blue) 8%, transparent), transparent 45%),
     var(--lcc-bg);
   display: flex;
-  justify-content: center;
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: calc(20px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));
 }
 
 .lcc-login__panel {
   display: grid;
   gap: 24px;
+  /* margin auto centers when short AND scrolls correctly when the panel is
+     taller than the screen (sync details open, keyboard up) — flex
+     align-items centering would clip the top with no way to reach it. */
+  margin: auto;
   max-width: 400px;
   width: 100%;
 }

@@ -2040,8 +2040,8 @@ function LaunchOperationalApp({
       setMoreDetailPage(null);
       navigate('dashboard');
       setFieldToast(demoPhone.trim()
-        ? 'Demo Tower is live — crew texts will come to YOUR phone.'
-        : 'Demo Tower is live — fake crews, fake units, play with anything.');
+        ? 'Moon Tower demo is live — crew texts will come to YOUR phone.'
+        : 'Moon Tower demo is live — fake crews, fake units, play with anything.');
     }
   }, [demoPhone, navigate, rawCommitDataNow]);
   const exitDemoTurnNow = useCallback(() => {

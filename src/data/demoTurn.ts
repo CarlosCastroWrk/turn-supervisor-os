@@ -1,7 +1,6 @@
 import { seedData } from './seed';
 import { appendPersonalNoteActivity } from '../features/wave2a1-native/track-c/personalActivity';
 import {
-  appendManualReleaseBatchOnce,
   applyTrackCStateChange,
   projectTrackCState,
   setTradeReleaseState,
@@ -30,11 +29,32 @@ import type {
 // events. Hard wall: every entity carries the demo project id, every crew
 // phone is empty (a tapped send link goes nowhere), and enter/exit only ever
 // filters on that id, so the real turn cannot be touched from inside the demo.
+//
+// Shaped like Moon Tower for the Rey demo: one tower, ~200 units (floors 3–12,
+// 20 per floor), each with a Común and 2–4 beds, worked to a believable
+// mid-turn board — every queue populated, hundreds of units still to play.
 
 const DEMO_PREFIX = 'demo-tower-';
 // The project id itself carries the prefix so the strip/merge filters catch
 // the project entity too, not just its children.
 export const DEMO_TOWER_PROJECT_ID = 'demo-tower-project';
+
+const FLOORS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+const SLOTS_PER_FLOOR = 20;
+export const DEMO_UNIT_COUNT = FLOORS.length * SLOTS_PER_FLOOR; // 200
+
+// 2–4 beds, cycling so the tower averages ~3 beds/unit like a real student turn.
+const bedsForSlot = (slot: number): number => 2 + (slot % 3);
+const SECTION_LETTERS: TrackCSection[] = ['A', 'B', 'C', 'D'];
+const sectionsForBeds = (beds: number): TrackCSection[] => ['common', ...SECTION_LETTERS.slice(0, beds)];
+const slotOfUnit = (unitNumber: string): number => Number(unitNumber.slice(-2));
+const sectionsForUnit = (unitNumber: string): TrackCSection[] => sectionsForBeds(bedsForSlot(slotOfUnit(unitNumber)));
+const unitNo = (floor: number, slot: number): string => `${floor}${String(slot).padStart(2, '0')}`;
+const floorRange = (floor: number, from: number, to: number): string[] => {
+  const out: string[] = [];
+  for (let slot = from; slot <= to; slot += 1) out.push(unitNo(floor, slot));
+  return out;
+};
 
 const localDayOf = (iso: string): string => {
   const date = new Date(iso);
@@ -51,13 +71,13 @@ interface DemoStoryHandles {
 
 const demoUnits = (createdAt: string): Unit[] => {
   const units: Unit[] = [];
-  for (let floor = 1; floor <= 4; floor += 1) {
-    for (let slot = 1; slot <= 4; slot += 1) {
-      const unitNumber = `${floor}0${slot}`;
+  for (const floor of FLOORS) {
+    for (let slot = 1; slot <= SLOTS_PER_FLOOR; slot += 1) {
+      const unitNumber = unitNo(floor, slot);
       units.push({
         assignedCrewIds: [],
         bathroomCount: 2,
-        bedCount: slot === 4 ? 4 : 3,
+        bedCount: bedsForSlot(slot),
         buildingId: `${DEMO_PREFIX}building`,
         cleanStatus: 'Not Started',
         createdAt,
@@ -83,8 +103,10 @@ const demoUnits = (createdAt: string): Unit[] => {
 const demoCrews = (createdAt: string, demoPhone: string): CrewMember[] => ([
   { name: 'Blue Crew (demo)', trade: 'Painter' },
   { name: 'Red Crew (demo)', trade: 'Painter' },
+  { name: 'Silver Crew (demo)', trade: 'Painter' },
   { name: 'Green Crew (demo)', trade: 'Cleaner' },
   { name: 'Gold Crew (demo)', trade: 'Cleaner' },
+  { name: 'Teal Crew (demo)', trade: 'Cleaner' },
 ] as const).map((crew, index): CrewMember => ({
   active: true,
   assignedLocation: '',
@@ -109,17 +131,17 @@ const demoProjectEntity = (nowIso: string, contactId: string, crewIds: {
   aiBudgetUsd: 0,
   createdAt: nowIso,
   endDate: '',
-  estimatedBeds: 52,
+  estimatedBeds: 600,
   estimatedBuildings: 1,
-  estimatedCommonAreas: 16,
-  estimatedUnits: 16,
+  estimatedCommonAreas: DEMO_UNIT_COUNT,
+  estimatedUnits: DEMO_UNIT_COUNT,
   fieldConfiguration: {
     activatedAt: nowIso,
     activatedBy: 'Los',
     defaultCrewIdsByTrade: { clean: crewIds.clean, paint: crewIds.paint },
     defaultPropertyContactId: contactId,
-    defaultWalkthroughScheduleWording: 'Walks in the afternoon, demo pace',
-    defaultWorkingHoursWording: '9 AM to 5 PM (demo)',
+    defaultWalkthroughScheduleWording: 'Walks in the afternoon',
+    defaultWorkingHoursWording: '9 AM to 5 PM',
     enabledTrades: { clean: true, paint: true },
     permissions: {
       officialApprovals: false,
@@ -134,27 +156,26 @@ const demoProjectEntity = (nowIso: string, contactId: string, crewIds: {
     version: 1,
   },
   id: DEMO_TOWER_PROJECT_ID,
-  location: 'Anywhere, USA',
+  location: 'Austin, TX',
   mode: 'demo',
-  name: 'Demo Tower',
-  notes: 'A fake tower for showing and practicing. Nothing here is real.',
-  projectManagerName: 'Jordan (demo)',
-  propertyName: 'Demo Tower',
+  name: 'Moon Tower',
+  notes: 'Demo turn for showing and practicing — a fake Moon Tower. Nothing here syncs or is real.',
+  projectManagerName: 'Joseph',
+  propertyName: 'Moon Tower',
   startDate: localDayOf(shiftIso(nowIso, -24)),
   supervisorName: 'Los',
   updatedAt: nowIso,
 } as Project);
 
-const sectionAction = (
-  handles: DemoStoryHandles,
-  stateActions: {
-    action: TrackCSectionAction;
-    at: string;
-    section: TrackCSection;
-    trade: 'clean' | 'paint';
-    unitNumber: string;
-  }[],
-): void => {
+interface SectionStep {
+  action: TrackCSectionAction;
+  at: string;
+  section: TrackCSection;
+  trade: 'clean' | 'paint';
+  unitNumber: string;
+}
+
+const sectionAction = (handles: DemoStoryHandles, stateActions: SectionStep[]): void => {
   let state = projectTrackCState(handles.data);
   for (const step of stateActions) {
     const unit = state.units.find((candidate) => candidate.unitNumber === step.unitNumber);
@@ -264,15 +285,32 @@ const demoSession = (id: string, dayIso: string, contact: string): DaySession =>
   updatedAt: dayIso,
 } as DaySession);
 
+// Section-step builders: work each unit through its OWN sections (a 2-bed unit
+// has Común + A, B; a 4-bed has Común + A–D), so the board never shows a room
+// that doesn't exist.
+const crewCompleteSteps = (units: string[], trade: 'clean' | 'paint', at: string): SectionStep[] =>
+  units.flatMap((unitNumber) => sectionsForUnit(unitNumber).flatMap((section) => ([
+    { action: 'start-work' as const, at, section, trade, unitNumber },
+    { action: 'record-crew-complete' as const, at: shiftIso(at, 0.25), section, trade, unitNumber },
+  ])));
+
+const losPassSteps = (units: string[], trade: 'clean' | 'paint', at: string): SectionStep[] =>
+  units.flatMap((unitNumber) => sectionsForUnit(unitNumber).map((section) => (
+    { action: 'record-los-pass' as const, at, section, trade, unitNumber })));
+
+const startOnlySteps = (units: string[], trade: 'clean' | 'paint', sections: TrackCSection[], at: string): SectionStep[] =>
+  units.flatMap((unitNumber) => sections.map((section) => (
+    { action: 'start-work' as const, at, section, trade, unitNumber })));
+
 // Build the whole demo world on a scratch AppData whose ONLY project is the
-// demo tower, by replaying a believable day-and-a-half of turn work.
+// demo tower, by replaying a believable day-and-a-half of Moon Tower work.
 export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData => {
   const created = shiftIso(nowIso, -30);
   const contact: PropertyContact = {
     createdAt: created,
     id: `${DEMO_PREFIX}contact`,
     isPrimary: true,
-    name: 'Jordan (demo property)',
+    name: 'Joseph',
     phone: demoPhone,
     projectId: DEMO_TOWER_PROJECT_ID,
     title: 'Property Manager',
@@ -294,7 +332,7 @@ export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData =>
     buildings: [{
       createdAt: created,
       id: `${DEMO_PREFIX}building`,
-      name: 'Demo Tower',
+      name: 'Moon Tower',
       notes: '',
       projectId: DEMO_TOWER_PROJECT_ID,
       updatedAt: created,
@@ -305,7 +343,7 @@ export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData =>
     daySessions: [],
     draftActions: [],
     fieldEvents: [],
-    floors: [1, 2, 3, 4].map((floor): Floor => ({
+    floors: FLOORS.map((floor): Floor => ({
       buildingId: `${DEMO_PREFIX}building`,
       createdAt: created,
       id: `${DEMO_PREFIX}floor-${floor}`,
@@ -330,56 +368,60 @@ export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData =>
   };
 
   const handles: DemoStoryHandles = { data: scratch, seq: 0 };
-  const yesterday = shiftIso(nowIso, -26); // yesterday morning
-  const today = shiftIso(nowIso, -3); // this morning
+  const yesterday = shiftIso(nowIso, -26);
+  const today = shiftIso(nowIso, -3);
 
-  // ---- Yesterday: Jordan releases floors 1–2, crews work, walks happen ----
-  handles.data = {
-    ...handles.data,
-    daySessions: [demoSession(`${DEMO_PREFIX}day-1`, yesterday, contact.name)],
+  // Unit groups by state, so every board queue is populated.
+  const paintApproved = floorRange(3, 1, 12); // 301–312: done + Joseph-accepted
+  const paintPassed = floorRange(4, 1, 12); //   401–412: Los-passed, waiting on Joseph
+  const paintInspect = floorRange(5, 1, 12); //  501–512: crew done, needs Los
+  const paintWorking = floorRange(6, 1, 8); //   601–608: crews in them now
+  const paintCallbacks = ['505', '510']; //      callbacks opened on inspected rooms
+  // Everything paint-released on floors 3–7 that isn't driven above stays as
+  // live Needs Crew work; floors 8–12 aren't released yet (the backlog).
+  const paintReleased = FLOORS.slice(0, 5).flatMap((floor) => floorRange(floor, 1, SLOTS_PER_FLOOR));
+
+  const cleanApproved = floorRange(3, 1, 8); //  301–308: cleaned + accepted
+  const cleanWorking = floorRange(4, 1, 6); //   401–406: cleaning now
+  const cleanReleased = [...floorRange(3, 1, 20), ...floorRange(4, 1, 10), ...floorRange(5, 1, 8)];
+
+  // ---- Yesterday: Joseph releases, crews work floors 3–5, Los walks ----
+  handles.data = { ...handles.data, daySessions: [demoSession(`${DEMO_PREFIX}day-1`, yesterday, contact.name)] };
+
+  const paintWorkType = (unitNumber: string): 'cut-in' | 'full' | 'touch-up' => {
+    const s = slotOfUnit(unitNumber) % 3;
+    return s === 0 ? 'touch-up' : s === 1 ? 'full' : 'cut-in';
   };
   releaseUnits(handles, {
-    at: shiftIso(yesterday, 0.5),
+    at: shiftIso(yesterday, 0.4),
     trade: 'paint',
-    units: [
-      { unitNumber: '101', workType: 'full' },
-      { unitNumber: '102', workType: 'touch-up' },
-      { unitNumber: '103', workType: 'cut-in' },
-      { unitNumber: '104', workType: 'full' },
-      { unitNumber: '201', workType: 'touch-up' },
-      { unitNumber: '202', workType: 'full' },
-    ],
+    units: paintReleased.map((unitNumber) => ({ unitNumber, workType: paintWorkType(unitNumber) })),
   });
   releaseUnits(handles, {
-    at: shiftIso(yesterday, 0.6),
+    at: shiftIso(yesterday, 0.5),
     trade: 'clean',
-    units: [
-      { unitNumber: '101' },
-      { unitNumber: '102', workType: 'heavy-clean' },
-      { unitNumber: '103' },
-    ],
+    units: cleanReleased.map((unitNumber) => ({ unitNumber, workType: slotOfUnit(unitNumber) % 4 === 0 ? 'heavy-clean' : undefined })),
   });
-  assignUnits(handles, { at: shiftIso(yesterday, 1), crewName: 'Blue Crew (demo)', trade: 'paint', unitNumbers: ['101', '102', '103'] });
-  assignUnits(handles, { at: shiftIso(yesterday, 1.1), crewName: 'Red Crew (demo)', trade: 'paint', unitNumbers: ['104', '201', '202'] });
-  assignUnits(handles, { at: shiftIso(yesterday, 1.2), crewName: 'Green Crew (demo)', trade: 'clean', unitNumbers: ['101', '102'] });
 
-  const doneRooms = (unitNumbers: string[], trade: 'clean' | 'paint', sections: TrackCSection[], at: string) =>
-    unitNumbers.flatMap((unitNumber) => sections.flatMap((section) => ([
-      { action: 'start-work' as const, at, section, trade, unitNumber },
-      { action: 'record-crew-complete' as const, at: shiftIso(at, 0.2), section, trade, unitNumber },
-    ])));
-  sectionAction(handles, doneRooms(['101', '102'], 'paint', ['common', 'A', 'B', 'C'], shiftIso(yesterday, 3)));
-  sectionAction(handles, doneRooms(['103'], 'paint', ['common', 'A'], shiftIso(yesterday, 4)));
-  sectionAction(handles, doneRooms(['104'], 'paint', ['common', 'A', 'B', 'C', 'D'], shiftIso(yesterday, 4.5)));
-  sectionAction(handles, doneRooms(['101'], 'clean', ['common', 'A', 'B', 'C'], shiftIso(yesterday, 5)));
-  // Los walks: passes 101/102 paint, opens a callback on 104 room B.
-  sectionAction(handles, ['101', '102'].flatMap((unitNumber) =>
-    (['common', 'A', 'B', 'C'] as TrackCSection[]).map((section) => ({
-      action: 'record-los-pass' as const, at: shiftIso(yesterday, 6), section, trade: 'paint' as const, unitNumber,
-    }))));
-  sectionAction(handles, [{ action: 'open-callback', at: shiftIso(yesterday, 6.5), section: 'B', trade: 'paint', unitNumber: '104' }]);
+  assignUnits(handles, { at: shiftIso(yesterday, 1), crewName: 'Blue Crew (demo)', trade: 'paint', unitNumbers: [...paintApproved, ...paintInspect] });
+  assignUnits(handles, { at: shiftIso(yesterday, 1.1), crewName: 'Red Crew (demo)', trade: 'paint', unitNumbers: paintPassed });
+  assignUnits(handles, { at: shiftIso(yesterday, 1.2), crewName: 'Green Crew (demo)', trade: 'clean', unitNumbers: cleanApproved });
+
+  // Crews finish paint on floors 3–5.
+  sectionAction(handles, crewCompleteSteps([...paintApproved, ...paintPassed, ...paintInspect], 'paint', shiftIso(yesterday, 3)));
+  // Los walks: passes floors 3 and 4 paint.
+  sectionAction(handles, losPassSteps([...paintApproved, ...paintPassed], 'paint', shiftIso(yesterday, 5.5)));
+  // A couple callbacks off the inspection floor (crew done, Los wants a redo).
+  sectionAction(handles, [
+    { action: 'open-callback', at: shiftIso(yesterday, 6), section: 'A', trade: 'paint', unitNumber: '505' },
+    { action: 'open-callback', at: shiftIso(yesterday, 6), section: 'B', trade: 'paint', unitNumber: '510' },
+  ]);
+  // Clean floor 3 finishes and Los passes it.
+  sectionAction(handles, crewCompleteSteps(cleanApproved, 'clean', shiftIso(yesterday, 4)));
+  sectionAction(handles, losPassSteps(cleanApproved, 'clean', shiftIso(yesterday, 5.8)));
+
   // Extras exactly like the real turn: a texture repair and a change order,
-  // written through the real note writer so the extras sheet and pay packet
+  // written through the real note writer so the extras sheet + pay packet
   // pick them up the same way they did at Moon Tower.
   const noteOn = (unitNumber: string, kind: 'change-order' | 'texture', wording: string, at: string) => {
     const unit = handles.data.units.find((candidate) =>
@@ -392,51 +434,40 @@ export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData =>
     if (!result.ok) throw new Error(`demo build: note on ${unitNumber} failed (${result.error})`);
     handles.data = result.data;
   };
-  noteOn('104', 'texture', 'Texture repair — room B ×2 (wall patch behind the door)', shiftIso(yesterday, 6.6));
-  noteOn('202', 'change-order', '2×2 ceiling drywall — approved by Jordan on the walk', shiftIso(yesterday, 6.7));
-  // Jordan accepts 101 and 102 paint on the afternoon walk.
-  acceptUnits(handles, { at: shiftIso(yesterday, 7), trade: 'paint', unitNumbers: ['101', '102'] });
+  noteOn('509', 'texture', 'Texture repair — room B ×2 (wall patch behind the door)', shiftIso(yesterday, 6.4));
+  noteOn('406', 'change-order', '2×2 ceiling drywall — approved by Joseph on the walk', shiftIso(yesterday, 6.5));
+
+  // Joseph accepts floor 3 paint + clean on the afternoon walk.
+  acceptUnits(handles, { at: shiftIso(yesterday, 7), trade: 'paint', unitNumbers: paintApproved });
+  acceptUnits(handles, { at: shiftIso(yesterday, 7.1), trade: 'clean', unitNumbers: cleanApproved });
 
   // Yesterday ends.
   handles.data = {
     ...handles.data,
     daySessions: handles.data.daySessions.map((session) =>
       session.id === `${DEMO_PREFIX}day-1`
-        ? {
-          ...session,
-          endedAt: shiftIso(yesterday, 9),
-          endedBy: 'Los',
-          status: 'closed' as const,
-          updatedAt: shiftIso(yesterday, 9),
-        }
+        ? { ...session, endedAt: shiftIso(yesterday, 9), endedBy: 'Los', status: 'closed' as const, updatedAt: shiftIso(yesterday, 9) }
         : session),
   };
 
-  // ---- Today: fresh releases, work in flight, plenty left to play with ----
+  // ---- Today: crews in floor 6, cleaners in floor 4, backlog waiting ----
   handles.data = {
     ...handles.data,
     daySessions: [...handles.data.daySessions, demoSession(`${DEMO_PREFIX}day-2`, today, contact.name)],
   };
+  // Joseph releases a fresh floor this morning — live Needs Crew work for today.
   releaseUnits(handles, {
-    at: shiftIso(today, 0.4),
+    at: shiftIso(today, 0.3),
     trade: 'paint',
-    units: [
-      { unitNumber: '203', workType: 'full' },
-      { unitNumber: '204', workType: 'cut-in' },
-      { unitNumber: '301', workType: 'touch-up' },
-      { unitNumber: '302', workType: 'full' },
-    ],
+    units: floorRange(8, 1, SLOTS_PER_FLOOR).map((unitNumber) => ({ unitNumber, workType: paintWorkType(unitNumber) })),
   });
-  releaseUnits(handles, {
-    at: shiftIso(today, 0.5),
-    trade: 'clean',
-    units: [{ unitNumber: '104' }, { unitNumber: '201' }],
-  });
-  assignUnits(handles, { at: shiftIso(today, 1), crewName: 'Blue Crew (demo)', trade: 'paint', unitNumbers: ['203'] });
-  assignUnits(handles, { at: shiftIso(today, 1.1), crewName: 'Gold Crew (demo)', trade: 'clean', unitNumbers: ['104'] });
-  sectionAction(handles, doneRooms(['203'], 'paint', ['common', 'A'], shiftIso(today, 2)));
-  // 204, 301, 302 paint and 201 clean stay unassigned — live Needs Crew work
-  // for whoever is holding the phone.
+  assignUnits(handles, { at: shiftIso(today, 0.8), crewName: 'Silver Crew (demo)', trade: 'paint', unitNumbers: paintWorking });
+  assignUnits(handles, { at: shiftIso(today, 0.9), crewName: 'Gold Crew (demo)', trade: 'clean', unitNumbers: cleanWorking });
+  // Crews are mid-room: Común + A started, not yet complete (live "Working").
+  sectionAction(handles, startOnlySteps(paintWorking, 'paint', ['common', 'A'], shiftIso(today, 1.5)));
+  sectionAction(handles, startOnlySteps(cleanWorking, 'clean', ['common', 'A'], shiftIso(today, 1.6)));
+  // 613–620, floor 7, and clean 501–508 stay released + unassigned — live Needs
+  // Crew work; floors 8–12 aren't released yet (the backlog the tour can play with).
 
   return handles.data;
 };

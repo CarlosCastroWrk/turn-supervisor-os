@@ -3,6 +3,7 @@ import test from 'node:test';
 import { seedData } from '../src/data/seed.ts';
 import {
   DEMO_TOWER_PROJECT_ID,
+  DEMO_UNIT_COUNT,
   enterDemoTurn,
   exitDemoTurn,
   isDemoTurnActive,
@@ -54,11 +55,11 @@ test('entering the demo never touches the real record — byte-identical slices'
   assert.equal(after, before, 'every real entity survives enter untouched');
 });
 
-test('the demo board is alive: 16 units, work in several states, payable rooms', () => {
+test('the demo board is alive: a full Moon Tower, work in every state, payable rooms', () => {
   const entered = enterDemoTurn(realBase(), NOW);
   assert.ok(entered.ok);
   const state = projectTrackCState(entered.data);
-  assert.equal(state.units.length, 16);
+  assert.equal(state.units.length, DEMO_UNIT_COUNT);
   const releasedPaint = state.units.flatMap((unit) =>
     unit.workFacts.filter((fact) => fact.trade === 'paint' && fact.release === 'released'));
   assert.ok(releasedPaint.length >= 20, `paint rooms on the board (${releasedPaint.length})`);
@@ -100,7 +101,7 @@ test('demo data passes the SAME loader validator as real data', () => {
   assert.deepEqual(warnings, [], 'no loader warnings on the demo payload');
 });
 
-test('reset regenerates instead of stacking — one demo project, 16 units, always', () => {
+test('reset regenerates instead of stacking — one demo project, full tower, always', () => {
   const first = enterDemoTurn(realBase(), NOW);
   assert.ok(first.ok);
   const second = enterDemoTurn(first.data, '2026-08-19T15:00:00.000Z');
@@ -111,7 +112,7 @@ test('reset regenerates instead of stacking — one demo project, 16 units, alwa
   );
   assert.equal(
     second.data.units.filter((unit) => unit.projectId === DEMO_TOWER_PROJECT_ID).length,
-    16,
+    DEMO_UNIT_COUNT,
   );
 });
 

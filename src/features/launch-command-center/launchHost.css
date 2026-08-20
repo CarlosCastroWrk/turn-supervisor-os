@@ -4,6 +4,50 @@
   overflow-x: clip;
 }
 
+
+/* Slim demo strip — one calm line instead of a screen-eating banner. */
+.lcc-demo-strip {
+  align-items: center;
+  background: color-mix(in srgb, #9b5b00 10%, var(--turn-color-elevated, #fff));
+  border-bottom: 1px solid color-mix(in srgb, #9b5b00 25%, transparent);
+  display: flex;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 12px;
+}
+
+.lcc-demo-strip__badge {
+  background: #9b5b00;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+}
+
+.lcc-demo-strip__text {
+  color: var(--turn-color-secondary, #66707c);
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lcc-demo-strip__exit {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, #9b5b00 45%, transparent);
+  border-radius: 999px;
+  color: #9b5b00;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 32px;
+  padding: 2px 14px;
+}
+
 .lcc-host-alert {
   margin: 8px 10px;
   position: relative;

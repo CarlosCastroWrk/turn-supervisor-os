@@ -2368,7 +2368,7 @@ const WallGrid = ({
           aria-label="Search units on the wall grid"
           inputMode="numeric"
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search unit\u2026"
+          placeholder="Search unit…"
           type="search"
           value={query}
         />
@@ -2388,11 +2388,8 @@ const WallGrid = ({
         </div>
       ) : null}
       <p className="track-c-wall__legend">
-        Whole Turn · every unit, all days. Marks: / released · X crew done ·
-        ✓ passed · CC approved (highlight color = the unit's week)
-        · CB callback · W waiting/blocked. Tap the
-        {' '}<em className="track-c-wall__wk wall-wk0">w#</em> chip to set the week
-        — w1 → w2 → w3 → auto — and the CC color follows it.
+        / released · X done · ✓ passed · CC approved · CB callback · W blocked
+        · tap <em className="track-c-wall__wk wall-wk0">w#</em> to set the week
       </p>
       <div
         aria-label={`${trade === 'paint' ? 'Paint' : 'Clean'} wall grid`}
@@ -2469,8 +2466,8 @@ const WallGrid = ({
         ) : null}
       </div>
       <p className="track-c-wall__legend">
-        / released \u00b7 X crew done \u00b7 \u2713 Los passed \u00b7
-        CC approved (color = pay week) \u00b7 CB callback \u00b7 W blocked
+        / released · X crew done · ✓ Los passed ·
+        CC approved (color = pay week) · CB callback · W blocked
       </p>
     </div>
   );

@@ -3192,20 +3192,15 @@ function LaunchOperationalApp({
   })() : null;
 
   const demoTurnAlert = activeProject?.mode === 'demo' ? (
-    <section className="lcc-host-alert" role="status">
-      <RefreshCw size={22} aria-hidden="true" />
-      <div>
-        <strong>🎬 Demo Turn — everything here is fake</strong>
-        <p>
-          {demoPhone.trim()
-            ? 'Fake tower, fake crews — crew texts come to YOUR phone. Your real turn is untouched.'
-            : 'Fake tower, fake crews, sends go nowhere. Your real turn is untouched.'}
-        </p>
-        <button className="lcc-host-alert__action" onClick={exitDemoTurnNow} type="button">
-          Exit demo
-        </button>
-      </div>
-    </section>
+    <div className="lcc-demo-strip" role="status">
+      <span className="lcc-demo-strip__badge">DEMO</span>
+      <span className="lcc-demo-strip__text">
+        {demoPhone.trim() ? 'Fake data · texts come to your phone' : 'Fake data · your real turn is untouched'}
+      </span>
+      <button className="lcc-demo-strip__exit" onClick={exitDemoTurnNow} type="button">
+        Exit
+      </button>
+    </div>
   ) : null;
   const sealedTurnAlert = activeTurnClosed ? (
     <section className="lcc-host-alert" role="status">
@@ -4067,7 +4062,7 @@ function LaunchOperationalApp({
           </div>
         </section>
       ) : null}
-      {launchProjection.project?.mode !== 'real' && !demoExplored ? (
+      {launchProjection.project?.mode !== 'real' && !activeTurnClosed && !demoExplored ? (
         <section aria-labelledby="lcc-welcome-title" className="lcc-welcome">
           <span aria-hidden="true" className="lcc-welcome__mark">
             <svg viewBox="0 0 512 512" width="40" height="40" fill="none" stroke="currentColor"

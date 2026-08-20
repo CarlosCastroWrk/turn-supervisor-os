@@ -1192,7 +1192,7 @@ export const CrewView = ({
         const unitNum = (unitNumber: string) => Number(unitNumber.replace(/\D/g, '')) || 0;
         const ackedCount = activeExtras.filter((item) => ackExtras.has(ackKeyOf(item.id))).length;
         return (
-          <details className="track-c-extras" open>
+          <details className="track-c-extras">
             <summary>
               Week {activePayWeek} extras · {activeExtras.length}
               {ackedCount > 0 ? ` · ${ackedCount} ✓` : ''}

@@ -556,11 +556,16 @@
   color: #c0362c;
 }
 
+/* Field Calm: one card, hairline-divided rows - no boxes inside boxes. */
 .track-c-section-list {
   display: grid;
-  gap: 6px;
+  gap: 0;
   grid-template-columns: minmax(0, 1fr);
-  padding: 8px;
+  padding: 0;
+}
+
+.track-c-section-list > .track-c-section-row + .track-c-section-row {
+  border-top: 1px solid var(--track-c-border);
 }
 
 .track-c-section-row {
@@ -569,17 +574,17 @@
 
 .track-c-section-row__trigger {
   align-items: center;
-  background: var(--track-c-surface);
-  border: 1px solid var(--track-c-border);
-  border-radius: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: var(--track-c-text);
   display: grid;
   gap: 10px;
   grid-template-columns: auto minmax(0, 1fr) 16px;
   justify-items: start;
-  min-height: 48px;
+  min-height: 50px;
   min-width: 0;
-  padding: 6px 10px;
+  padding: 6px 12px;
   position: relative;
   text-align: left;
   width: 100%;
@@ -3141,17 +3146,28 @@ select.track-c-trade-change {
 }
 
 /* Payroll pre-flight — the Friday-night audit. */
+/* Field Calm: payroll pre-flight is a QUIET slim row when healthy — it only
+   grows into a card when there is actually something to fix. */
 .track-c-preflight {
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  padding: 0 2px;
+  margin: 2px 0;
+}
+.track-c-preflight[open] {
   border: 1px solid var(--track-c-line, #d7dce3);
-  border-radius: 14px;
   background: var(--track-c-card, #fff);
-  padding: 10px 12px;
-  margin: 10px 0;
+  padding: 8px 12px 10px;
+  margin: 8px 0;
 }
 .track-c-preflight > summary {
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
 }
 .track-c-preflight > summary.is-warn { color: #b45309; }
 .track-c-preflight > summary.is-clean { color: #237a45; }

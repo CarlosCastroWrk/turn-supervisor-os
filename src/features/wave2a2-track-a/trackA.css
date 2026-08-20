@@ -630,6 +630,17 @@
   padding: 3px 2px;
 }
 
+/* Quiet attention dot (e.g. backup due) on a tab icon. */
+.w2a2-nav-dot {
+  background: var(--turn-color-danger, #b4232d);
+  border-radius: 999px;
+  block-size: 8px;
+  inline-size: 8px;
+  inset-block-start: 6px;
+  inset-inline-end: calc(50% - 18px);
+  position: absolute;
+}
+
 .w2a2-navigation > button.is-active,
 .w2a2-navigation > button.is-active svg {
   color: var(--turn-color-brand);

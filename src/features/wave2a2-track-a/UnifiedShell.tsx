@@ -79,6 +79,9 @@ export interface Wave2A2UnifiedShellProps
     scrollTop?: number;
   };
   detailMode?: boolean;
+  /** Quiet attention dot on the More tab (e.g. a backup is due) — signal
+   *  without a banner eating the Home screen. */
+  moreAttention?: boolean;
   /** First-run gate: hide the tab bar and header actions so property setup is
    *  the only path forward until a project exists (or the demo is chosen). */
   onboarding?: boolean;
@@ -122,6 +125,7 @@ export function Wave2A2UnifiedShell({
   contentTitle,
   dateLabel,
   detailMode = false,
+  moreAttention = false,
   onboarding = false,
   intelligenceAvailable = false,
   onNavigate,
@@ -350,6 +354,9 @@ export function Wave2A2UnifiedShell({
               >
                 {item.icon}
                 <span>{item.label}</span>
+                {item.id === 'more' && moreAttention ? (
+                  <span aria-label="Needs attention" className="w2a2-nav-dot" role="img" />
+                ) : null}
               </button>
             );
           })}

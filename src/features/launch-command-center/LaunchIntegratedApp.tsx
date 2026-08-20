@@ -5367,6 +5367,22 @@ function LaunchOperationalApp({
     <>
       <Wave2A2UnifiedShell
         activeDestination={primaryDestinationForRoute(route.view)}
+        moreAttention={(() => {
+          // Backup-due signal moved off the Home banner onto a quiet More-tab
+          // dot: never backed up → always; 1 day behind → evenings; 2+ → always.
+          let lastBackup = '';
+          try {
+            lastBackup = window.localStorage.getItem('turn-os:last-backup') ?? '';
+          } catch {
+            return false;
+          }
+          if (lastBackup === currentDate) return false;
+          const daysBehind = lastBackup
+            ? Math.max(0, Math.round((new Date(`${currentDate}T12:00:00`).getTime()
+              - new Date(`${lastBackup}T12:00:00`).getTime()) / 86_400_000))
+            : Infinity;
+          return daysBehind >= 2 || (daysBehind >= 1 && new Date().getHours() >= 17);
+        })()}
         backgroundInert={
           captureOpen || plusOpen || Boolean(selectedActivity) || trackCDialogOpen
         }

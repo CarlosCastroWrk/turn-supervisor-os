@@ -1826,38 +1826,9 @@ function DayTaskHome({
         </section>
       ) : null}
 
-      {(() => {
-        // The whole Turn lives on THIS phone. Nag whenever protection is
-        // stale: never backed up → always; yesterday-or-older + evening →
-        // tonight's records aren't safe yet; 2+ days behind → any hour.
-        if (!onExportBackup || lastBackupDay === currentDate) return null;
-        const evening = new Date().getHours() >= 17;
-        const daysBehind = lastBackupDay
-          ? Math.max(0, Math.round((new Date(`${currentDate}T12:00:00`).getTime()
-            - new Date(`${lastBackupDay}T12:00:00`).getTime()) / 86_400_000))
-          : Infinity;
-        if (!evening && daysBehind < 2) return null;
-        const urgency = daysBehind === Infinity
-          ? 'Never backed up — the whole Turn is unprotected.'
-          : daysBehind >= 2
-            ? `${daysBehind} days since the last backup.`
-            : 'Tonight’s records aren’t saved anywhere else yet.';
-        return (
-          <section className="w2a2b-backup-nag" role="status">
-            <span>
-              <strong>Protect the Turn — 1 tap</strong>
-              <small>{urgency} Save the file to iCloud Files and tonight is safe.</small>
-            </span>
-            <button
-              data-track-b-critical-target="true"
-              onClick={() => void exportBackup()}
-              type="button"
-            >
-              Back up now
-            </button>
-          </section>
-        );
-      })()}
+      {/* Backup protection moved off Home: a quiet attention dot on the More
+          tab (host-computed) points to Data & backup instead of a banner
+          reappearing on every tab switch. */}
       {liveBoard ? (
         <section className="w2a2b-section" aria-labelledby="w2a2b-live-title">
           <div className="w2a2b-groupby" role="group" aria-label="Group the board by">

@@ -741,11 +741,14 @@ export const CrewView = ({
               {isCollapsed ? null : (
               <>
               {rollup.unassigned.length > 0 ? (
-                <section
+                <details
                   aria-label={`Unassigned ${tradeGroup} units`}
                   className={`track-c-unassigned is-${tradeGroup}`}
+                  open={rollup.unassigned.length <= 3}
                 >
-                  <h3>Unassigned — tap a crew to put them on it</h3>
+                  <summary className="track-c-unassigned__summary">
+                    Unassigned · {rollup.unassigned.length} — tap a crew to put them on it
+                  </summary>
                   {rollup.unassigned.map((entry) => (
                     <div className="track-c-unassigned__row" key={entry.unitId}>
                       <span className="track-c-unassigned__unit">
@@ -772,7 +775,7 @@ export const CrewView = ({
                   {tradeCrews.length === 0 ? (
                     <small>No {tradeGroup} crew on the roster yet — add one below to assign these.</small>
                   ) : null}
-                </section>
+                </details>
               ) : null}
               {group.map(({ crew, stats }) => {
           const Icon = crew.trade === 'paint' ? Paintbrush : Droplets;

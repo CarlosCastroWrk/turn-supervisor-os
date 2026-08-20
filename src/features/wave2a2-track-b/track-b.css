@@ -1166,6 +1166,24 @@ button.w2a2b-done-toggle {
   font-weight: 850;
 }
 
+.w2a2b-hero-line {
+  margin: 2px 0 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--turn-color-primary, #14181f);
+  line-height: 1.25;
+}
+.w2a2b-hero-line strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 850;
+}
+.w2a2b-hero-line.is-quiet {
+  color: var(--turn-color-secondary, #66707c);
+  font-size: 17px;
+  font-weight: 650;
+}
+
 .w2a2b-day-brief {
   color: var(--turn-color-secondary, #66707c);
   font-size: 15px;

@@ -1583,8 +1583,31 @@ function DayTaskHome({
     <section className="w2a2b-home" data-testid="track-b-home">
       <header className="w2a2b-home-header w2a2b-home-header--compact">
         <div className="w2a2b-home-header__top">
-        <h1>{supervisorName?.trim().split(/\s+/)[0] || 'Home'}</h1>
+        <h1>
+          {(() => {
+            const hour = new Date().getHours();
+            const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+            const first = supervisorName?.trim().split(/\s+/)[0];
+            return first ? `${hello}, ${first}` : hello;
+          })()}
+        </h1>
         </div>
+        {(() => {
+          // Field Calm: ONE truth up top — the biggest line on Home is what
+          // needs Los right now, not chrome.
+          const needsMe = counts.callbacks + counts['needs-inspection'];
+          const walk = counts['ready-to-walk'];
+          if (needsMe === 0 && walk === 0) {
+            return <p className="w2a2b-hero-line is-quiet">All quiet — nothing needs you right now</p>;
+          }
+          return (
+            <p className="w2a2b-hero-line">
+              {needsMe > 0 ? <><strong>{needsMe}</strong> need{needsMe === 1 ? 's' : ''} you</> : null}
+              {needsMe > 0 && walk > 0 ? ' · ' : null}
+              {walk > 0 ? <><strong>{walk}</strong> ready to walk</> : null}
+            </p>
+          );
+        })()}
         {(() => {
           // A new calendar day means a NEW day number — never show yesterday's
           // "Day 1" on Sunday morning.

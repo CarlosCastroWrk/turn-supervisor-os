@@ -561,6 +561,31 @@ button.track-c-crew-units__row.is-tappable:active { background: var(--turn-color
   font-weight: 600;
   color: var(--turn-color-secondary);
 }
+.track-c-unassigned__summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--turn-color-secondary);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  list-style: none;
+}
+.track-c-unassigned__summary::before {
+  content: '▾';
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 160ms ease-out;
+}
+.track-c-unassigned:not([open]) .track-c-unassigned__summary::before {
+  transform: rotate(-90deg);
+}
+.track-c-unassigned:not([open]) {
+  padding-block: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .track-c-unassigned__summary::before { transition: none; }
+}
 .track-c-unassigned__row {
   display: flex;
   align-items: center;

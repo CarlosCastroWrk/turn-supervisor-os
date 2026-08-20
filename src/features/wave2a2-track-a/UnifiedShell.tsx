@@ -17,6 +17,7 @@ import type {
   LaunchPrimaryDestination,
 } from '../launch-command-center/types';
 import type { TurnThemeState } from './theme';
+import { tapFeel } from '../../lib/feel';
 import './trackA.css';
 
 const navigationItems: readonly {
@@ -321,7 +322,10 @@ export function Wave2A2UnifiedShell({
                   data-w2a2-critical-target="true"
                   id="lcc-central-plus"
                   key={item.id}
-                  onClick={onOpenPlus}
+                  onClick={() => {
+                    tapFeel();
+                    onOpenPlus();
+                  }}
                   type="button"
                 >
                   <span>{item.icon}</span>
@@ -338,7 +342,10 @@ export function Wave2A2UnifiedShell({
                 data-lcc-critical-target="true"
                 data-w2a2-critical-target="true"
                 key={item.id}
-                onClick={() => onNavigate(item.id as LaunchPrimaryDestination)}
+                onClick={() => {
+                  if (!isActive) tapFeel();
+                  onNavigate(item.id as LaunchPrimaryDestination);
+                }}
                 type="button"
               >
                 {item.icon}

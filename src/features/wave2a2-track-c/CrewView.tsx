@@ -428,6 +428,29 @@ export const CrewView = ({
   const [payCopied, setPayCopied] = useState('');
   const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean' | 'day'; msg: string } | null>(null);
   const [ackExtras, setAckExtras] = useState<ReadonlySet<string>>(() => readAckExtras());
+  // Collapsible trade groups: Los shouldn't scroll the whole paint pile to
+  // reach clean crews. Device-local memory (turn-os:* key, per schema freeze).
+  const [collapsedTrades, setCollapsedTrades] = useState<ReadonlySet<string>>(() => {
+    try {
+      const raw = window.localStorage.getItem('turn-os:crews-collapsed');
+      return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleTradeCollapsed = (tradeGroup: 'paint' | 'clean') => {
+    setCollapsedTrades((current) => {
+      const next = new Set(current);
+      if (next.has(tradeGroup)) next.delete(tradeGroup);
+      else next.add(tradeGroup);
+      try {
+        window.localStorage.setItem('turn-os:crews-collapsed', JSON.stringify([...next]));
+      } catch {
+        // Session-only collapse then.
+      }
+      return next;
+    });
+  };
   const crews = useMemo(() => projectTrackCCrewSummaries(state), [state]);
   // Which pay weeks have released work — so Los can pull up a PAST week to pay
   // it and copy it to the board even after a new week has started. Defaults to
@@ -693,17 +716,30 @@ export const CrewView = ({
           const tradeCrews = [...allTradeCrews].sort((left, right) =>
             Number(right.activeToday) - Number(left.activeToday)
             || left.name.localeCompare(right.name));
+          const isCollapsed = collapsedTrades.has(tradeGroup);
           return (
             <div key={tradeGroup}>
               <h2 className={`track-c-crew-group is-${tradeGroup}`}>
-                {tradeGroup === 'paint' ? 'PAINT CREWS' : 'CLEAN CREWS'}
-                <span className="track-c-crew-group__counts">
-                  {rollup.working} working
-                  {rollup.unassigned.length > 0
-                    ? ` · ${rollup.unassigned.length} unassigned`
-                    : ''}
-                </span>
+                <button
+                  aria-expanded={!isCollapsed}
+                  className="track-c-crew-group__toggle"
+                  onClick={() => toggleTradeCollapsed(tradeGroup)}
+                  type="button"
+                >
+                  <span className={`track-c-crew-group__chevron${isCollapsed ? ' is-collapsed' : ''}`} aria-hidden="true">
+                    ▾
+                  </span>
+                  {tradeGroup === 'paint' ? 'PAINT CREWS' : 'CLEAN CREWS'}
+                  <span className="track-c-crew-group__counts">
+                    {group.length} crew{group.length === 1 ? '' : 's'} · {rollup.working} working
+                    {rollup.unassigned.length > 0
+                      ? ` · ${rollup.unassigned.length} unassigned`
+                      : ''}
+                  </span>
+                </button>
               </h2>
+              {isCollapsed ? null : (
+              <>
               {rollup.unassigned.length > 0 ? (
                 <section
                   aria-label={`Unassigned ${tradeGroup} units`}
@@ -840,6 +876,8 @@ export const CrewView = ({
             </div>
               );
               })}
+              </>
+              )}
             </div>
           );
         })}

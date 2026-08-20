@@ -3041,7 +3041,39 @@ select.track-c-trade-change {
   font-size: 12px;
   font-weight: 850;
   letter-spacing: 1.2px;
-  margin: 12px 12px 6px;
+  margin: 6px 6px 2px;
+}
+
+/* Tappable, collapsible trade header - minimize a whole trade in one tap. */
+.track-c-crew-group__toggle {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  display: flex;
+  font: inherit;
+  gap: 8px;
+  letter-spacing: inherit;
+  min-block-size: 44px;
+  padding: 4px 6px;
+  text-align: left;
+  width: 100%;
+}
+
+.track-c-crew-group__chevron {
+  display: inline-block;
+  font-size: 14px;
+  transition: transform 160ms ease-out;
+}
+
+.track-c-crew-group__chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track-c-crew-group__chevron {
+    transition: none;
+  }
 }
 
 /* Extras row as a tap-through link to the unit. */

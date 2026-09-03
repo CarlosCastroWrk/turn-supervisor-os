@@ -204,7 +204,7 @@ import {
   type AppNavigate,
 } from '../../lib/routing';
 import { clearPhotoBlobs } from '../../lib/photoStorage';
-import { didLastSaveHitQuota, estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
+import { didAnotherTabWrite, didLastSaveHitQuota, estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
 import { buildProblemReport, clearErrorLog, readErrorLog, shareProblemReport, subscribeToErrorLog } from '../../lib/errorLog';
 import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
@@ -922,7 +922,9 @@ function LaunchOperationalApp({
     }
     const saved = commitDataNow((current) => applyTrackCStateChange(current, nextState));
     if (!saved) {
-      if (didLastSaveHitQuota()) {
+      if (didAnotherTabWrite()) {
+        setPersistWarning(`${unitNumber}: not saved — this turn is open in another tab or window, and that one saved newer taps. Reload here to keep working.`);
+      } else if (didLastSaveHitQuota()) {
         setStorageFull(true);
         setPersistWarning(`${unitNumber}: the tap did NOT save — the app’s browser storage is full. Back up now, then free space.`);
       } else {
@@ -3226,6 +3228,25 @@ function LaunchOperationalApp({
       )}
     </section>
   ) : null;
+  const otherTabAlert = persistence.otherTabWrote ? (
+    <section className="persistence-alert lcc-host-alert lcc-host-alert--error" role="alert">
+      <AlertTriangle size={22} aria-hidden="true" />
+      <div>
+        <strong>This turn is open in another tab</strong>
+        <p>
+          That tab saved newer taps, so this one stopped saving to protect them.
+          Reload here to pick up where it left off — nothing was lost.
+        </p>
+        <button
+          className="lcc-host-alert__action"
+          onClick={() => window.location.reload()}
+          type="button"
+        >
+          Reload
+        </button>
+      </div>
+    </section>
+  ) : null;
   const recoveredAlert = recoveredNotice ? (
     <section className="persistence-alert lcc-host-alert" role="status">
       <ShieldCheck size={22} aria-hidden="true" />
@@ -3282,6 +3303,7 @@ function LaunchOperationalApp({
     <>
       {demoTurnAlert}
       {sealedTurnAlert}
+      {otherTabAlert}
       {persistWarningAlert}
       {recoveredAlert}
       {storageWatchAlert}
@@ -3905,7 +3927,9 @@ function LaunchOperationalApp({
               const saved = commitDataNow((current) =>
                 applyTrackCStateChange(current, nextState));
               if (!saved) {
-                if (didLastSaveHitQuota()) {
+                if (didAnotherTabWrite()) {
+                  setPersistWarning('This tap did NOT save — this turn is open in another tab or window, and that one saved newer taps. Reload here to keep working. Nothing was recorded.');
+                } else if (didLastSaveHitQuota()) {
                   setStorageFull(true);
                   setPersistWarning('This tap did NOT save — the app’s browser storage is full (not your phone). Back up now, then free space. Until then, new taps won’t stick.');
                 } else {

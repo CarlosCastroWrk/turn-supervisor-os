@@ -274,14 +274,47 @@ export const didLastSaveHitQuota = () => lastSaveHitQuota;
 // go, or the next boot would roll the ledger back to the failure moment.
 let emergencyStashPending = false;
 
+// MULTI-TAB GUARD. The installed PWA and a Safari tab can both hold this turn
+// open. Each keeps its own copy in memory and flushes the WHOLE ledger on
+// every save, so whichever tab saves last silently overwrites the other's
+// taps. localStorage fires a 'storage' event in every OTHER document when the
+// key changes — the moment this document sees a write it did not make, it
+// goes read-only until reload: the other tab's taps are the truth, ours are
+// behind. Same-document writes never fire the event, so a single tab is
+// never affected.
+let lastWrittenPayload: string | null = null;
+let foreignWriteDetected = false;
+export const didAnotherTabWrite = () => foreignWriteDetected;
+export const installForeignWriteGuard = (onDetected: () => void): (() => void) => {
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+    return () => undefined;
+  }
+  const listener = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEY) return;
+    if (event.newValue === null) return; // a clear (device reset) has its own flow
+    if (event.newValue === lastWrittenPayload) return; // identical ledger — harmless
+    if (foreignWriteDetected) return;
+    foreignWriteDetected = true;
+    logError('save', 'Another tab or window saved this turn; this one stopped saving to protect those taps.', 'Multi-tab');
+    onDetected();
+  };
+  window.addEventListener('storage', listener);
+  return () => window.removeEventListener('storage', listener);
+};
+
 export const saveAppData = (data: AppData) => {
   if (appDataLoadBlocked) {
     console.warn('Turn Supervisor OS data was not saved because the existing local payload failed validation.');
     return false;
   }
+  if (foreignWriteDetected) {
+    console.warn('Turn Supervisor OS data was not saved: another tab wrote this turn — reload to continue here.');
+    return false;
+  }
   const serialized = JSON.stringify(applyActivityLogRetention(data));
   const encoded = encodeStoredPayload(serialized);
   const markSaved = () => {
+    lastWrittenPayload = encoded;
     lastSaveHitQuota = false;
     if (emergencyStashPending) {
       emergencyStashPending = false;
@@ -384,6 +417,10 @@ export const persistAppDataNow = (data: AppData) => {
 };
 
 export const restoreAppDataNow = (data: AppData) => {
+  if (foreignWriteDetected) {
+    console.warn('Restore refused: another tab wrote this turn — reload first.');
+    return false;
+  }
   const retained = applyActivityLogRetention(data);
   try {
     const encoded = encodeStoredPayload(JSON.stringify(retained));
@@ -392,6 +429,7 @@ export const restoreAppDataNow = (data: AppData) => {
     if (readback !== encoded) {
       throw new Error('Saved data did not match browser-storage readback.');
     }
+    lastWrittenPayload = encoded;
     parseJsonBackup(decodeStoredPayload(readback));
     appDataWriter.cancel();
     appDataLoadBlocked = false;
@@ -517,6 +555,8 @@ export const usePersistentAppData = () => {
     return true;
   }, []);
   const [emergencyRecovered, setEmergencyRecovered] = useState(false);
+  const [otherTabWrote, setOtherTabWrote] = useState(false);
+  useEffect(() => installForeignWriteGuard(() => setOtherTabWrote(true)), []);
 
   // If the last session ended with storage-full save failures, the freshest
   // ledger is waiting in the emergency IndexedDB stash — adopt it right at
@@ -660,6 +700,7 @@ export const usePersistentAppData = () => {
       emergencyRecovered,
       hasStoredData,
       loadWarnings,
+      otherTabWrote,
       recovery,
       resetToDemo,
       restoreDataNow,
@@ -673,6 +714,7 @@ export const usePersistentAppData = () => {
       emergencyRecovered,
       hasStoredData,
       loadWarnings,
+      otherTabWrote,
       recovery,
       resetToDemo,
       restoreDataNow,

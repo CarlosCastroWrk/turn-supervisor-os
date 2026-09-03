@@ -26,6 +26,7 @@ import type {
   WalkSession,
 } from '../../types';
 import { ACTIVITY_LOG_RETENTION_LIMIT } from '../activityRetention';
+import { logError } from '../errorLog';
 import { normalizeAppData } from '../dataMigrations';
 import { nowISO } from '../constants';
 import { reconcileDailyLogs } from '../dailyLogs';
@@ -1429,6 +1430,7 @@ export const useSupabaseSync = (
   );
 
   const failDiagnostics = useCallback((error: unknown) => {
+    logError('sync', error, 'Sync');
     setDiagnostics((current) => ({
       ...current,
       lastError: error instanceof Error ? error.message : 'Sync failed.',

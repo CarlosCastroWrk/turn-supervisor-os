@@ -1,5 +1,6 @@
 import { Component, type CSSProperties, type ErrorInfo, type ReactNode } from 'react';
 import { readStoredAppDataJson } from '../lib/storage';
+import { logError } from '../lib/errorLog';
 
 interface RootErrorBoundaryProps {
   children: ReactNode;
@@ -28,6 +29,7 @@ export class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErr
   componentDidCatch(error: unknown, info: ErrorInfo): void {
     // Keep a breadcrumb for later diagnosis; never rethrow.
     console.error('turn-os-root-crash', error, info.componentStack);
+    logError('crash', error, `Root crash${info.componentStack ? ` in ${info.componentStack.trim().split('\n')[0]?.trim()}` : ''}`);
   }
 
   private downloadBackup = (): void => {

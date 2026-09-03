@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ToastProvider } from './components/ToastProvider';
 import { RootErrorBoundary } from './components/RootErrorBoundary';
+import { installGlobalErrorCapture } from './lib/errorLog';
 import './styles.css';
 import './styles/turnPolish.css';
 
@@ -20,6 +21,10 @@ if (
     `https://${OFFICIAL_HOST}${window.location.pathname}${window.location.search}${window.location.hash}`,
   );
 }
+
+// Catch what nothing else catches — uncaught errors and dropped promises
+// land in the on-device problem log (More → Storage → Send report).
+installGlobalErrorCapture();
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>

@@ -20,6 +20,7 @@ import {
 } from './backups';
 import { createCoalescedWriter } from './coalescedWriter';
 import { normalizeAppData } from './dataMigrations';
+import { ERROR_LOG_STORAGE_KEY, logError } from './errorLog';
 import {
   clearEmergencyLedger,
   readEmergencyLedger,
@@ -237,6 +238,7 @@ export const loadAppData = (): AppData => loadAppDataResult().data;
 // every convenience cache. When a save hits the quota, the caches are the
 // sacrifice — chat history and prefills go, the field record NEVER does.
 const CONVENIENCE_KEYS = [
+  ERROR_LOG_STORAGE_KEY,
   'turn-os:chat-threads-v1',
   'turn-os:chat-thread',
   'turn-os:intake-prefill',
@@ -303,12 +305,14 @@ export const saveAppData = (data: AppData) => {
       }
     }
     lastSaveHitQuota = true;
+    logError('save', error, 'Save refused — browser storage full');
     // The tap could not land in localStorage — stash the FULL plain ledger in
     // IndexedDB (no 5MB cap there). The next app open adopts it, so a refused
     // save is a bump, never a lost record.
     emergencyStashPending = true;
     void stashEmergencyLedger(serialized).catch((stashError) => {
       console.warn('Emergency ledger stash also failed.', stashError);
+      logError('save', stashError, 'Emergency stash also failed');
     });
     return false;
   }

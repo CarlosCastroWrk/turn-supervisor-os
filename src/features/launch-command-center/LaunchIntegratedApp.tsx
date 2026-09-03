@@ -205,6 +205,7 @@ import {
 } from '../../lib/routing';
 import { clearPhotoBlobs } from '../../lib/photoStorage';
 import { didLastSaveHitQuota, estimateStorageUsage, persistAppDataNow, usePersistentAppData } from '../../lib/storage';
+import { buildProblemReport, clearErrorLog, readErrorLog, shareProblemReport, subscribeToErrorLog } from '../../lib/errorLog';
 import { getLocalCacheOwner } from '../../lib/supabase/cacheOwnership';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import { useSupabaseSync } from '../../lib/supabase/sync';
@@ -448,6 +449,12 @@ function LaunchOperationalApp({
   // banner is non-dismissable and offers a one-tap backup — a dropped tap here
   // is a silently wrong pay count, so it must not be swipe-away-able.
   const [storageFull, setStorageFull] = useState(false);
+  // On-device problem log (crashes, refused saves, sync failures) — re-read
+  // whenever something new lands so More → Storage shows a live count.
+  const [problemLogVersion, setProblemLogVersion] = useState(0);
+  useEffect(() => subscribeToErrorLog(() => setProblemLogVersion((version) => version + 1)), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- version is the trigger
+  const problemLog = useMemo(() => readErrorLog(), [problemLogVersion]);
   // Close Turn write gate. When the active project is sealed (archivedAt), every
   // commit path the UI can reach flows through these wrappers and is refused
   // with a visible reason — never a silent no-op (that lesson is paid for).
@@ -5065,6 +5072,61 @@ function LaunchOperationalApp({
               label="Protected storage"
               value={storagePersistence === 'persistent' ? 'Granted' : 'Best effort'}
             />
+          </GroupedInsetSection>
+          <GroupedInsetSection
+            label="Problems"
+            footer="Crashes, taps that refused to save, and sync failures are kept here on this device. Send report shares them as plain text — no pay, no names — so Claude can see exactly what broke."
+          >
+            <GroupedInsetRow
+              detail={problemLog[0]
+                ? `Latest: ${problemLog[0].message}`
+                : 'Nothing recorded since the log was last cleared.'}
+              label="Recent problems"
+              tone={problemLog.length > 0 ? 'attention' : undefined}
+              value={String(problemLog.length)}
+            />
+            <button
+              className="lcc-day-history-pdf"
+              onClick={() => {
+                const text = buildProblemReport({
+                  build: import.meta.env.VITE_ALPHA_GIT_SHA?.trim() || 'dev',
+                  counts: {
+                    units: data.units.length,
+                    events: data.fieldEvents.length,
+                    activity: data.activityLogs.length,
+                    photos: data.photoNotes.length,
+                  },
+                  saveStatus: backupStatus.label,
+                  storage: storageUsage
+                    ? { approxMb: storageUsage.approxMb, percentUsed: storageUsage.percentUsed }
+                    : null,
+                }, problemLog);
+                void shareProblemReport(text).then((outcome) => {
+                  setMoreStatus(outcome === 'shared'
+                    ? 'Report sent.'
+                    : outcome === 'copied'
+                      ? 'Report copied — paste it to Claude.'
+                      : outcome === 'cancelled'
+                        ? 'Report not sent.'
+                        : 'The report could not be shared from this device.');
+                });
+              }}
+              type="button"
+            >
+              Send report
+            </button>
+            {problemLog.length > 0 ? (
+              <button
+                className="lcc-day-history-pdf"
+                onClick={() => {
+                  clearErrorLog();
+                  setMoreStatus('Problem log cleared.');
+                }}
+                type="button"
+              >
+                Clear log
+              </button>
+            ) : null}
           </GroupedInsetSection>
           {aiAuth.available && aiAuth.signedIn ? (
             <GroupedInsetSection

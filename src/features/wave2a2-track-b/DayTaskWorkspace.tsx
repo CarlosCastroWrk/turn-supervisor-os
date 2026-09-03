@@ -5,7 +5,6 @@ import {
   ChevronRight,
   ClipboardList,
   FileUp,
-  Droplets,
   Footprints,
   LogOut,
   Paintbrush,
@@ -67,15 +66,6 @@ type WorkspaceView =
   | { id: 'day-closed' }
   | { id: 'recovery' }
   | { id: 'queue'; queue: TodayTaskQueue };
-
-const queueOrder: readonly TodayTaskQueueId[] = [
-  'needs-crew',
-  'working',
-  'needs-inspection',
-  'waiting',
-  'callbacks',
-  'ready-to-walk',
-];
 
 // Events are stamped in UTC; evening work must still count as TODAY on the
 // wall clock — every date comparison uses the local calendar day.
@@ -1330,16 +1320,12 @@ function DayTaskHome({
   onExportBackup,
   onExportReport,
   onOpenUnit,
-  josephContact,
-  onOpenCrews,
   onPeekUnit,
   onPeekQueue,
-  needsEyes,
   onOpenNeedsEyesUnit,
   unitNotes,
   reminders,
   changeOrders,
-  onOpenReminderUnit,
   startHere,
   startHereCrews,
   onAssignStartHere,
@@ -1347,7 +1333,6 @@ function DayTaskHome({
   onAction,
   onEndDay,
   onOpenQueue,
-  onOpenTaskDetail,
   onStartDay,
   propertyName,
   rosterCount,
@@ -1356,8 +1341,6 @@ function DayTaskHome({
   morningBrief,
   onAdvanceUnitTrade,
   glance,
-  onOpenCrew,
-  scopeErrors,
   session,
   task,
   queueCounts,
@@ -1535,7 +1518,7 @@ function DayTaskHome({
   };
   // Nightly protection: payroll lives on this phone, so from 5 PM on, an
   // un-missable card asks for the one-tap backup until today's file exists.
-  const [lastBackupDay, setLastBackupDay] = useState<string>(() => {
+  const [, setLastBackupDay] = useState<string>(() => {
     try {
       return window.localStorage.getItem('turn-os:last-backup') ?? '';
     } catch {

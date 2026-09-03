@@ -1,6 +1,5 @@
 import { CalendarDays,
   Archive,
-  BarChart3,
   Cloud,
   FileText,
   Globe,

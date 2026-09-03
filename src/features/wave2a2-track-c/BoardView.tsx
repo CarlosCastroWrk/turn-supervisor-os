@@ -1283,7 +1283,6 @@ const UnitDetail = ({
   onQuickAssign,
   onChangeCrew,
   onRequestAssign,
-  onRequestNote,
   onAddNote,
   onEditNote,
   onDeleteNote,
@@ -2261,7 +2260,7 @@ const WallGrid = ({
       return {};
     }
   });
-  const cycleWeek = (unitId: string, _computed: number | undefined) => {
+  const cycleWeek = (unitId: string) => {
     const key = `${unitId}:${trade}`;
     setWeekOverrides((current) => {
       const next = { ...current };
@@ -2433,7 +2432,7 @@ const WallGrid = ({
                     onClick={(event) => {
                       event.stopPropagation();
                       event.preventDefault();
-                      cycleWeek(unit.id, wk);
+                      cycleWeek(unit.id);
                     }}
                     role="button"
                     title="Tap to change the pay week"

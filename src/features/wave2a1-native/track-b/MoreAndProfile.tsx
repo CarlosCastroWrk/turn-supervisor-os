@@ -1,6 +1,5 @@
 import { CalendarDays,
   Archive,
-  BarChart3,
   ClipboardList,
   Cloud,
   FileText,

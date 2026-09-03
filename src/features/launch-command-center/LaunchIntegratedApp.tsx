@@ -95,7 +95,6 @@ import {
   confirmTrackCBulkAssignmentProposal,
   createTrackCBulkAssignmentProposal,
   prewarmDailyReportPdf,
-  projectTrackCCrewDetail,
   projectTrackCUnitWork,
   projectTrackCWork,
   saveDailyReportPdf,
@@ -1718,27 +1717,6 @@ function LaunchOperationalApp({
       tone: 'ready',
     };
   }, [saveStatus.state]);
-  const syncStatus = useMemo<TrackBDataStatus>(() => {
-    if (sync.status === 'error' || sync.status === 'cache_transition_required') {
-      return {
-        detail: sync.message,
-        label: 'Needs attention',
-        tone: 'attention',
-      };
-    }
-    if (sync.status === 'synced') {
-      return {
-        detail: sync.message,
-        label: 'Synced',
-        tone: 'ready',
-      };
-    }
-    return {
-      detail: sync.message || 'Optional account sync is not active.',
-      label: sync.status.replaceAll('_', ' '),
-      tone: 'unknown',
-    };
-  }, [sync.message, sync.status]);
   const routeUnitNumber = route.unitId
     ? launchProjection.commandUnits.find((unit) => unit.unitId === route.unitId)?.unitNumber
     : undefined;

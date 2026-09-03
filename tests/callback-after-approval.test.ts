@@ -45,7 +45,9 @@ const setup = (): { state: ReturnType<typeof projectTrackCState>; crewId: string
 };
 
 test('a callback on an APPROVED room pulls it out of approved (not both)', () => {
-  let { state, crewId } = setup();
+  const initial = setup();
+  let { state } = initial;
+  const { crewId } = initial;
   const target = { section: 'A' as const, trade: 'paint' as const, unitId: 'unit_101' };
 
   // Assign + start.

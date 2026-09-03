@@ -1,5 +1,4 @@
 import {
-  Activity,
   ArrowLeft,
   Bell,
   CalendarCheck,

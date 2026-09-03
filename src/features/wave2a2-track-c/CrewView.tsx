@@ -15,9 +15,7 @@ import {
   readContactLog,
 } from '../../lib/contactLog';
 import type {
-  TrackCCrewDetail,
   TrackCState,
-  TrackCWorkProjection,
 } from './model';
 import { paintWorkTypeLabel, trackCSectionLabel } from './model';
 import { savePayWeekPacketPdf } from './payPacketPdf';
@@ -27,7 +25,6 @@ import {
   formatRoomsByType,
   formatTypeTally,
   payLocalDate,
-  payWeekSunday,
   type PaintTypeKey,
 } from './crewPayroll';
 import {
@@ -152,7 +149,6 @@ const CrewDetail = ({
   }, [crewId]);
 
   if (!detail) return null;
-  const Icon = detail.crew.trade === 'paint' ? Paintbrush : Droplets;
 
   return (
     <article className="track-c-detail track-c-crew-detail">

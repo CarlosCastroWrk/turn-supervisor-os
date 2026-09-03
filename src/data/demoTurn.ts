@@ -376,7 +376,6 @@ export const buildDemoTurnScratch = (nowIso: string, demoPhone = ''): AppData =>
   const paintPassed = floorRange(4, 1, 12); //   401–412: Los-passed, waiting on Joseph
   const paintInspect = floorRange(5, 1, 12); //  501–512: crew done, needs Los
   const paintWorking = floorRange(6, 1, 8); //   601–608: crews in them now
-  const paintCallbacks = ['505', '510']; //      callbacks opened on inspected rooms
   // Everything paint-released on floors 3–7 that isn't driven above stays as
   // live Needs Crew work; floors 8–12 aren't released yet (the backlog).
   const paintReleased = FLOORS.slice(0, 5).flatMap((floor) => floorRange(floor, 1, SLOTS_PER_FLOOR));

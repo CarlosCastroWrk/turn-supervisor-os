@@ -281,7 +281,6 @@ export function TurnChat({
       persistStore(next);
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   // Scroll behavior, the ChatGPT way: pinned to the bottom while replies
@@ -315,7 +314,6 @@ export function TurnChat({
     pinnedRef.current = true;
     setShowJump(false);
     scroller.scrollTop = scroller.scrollHeight;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   useEffect(() => {
     if (pinnedRef.current) scrollToBottom();

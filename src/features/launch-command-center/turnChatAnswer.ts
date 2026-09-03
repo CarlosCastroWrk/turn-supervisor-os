@@ -24,6 +24,7 @@ import {
   type TrackCTrade,
   type TrackCWorkProjection,
 } from '../wave2a2-track-c/model';
+import { localDayOf, mostRecentWeekday } from '../../lib/localDay';
 
 // Turn Chat's INSTANT brain — answers straight from the phone's own board
 // data: no AI, no network, no sign-in, free, works in a dead zone. Every
@@ -310,7 +311,7 @@ const payLineText = (line: { beds: number; commons: number }) =>
 // ---------------------------------------------------------------------------
 
 const localDateOf = (date: Date): string =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  localDayOf(date);
 
 const WEEKDAY_WORDS: readonly (readonly string[])[] = [
   ['sunday', 'domingo'],
@@ -344,10 +345,9 @@ const daysFromQuery = (query: string, now: Date): SheetDay[] => {
   }
   for (let index = 0; index < WEEKDAY_WORDS.length; index += 1) {
     if (!WEEKDAY_WORDS[index].some((word) => query.includes(word))) continue;
-    const delta = (now.getDay() - index + 7) % 7;
-    const date = new Date(now);
-    date.setDate(date.getDate() - delta);
+    const date = mostRecentWeekday(now, index);
     const key = localDateOf(date);
+    const delta = key === localDateOf(now) ? 0 : 1;
     if (!days.has(key)) {
       days.set(key, delta === 0 ? `Today ${shortDayLabel(key)}` : shortDayLabel(key));
     }
@@ -818,7 +818,7 @@ export const buildTurnChatHistoryDigest = (
   const previousSunday = (() => {
     const day = new Date(`${weekSunday}T12:00:00`);
     day.setDate(day.getDate() - 7);
-    return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    return localDayOf(day);
   })();
   const lines: string[] = [
     `PAY WEEK ${weekNumber} (Sun ${weekSunday} → Sat; counts = DONE rooms; paint full+cut counts as full AND cut-in):`,

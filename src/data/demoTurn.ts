@@ -22,6 +22,7 @@ import type {
   PropertyContact,
   Unit,
 } from '../types';
+import { localDayOf } from '../lib/localDay';
 
 // The Demo Turn: a fully playable FAKE tower that behaves exactly like a real
 // one — release, assign, crew-done, callbacks, walks, payroll — because it is
@@ -54,11 +55,6 @@ const floorRange = (floor: number, from: number, to: number): string[] => {
   const out: string[] = [];
   for (let slot = from; slot <= to; slot += 1) out.push(unitNo(floor, slot));
   return out;
-};
-
-const localDayOf = (iso: string): string => {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
 const shiftIso = (iso: string, hours: number): string =>

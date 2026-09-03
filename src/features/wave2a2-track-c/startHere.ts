@@ -2,6 +2,7 @@ import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import type { TrackCState, TrackCTrade } from './model';
 import { trackCSectionLabel } from './model';
 import { projectTrackCUnitWork } from './projections';
+import { localDayOf } from '../../lib/localDay';
 
 export interface StartHereItem {
   readonly unitId: string;
@@ -20,7 +21,7 @@ export interface StartHereItem {
 // (CLAUDE.md guardrail #5: never slice the ISO string).
 const localDay = (iso: string): string => {
   const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return localDayOf(date);
 };
 
 // "Start here" = work RELEASED ON AN EARLIER DAY that still isn't finished:

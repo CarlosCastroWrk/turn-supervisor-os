@@ -9,6 +9,7 @@ import type {
   UnitWorkflowStatus,
   WorkStatus,
 } from '../types.js';
+import { localDayOf } from './localDay';
 
 export const UNIT_WORKFLOW_STATUSES: UnitWorkflowStatus[] = [
   'Not Started',
@@ -85,7 +86,7 @@ export const PHOTO_CATEGORIES: PhotoCategory[] = ['Before', 'During', 'After', '
 export const TRAINING_STATUSES: TrainingQuestionStatus[] = ['Not Asked', 'Asked', 'Answered', 'Needs Follow-Up'];
 
 const toISODate = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  localDayOf(date);
 
 export const todayISO = () => toISODate(new Date());
 

@@ -10,6 +10,7 @@
 // per-day breakdown always sums to the Turn total — the numbers reconcile.
 
 import type { TrackCState, TrackCConfirmedEvent } from './model';
+import { localDayOf, payWeekSunday } from '../../lib/localDay';
 
 export interface PayLine {
   readonly beds: number;
@@ -66,21 +67,15 @@ const addType = (tally: TypeTally, type: PaintTypeKey): TypeTally =>
   ({ ...tally, [type]: tally[type] + 1 });
 
 // Local calendar day (days are local even though timestamps are UTC).
-export const payLocalDate = (iso: string): string => {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
+export const payLocalDate = (iso: string): string => localDayOf(iso);
 
 // Pay week = Sunday 00:00 -> Saturday 23:59, date only (no time-of-day cutoff) —
 // the app week matches Los's physical wall board, which is colored Sun–Sat. Any
 // work whose local calendar day falls in that Sun–Sat range belongs to that
 // week. Returns the Sunday (YYYY-MM-DD) that starts the week.
-export const payWeekSunday = (iso: string): string => {
-  const date = new Date(iso);
-  date.setDate(date.getDate() - date.getDay());
-  date.setHours(0, 0, 0, 0);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
+// Lives in src/lib/localDay.ts (the ONE week module); re-exported here so
+// every payroll caller keeps its import.
+export { payWeekSunday };
 
 const isPayEvent = (event: TrackCConfirmedEvent): boolean =>
   event.eventType === 'crew-reported-complete'
@@ -94,7 +89,7 @@ export const buildAllCrewPayroll = (
   state: TrackCState,
   now: Date,
 ): Map<string, CrewPayroll> => {
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const today = localDayOf(now);
   const currentWeek = payWeekSunday(now.toISOString());
 
   // Work type per paint room (unit:trade:section -> full/touch-up/cut-in/…),

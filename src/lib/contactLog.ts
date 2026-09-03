@@ -3,6 +3,7 @@
 // operationally, so localStorage is the right grain.
 
 const CONTACT_LOG_KEY = 'turn-os:contact-log:v1';
+import { localDayOf } from './localDay';
 const CONTACT_LOG_CAP = 300;
 
 export interface ContactLogEntry {
@@ -46,7 +47,7 @@ export const appendContactLog = (
 
 const localDateOf = (iso: string) => {
   const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return localDayOf(date);
 };
 
 export const contactsToday = (log: readonly ContactLogEntry[]): ContactLogEntry[] => {

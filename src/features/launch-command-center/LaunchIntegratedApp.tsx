@@ -232,6 +232,7 @@ import { UnitDetailView } from '../../views/UnitDetailView';
 import { UnitsView } from '../../views/UnitsView';
 import { RecoveryMode } from './RecoveryMode';
 import './launchHost.css';
+import { localDayOf } from '../../lib/localDay';
 
 const LEGACY_CAPTURE_HISTORY_KEY = 'turnOsLegacyCapture';
 const FULL_PAGE_RETURN_HISTORY_KEY = 'turnOsLaunchFullPageReturn';
@@ -378,7 +379,7 @@ export function LaunchIntegratedApp() {
 
 const localEventDate = (iso: string) => {
   const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return localDayOf(date);
 };
 
 const EMPTY_READ_IDS: ReadonlySet<string> = new Set();

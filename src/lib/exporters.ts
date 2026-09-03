@@ -14,6 +14,7 @@ import {
   getProjectDraftActions,
   getProjectFollowUpTasks,
 } from './projectScope';
+import { localDayOf } from './localDay';
 
 const escapeCsv = (value: unknown) => {
   const raw = String(value ?? '');
@@ -293,7 +294,7 @@ const toLocalDate = (dateTime: string) => {
     return '';
   }
 
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return localDayOf(date);
 };
 
 const formatActivityTime = (dateTime: string) => {

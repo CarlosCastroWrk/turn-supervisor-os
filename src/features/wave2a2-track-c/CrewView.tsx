@@ -50,13 +50,14 @@ import {
   WALL_WEEK_EPOCH,
   WALL_WORKTYPE_ABBR,
 } from './wallWeek';
+import { localDayOf } from '../../lib/localDay';
 
 // The Sunday (YYYY-MM-DD) that starts a given pay-week number, from the shared
 // epoch (Aug 2 2026 = week 2). Lets Los pull up ANY past week to pay it.
 const payWeekSundayOf = (weekNumber: number): string => {
   const date = new Date(WALL_WEEK_EPOCH);
   date.setDate(date.getDate() + (weekNumber - 2) * 7);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return localDayOf(date);
 };
 
 // Which "this week's extras" Los has ticked off as verified for payroll —

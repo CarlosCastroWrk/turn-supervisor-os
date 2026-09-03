@@ -17,7 +17,7 @@ import { formatClock } from '../../lib/constants';
 const formatClockWithDay = (iso: string): string => {
   const when = new Date(iso);
   const now = new Date();
-  const dayOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const dayOf = (d: Date) => localDayOf(d);
   if (dayOf(when) === dayOf(now)) return formatClock(iso);
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -51,6 +51,7 @@ import {
   trackCCrewName,
   trackCUnitMakeupLabel,
 } from './projections';
+import { localDayOf } from '../../lib/localDay';
 
 export type UnitNoteKind = 'note' | 'change-order' | 'reminder' | 'texture' | 'drywall';
 
@@ -505,7 +506,7 @@ const CompactTrade = ({
 // tell at a glance whether a unit came onto the board today or is carryover.
 const relativeDayLabel = (iso: string): string => {
   const localDay = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    localDayOf(date);
   const day = localDay(new Date(iso));
   if (day === localDay(new Date())) return 'today';
   if (day === localDay(new Date(Date.now() - 86_400_000))) return 'yesterday';

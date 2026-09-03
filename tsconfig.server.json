@@ -18,6 +18,7 @@
     "server/**/*.ts",
     "src/types.ts",
     "src/lib/constants.ts",
+    "src/lib/localDay.ts",
     "src/lib/ai/types.ts",
     "src/lib/ai/modelCapture.ts",
     "src/lib/ai/usage.ts"

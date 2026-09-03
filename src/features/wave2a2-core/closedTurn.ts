@@ -1,6 +1,7 @@
 import type { AppData, Project } from '../../types';
 import type { TrackCState } from '../wave2a2-track-c/model';
 import { componentTotals, type CrewPayroll } from '../wave2a2-track-c/crewPayroll';
+import { localDayOf } from '../../lib/localDay';
 
 // Close Turn = seal the ACTIVE project in place. Unlike the legacy
 // archiveProject (src/lib/actions.ts), closing does NOT switch activeProjectId
@@ -16,11 +17,6 @@ export const activeProjectOf = (data: AppData): Project | undefined =>
 
 export const isTurnClosed = (data: AppData): boolean =>
   Boolean(activeProjectOf(data)?.archivedAt);
-
-const localDayOf = (iso: string): string => {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-};
 
 export type CloseTurnResult =
   | { readonly ok: true; readonly data: AppData }

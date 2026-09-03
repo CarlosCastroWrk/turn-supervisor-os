@@ -58,6 +58,7 @@ import './track-b.css';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import type { StartHereItem } from '../wave2a2-track-c/startHere';
 import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
+import { localDayOf } from '../../lib/localDay';
 
 type WorkspaceView =
   | { id: 'home' }
@@ -77,7 +78,7 @@ const friendlyDay = (isoDate: string) => {
 
 const localEventDate = (iso: string) => {
   const date = new Date(iso);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return localDayOf(date);
 };
 
 const queueIcons: Readonly<Record<TodayTaskQueueId, ReactNode>> = {

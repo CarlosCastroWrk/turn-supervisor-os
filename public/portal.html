@@ -94,8 +94,17 @@
 
   const el = (id) => document.getElementById(id);
 
+  // Everything rendered into innerHTML goes through esc() — unit numbers and
+  // statuses come from the server payload, never trust them as markup.
+  const esc = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
   const tradeChip = (trade, status) =>
-    `<span class="chip ${status}">${trade} ${LABELS[status] || status}</span>`;
+    `<span class="chip ${esc(status)}">${esc(trade)} ${esc(LABELS[status] || status)}</span>`;
 
   const matches = (u) => {
     if (query && !u.n.toLowerCase().includes(query)) return false;
@@ -115,13 +124,13 @@
   };
 
   const unitRow = (u) => `
-      <div class="unit${picked.has(u.n) ? ' picked' : ''}" data-n="${u.n}">
-        <strong>${u.n}${u.partial ? '<small style="color:#9b5b00"> partial</small>' : ''}</strong>
+      <div class="unit${picked.has(u.n) ? ' picked' : ''}" data-n="${esc(u.n)}">
+        <strong>${esc(u.n)}${u.partial ? '<small style="color:#9b5b00"> partial</small>' : ''}</strong>
         <span class="chips">
           ${tradeChip('Paint', u.p)}
           ${tradeChip('Clean', u.c)}
-          ${(u.pr || 0) > 0 && u.p !== 'passed' ? `<span class="chip passed">Paint · ${u.pr} room${u.pr === 1 ? '' : 's'} ready</span>` : ''}
-          ${(u.cr || 0) > 0 && u.c !== 'passed' ? `<span class="chip passed">Clean · ${u.cr} room${u.cr === 1 ? '' : 's'} ready</span>` : ''}
+          ${(u.pr || 0) > 0 && u.p !== 'passed' ? `<span class="chip passed">Paint · ${Number(u.pr)} room${u.pr === 1 ? '' : 's'} ready</span>` : ''}
+          ${(u.cr || 0) > 0 && u.c !== 'passed' ? `<span class="chip passed">Clean · ${Number(u.cr)} room${u.cr === 1 ? '' : 's'} ready</span>` : ''}
           ${u.bk ? '<span class="chip open">On hold</span>' : ''}
           ${u.cb ? '<span class="chip cb">Callback</span>' : ''}
         </span>

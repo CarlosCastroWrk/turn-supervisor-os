@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import {
   createSyntheticTrackCState,
   createTrackCScaleState,
@@ -1405,4 +1406,17 @@ test('several rooms of one unit can be on callback at the same time', () => {
     .map((w) => w.section)
     .sort();
   assert.deepEqual(open, ['A', 'B'], 'both A and B are on callback at once');
+});
+
+// ONE pay engine. The crew profile card used to re-count crew-reported-complete
+// events with its own week rule (no release gate, no round key), so the number
+// on the card could disagree with the pay packet Tony gets. Today / this week
+// on the card now come straight from crewPayroll.ts — pin that CrewView never
+// grows its own pay or week math again.
+test('CrewView shows the pay engine\'s numbers and owns no pay/week math of its own', async () => {
+  const source = await readFile(new URL('../src/features/wave2a2-track-c/CrewView.tsx', import.meta.url), 'utf8');
+  assert.match(source, /payroll\?\.today/u, 'crew card today count must come from CrewPayroll');
+  assert.match(source, /payroll\?\.week/u, 'crew card week count must come from CrewPayroll');
+  assert.doesNotMatch(source, /getDay\(\)/u, 'week boundaries must come from payWeekSunday, not a local getDay() copy');
+  assert.doesNotMatch(source, /doneEvents/u, 'no inline crew-reported-complete tally in CrewView');
 });

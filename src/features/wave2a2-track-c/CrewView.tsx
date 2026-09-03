@@ -21,6 +21,8 @@ import { paintWorkTypeLabel, trackCSectionLabel } from './model';
 import { savePayWeekPacketPdf } from './payPacketPdf';
 import {
   buildAllCrewPayroll,
+  type CrewPayroll,
+  payWeekSunday,
   formatPayLine,
   formatRoomsByType,
   formatTypeTally,
@@ -121,6 +123,7 @@ const CrewDetail = ({
   onContact,
   onToggleWhatsapp,
   onOpenUnit,
+  payroll,
   phone,
   whatsapp,
 }: {
@@ -131,6 +134,9 @@ const CrewDetail = ({
   onContact?: () => void;
   onToggleWhatsapp?: () => void;
   onOpenUnit?: (unitId: string, trade: 'paint' | 'clean') => void;
+  // The ONE pay engine's numbers (crewPayroll.ts) — the same today/week that
+  // the pay packet and the crew card show. Never recomputed here.
+  payroll?: CrewPayroll;
   phone?: string;
   whatsapp?: boolean;
 }) => {
@@ -220,35 +226,12 @@ const CrewDetail = ({
       </div>
       {(() => {
         // Beds + common areas — the recorded language. One row per unit,
-        // latest state only; no triple listing.
-        const localDay = (iso: string) => {
-          const date = new Date(iso);
-          return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-        };
-        const today = localDay(new Date().toISOString());
-        const doneEvents = state.events.filter((event) =>
-          event.eventType === 'crew-reported-complete'
-          && event.confirmation === 'confirmed'
-          && event.crewId === crewId);
-        const count = (filter: (iso: string) => boolean) => {
-          const seen = new Set<string>();
-          let beds = 0;
-          let commons = 0;
-          for (const event of doneEvents) {
-            if (!filter(event.recordedAt)) continue;
-            const key = `${event.target.unitId}:${event.target.trade}:${event.target.section}`;
-            if (seen.has(key)) continue;
-            seen.add(key);
-            if (event.target.section === 'common') commons += 1;
-            else beds += 1;
-          }
-          return { beds, commons };
-        };
-        const sunday = new Date();
-        sunday.setDate(sunday.getDate() - sunday.getDay());
-        const weekStart = localDay(sunday.toISOString());
-        const todayLine = count((iso) => localDay(iso) === today);
-        const weekLine = count((iso) => localDay(iso) >= weekStart);
+        // latest state only; no triple listing. Today / this week come from
+        // the pay engine (release-gated, per-round dedup) so this card can
+        // never disagree with the packet Tony gets.
+        const emptyLine = { beds: 0, commons: 0 };
+        const todayLine = payroll?.today ?? emptyLine;
+        const weekLine = payroll?.week ?? emptyLine;
         const label = (line: { beds: number; commons: number }) =>
           line.beds === 0 && line.commons === 0
             ? '—'
@@ -663,6 +646,7 @@ export const CrewView = ({
         }
         onEdit={onEditCrew ? () => onEditCrew(selectedCrewId) : undefined}
         onOpenUnit={onOpenUnit}
+        payroll={payrollByCrew.get(selectedCrewId)}
         state={state}
       />
     );
@@ -684,8 +668,9 @@ export const CrewView = ({
         const now = new Date();
         const weekNumber = payWeekNumberOf(now.toISOString());
         const colors: Record<number, string> = { 1: 'yellow', 2: 'green', 3: 'pink' };
-        const sunday = new Date(now);
-        sunday.setDate(now.getDate() - now.getDay());
+        // Week bounds come from the pay engine's own Sunday rule — not a
+        // second copy of it.
+        const sunday = new Date(`${payWeekSunday(now.toISOString())}T00:00:00`);
         const saturday = new Date(sunday);
         saturday.setDate(sunday.getDate() + 6);
         const fmt = (date: Date) =>

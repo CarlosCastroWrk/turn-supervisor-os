@@ -641,12 +641,13 @@ test('500-Unit roster and 40-Unit release projections remain bounded', () => {
 });
 
 test('feature source preserves integration and operational boundaries', async () => {
-  const [component, model, types, css, previewCss] = await Promise.all([
+  // preview.css (the retired preview harness) was removed Sep 2026 — the pin
+  // now covers the live stylesheet only.
+  const [component, model, types, css] = await Promise.all([
     readFeature('DayTaskWorkspace.tsx'),
     readFeature('model.ts'),
     readFeature('types.ts'),
     readFeature('track-b.css'),
-    readFeature('preview.css'),
   ]);
   const source = [component, model, types].join('\n');
 
@@ -666,6 +667,4 @@ test('feature source preserves integration and operational boundaries', async ()
   assert.equal(/--w2a2b-cta:\s*var\(/u.test(css), false);
   assert.equal(/--w2a2b-warning:\s*var\(/u.test(css), false);
   assert.match(css, /button\.w2a2b-primary-button\s*\{[^}]*color:\s*#ffffff/su);
-  assert.equal(/--cta\s*:/u.test(previewCss), false);
-  assert.equal(/--amber\s*:/u.test(previewCss), false);
 });

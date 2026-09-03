@@ -6,6 +6,7 @@ import type {
   FieldSection,
   FieldTrade,
   WalkSession as AppWalkSession,
+  FieldEventType,
 } from '../../types';
 import {
   createTodayTask,
@@ -434,7 +435,7 @@ const upsertById = <T extends { id: string }>(records: readonly T[], record: T) 
 const contextEvent = (
   projectId: string,
   session: DaySession,
-  eventType: string,
+  eventType: FieldEventType,
   summary: string,
   recordedAt: string,
 ): FieldEvent => ({
@@ -524,7 +525,11 @@ export function applyDayTaskStateChange(
       fieldEvents = upsertById(fieldEvents, event);
     });
   }
-  if (change.reason.startsWith('recovery-')) {
+  if (
+    change.reason === 'recovery-reopened'
+    || change.reason === 'recovery-resumed'
+    || change.reason === 'recovery-review'
+  ) {
     fieldEvents = upsertById(fieldEvents, contextEvent(
       data.activeProjectId,
       session,

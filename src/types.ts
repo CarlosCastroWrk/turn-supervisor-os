@@ -383,6 +383,55 @@ export interface TodayTask {
   updatedAt: string;
 }
 
+// The ledger's vocabulary. Every event kind the app writes or reads is named
+// here so a typo in a writer is a compile error, not an event no reader sees.
+// Stored data is still validated as a string on load — unknown kinds from an
+// older build are kept, never dropped.
+export type FieldEventType =
+  | 'assignment-cleared'
+  | 'assignment-confirmed'
+  | 'callback-correction-reported'
+  | 'callback-opened'
+  | 'callback-resolved'
+  | 'crew-reported-complete'
+  | 'daily-release-confirmed'
+  | 'day-assignment-evidence-reviewed'
+  | 'day-recovery-reopened'
+  | 'day-recovery-resumed'
+  | 'day-recovery-review'
+  | 'day-session-closed'
+  | 'day-session-started'
+  | 'day-walkthrough-schedule-recorded'
+  | 'day-working-hours-recorded'
+  | 'los-passed'
+  | 'note-saved'
+  | 'paper-reviewed'
+  | 'personal-pds-mirror-recorded'
+  | 'photo-saved'
+  | 'project-activated'
+  | 'property-accepted'
+  | 'property-correction-requested'
+  | 'walk-deferred'
+  | 'walk-not-walked'
+  | 'work-started';
+
+export type FieldEventActorType = 'crew' | 'los' | 'property' | 'system';
+
+export type FieldEventSourceType =
+  | 'confirmed-release'
+  | 'crew-report'
+  | 'day-session'
+  | 'image'
+  | 'inspection'
+  | 'manual'
+  | 'manual-release'
+  | 'personal-confirmation'
+  | 'personal-entry'
+  | 'project-setup'
+  | 'property-walk'
+  | 'property-walk-observation'
+  | 'synthetic-fixture';
+
 export interface FieldEvent {
   id: EntityId;
   projectId: EntityId;
@@ -390,15 +439,15 @@ export interface FieldEvent {
   unitId?: EntityId;
   section?: FieldSection;
   trade?: FieldTrade;
-  actorType: string;
+  actorType: FieldEventActorType;
   actorId: string;
   reportedBy?: string;
   occurredAt?: string;
   recordedAt: string;
   recordedBy: string;
-  sourceType: string;
+  sourceType: FieldEventSourceType;
   sourceId?: EntityId;
-  eventType: string;
+  eventType: FieldEventType;
   summary: string;
   boundary: FieldEventBoundary;
   reversesEventId?: EntityId;

@@ -1,3 +1,5 @@
+import type { FieldEventType } from '../../types';
+
 export type TrackBTrade = 'Paint' | 'Clean';
 
 export interface PropertyRosterSection {
@@ -120,7 +122,7 @@ export interface DaySessionEvent {
   actorType: DayActorType;
   daySessionId: string;
   eventId: string;
-  eventType: string;
+  eventType: FieldEventType;
   occurredAt?: string;
   personalOfficialBoundary: 'personal-record-only';
   propertyId: string;

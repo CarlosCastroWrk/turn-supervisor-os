@@ -52,6 +52,7 @@ import {
   trackCUnitMakeupLabel,
 } from './projections';
 import { localDayOf } from '../../lib/localDay';
+import { ROOM_STAGE_LABEL, ROOM_STAGE_SHORT, TRADE_STAGE_LABEL, roomStageOf, tradeStageOf } from './roomStatus';
 
 export type UnitNoteKind = 'note' | 'change-order' | 'reminder' | 'texture' | 'drywall';
 
@@ -313,50 +314,23 @@ interface BoardViewProps {
 const tradeLabel = (trade: TrackCTrade) =>
   trade === 'paint' ? 'Paint' : 'Clean';
 
+// Stage (and its precedence) comes from the ONE room-status module. The board
+// only adds the detail words it alone shows: conflict, reinspection, mirror.
 const executionLabel = (work: TrackCWorkProjection) => {
   if (work.assignmentConflict) return 'Assignment conflict';
-  if (work.callbackOpen) {
-    return work.inspection === 'reinspection-pending'
-      ? 'Reinspection pending'
-      : 'Callback open';
-  }
-  if (work.property === 'property-accepted') {
-    return work.personalPdsMirror ? 'Accepted · mirror recorded' : 'Accepted';
-  }
-  // A room is just "passed" — walking happens at the UNIT level once every room
-  // is done, so a single room never reads as "needs to be walked".
-  if (work.inspection === 'los-passed') return 'Los passed';
-  if (work.inspection === 'needs-los-inspection') return 'Needs Los inspection';
-  if (work.execution === 'crew-reported-complete') return 'Crew reported complete';
-  if (work.execution === 'working') return 'Working';
-  if (work.execution === 'assigned') return 'Assigned';
-  if (work.release === 'released') return 'Needs crew';
-  if (work.release === 'unreleased') return 'Unreleased';
-  return 'Source review required';
+  if (work.callbackOpen && work.inspection === 'reinspection-pending') return 'Reinspection pending';
+  const stage = roomStageOf(work);
+  if (stage === 'approved' && work.personalPdsMirror) return 'Approved · mirror recorded';
+  if (stage === 'unreleased' && work.release !== 'unreleased') return 'Source review required';
+  return ROOM_STAGE_LABEL[stage];
 };
 
 const compactSectionStatus = (work: TrackCWorkProjection) => {
   if (work.assignmentConflict) return 'Conflict';
-  if (work.callbackOpen) {
-    return work.inspection === 'reinspection-pending'
-      ? 'Reinspect'
-      : 'Callback';
-  }
-  if (work.property === 'property-accepted') return 'Accepted';
-  if (work.inspection === 'los-passed') return 'Passed';
-  if (
-    work.inspection === 'needs-los-inspection' ||
-    work.execution === 'crew-reported-complete'
-  ) {
-    return 'Inspect';
-  }
-  if (work.execution === 'working') return 'Working';
-  if (work.execution === 'assigned') return 'Assigned';
-  if (work.release === 'released') {
-    return work.access === 'clear' ? 'Needs crew' : 'Waiting';
-  }
-  if (work.release === 'unreleased') return 'Unreleased';
-  return 'Review';
+  if (work.callbackOpen && work.inspection === 'reinspection-pending') return 'Reinspect';
+  const stage = roomStageOf(work);
+  if (stage === 'unreleased' && work.release !== 'unreleased') return 'Review';
+  return ROOM_STAGE_SHORT[stage];
 };
 
 const layerCopy = (state: TrackCState, work: TrackCWorkProjection) => {
@@ -860,7 +834,7 @@ const WorkSection = ({
           </span>
           <span
             className={`track-c-section-row__state ${
-              ['Passed', 'Accepted'].includes(compactSectionStatus(work)) ? 'is-passed' : ''
+              ['Passed', 'Approved'].includes(compactSectionStatus(work)) ? 'is-passed' : ''
             }`}
           >
             {compactSectionStatus(work)}
@@ -1452,20 +1426,21 @@ const UnitDetail = ({
           .filter((item) => item.callbackOpen)
           .map((item) => trackCSectionLabel(item.section))
           .join(', ');
-        const tradeStatus: { text: string; tone: string } = anyCallbackOpen
-          ? { text: `Callback — ${callbackRoomsLabel}`, tone: 'callback' }
-          : releasedItems.length === 0
-            ? { text: 'Not released', tone: 'idle' }
-            : releasedItems.every((item) => item.property === 'property-accepted')
-              ? { text: 'Approved', tone: 'approved' }
-              : releasedItems.every((item) => item.inspection === 'los-passed')
-                ? { text: 'Ready to walk', tone: 'ready' }
-                : releasedItems.every((item) =>
-                  item.execution === 'crew-reported-complete' || item.inspection === 'los-passed')
-                  ? { text: 'Crew done — your inspection', tone: 'check' }
-                  : releasedItems.some((item) => ['assigned', 'working'].includes(item.execution))
-                    ? { text: 'Working', tone: 'working' }
-                    : { text: 'Needs crew', tone: 'idle' };
+        const tradeStage = tradeStageOf(tradeWork);
+        const tradeTone: Record<typeof tradeStage, string> = {
+          approved: 'approved',
+          blocked: 'idle',
+          callback: 'callback',
+          'crew-done': 'check',
+          'needs-crew': 'idle',
+          passed: 'ready',
+          unreleased: 'idle',
+          working: 'working',
+        };
+        const tradeStatus: { text: string; tone: string } = {
+          text: anyCallbackOpen ? `Callback — ${callbackRoomsLabel}` : TRADE_STAGE_LABEL[tradeStage],
+          tone: tradeTone[tradeStage],
+        };
         const progress = projectTrackCTradeProgress(state, unitId, trade);
         const crewNames = progress.crewIds
           .map((crewId) => trackCCrewName(state, crewId))

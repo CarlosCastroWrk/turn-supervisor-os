@@ -2,6 +2,7 @@ import type { TrackCState } from '../wave2a2-track-c/model';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import { paintWorkTypeNote, trackCSectionLabel } from '../wave2a2-track-c/model';
 import { projectTrackCUnitWork } from '../wave2a2-track-c/projections';
+import { ROOM_STAGE_LABEL, roomStageOf, roomStageTone } from '../wave2a2-track-c/roomStatus';
 
 // iOS-style peek: hold a unit or a chip on Home and a preview springs up —
 // the rooms and their tasks for a unit, or the units behind a chip. Read-only;
@@ -12,24 +13,7 @@ export type PeekTarget =
   | { kind: 'unit'; unitId: string }
   | { kind: 'queue'; label: string; unitIds: readonly string[] };
 
-const roomStatus = (work: ReturnType<typeof projectTrackCUnitWork>[number]): string => {
-  if (work.property === 'property-accepted') return 'Approved';
-  if (work.callbackOpen) return 'Callback';
-  if (work.inspection === 'los-passed') return 'Passed';
-  if (work.execution === 'crew-reported-complete') return 'Done — check';
-  if (work.access !== 'clear') return 'Blocked';
-  if (work.execution === 'working' || work.execution === 'assigned') return 'Working';
-  return 'Needs crew';
-};
-
-const statusTone = (status: string): string =>
-  status === 'Approved' || status === 'Passed'
-    ? 'ok'
-    : status === 'Callback' || status === 'Blocked'
-      ? 'warn'
-      : status === 'Working' || status === 'Done — check'
-        ? 'work'
-        : 'open';
+// Stage + label + tone all come from the ONE room-status module.
 
 export const TurnPeek = ({
   target,
@@ -74,7 +58,8 @@ export const TurnPeek = ({
               {group.trade === 'paint' ? 'Paint' : 'Clean'} →
             </button>
             {group.rooms.map((room) => {
-              const status = roomStatus(room);
+              const stage = roomStageOf(room);
+              const status = ROOM_STAGE_LABEL[stage];
               const note = group.trade === 'paint' ? paintWorkTypeNote(room.workType) : '';
               return (
                 <div className="lcc-peek__room" key={`${room.trade}:${room.section}`}>
@@ -82,7 +67,7 @@ export const TurnPeek = ({
                   <span className="lcc-peek__task">
                     {group.trade === 'clean' ? 'clean' : note || 'full paint'}
                   </span>
-                  <span className={`lcc-peek__pill is-${statusTone(status)}`}>{status}</span>
+                  <span className={`lcc-peek__pill is-${roomStageTone(stage)}`}>{status}</span>
                 </div>
               );
             })}

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { getSupabaseClient } from '../../lib/supabase/client';
 import type { TrackCState } from '../wave2a2-track-c/model';
 import { projectTrackCUnitWork } from '../wave2a2-track-c/projections';
+import { tradeStageOf } from '../wave2a2-track-c/roomStatus';
 
 // Read-only property portal for Joseph & Paige. Publishing sends ONLY
 // unit-grain work status (paint/clean per unit) — no pay, no pricing, no
@@ -26,20 +27,15 @@ interface PortalUnitLine {
 const PORTAL_URL_KEY = 'turn-os:portal-share-url';
 const PORTAL_UPDATED_KEY = 'turn-os:portal-last-published';
 
+// Progress from the ONE trade-status rule. The portal shows a callback as its
+// own chip (cb), so the progress letter is read callback-blind.
 const tradeStatusFor = (
   work: readonly ReturnType<typeof projectTrackCUnitWork>[number][],
 ): PortalTradeStatus => {
-  const released = work.filter((item) => item.release === 'released');
-  if (released.length === 0) return 'none';
-  if (released.every((item) => item.property === 'property-accepted')) return 'approved';
-  if (released.every((item) =>
-    item.inspection === 'los-passed' || item.property === 'property-accepted')) return 'passed';
-  if (released.every((item) =>
-    item.execution === 'crew-reported-complete'
-    || item.inspection === 'los-passed'
-    || item.property === 'property-accepted')) return 'crew-done';
-  if (released.some((item) => ['assigned', 'working'].includes(item.execution))) return 'working';
-  return 'open';
+  const stage = tradeStageOf(work, { ignoreCallbacks: true });
+  if (stage === 'unreleased') return 'none';
+  if (stage === 'needs-crew' || stage === 'blocked' || stage === 'callback') return 'open';
+  return stage;
 };
 
 export const buildPortalUnits = (state: TrackCState): PortalUnitLine[] =>

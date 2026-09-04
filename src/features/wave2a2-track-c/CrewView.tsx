@@ -47,18 +47,14 @@ import {
   parseTextureWording,
   payWeekNumberOf,
   wallWeekColor,
-  WALL_WEEK_EPOCH,
   WALL_WORKTYPE_ABBR,
 } from './wallWeek';
-import { localDayOf } from '../../lib/localDay';
+import { payWeekSundayOfNumber } from '../../lib/localDay';
+import { ROOM_STAGE_LABEL, ROOM_STAGE_RANK, roomStageOf } from './roomStatus';
 
 // The Sunday (YYYY-MM-DD) that starts a given pay-week number, from the shared
 // epoch (Aug 2 2026 = week 2). Lets Los pull up ANY past week to pay it.
-const payWeekSundayOf = (weekNumber: number): string => {
-  const date = new Date(WALL_WEEK_EPOCH);
-  date.setDate(date.getDate() + (weekNumber - 2) * 7);
-  return localDayOf(date);
-};
+const payWeekSundayOf = (weekNumber: number): string => payWeekSundayOfNumber(weekNumber);
 
 // Which "this week's extras" Los has ticked off as verified for payroll —
 // device-local, namespaced by the pay-week Sunday so last week's ticks never
@@ -257,12 +253,11 @@ const CrewDetail = ({
           status: string;
           date: string;
         }>();
-        const statusOf = (work: (typeof allWork)[number]): [number, string] =>
-          work.property === 'property-accepted' ? [4, 'Approved']
-            : work.callbackOpen ? [3, 'Callback']
-              : work.inspection === 'los-passed' ? [2, 'Los passed']
-                : work.execution === 'crew-reported-complete' ? [1, 'Done — needs Los']
-                  : [0, 'Working'];
+        // Stage, rank, and words from the ONE room-status module.
+        const statusOf = (work: (typeof allWork)[number]): [number, string] => {
+          const stage = roomStageOf(work);
+          return [ROOM_STAGE_RANK[stage], ROOM_STAGE_LABEL[stage]];
+        };
         const roomOrder: readonly string[] = ['common', 'A', 'B', 'C', 'D', 'E'];
         for (const work of allWork) {
           const unit = trackCUnitForTarget(state, work);

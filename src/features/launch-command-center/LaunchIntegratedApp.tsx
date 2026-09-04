@@ -232,7 +232,8 @@ import { UnitDetailView } from '../../views/UnitDetailView';
 import { UnitsView } from '../../views/UnitsView';
 import { RecoveryMode } from './RecoveryMode';
 import './launchHost.css';
-import { localDayOf } from '../../lib/localDay';
+import { localEventDate } from '../../lib/localDay';
+import { roomStageOf, tradeStageOf } from '../wave2a2-track-c/roomStatus';
 
 const LEGACY_CAPTURE_HISTORY_KEY = 'turnOsLegacyCapture';
 const FULL_PAGE_RETURN_HISTORY_KEY = 'turnOsLaunchFullPageReturn';
@@ -377,10 +378,6 @@ export function LaunchIntegratedApp() {
   return <LaunchOperationalApp persistence={persistence} />;
 }
 
-const localEventDate = (iso: string) => {
-  const date = new Date(iso);
-  return localDayOf(date);
-};
 
 const EMPTY_READ_IDS: ReadonlySet<string> = new Set();
 
@@ -771,23 +768,19 @@ function LaunchOperationalApp({
         // A unit with ANY crew assigned is NEVER "needs crew" — even if that
         // crew's name can't be resolved (added under the wrong trade/project).
         // Otherwise a real assignment reads as unassigned on the board.
+        // Stage comes from the ONE trade-status rule (roomStatus.ts). The rooms
+        // here are already released + clear + not approved, so only these five
+        // stages can come back; anything else is filtered above and skipped.
         const hasAssignedCrew = work.some((item) => item.activeCrewIds.length > 0);
-        const hasCallback = work.some((item) => item.callbackOpen);
-        const allPassed = work.every((item) => item.inspection === 'los-passed');
-        const donePlus = work.filter((item) =>
-          item.execution === 'crew-reported-complete'
-          || item.inspection === 'los-passed').length;
-        const anyActive = work.some((item) =>
-          ['assigned', 'working'].includes(item.execution)) || hasAssignedCrew;
-        const stage = hasCallback
-          ? 'callback' as const
-          : allPassed
-            ? 'passed' as const
-            : donePlus === work.length
-              ? 'crew-done' as const
-              : anyActive || crewNames.length > 0
-                ? 'working' as const
-                : 'needs-crew' as const;
+        // "done" on the Home card = rooms the crew has finished (reported or
+        // already passed), by the same stage rule the board uses.
+        const donePlus = work.filter((item) => {
+          const roomStage = roomStageOf(item);
+          return roomStage === 'crew-done' || roomStage === 'passed';
+        }).length;
+        const tradeStage = tradeStageOf(work);
+        if (tradeStage === 'approved' || tradeStage === 'blocked' || tradeStage === 'unreleased') continue;
+        const stage = tradeStage === 'needs-crew' && crewNames.length > 0 ? 'working' as const : tradeStage;
         let passedAgo: string | undefined;
         if (stage === 'passed') {
           const latest = trackCState.events

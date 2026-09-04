@@ -11,6 +11,7 @@ import {
   payWeekSunday,
 } from '../wave2a2-track-c/crewPayroll';
 import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
+import { ROOM_STAGE_LABEL, roomStageOf } from '../wave2a2-track-c/roomStatus';
 import { crewFirstNameMatches } from '../../lib/constants';
 import {
   crewCallbackTextBody,
@@ -68,17 +69,9 @@ const TASK_SHORT: Record<string, string> = {
   'touch-up-cut-in': 'touch+cut',
 };
 
-// One word per room, the way Los reads the board.
-const roomStatus = (work: TrackCWorkProjection): string => {
-  if (work.release !== 'released') return 'not released';
-  if (work.callbackOpen) return 'CALLBACK';
-  if (work.property === 'property-accepted') return 'Accepted';
-  if (work.inspection === 'los-passed') return 'Passed';
-  if (work.execution === 'crew-reported-complete') return 'Inspect';
-  if (work.execution === 'working') return 'Working';
-  if (work.activeCrewIds.length > 0) return 'Assigned';
-  return 'Released';
-};
+// One word per room, the way Los reads the board — from the ONE room-status
+// module, so chat can never disagree with the board.
+const roomStatus = (work: TrackCWorkProjection): string => ROOM_STAGE_LABEL[roomStageOf(work)];
 
 const roomLabel = (work: TrackCWorkProjection): string => {
   const section = trackCSectionLabel(work.section);

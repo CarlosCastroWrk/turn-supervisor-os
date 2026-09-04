@@ -58,7 +58,8 @@ import './track-b.css';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import type { StartHereItem } from '../wave2a2-track-c/startHere';
 import { payWeekNumberOf } from '../wave2a2-track-c/wallWeek';
-import { localDayOf } from '../../lib/localDay';
+import { localEventDate } from '../../lib/localDay';
+import { TRADE_STAGE_LABEL, TRADE_STAGE_ORDER } from '../wave2a2-track-c/roomStatus';
 
 type WorkspaceView =
   | { id: 'home' }
@@ -76,10 +77,6 @@ const friendlyDay = (isoDate: string) => {
     .toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
-const localEventDate = (iso: string) => {
-  const date = new Date(iso);
-  return localDayOf(date);
-};
 
 const queueIcons: Readonly<Record<TodayTaskQueueId, ReactNode>> = {
   callbacks: <RotateCcw aria-hidden="true" size={20} />,
@@ -1485,13 +1482,8 @@ function DayTaskHome({
       // Session-only.
     }
   };
-  const statusGroupName = (stage: LiveBoardLine['stage']) =>
-    stage === 'working' ? 'Working'
-      : stage === 'crew-done' ? 'Crew done — check'
-        : stage === 'passed' ? 'Ready to walk'
-          : stage === 'callback' ? 'Callback'
-            : 'Needs crew';
-  const STATUS_ORDER = ['Working', 'Crew done — check', 'Ready to walk', 'Callback', 'Needs crew'];
+  const statusGroupName = (stage: LiveBoardLine['stage']) => TRADE_STAGE_LABEL[stage];
+  const STATUS_ORDER = TRADE_STAGE_ORDER.map((stage) => TRADE_STAGE_LABEL[stage]);
   // Done-today can grow to dozens of units; keep it collapsed to a tappable
   // summary so it never stacks up and buries the rest of Home.
   const [doneExpanded, setDoneExpanded] = useState(false);

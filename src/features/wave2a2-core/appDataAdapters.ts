@@ -19,6 +19,9 @@ import type {
   DaySessionEvent,
   PropertyRoster,
   TodayTask,
+  LosInspectionState,
+  PropertyWalkState,
+  TodayTaskTradeState,
 } from '../wave2a2-track-b/types';
 import {
   DEFAULT_TRACK_C_TERMINOLOGY,
@@ -33,6 +36,7 @@ import {
   type TrackCWorkTarget,
   type TrackCEventType,
   type TrackCWalkSelectionReview,
+  type TrackCWorkProjection,
 } from '../wave2a2-track-c/model';
 import { projectTrackCWork } from '../wave2a2-track-c/projections';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
@@ -299,18 +303,51 @@ export function projectDayEvents(data: AppData): readonly DaySessionEvent[] {
     }));
 }
 
+// ONE FOLD. The day-task (Home queues) used to run its own event reducer over
+// fieldEvents — a second copy of the Track C room fold with its own rules. The
+// two drifted: the day-task did not know about fresh rounds (a re-released
+// room replayed its old "passed"), and a property acceptance did not clear a
+// callback for it. Now the day-task's trade states are READ OFF the Track C
+// projection — the same rooms, the same events, the same fresh-round rule —
+// so Home's queues can never disagree with the board.
+const trackBInspectionOf = (work: TrackCWorkProjection): LosInspectionState => {
+  if (work.callbackOpen) {
+    return work.inspection === 'reinspection-pending' ? 'reinspection-pending' : 'callback-required';
+  }
+  if (work.property === 'property-accepted' || work.inspection === 'los-passed') {
+    return work.callbackResolvedCount > 0 ? 'passed-after-callback' : 'passed';
+  }
+  return 'pending';
+};
+
+const trackBPropertyWalkOf = (work: TrackCWorkProjection): PropertyWalkState =>
+  work.property === 'property-accepted'
+    ? 'accepted'
+    : work.property === 'pending-property-walk'
+      ? 'pending'
+      : 'not-ready';
+
+export const tradeStateFromTrackC = (
+  initial: TodayTaskTradeState,
+  work: TrackCWorkProjection | undefined,
+): TodayTaskTradeState => {
+  if (!work || work.release !== 'released') return initial;
+  return {
+    ...initial,
+    assignedCrewId: work.responsibleCrewId ?? work.activeCrewIds[0],
+    execution: work.execution,
+    inspection: trackBInspectionOf(work),
+    propertyWalk: trackBPropertyWalkOf(work),
+  };
+};
+
 const taskExecutionState = (
   task: TodayTask,
-  events: readonly FieldEvent[],
+  trackC: TrackCState,
   keyStatus: DaySession['keyStatus'],
 ): TodayTask => ({
   ...task,
   sections: task.sections.map((section) => {
-    const relevantEvents = events
-      .filter((event) =>
-        event.unitId === section.unitId
-        && event.section === section.sectionId)
-      .sort(byRecordedAt);
     const waitingReasons = [
       ...section.uncertainties,
       ...section.restrictions.filter((restriction) => hardRestrictionPattern.test(restriction)),
@@ -322,42 +359,14 @@ const taskExecutionState = (
     ];
     return {
       ...section,
-      tradeStates: section.tradeStates.map((initialState) => {
-        const trade = initialState.trade === 'Paint' ? 'paint' : 'clean';
-        return relevantEvents
-          .filter((event) => event.trade === trade)
-          .reduce((state, event) => {
-            if (event.eventType === 'assignment-confirmed') {
-              return { ...state, assignedCrewId: event.reportedBy ?? event.actorId, execution: 'assigned' };
-            }
-            if (event.eventType === 'assignment-cleared') {
-              return { ...state, assignedCrewId: undefined, execution: 'unassigned' };
-            }
-            if (event.eventType === 'work-started') return { ...state, execution: 'working' };
-            if (event.eventType === 'crew-reported-complete') {
-              return { ...state, execution: 'crew-reported-complete' };
-            }
-            if (event.eventType === 'los-passed') {
-              return { ...state, inspection: 'passed', propertyWalk: 'pending' };
-            }
-            if (event.eventType === 'callback-opened') {
-              return { ...state, inspection: 'callback-required', propertyWalk: 'not-ready' };
-            }
-            if (event.eventType === 'callback-correction-reported') {
-              return { ...state, inspection: 'reinspection-pending', propertyWalk: 'not-ready' };
-            }
-            if (event.eventType === 'callback-resolved') {
-              return { ...state, inspection: 'passed-after-callback', propertyWalk: 'pending' };
-            }
-            if (event.eventType === 'property-accepted') {
-              return { ...state, propertyWalk: 'accepted' };
-            }
-            if (event.eventType === 'property-correction-requested') {
-              return { ...state, inspection: 'callback-required', propertyWalk: 'not-ready' };
-            }
-            return state;
-          }, { ...initialState });
-      }),
+      tradeStates: section.tradeStates.map((initialState) => tradeStateFromTrackC(
+        initialState,
+        projectTrackCWork(trackC, {
+          section: section.sectionId as TrackCSection,
+          trade: initialState.trade === 'Paint' ? 'paint' : 'clean',
+          unitId: section.unitId,
+        }),
+      )),
       waitingReasons: unique(waitingReasons),
     };
   }),
@@ -382,18 +391,7 @@ export function projectTodayTask(
   // Reduce every field event for THIS project's day sessions (same rule the
   // field-ops projection uses), so both sides always agree. The reducer already
   // scopes each event to its exact unit+section, so other sessions can't leak.
-  const projectSessionIds = new Set(
-    data.daySessions
-      .filter((candidate) => candidate.projectId === data.activeProjectId)
-      .map((candidate) => candidate.id),
-  );
-  return taskExecutionState(
-    result.task,
-    data.fieldEvents.filter((event) =>
-      event.projectId === data.activeProjectId
-      && Boolean(event.daySessionId && projectSessionIds.has(event.daySessionId))),
-    session.keyStatus,
-  );
+  return taskExecutionState(result.task, projectTrackCState(data), session.keyStatus);
 }
 
 const toFoundationDayEvent = (

@@ -7,6 +7,7 @@ import {
   enterDemoTurn,
   exitDemoTurn,
   isDemoTurnActive,
+  showsFirstRunWelcome,
 } from '../src/data/demoTurn.ts';
 import { projectTrackCState } from '../src/features/wave2a2-core/appDataAdapters.ts';
 import { buildAllCrewPayroll } from '../src/features/wave2a2-track-c/crewPayroll.ts';
@@ -141,4 +142,11 @@ test('the demo survives an app reload — normalize keeps it active', () => {
   assert.ok(entered.ok);
   const normalized = normalizeAppData(structuredClone(entered.data));
   assert.equal(normalized.activeProjectId, DEMO_TOWER_PROJECT_ID);
+});
+
+test('the first-run welcome card never sits on top of the Demo Turn', () => {
+  assert.equal(showsFirstRunWelcome(undefined), true, 'no project at all → welcome');
+  assert.equal(showsFirstRunWelcome({ id: 'sample', mode: 'demo' }), true, 'bare sample project → welcome');
+  assert.equal(showsFirstRunWelcome({ id: DEMO_TOWER_PROJECT_ID, mode: 'demo' }), false, 'inside the Demo Turn → the demo IS the tour');
+  assert.equal(showsFirstRunWelcome({ id: 'real-1', mode: 'real' }), false, 'a real turn never shows it');
 });

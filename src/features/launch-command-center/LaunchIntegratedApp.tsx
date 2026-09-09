@@ -38,7 +38,7 @@ import {
   closedTurnSummary,
   reopenActiveTurn,
 } from '../wave2a2-core/closedTurn';
-import { enterDemoTurn, exitDemoTurn } from '../../data/demoTurn';
+import { enterDemoTurn, exitDemoTurn, showsFirstRunWelcome } from '../../data/demoTurn';
 import type {
   LaunchPrimaryDestination,
   LaunchQuickActionId,
@@ -4065,7 +4065,7 @@ function LaunchOperationalApp({
           </div>
         </section>
       ) : null}
-      {launchProjection.project?.mode !== 'real' && !activeTurnClosed && !demoExplored ? (
+      {showsFirstRunWelcome(launchProjection.project) && !activeTurnClosed && !demoExplored ? (
         <section aria-labelledby="lcc-welcome-title" className="lcc-welcome">
           <span aria-hidden="true" className="lcc-welcome__mark">
             <svg viewBox="0 0 512 512" width="40" height="40" fill="none" stroke="currentColor"
@@ -5472,7 +5472,7 @@ function LaunchOperationalApp({
         }}
         dateLabel={launchProjection.dateLabel}
         detailMode={shellDetailMode}
-        onboarding={launchProjection.project?.mode !== 'real' && !demoExplored}
+        onboarding={showsFirstRunWelcome(launchProjection.project) && !demoExplored}
         onNavigate={handlePrimaryNavigation}
         onOpenHome={() => handlePrimaryNavigation('home')}
         onOpenIntelligence={() => undefined}

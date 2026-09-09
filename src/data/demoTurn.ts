@@ -536,3 +536,11 @@ export const exitDemoTurn = (data: AppData): DemoTurnResult => {
 
 export const isDemoTurnActive = (data: AppData): boolean =>
   data.activeProjectId === DEMO_TOWER_PROJECT_ID;
+
+// Whether Home should show the first-run "Welcome / Start Property Setup"
+// card. Only a bare sample project shows it — the Demo Turn is the tour, so
+// it must never sit on top of the demo's own Home (it did, after any reload
+// inside the demo, because the "explored" flag was session-only).
+export const showsFirstRunWelcome = (
+  project: { readonly id: string; readonly mode: string } | undefined,
+): boolean => !project || (project.mode !== 'real' && project.id !== DEMO_TOWER_PROJECT_ID);

@@ -32,6 +32,13 @@ export const portalSnapshotSchema = z.object({
         c: tradeStatusSchema,
         cb: z.boolean().optional(),
         partial: z.boolean().optional(),
+        // Rooms Los passed that the property has not walked yet (per trade),
+        // and "on hold" — the portal renders chips off these. zod strips any
+        // key it does not list, so an unlisted field is silently dropped
+        // between the app and the page (that happened; the chips never showed).
+        pr: z.number().int().min(0).max(12).optional(),
+        cr: z.number().int().min(0).max(12).optional(),
+        bk: z.boolean().optional(),
       }),
     )
     .max(500),

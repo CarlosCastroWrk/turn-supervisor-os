@@ -14,21 +14,24 @@ import {
 // ledger goes back in place and saves keep working.
 
 const store = new Map<string, string>();
-let corruptNextReadback = false;
+// Arm this to simulate a write that did not land the way it was sent — the
+// readback then disagrees with what restore wrote, which is the failure mode.
+let corruptNextWrite = false;
 Object.defineProperty(globalThis, 'window', {
   configurable: true,
   value: {
     addEventListener: () => undefined,
     removeEventListener: () => undefined,
     localStorage: {
-      getItem: (key: string) => {
-        if (corruptNextReadback && key === APP_DATA_STORAGE_KEY) {
-          corruptNextReadback = false;
-          return 'not what was written';
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (corruptNextWrite && key === APP_DATA_STORAGE_KEY) {
+          corruptNextWrite = false;
+          store.set(key, 'not what was written');
+          return;
         }
-        return store.get(key) ?? null;
+        store.set(key, value);
       },
-      setItem: (key: string, value: string) => { store.set(key, value); },
       removeItem: (key: string) => { store.delete(key); },
     },
   },
@@ -39,7 +42,7 @@ test('a restore that fails verification puts the previous ledger back and leaves
   const before = store.get(APP_DATA_STORAGE_KEY);
   assert.ok(before);
 
-  corruptNextReadback = true;
+  corruptNextWrite = true;
   assert.equal(restoreAppDataNow(seedData), false, 'restore reports failure');
   assert.equal(didLastRestoreFail(), true);
   assert.equal(store.get(APP_DATA_STORAGE_KEY), before, 'previous ledger is back in place');

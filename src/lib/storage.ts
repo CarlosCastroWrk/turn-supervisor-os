@@ -422,6 +422,16 @@ export const restoreAppDataNow = (data: AppData) => {
     return false;
   }
   const retained = applyActivityLogRetention(data);
+  // Remember what was there so a restore that cannot be verified can be
+  // undone in place. A failed restore is NOT a corrupt load: the running app
+  // is still fine, and its ordinary saves must keep working (they used to be
+  // refused until reload — one bad restore file froze every tap after it).
+  let previous: string | null = null;
+  try {
+    previous = window.localStorage.getItem(STORAGE_KEY);
+  } catch {
+    // Unreadable storage — nothing to put back.
+  }
   try {
     const encoded = encodeStoredPayload(JSON.stringify(retained));
     window.localStorage.setItem(STORAGE_KEY, encoded);
@@ -429,19 +439,31 @@ export const restoreAppDataNow = (data: AppData) => {
     if (readback !== encoded) {
       throw new Error('Saved data did not match browser-storage readback.');
     }
-    lastWrittenPayload = encoded;
     parseJsonBackup(decodeStoredPayload(readback));
+    lastWrittenPayload = encoded;
+    lastRestoreFailed = false;
     appDataWriter.cancel();
     appDataLoadBlocked = false;
     setAppDataSaveStatus('saved', false);
     return true;
   } catch (error) {
-    appDataLoadBlocked = true;
-    setAppDataSaveStatus('failed', false);
-    console.warn('Restored data could not be durably verified.', error);
+    lastRestoreFailed = true;
+    try {
+      if (previous === null) window.localStorage.removeItem(STORAGE_KEY);
+      else window.localStorage.setItem(STORAGE_KEY, previous);
+    } catch {
+      // Best effort; the in-memory ledger is unchanged either way.
+    }
+    logError('save', error, 'Restore could not be verified — previous data kept');
+    console.warn('Restored data could not be durably verified; previous data kept.', error);
     return false;
   }
 };
+
+// True after the most recent restore attempt failed verification (the
+// previous ledger was put back). Separate from appDataLoadBlocked on purpose.
+let lastRestoreFailed = false;
+export const didLastRestoreFail = () => lastRestoreFailed;
 
 export const prepareAppDataUpdate = (
   current: AppData,

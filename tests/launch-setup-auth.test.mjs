@@ -246,3 +246,25 @@ test('online authentication does not imply access to another account local cache
   assert.match(controller.getState().message, /different account/u);
   controller.dispose();
 });
+
+test('a sign-in server that cannot be reached is explained in plain words, never "Failed to fetch"', async () => {
+  const { friendlyAuthError, UNREACHABLE_AUTH_MESSAGE } = await import('../src/features/launch-setup/auth.ts');
+  assert.equal(friendlyAuthError(new TypeError('Failed to fetch')), UNREACHABLE_AUTH_MESSAGE);
+  const retryable = new Error('Load failed');
+  retryable.name = 'AuthRetryableFetchError';
+  assert.equal(friendlyAuthError(retryable), UNREACHABLE_AUTH_MESSAGE);
+  assert.equal(friendlyAuthError(new Error('Invalid login credentials')), 'Invalid login credentials');
+  assert.equal(friendlyAuthError(undefined), 'Authentication could not be completed.');
+
+  // The adapter applies it on every path, including a Supabase error object.
+  const { port } = createAuthPort();
+  const adapter = createSupabaseAuthAdapter({
+    ...port,
+    async signInWithPassword() {
+      return { data: { session: null }, error: retryable };
+    },
+  });
+  const result = await adapter.signInWithPassword('los@example.test', 'not-checked');
+  assert.equal(result.ok, false);
+  assert.equal(result.error, UNREACHABLE_AUTH_MESSAGE);
+});

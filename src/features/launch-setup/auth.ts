@@ -39,10 +39,22 @@ const sessionSnapshot = (session: Session): AuthSessionSnapshot => ({
   ...(session.expires_at ? { expiresAt: session.expires_at } : {}),
 });
 
-const safeAuthError = (error: unknown) =>
-  error instanceof Error && error.message.trim()
-    ? error.message
-    : 'Authentication could not be completed.';
+// Sign-in failures reach Los as words he can act on. A network-level failure
+// (phone offline, or the cloud project asleep — the free tier pauses a project
+// after seven idle days, and that took login down on Sep 8 2026) must never
+// surface as the browser's raw "Failed to fetch".
+const UNREACHABLE_PATTERN =
+  /failed to fetch|load failed|network ?(error|request)|fetch failed|econn|timed? ?out|AuthRetryableFetchError/i;
+export const UNREACHABLE_AUTH_MESSAGE =
+  "Can't reach the sign-in server. If you're online, the cloud project may be asleep — "
+  + 'open supabase.com, sign in, and give it a minute. Everything saved on this phone is untouched.';
+
+export const friendlyAuthError = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const name = error instanceof Error ? error.name : '';
+  if (UNREACHABLE_PATTERN.test(`${name} ${message}`)) return UNREACHABLE_AUTH_MESSAGE;
+  return message.trim() || 'Authentication could not be completed.';
+};
 
 export const createSupabaseAuthAdapter = (
   port: SupabaseAuthPort | null,
@@ -52,21 +64,21 @@ export const createSupabaseAuthAdapter = (
     if (!port) return authFailure('Supabase Auth is not configured.');
     try {
       const response = await port.getSession();
-      if (response.error) return authFailure(response.error.message);
+      if (response.error) return authFailure(friendlyAuthError(response.error));
       return authSuccess(response.data.session ? sessionSnapshot(response.data.session) : null);
     } catch (error) {
-      return authFailure(safeAuthError(error));
+      return authFailure(friendlyAuthError(error));
     }
   },
   async signInWithPassword(email, password) {
     if (!port) return authFailure('Supabase Auth is not configured.');
     try {
       const response = await port.signInWithPassword({ email, password });
-      if (response.error) return authFailure(response.error.message);
+      if (response.error) return authFailure(friendlyAuthError(response.error));
       if (!response.data.session) return authFailure('Sign-in succeeded without a usable session.');
       return authSuccess(sessionSnapshot(response.data.session));
     } catch (error) {
-      return authFailure(safeAuthError(error));
+      return authFailure(friendlyAuthError(error));
     }
   },
   async requestPasswordReset(email, redirectTo) {
@@ -76,18 +88,18 @@ export const createSupabaseAuthAdapter = (
         email,
         redirectTo ? { redirectTo } : undefined,
       );
-      return response.error ? authFailure(response.error.message) : authSuccess(undefined);
+      return response.error ? authFailure(friendlyAuthError(response.error)) : authSuccess(undefined);
     } catch (error) {
-      return authFailure(safeAuthError(error));
+      return authFailure(friendlyAuthError(error));
     }
   },
   async signOut() {
     if (!port) return authFailure('Supabase Auth is not configured.');
     try {
       const response = await port.signOut();
-      return response.error ? authFailure(response.error.message) : authSuccess(undefined);
+      return response.error ? authFailure(friendlyAuthError(response.error)) : authSuccess(undefined);
     } catch (error) {
-      return authFailure(safeAuthError(error));
+      return authFailure(friendlyAuthError(error));
     }
   },
   subscribe(listener) {

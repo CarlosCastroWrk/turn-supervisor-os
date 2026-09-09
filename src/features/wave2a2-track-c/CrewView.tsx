@@ -20,6 +20,7 @@ import type {
 } from './model';
 import { paintWorkTypeLabel, trackCSectionLabel } from './model';
 import { savePayWeekPacketPdf } from './payPacketPdf';
+import { buildPaidWeekSnapshot, diffPaidWeek, readPaidWeeks, writePaidWeek } from './paidWeekSnapshot';
 import {
   buildAllCrewPayroll,
   type CrewPayroll,
@@ -403,6 +404,9 @@ export const CrewView = ({
   propertyContacts,
 }: CrewViewProps) => {
   const [payCopied, setPayCopied] = useState('');
+  // What Tony was HANDED per pay week — stamped when the packet is copied or
+  // saved as PDF, then compared against the live number by the pre-flight.
+  const [paidWeeks, setPaidWeeks] = useState(() => readPaidWeeks());
   const [wallCopied, setWallCopied] = useState<{ trade: 'paint' | 'clean' | 'day'; msg: string } | null>(null);
   const [ackExtras, setAckExtras] = useState<ReadonlySet<string>>(() => readAckExtras());
   // Collapsible trade groups: Los shouldn't scroll the whole paint pile to
@@ -502,6 +506,10 @@ export const CrewView = ({
     () => buildAllCrewPayroll(state, now),
     [state, now],
   );
+  const stampPaidWeek = () => {
+    const crewNameOf = (crewId: string) => state.crews.find((crew) => crew.id === crewId)?.name ?? crewId;
+    setPaidWeeks(writePaidWeek(buildPaidWeekSnapshot(payrollByCrew, crewNameOf, activePayWeek, now.toISOString())));
+  };
   // PAYROLL PRE-FLIGHT — the app audits itself BEFORE Saturday with Tony.
   // Every check compares two surfaces that must agree: done events vs crew
   // names (who gets paid?), the pay packet vs the live board, extras vs the
@@ -597,8 +605,24 @@ export const CrewView = ({
         text: `${pendingExtras.length} extra${pendingExtras.length === 1 ? '' : 's'} (cut-ins / textures / changes) not verified yet — run the extras list below.`,
       });
     }
+    // 6: the number MOVED after the packet went to Tony — a task type edited,
+    // a room pulled off release, a late report. Payroll is live; the packet
+    // he holds is not. Say exactly what changed, per crew.
+    const sent = paidWeeks[String(activePayWeek)];
+    if (sent) {
+      const crewNameOf = (crewId: string) => state.crews.find((crew) => crew.id === crewId)?.name ?? crewId;
+      const moved = diffPaidWeek(sent, buildPaidWeekSnapshot(payrollByCrew, crewNameOf, activePayWeek, sent.sentAt));
+      if (moved.length > 0) {
+        const when = new Date(sent.sentAt).toLocaleDateString([], { month: 'short', day: 'numeric' });
+        items.push({
+          key: 'drift',
+          kind: 'fix',
+          text: `Week ${activePayWeek} moved since you sent it ${when}: ${moved.join(' · ')}. Tell Tony, or copy the packet again.`,
+        });
+      }
+    }
     return items;
-  }, [state, payrollByCrew, weekExtras, ackExtras, activePayWeek]);
+  }, [state, payrollByCrew, weekExtras, ackExtras, activePayWeek, paidWeeks]);
   // Prefilled, organized text from the crew's REAL current assignments —
   // bilingual-lite so it works for Spanish- and English-speaking crews.
   const composeBody = (crewId: string, crewName: string) => {
@@ -1083,7 +1107,10 @@ export const CrewView = ({
                 className="track-c-weeksummary__copy"
                 onClick={() => {
                   void navigator.clipboard?.writeText(packetText)
-                    .then(() => setPayCopied('Copied — paste it to Tony or use it to fill the board.'))
+                    .then(() => {
+                      stampPaidWeek();
+                      setPayCopied('Copied — paste it to Tony or use it to fill the board. This week is on record as sent.');
+                    })
                     .catch(() => setPayCopied('Copy not available — read it here.'));
                 }}
                 type="button"
@@ -1104,7 +1131,10 @@ export const CrewView = ({
                     textureTotal: totalTextures,
                     weekStart,
                   })
-                    .then((filename) => setPayCopied(`Saved ${filename} — hand it to Tony or AirDrop it.`))
+                    .then((filename) => {
+                      stampPaidWeek();
+                      setPayCopied(`Saved ${filename} — hand it to Tony or AirDrop it. This week is on record as sent.`);
+                    })
                     .catch(() => setPayCopied('PDF needs a moment online first — try again.'));
                 }}
                 type="button"

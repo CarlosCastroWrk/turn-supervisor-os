@@ -7,6 +7,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNow } from '../../hooks/useNow';
 import { compareUnitTopFloorFirst } from '../../lib/unitOrder';
 import {
   appendContactLog,
@@ -140,7 +141,8 @@ const CrewDetail = ({
   const headingRef = useRef<HTMLHeadingElement>(null);
   // Week filter for the units list: 0 = all weeks, or a specific pay week Los
   // flips to. Defaults to the current pay week so the profile opens on "now".
-  const currentWeek = payWeekNumberOf(new Date().toISOString());
+  const now = useNow();
+  const currentWeek = payWeekNumberOf(now.toISOString());
   const [weekFilter, setWeekFilter] = useState<number>(currentWeek);
   const detail = useMemo(
     () => projectTrackCCrewDetail(state, crewId),
@@ -443,7 +445,10 @@ export const CrewView = ({
   // Which DAY the "tonight's board" transfer shows — null = the latest day
   // with done work (usually today). Chips cover the whole history.
   const [dayPick, setDayPick] = useState<string | null>(null);
-  const currentPayWeek = payWeekNumberOf(new Date().toISOString());
+  // One ticking clock for the page: pay-week header, "today" tallies, and the
+  // payroll memo all read it, so they roll over together.
+  const now = useNow();
+  const currentPayWeek = payWeekNumberOf(now.toISOString());
   const activePayWeek = (payWeekPick && weeksWithWork.includes(payWeekPick))
     ? payWeekPick
     : (weeksWithWork.length > 0 ? weeksWithWork[weeksWithWork.length - 1] : currentPayWeek);
@@ -494,8 +499,8 @@ export const CrewView = ({
   // agree. Each room pays once (deduped), attributed to the day it was first
   // reported done. See crewPayroll.ts for the pay-week/dedup rules.
   const payrollByCrew = useMemo(
-    () => buildAllCrewPayroll(state, new Date()),
-    [state.events],
+    () => buildAllCrewPayroll(state, now),
+    [state, now],
   );
   // PAYROLL PRE-FLIGHT — the app audits itself BEFORE Saturday with Tony.
   // Every check compares two surfaces that must agree: done events vs crew
@@ -661,7 +666,6 @@ export const CrewView = ({
         // Pay weeks run Sunday -> Saturday, date only (no time cutoff). Week
         // number comes from the ONE shared source (payWeekNumberOf) so the header
         // always agrees with the wall grid and crew tags. Colors follow the board.
-        const now = new Date();
         const weekNumber = payWeekNumberOf(now.toISOString());
         const colors: Record<number, string> = { 1: 'yellow', 2: 'green', 3: 'pink' };
         // Week bounds come from the pay engine's own Sunday rule — not a
@@ -1282,12 +1286,12 @@ export const CrewView = ({
         if (allRooms.length === 0) return null;
         const days = [...new Set(allRooms.map((room) => room.date))].sort().reverse();
         const activeDay = dayPick && days.includes(dayPick) ? dayPick : days[0];
-        const todayLocal = payLocalDate(new Date().toISOString());
+        const todayLocal = payLocalDate(now.toISOString());
         const dayLabel = (date: string) => {
           if (date === todayLocal) return 'Today';
           const [y, m, d] = date.split('-').map(Number);
           const when = new Date(y, m - 1, d);
-          const yesterday = new Date();
+          const yesterday = new Date(now);
           yesterday.setDate(yesterday.getDate() - 1);
           if (date === payLocalDate(yesterday.toISOString())) return 'Yesterday';
           return when.toLocaleDateString([], { weekday: 'short', month: 'numeric', day: 'numeric' });

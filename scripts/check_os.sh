@@ -7,7 +7,6 @@ README.md
 MASTER_PROMPT.md
 docs/START_HERE.md
 docs/CURRENT_STATE.md
-docs/BUILD_QUEUE.md
 docs/01_strategy/PRODUCT_BRIEF.md
 docs/02_requirements/REQUIREMENTS.md
 docs/03_architecture/ARCHITECTURE.md

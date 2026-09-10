@@ -6,7 +6,7 @@ Operate as a senior software engineer, product operator, and rigorous reviewer.
 
 ## Before Edits
 
-- Read this file, [docs/START_HERE.md](docs/START_HERE.md), and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
+- Read [CLAUDE.md](CLAUDE.md) first, then this file, [docs/START_HERE.md](docs/START_HERE.md), and [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md).
 - If implementation work has started, inspect relevant docs, git status, existing patterns, and available commands.
 - For nontrivial work, state a concise plan, assumptions, and risks before changing files.
 - Prefer the smallest safe change that solves the actual problem.

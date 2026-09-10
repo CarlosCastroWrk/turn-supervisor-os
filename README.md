@@ -288,7 +288,7 @@ graceful offline behavior, and JSON export stays forever.
 
 ## Roadmap
 
-The active roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Normal non-emergency work should use the PR workflow in [docs/06_release/GITHUB_PR_WORKFLOW.md](docs/06_release/GITHUB_PR_WORKFLOW.md).
+Current state and ranked debt live in [docs/CURRENT_STATE.md](docs/CURRENT_STATE.md); the working rules in [CLAUDE.md](CLAUDE.md). The version list below is the July 2026 plan, kept for the record.
 
 ### Version 0.2
 

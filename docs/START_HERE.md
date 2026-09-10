@@ -1,43 +1,22 @@
 # Start Here
 
-This workspace is in Phase 1 Stabilize for PDS / Turn Field Copilot. The current priority is proving Real Turn Mode, local-first behavior, Supabase sync, export/backup, and mobile PWA usability across Los's Mac, iPhone, and iPad before real field data is entered.
+Read in this order:
 
-## Reading Order
+1. [CLAUDE.md](../CLAUDE.md) — who Los is, field rules, engineering
+   guardrails, the deploy command, where things live. The one file that must
+   be right.
+2. [AGENTS.md](../AGENTS.md) — how to work in this repo (approvals, safety,
+   report format).
+3. [docs/CURRENT_STATE.md](CURRENT_STATE.md) — what exists today and the
+   ranked debt.
+4. [docs/TESTING.md](TESTING.md) — the gates that must be green before any
+   commit.
+5. [docs/DESIGN_LANGUAGE.md](DESIGN_LANGUAGE.md) — the "Field Calm" rules
+   for every screen.
 
-1. [AGENTS.md](../AGENTS.md)
-2. [MASTER_PROMPT.md](../MASTER_PROMPT.md)
-3. [docs/CURRENT_STATE.md](CURRENT_STATE.md)
-4. [docs/ROADMAP.md](ROADMAP.md)
-5. [docs/TESTING.md](TESTING.md)
-6. [docs/RISKS.md](RISKS.md)
-7. [docs/DECISIONS.md](DECISIONS.md)
-8. [docs/BUILD_QUEUE.md](BUILD_QUEUE.md)
-9. [docs/04_execution/IMPLEMENTATION_PLAN.md](04_execution/IMPLEMENTATION_PLAN.md)
-10. [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/FABLE5_EXECUTION_ROADMAP.md)
-11. [docs/05_quality/QA_PLAN.md](05_quality/QA_PLAN.md)
-12. [docs/06_release/GITHUB_PR_WORKFLOW.md](06_release/GITHUB_PR_WORKFLOW.md)
-13. [ops/decisions](../ops/decisions)
+Product intent and field truth: [docs/product/](product/) (constitution,
+field truth model, official links policy, branding).
 
-## Source Of Truth
-
-- Master intent: [MASTER_PROMPT.md](../MASTER_PROMPT.md)
-- Current project state: [docs/CURRENT_STATE.md](CURRENT_STATE.md)
-- Phase roadmap: [docs/ROADMAP.md](ROADMAP.md)
-- Active test gate: [docs/TESTING.md](TESTING.md)
-- Current risks: [docs/RISKS.md](RISKS.md)
-- Current decisions: [docs/DECISIONS.md](DECISIONS.md)
-- Approved tasks: [docs/BUILD_QUEUE.md](BUILD_QUEUE.md)
-- Fable 5 execution roadmap: [docs/04_execution/FABLE5_EXECUTION_ROADMAP.md](04_execution/FABLE5_EXECUTION_ROADMAP.md)
-- GitHub / PR workflow: [docs/06_release/GITHUB_PR_WORKFLOW.md](06_release/GITHUB_PR_WORKFLOW.md)
-- Architecture decisions: [ops/decisions](../ops/decisions)
-- Work history: [docs/04_execution/WORK_LOG.md](04_execution/WORK_LOG.md)
-
-## Operating Loop
-
-1. Intake the prompt.
-2. Extract assumptions, constraints, risks, and success criteria.
-3. Turn the prompt into requirements.
-4. Design the smallest viable architecture.
-5. Build in thin vertical slices.
-6. Verify each slice.
-7. Record decisions and handoff notes.
+Everything else under `docs/` (numbered folders, `build/`, `DECISIONS.md`)
+is July 2026 planning and sprint history. It is kept for the record, not as
+a description of the current app.
